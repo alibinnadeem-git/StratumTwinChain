@@ -26,6 +26,7 @@ jobs:
           rsync -a --delete \
             --exclude='.git/' \
             --exclude='.github/workflows/migrate-from-verified.yml' \
+            --exclude='.github/workflows/ci.yml' \
             /tmp/stratum-verified/ ./
           node - <<'NODE'
           const fs=require('fs');
