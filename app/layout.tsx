@@ -1,1 +1,9 @@
-import './globals.css';import Shell from '@/components/Shell';export const metadata={title:'STRATUM Verified',description:'Verified infrastructure lifecycle and provenance platform'};export default function RootLayout({children}:{children:React.ReactNode}){return <html lang="en"><body><Shell>{children}</Shell></body></html>}
+import './globals.css';
+import './responsive.css';
+import Shell from '@/components/Shell';
+
+export const metadata={title:'STRATUM Verified',description:'Verified infrastructure lifecycle, digital twin and Digital Immutable Records System (DIRS)'};
+
+export default function RootLayout({children}:{children:React.ReactNode}){
+ return <html lang="en"><body><Shell>{children}</Shell></body></html>
+}
