@@ -3,7 +3,10 @@ import {expect,test} from '@playwright/test';
 const routes=[
   '/', '/compiler','/twin','/reality','/projects','/sites','/assets',
   '/workflows','/maintenance','/predictive','/simulation','/evidence',
-  '/handover','/provenance','/verify','/dir','/admin'
+  '/handover','/provenance','/verify','/dir','/admin','/inspection',
+  '/passports','/asset-passports','/passport/STR-AST-0009281','/build','/install',
+  '/operate','/predictive-maintenance','/reality-reconciliation','/digital-handover',
+  '/client-trust','/chain-explorer','/trust','/twin-compiler','/dirs'
 ];
 
 test.describe('STRATUM Verified route and responsive UAT',()=>{
