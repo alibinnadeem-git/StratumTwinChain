@@ -59,13 +59,14 @@ export default function FieldScanner(){
   function continueFlow(){
     const q=(detected||value).trim();
     if(!q){setMessage('Scan or enter an asset code / serial number first.');return;}
-    router.push(`/verify?q=${encodeURIComponent(q)}`);
+    stop();
+    router.push(`/inspection?q=${encodeURIComponent(q)}`);
   }
 
   return <div className="phone">
     <div className="phone-head">STRATUM VERIFIED <span>FIELD</span></div>
     <div className="scan-box" style={{position:'relative',overflow:'hidden'}}>
-      {scanning?<video ref={videoRef} playsInline muted style={{width:'100%',height:'100%',objectFit:'cover',position:'absolute',inset:0}}/>:<><div className="scan-line"/><b>{detected?'Equipment detected':'Scan equipment'}</b><span>{detected||'QR · Barcode · Serial'}</span></>}
+      {scanning?<video ref={videoRef} playsInline muted autoPlay style={{width:'100%',height:'100%',objectFit:'cover',position:'absolute',inset:0}}/>:<><div className="scan-line"/><b>{detected?'Equipment detected':'Scan equipment'}</b><span>{detected||'QR · Barcode · Serial'}</span></>}
     </div>
     <div className="phone-card"><small>Scanner status</small><strong>{detected||'Ready to identify equipment'}</strong><span>{message}</span></div>
     <button type="button" onClick={scanning?stop:start}>{scanning?'Stop camera':'Open scanner'}</button>
