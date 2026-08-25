@@ -1,5 +1,9 @@
 import {defineConfig,devices} from '@playwright/test';
 
+const localBaseURL='http://127.0.0.1:3000';
+const externalBaseURL=process.env.STRATUM_UAT_BASE_URL?.replace(/\/$/,'');
+const baseURL=externalBaseURL||localBaseURL;
+
 export default defineConfig({
   testDir:'./tests/e2e',
   timeout:45_000,
@@ -9,7 +13,7 @@ export default defineConfig({
   workers:process.env.CI?2:undefined,
   reporter:process.env.CI?[['line'],['html',{outputFolder:'playwright-report',open:'never'}]]:'list',
   use:{
-    baseURL:'http://127.0.0.1:3000',
+    baseURL,
     trace:'retain-on-failure',
     screenshot:'only-on-failure',
     video:'retain-on-failure'
@@ -19,9 +23,9 @@ export default defineConfig({
     {name:'tablet-chromium',use:{...devices['iPad Pro 11'],browserName:'chromium'}},
     {name:'mobile-chromium',use:{...devices['Pixel 7'],browserName:'chromium'}}
   ],
-  webServer:{
+  webServer:externalBaseURL?undefined:{
     command:'npm run start',
-    url:'http://127.0.0.1:3000',
+    url:localBaseURL,
     reuseExistingServer:!process.env.CI,
     timeout:120_000
   }
