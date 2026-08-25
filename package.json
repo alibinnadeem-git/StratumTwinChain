@@ -1,6 +1,6 @@
 {
   "name": "@stratum/twin-chain",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -11,6 +11,7 @@
   "dependencies": {
     "jose": "^6.0.11",
     "next": "16.3.1",
+    "pdfjs-dist": "^5.4.149",
     "pg": "^8.13.3",
     "qrcode": "^1.5.4",
     "react": "19.2.0",
