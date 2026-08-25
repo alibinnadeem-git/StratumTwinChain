@@ -21,17 +21,23 @@ function routeExists(href){const clean=href.split(/[?#]/)[0]||'/';return routePa
 for(const file of sourceFiles){
  const rel=path.relative(root,file).replaceAll(path.sep,'/');
  const text=fs.readFileSync(file,'utf8');
- // Hard-coded internal links and router pushes must point at an App Router page.
- const links=[...text.matchAll(/(?:href\s*=\s*["']|router\.push\(\s*["'])(\/[A-Za-z0-9_\-/.?=#]+)["']/g)].map(m=>m[1]);
+ // Hard-coded internal links and simple router.push calls must point at an App Router page.
+ const links=[
+  ...text.matchAll(/href\s*=\s*["'](\/[A-Za-z0-9_\-/.?=#]+)["']/g),
+  ...text.matchAll(/router\.push\(\s*["'](\/[A-Za-z0-9_\-/.?=#]+)["']/g)
+ ].map(m=>m[1]);
  for(const href of links){if(!routeExists(href))errors.push(`${rel}: internal route ${href} has no page.tsx target`);}
- // A rendered button must have a real behavior or be an actual form submit/reset control.
- for(const m of text.matchAll(/<button\b([^>]*)>/gms)){
-   const attrs=m[1];
-   const functional=/onClick\s*=|formAction\s*=|type\s*=\s*["'](?:submit|reset)["']/.test(attrs);
-   const intentionallyDisabled=/disabled(?:\s|=|>)/.test(attrs)&&!/disabled\s*=\s*\{/.test(attrs);
+
+ // Inspect the entire button element instead of only the opening tag. Arrow functions contain `=>`,
+ // which makes a naive `[^>]*` opening-tag parser stop before onClick handlers.
+ for(const m of text.matchAll(/<button\b[\s\S]*?<\/button>/g)){
+   const button=m[0];
+   const functional=/onClick\s*=|formAction\s*=|type\s*=\s*["'](?:submit|reset)["']/.test(button);
+   const intentionallyDisabled=/\bdisabled\b/.test(button)&&!/disabled\s*=\s*\{/.test(button);
    if(!functional&&!intentionallyDisabled)errors.push(`${rel}: inert <button> detected near offset ${m.index}`);
  }
- // Avoid legacy public-facing blockchain wording. Technical implementation filenames/APIs are exempt; UI copy is not.
+
+ // User-facing product language should use DIR rather than generic blockchain terminology.
  if(/\bblockchain\b/i.test(text)&&!rel.startsWith('app/api/'))warnings.push(`${rel}: public-facing "blockchain" wording remains`);
 }
 
