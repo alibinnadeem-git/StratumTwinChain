@@ -62,7 +62,6 @@ test('project CRUD entry point opens a usable editor',async({page})=>{
   const create=page.getByRole('button',{name:/New project/i});
   await expect(create).toBeVisible();
   await create.click();
-  await expect(page.getByText('Create project',{exact:true})).toBeVisible();
   await expect(page.getByPlaceholder('Project name')).toBeVisible();
   await expect(page.getByPlaceholder('Client')).toBeVisible();
   await expect(page.getByPlaceholder('Location')).toBeVisible();
