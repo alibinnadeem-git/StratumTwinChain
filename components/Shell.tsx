@@ -3,7 +3,7 @@ import type {ReactNode} from 'react';
 import {demoSession} from '@/lib/auth/session';
 const groups=[
  {label:'Workspace',links:[['/','Overview'],['/twin','STRATUM Twin'],['/projects','Projects'],['/sites','Sites'],['/assets','Asset Passports']]},
- {label:'Operations',links:[['/workflows','Install & Commission'],['/maintenance','Maintenance'],['/evidence','Evidence']]},
+ {label:'Operations',links:[['/workflows','Install & Commission'],['/maintenance','Maintenance'],['/predictive','Predictive Maintenance'],['/evidence','Evidence']]},
  {label:'Trust',links:[['/provenance','Provenance'],['/verify','Verify Record'],['/chain','Chain Explorer']]},
  {label:'Platform',links:[['/admin','Admin & RBAC']]}
 ];
