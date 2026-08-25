@@ -30,7 +30,7 @@ test('primary navigation reaches key workspaces',async({page})=>{
   await expect(nav).toBeVisible();
   await nav.getByRole('link',{name:'Twin Compiler'}).click();
   await expect(page).toHaveURL(/\/compiler$/);
-  await expect(page.getByRole('heading',{name:/Twin Compiler|Compile/i}).first()).toBeVisible();
+  await expect(page.getByRole('heading',{name:/Engineering documents in\. Verifiable twin out\./i})).toBeVisible();
   await nav.getByRole('link',{name:'STRATUM Twin'}).click();
   await expect(page).toHaveURL(/\/twin$/);
   await nav.getByRole('link',{name:'DIR Explorer'}).click();
@@ -62,8 +62,11 @@ test('project CRUD entry point opens a usable editor',async({page})=>{
   const create=page.getByRole('button',{name:/New project/i});
   await expect(create).toBeVisible();
   await create.click();
-  await expect(page.getByRole('dialog')).toBeVisible();
-  await expect(page.getByRole('button',{name:/Save|Create/i}).last()).toBeVisible();
+  await expect(page.getByText('Create project',{exact:true})).toBeVisible();
+  await expect(page.getByPlaceholder('Project name')).toBeVisible();
+  await expect(page.getByPlaceholder('Client')).toBeVisible();
+  await expect(page.getByPlaceholder('Location')).toBeVisible();
+  await expect(page.getByRole('button',{name:'Create project'})).toBeVisible();
 });
 
 test('login form submits through an explicit functional control',async({page})=>{
