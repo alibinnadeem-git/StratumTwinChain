@@ -1,3 +1,2 @@
-import ChainPage from '../chain/page';
-export const dynamic='force-dynamic';
-export default ChainPage;
+import {redirect} from 'next/navigation';
+export default function LegacyDirs(){redirect('/dir')}
