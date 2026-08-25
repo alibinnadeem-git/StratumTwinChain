@@ -117,7 +117,31 @@ export default function TwinWorkspace({assets,referenceModelUrl}:{assets:TwinAss
         obj.position.sub(center);const max=Math.max(size.x,size.y,size.z)||1;const scale=10/max;obj.scale.multiplyScalar(scale);controls.target.set(0,Math.max(1,size.y*scale*.15),0);camera.position.set(14,10,18);controls.update();
       }
 
+      function buildDemoTwin(){
+        const demo=[
+          {name:'Utility Transformer TX-01',kind:'transformer',x:-6,z:0,h:3.8},
+          {name:'Main Switchgear MSB-01',kind:'box',x:-2,z:0,h:3.2},
+          {name:'ATS-01',kind:'box',x:2,z:0,h:2.5},
+          {name:'Generator GEN-01',kind:'generator',x:6,z:0,h:3.1},
+          {name:'EVSE-01',kind:'charger',x:-4,z:5,h:2.2},
+          {name:'EVSE-02',kind:'charger',x:0,z:5,h:2.2},
+          {name:'EVSE-03',kind:'charger',x:4,z:5,h:2.2}
+        ];
+        demo.forEach((d,i)=>{
+          const geo=d.kind==='transformer'?new THREE.CylinderGeometry(1.2,1.2,d.h,28):new THREE.BoxGeometry(d.kind==='charger'?1.1:2.2,d.h,d.kind==='generator'?2.2:1.5);
+          const mesh=new THREE.Mesh(geo,unboundMat());
+          mesh.position.set(d.x,d.h/2,d.z);
+          mesh.userData.assetId=null;mesh.userData.objectName=d.name;
+          root.add(mesh);clickable.push(mesh);discovery.push({name:d.name,sourceId:`demo-${i+1}`,assetId:null});
+          const ring=new THREE.Mesh(new THREE.TorusGeometry(d.kind==='charger'?.9:1.45,.04,8,48),new THREE.MeshBasicMaterial({color:0xd88a45}));ring.rotation.x=Math.PI/2;ring.position.set(d.x,.06,d.z);root.add(ring);
+        });
+        const pathMat=new THREE.LineBasicMaterial({color:0x2b7ea9});
+        const pts=[new THREE.Vector3(-6,.15,0),new THREE.Vector3(-2,.15,0),new THREE.Vector3(2,.15,0),new THREE.Vector3(6,.15,0),new THREE.Vector3(4,.15,5),new THREE.Vector3(0,.15,5),new THREE.Vector3(-4,.15,5)];
+        scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),pathMat));
+      }
+
       function buildAssetTwin(){
+        if(!assets.length){buildDemoTwin();return;}
         assets.forEach((a,i)=>{
           if(mode==='verified'&&!a.ledger_block_height)return;
           if(mode==='pending'&&a.ledger_block_height)return;
@@ -145,7 +169,7 @@ export default function TwinWorkspace({assets,referenceModelUrl}:{assets:TwinAss
             clickable.push(node);discovery.push({name:objectName,sourceId:node.uuid,assetId:match?.id||null});
           });
           setObjects(discovery);frameObject(model);
-        },undefined,()=>{setMessage('The model could not be loaded. GLB is recommended; GLTF must contain embedded resources.');buildAssetTwin();setObjects(discovery);});
+        },undefined,()=>{setMessage('The reference model could not be loaded, so the resilient STRATUM infrastructure twin is shown instead. You can still submit a GLB/GLTF design.');buildAssetTwin();setObjects(discovery);});
       }else{buildAssetTwin();setObjects(discovery);}
 
       const ray=new THREE.Raycaster();const pointer=new THREE.Vector2();
@@ -184,7 +208,7 @@ export default function TwinWorkspace({assets,referenceModelUrl}:{assets:TwinAss
         <div className={styles.facts}><div><span>Site</span><b>{selected.site_name}</b></div><div><span>System</span><b>{selected.system_name||'Unassigned'}</b></div><div><span>Manufacturer</span><b>{selected.manufacturer_name||'Not recorded'}</b></div><div><span>Serial</span><b>{selected.serial_number||'Pending'}</b></div><div><span>Lifecycle</span><b>{selected.status}</b></div><div><span>Latest event</span><b>{selected.latest_event_type||'REGISTER_ASSET'}</b></div></div>
         <div className={styles.chainBox}><span>STRATUM CHAIN</span><strong>{selected.ledger_network||'stratum-devnet-1'}</strong><small>{selected.ledger_block_height?`Block #${selected.ledger_block_height}`:'Proof awaiting approval / anchoring'}</small><small>{selected.ledger_tx_hash||'Hashes only — private model and evidence remain off-chain'}</small></div>
         <div className={styles.actions}><Link href={`/assets/${selected.id}`}>Open asset passport</Link><Link href="/chain">Chain explorer</Link></div>
-      </>:<div className={styles.empty}>Select an asset-backed object in the twin.</div>}
+      </>:<div className={styles.empty}>{assets.length?'Select an asset-backed object in the twin.':'Resilient STRATUM Twin mode is active. Submit a GLB/GLTF design to begin binding real infrastructure assets.'}</div>}
 
       {modelUrl&&<div className={styles.ingest}><span>DESIGN INGESTION</span><p>Unbound geometry is never shown as verified. Register discovered equipment to create durable STRATUM asset identities and hashed registration events.</p><button disabled={busy||objects.every(o=>o.assetId)} onClick={ingest}>{busy?'Registering…':`Register ${objects.filter(o=>!o.assetId).length} discovered assets`}</button></div>}
       {message&&<div className={styles.message}>{message}</div>}
