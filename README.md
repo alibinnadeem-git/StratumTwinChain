@@ -2,6 +2,12 @@
 
 Canonical STRATUM infrastructure trust platform combining STRATUM Twin, STRATUM Verified, and STRATUM Chain.
 
+## Production
+
+Canonical production URL: `https://stratumverifiedtwin.vercel.app`
+
+Primary experience: `https://stratumverifiedtwin.vercel.app/twin`
+
 ## Core flow
 
 Design / BIM / GLB / GLTF → STRATUM Twin → durable STRATUM Verified asset identities → lifecycle evidence → canonical hashing → LedgerAdapter → STRATUM Chain → validator-backed verification.
