@@ -10,7 +10,7 @@ Primary experience: `https://stratumverifiedtwin.vercel.app/twin`
 
 ## Core flow
 
-Design / BIM / GLB / GLTF → STRATUM Twin → durable STRATUM Verified asset identities → lifecycle evidence → canonical hashing → LedgerAdapter → STRATUM Chain → validator-backed verification.
+Engineering sources → Twin Compiler → STRATUM Twin → durable STRATUM Verified asset identities → construction / commissioning / operations → lifecycle evidence → canonical hashing → LedgerAdapter → STRATUM Chain → validator-backed verification → client trust.
 
 ## Privacy boundary
 
@@ -18,12 +18,21 @@ Private model, commercial, operational, and evidence data stays off-chain. Only 
 
 ## Primary application routes
 
-- `/twin` — interactive digital twin and model ingestion
+- `/compiler` — engineering drawing / BIM ingestion and project-graph compilation
+- `/twin` — interactive digital twin and asset binding
+- `/reality` — reality capture and design/as-built reconciliation
+- `/projects` — project management
+- `/sites` — site management
 - `/assets` — verified asset passports
-- `/workflows` — install and commissioning lifecycle
-- `/maintenance` — maintenance lifecycle
+- `/workflows` — installation and commissioning lifecycle
+- `/maintenance` — preventive / corrective maintenance lifecycle
+- `/predictive` — predictive health, anomaly and risk engine
+- `/simulation` — what-if and dependency impact analysis
 - `/evidence` — evidence records
+- `/handover` — continuous digital handover / turnover readiness
 - `/provenance` — provenance
 - `/verify` — public verification
 - `/chain` — STRATUM Chain explorer
-- `/admin` — RBAC administration
+- `/admin` — multi-tenant RBAC administration
+
+Deployment marker: latest consolidated platform release.
