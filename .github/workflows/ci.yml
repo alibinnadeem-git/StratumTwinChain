@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -21,3 +21,17 @@ jobs:
       - run: npm run qa:ui
       - run: npm run typecheck
       - run: npm run build
+      - name: Install Chromium for browser UAT
+        run: npx playwright install --with-deps chromium
+      - name: Run desktop tablet mobile browser UAT
+        run: npm run qa:e2e
+      - name: Upload browser UAT report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7
