@@ -1,0 +1,16 @@
+const packages=[
+ {name:'As-Built Drawings',coverage:'24 / 24',state:'Complete'},
+ {name:'Asset Registry',coverage:'438 / 438',state:'Complete'},
+ {name:'Commissioning Records',coverage:'421 / 438',state:'Review'},
+ {name:'O&M Manuals',coverage:'403 / 438',state:'Review'},
+ {name:'Warranties',coverage:'432 / 438',state:'Review'},
+ {name:'Maintenance Plans',coverage:'438 / 438',state:'Complete'},
+ {name:'Chain Proofs',coverage:'427 / 438',state:'Review'}
+];
+export default function HandoverPage(){return <>
+  <div className="page-head"><div><div className="eyebrow">STRATUM Trust · Continuous Digital Handover</div><h1 className="title">Handover is built continuously, not at the end.</h1><p className="subtitle">Design, procurement, installation, commissioning, O&M, warranties, evidence and immutable proof accumulate against the same asset identities so the owner receives a living operational twin rather than a disconnected document archive.</p></div><div className="badge">CLIENT TRUST</div></div>
+  <div className="grid kpis"><div className="card"><div className="label">Tracked assets</div><div className="metric">438</div></div><div className="card"><div className="label">Commissioned</div><div className="metric">421</div></div><div className="card"><div className="label">Chain-backed</div><div className="metric">427</div></div><div className="card"><div className="label">Handover readiness</div><div className="metric">96%</div></div></div>
+  <div className="grid two"><div className="card"><div className="eyebrow">Turnover readiness</div><table className="table"><thead><tr><th>Package</th><th>Coverage</th><th>Status</th></tr></thead><tbody>{packages.map(p=><tr key={p.name}><td>{p.name}</td><td>{p.coverage}</td><td><span className={p.state==='Complete'?'proof':'pending'}>{p.state}</span></td></tr>)}</tbody></table></div>
+  <div className="card"><div className="eyebrow">Digital turnover certificate</div><h2>Audi Pacific · Reference</h2><div className="passport-facts"><div><span>Twin revision</span><strong>AS-BUILT R17</strong></div><div><span>Assets</span><strong>438</strong></div><div><span>Evidence packages</span><strong>1,982</strong></div><div><span>Commissioning</span><strong>96%</strong></div><div><span>Chain network</span><strong>stratum-devnet-1</strong></div><div><span>Owner view</span><strong>RBAC controlled</strong></div></div><div className="proof-seal">✓</div><p className="subtitle" style={{textAlign:'center'}}>Final certificate is issued only after required packages and approvals meet the project's turnover policy.</p></div></div>
+  <div className="card" style={{marginTop:16}}><div className="eyebrow">Continuous lifecycle</div><div className="provenance-map"><div className="prov-step active"><i>01</i><b>Design</b><span>Drawings · specs · approved revisions</span></div><em>→</em><div className="prov-step active"><i>02</i><b>Procure</b><span>Submittals · serials · provenance</span></div><em>→</em><div className="prov-step active"><i>03</i><b>Build</b><span>Install · inspect · evidence</span></div><em>→</em><div className="prov-step active"><i>04</i><b>Commission</b><span>Tests · acceptance · readiness</span></div><em>→</em><div className="prov-step active"><i>05</i><b>Operate</b><span>Maintenance · health · owner trust</span></div></div></div>
+</>}
