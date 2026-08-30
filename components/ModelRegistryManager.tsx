@@ -19,12 +19,12 @@ export default function ModelRegistryManager(){
  const component=ELECTRICAL_COMPONENTS.find(x=>x.key===selected);
  const mapped=registry.filter(x=>x.modelUrl.trim()).length;
  const visible=useMemo(()=>ELECTRICAL_COMPONENTS.filter(c=>(category==='ALL'||c.category===category)&&(!query||`${c.name} ${c.aliases.join(' ')}`.toLowerCase().includes(query.toLowerCase()))),[category,query]);
- function persist(next:ElectricalModelConfig[]){setRegistry(next);localStorage.setItem(ELECTRICAL_MODEL_REGISTRY_STORAGE_KEY,JSON.stringify(next));}
+ function persist(next:ElectricalModelConfig[]){setRegistry(next);localStorage.setItem(ELECTRICAL_MODEL_REGISTRY_STORAGE_KEY,JSON.stringify(next));window.dispatchEvent(new CustomEvent('stratum:model-registry-updated',{detail:next}));}
  function patch(update:Partial<ElectricalModelConfig>){if(!current)return;persist(registry.map(x=>x.componentKey===current.componentKey?{...x,...update}:x));}
  function tuplePatch(key:'rotation'|'offset',index:number,value:string){if(!current)return;const copy=[...current[key]] as [number,number,number];copy[index]=Number(value)||0;patch({[key]:copy} as any);}
- function reset(){persist(DEFAULT_ELECTRICAL_MODEL_REGISTRY);setMessage('Registry reset to procedural fallbacks.');}
+ function reset(){persist(DEFAULT_ELECTRICAL_MODEL_REGISTRY);setMessage('Registry reset to procedural fallbacks. Twin renderer notified.');}
  function exportJson(){const blob=new Blob([JSON.stringify(registry,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='stratum-electrical-model-registry.json';a.click();URL.revokeObjectURL(url);}
- async function importJson(e:ChangeEvent<HTMLInputElement>){const file=e.target.files?.[0];if(!file)return;try{const next=normalizeElectricalModelRegistry(JSON.parse(await file.text()));persist(next);setMessage(`Imported ${next.filter(x=>x.modelUrl).length} mapped 3D models.`);}catch{setMessage('Registry import failed: invalid JSON.');}e.target.value='';}
+ async function importJson(e:ChangeEvent<HTMLInputElement>){const file=e.target.files?.[0];if(!file)return;try{const next=normalizeElectricalModelRegistry(JSON.parse(await file.text()));persist(next);setMessage(`Imported ${next.filter(x=>x.modelUrl).length} mapped 3D models. Twin renderer notified.`);}catch{setMessage('Registry import failed: invalid JSON.');}e.target.value='';}
  return <section style={{...box,marginTop:18}} aria-label="3D Asset Registry">
   <div style={{display:'flex',gap:16,justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap'}}>
    <div><span style={{color:'#38e59c',fontWeight:800,letterSpacing:2,fontSize:12}}>REAL 3D ASSET REGISTRY</span><h2 style={{margin:'6px 0'}}>GLB / GLTF / OpenUSD Model Mapping</h2><p style={{maxWidth:850,color:'#89a9b8',margin:0}}>Assign a reusable detailed 3D model to each canonical electrical class. Twin Compiler can then instantiate the correct equipment family at recognized drawing coordinates while retaining the procedural model as a guaranteed fallback.</p></div>
