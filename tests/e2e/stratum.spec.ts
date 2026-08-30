@@ -63,6 +63,18 @@ test('Twin Compiler accepts a real DXF through the file workflow',async({page})=
   await expect(page.getByText(/PARSED/).first()).toBeVisible();
 });
 
+test('compiled DXF becomes a source-placed electrical 3D Twin',async({page})=>{
+  await page.goto('/compiler');
+  const dxf=`0\nSECTION\n2\nENTITIES\n0\nINSERT\n8\nE-EQUIP\n2\nPANEL-LP1\n10\n100\n20\n200\n0\nINSERT\n8\nE-EQUIP\n2\nDRY TRANSFORMER TX-01\n10\n300\n20\n200\n0\nLINE\n8\nE-FEEDER\n10\n100\n20\n200\n11\n300\n21\n200\n0\nENDSEC\n0\nEOF\n`;
+  await page.locator('input[type=file]').setInputFiles({name:'E2-source-placement.dxf',mimeType:'application/dxf',buffer:Buffer.from(dxf)});
+  await expect(page.getByText(/Compilation updated/i).first()).toBeVisible();
+  await page.getByRole('link',{name:'Open compiled graph in Twin'}).click();
+  await expect(page).toHaveURL(/\/twin$/);
+  await expect(page.getByText(/COMPILED DRAWING TWIN · SOURCE-PLACED 3D/i)).toBeVisible();
+  await expect(page.getByText(/recognized electrical objects/i)).toBeVisible();
+  await expect(page.getByRole('link',{name:'3D model registry'})).toBeVisible();
+});
+
 test('electrical component library exposes canonical equipment classes and model registry',async({page})=>{
   await page.goto('/component-library');
   await expect(page.getByText('Main Switchboard',{exact:true})).toBeVisible();
