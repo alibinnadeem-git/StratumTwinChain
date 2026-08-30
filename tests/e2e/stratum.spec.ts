@@ -1,7 +1,7 @@
 import {expect,test} from '@playwright/test';
 
 const routes=[
-  '/', '/compiler','/twin','/reality','/projects','/sites','/assets',
+  '/', '/compiler','/twin','/component-library','/reality','/projects','/sites','/assets',
   '/workflows','/maintenance','/predictive','/simulation','/evidence',
   '/handover','/provenance','/verify','/dir','/admin','/inspection',
   '/passports','/asset-passports','/passport/STR-AST-0009281','/build','/install',
@@ -36,6 +36,9 @@ test('primary navigation reaches key workspaces',async({page})=>{
   await expect(page.getByRole('heading',{name:/Engineering documents in\. Verifiable twin out\./i})).toBeVisible();
   await nav.getByRole('link',{name:'STRATUM Twin'}).click();
   await expect(page).toHaveURL(/\/twin$/);
+  await nav.getByRole('link',{name:'Component Library'}).click();
+  await expect(page).toHaveURL(/\/component-library$/);
+  await expect(page.getByRole('heading',{name:'Electrical Component Library'})).toBeVisible();
   await nav.getByRole('link',{name:'DIR Explorer'}).click();
   await expect(page).toHaveURL(/\/dir$/);
 });
@@ -58,6 +61,15 @@ test('Twin Compiler accepts a real DXF through the file workflow',async({page})=
   await expect(page.getByText('E1-test.dxf')).toBeVisible();
   await expect(page.getByText(/CAD entities parsed|Compilation updated/i).first()).toBeVisible();
   await expect(page.getByText(/PARSED/).first()).toBeVisible();
+});
+
+test('electrical component library exposes canonical equipment classes',async({page})=>{
+  await page.goto('/component-library');
+  await expect(page.getByText('Main Switchboard',{exact:true})).toBeVisible();
+  await expect(page.getByText('Dry-Type Transformer',{exact:true})).toBeVisible();
+  await expect(page.getByText('EV Charging Station',{exact:true})).toBeVisible();
+  await expect(page.getByText('Variable Frequency Drive (VFD)',{exact:true})).toBeVisible();
+  await expect(page.getByText('Digital Twin Object Attributes',{exact:true})).toBeVisible();
 });
 
 test('project CRUD entry point opens a usable editor',async({page})=>{
