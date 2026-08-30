@@ -63,13 +63,23 @@ test('Twin Compiler accepts a real DXF through the file workflow',async({page})=
   await expect(page.getByText(/PARSED/).first()).toBeVisible();
 });
 
-test('electrical component library exposes canonical equipment classes',async({page})=>{
+test('electrical component library exposes canonical equipment classes and model registry',async({page})=>{
   await page.goto('/component-library');
   await expect(page.getByText('Main Switchboard',{exact:true})).toBeVisible();
   await expect(page.getByText('Dry-Type Transformer',{exact:true})).toBeVisible();
   await expect(page.getByText('EV Charging Station',{exact:true})).toBeVisible();
   await expect(page.getByText('Variable Frequency Drive (VFD)',{exact:true})).toBeVisible();
   await expect(page.getByText('Digital Twin Object Attributes',{exact:true})).toBeVisible();
+  await expect(page.getByRole('region',{name:'3D Asset Registry'})).toBeVisible();
+  await expect(page.getByText('GLB / GLTF / OpenUSD Model Mapping',{exact:true})).toBeVisible();
+  const search=page.getByRole('textbox',{name:'Search component models'});
+  await search.fill('transformer');
+  await expect(page.getByRole('button',{name:/Dry-Type Transformer/i})).toBeVisible();
+  await page.getByRole('button',{name:/Dry-Type Transformer/i}).click();
+  await expect(page.getByText('PROCEDURAL FALLBACK',{exact:true})).toBeVisible();
+  const modelUrl=page.getByLabel('Model URL');
+  await modelUrl.fill('/models/electrical/dry-transformer.glb');
+  await expect(page.getByText('DETAILED MODEL ACTIVE',{exact:true})).toBeVisible();
 });
 
 test('project CRUD entry point opens a usable editor',async({page})=>{
