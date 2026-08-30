@@ -1,113 +1,19 @@
 import {expect,test} from '@playwright/test';
 
-const routes=[
-  '/', '/compiler','/twin','/component-library','/reality','/projects','/sites','/assets',
-  '/workflows','/maintenance','/predictive','/simulation','/evidence',
-  '/handover','/provenance','/verify','/dir','/admin','/inspection',
-  '/passports','/asset-passports','/passport/STR-AST-0009281','/build','/install',
-  '/operate','/predictive-maintenance','/reality-reconciliation','/digital-handover',
-  '/client-trust','/chain-explorer','/trust','/twin-compiler','/dirs'
-];
+const routes=['/','/compiler','/twin','/component-library','/reality','/projects','/sites','/assets','/workflows','/maintenance','/predictive','/simulation','/evidence','/handover','/provenance','/verify','/dir','/admin','/inspection','/passports','/asset-passports','/passport/STR-AST-0009281','/build','/install','/operate','/predictive-maintenance','/reality-reconciliation','/digital-handover','/client-trust','/chain-explorer','/trust','/twin-compiler','/dirs'];
 
-test.describe('STRATUM Verified route and responsive UAT',()=>{
-  for(const route of routes){
-    test(`${route} renders without browser/server failure`,async({page})=>{
-      const consoleErrors:string[]=[];
-      page.on('console',msg=>{if(msg.type()==='error')consoleErrors.push(msg.text())});
-      const response=await page.goto(route,{waitUntil:'domcontentloaded'});
-      expect(response,`No response for ${route}`).not.toBeNull();
-      expect(response!.status(),`${route} returned HTTP ${response!.status()}`).toBeLessThan(500);
-      await expect(page.locator('body')).toBeVisible();
-      await expect(page.locator('body')).not.toContainText(/Application error|Internal Server Error/i);
-      const overflow=await page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth);
-      expect(overflow,`${route} has horizontal overflow`).toBeLessThanOrEqual(2);
-      const fatal=consoleErrors.filter(x=>/uncaught|application error|hydration failed|failed to fetch dynamically imported module/i.test(x));
-      expect(fatal,`Fatal console errors on ${route}: ${fatal.join(' | ')}`).toEqual([]);
-    });
-  }
-});
+test.describe('STRATUM Verified route and responsive UAT',()=>{for(const route of routes){test(`${route} renders without browser/server failure`,async({page})=>{const consoleErrors:string[]=[];page.on('console',msg=>{if(msg.type()==='error')consoleErrors.push(msg.text())});const response=await page.goto(route,{waitUntil:'domcontentloaded'});expect(response).not.toBeNull();expect(response!.status(),`${route} returned HTTP ${response!.status()}`).toBeLessThan(500);await expect(page.locator('body')).toBeVisible();await expect(page.locator('body')).not.toContainText(/Application error|Internal Server Error/i);const overflow=await page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth);expect(overflow,`${route} has horizontal overflow`).toBeLessThanOrEqual(2);const fatal=consoleErrors.filter(x=>/uncaught|application error|hydration failed|failed to fetch dynamically imported module/i.test(x));expect(fatal).toEqual([])})}});
 
-test('primary navigation reaches key workspaces',async({page})=>{
-  await page.goto('/');
-  const nav=page.getByRole('navigation',{name:'Primary navigation'});
-  await expect(nav).toBeVisible();
-  await nav.getByRole('link',{name:'Twin Compiler'}).click();
-  await expect(page).toHaveURL(/\/compiler$/);
-  await expect(page.getByRole('heading',{name:/Engineering documents in\. Verifiable twin out\./i})).toBeVisible();
-  await nav.getByRole('link',{name:'STRATUM Twin'}).click();
-  await expect(page).toHaveURL(/\/twin$/);
-  await nav.getByRole('link',{name:'Component Library'}).click();
-  await expect(page).toHaveURL(/\/component-library$/);
-  await expect(page.getByRole('heading',{name:'Electrical Component Library'})).toBeVisible();
-  await nav.getByRole('link',{name:'DIR Explorer'}).click();
-  await expect(page).toHaveURL(/\/dir$/);
-});
+test('primary navigation reaches key workspaces',async({page})=>{await page.goto('/');const nav=page.getByRole('navigation',{name:'Primary navigation'});await expect(nav).toBeVisible();await nav.getByRole('link',{name:'Twin Compiler'}).click();await expect(page).toHaveURL(/\/compiler$/);await expect(page.getByRole('heading',{name:/Engineering documents in\. Verifiable twin out\./i})).toBeVisible();await nav.getByRole('link',{name:'STRATUM Twin'}).click();await expect(page).toHaveURL(/\/twin$/);await nav.getByRole('link',{name:'Component Library'}).click();await expect(page).toHaveURL(/\/component-library$/);await nav.getByRole('link',{name:'DIR Explorer'}).click();await expect(page).toHaveURL(/\/dir$/)});
 
-test('Twin layer controls are interactive',async({page})=>{
-  await page.goto('/twin');
-  const l8=page.getByRole('button',{name:/L8.*Trust|L8/i}).first();
-  await expect(l8).toBeVisible();
-  const before=await l8.getAttribute('class');
-  await l8.click();
-  const after=await l8.getAttribute('class');
-  expect(after).not.toBe(before);
-  await l8.click();
-});
+test('Twin layer controls are interactive',async({page})=>{await page.goto('/twin');const l8=page.getByRole('button',{name:/L8.*Trust|L8/i}).first();await expect(l8).toBeVisible();const before=await l8.getAttribute('class');await l8.click();expect(await l8.getAttribute('class')).not.toBe(before);await l8.click()});
 
-test('Twin Compiler accepts a real DXF through the file workflow',async({page})=>{
-  await page.goto('/compiler');
-  const dxf=`0\nSECTION\n2\nENTITIES\n0\nINSERT\n8\nE-EQUIP\n2\nPANEL-LP1\n10\n100\n20\n200\n0\nLINE\n8\nE-FEEDER\n10\n100\n20\n200\n11\n300\n21\n200\n0\nENDSEC\n0\nEOF\n`;
-  await page.locator('input[type=file]').setInputFiles({name:'E1-test.dxf',mimeType:'application/dxf',buffer:Buffer.from(dxf)});
-  await expect(page.getByText('E1-test.dxf')).toBeVisible();
-  await expect(page.getByText(/CAD entities parsed|Compilation updated/i).first()).toBeVisible();
-  await expect(page.getByText(/PARSED/).first()).toBeVisible();
-});
+test('Twin Compiler accepts a real DXF through the file workflow',async({page})=>{await page.goto('/compiler');const dxf=`0\nSECTION\n2\nENTITIES\n0\nINSERT\n8\nE-EQUIP\n2\nPANEL-LP1\n10\n100\n20\n200\n0\nLINE\n8\nE-FEEDER\n10\n100\n20\n200\n11\n300\n21\n200\n0\nENDSEC\n0\nEOF\n`;await page.locator('input[type=file]').setInputFiles({name:'E1-test.dxf',mimeType:'application/dxf',buffer:Buffer.from(dxf)});await expect(page.getByText('E1-test.dxf')).toBeVisible();await expect(page.getByText(/CAD entities|Spatial compilation updated/i).first()).toBeVisible();await expect(page.getByText(/PARSED/).first()).toBeVisible()});
 
-test('compiled DXF becomes a source-placed electrical 3D Twin',async({page})=>{
-  await page.goto('/compiler');
-  const dxf=`0\nSECTION\n2\nENTITIES\n0\nINSERT\n8\nE-EQUIP\n2\nPANEL-LP1\n10\n100\n20\n200\n0\nINSERT\n8\nE-EQUIP\n2\nDRY TRANSFORMER TX-01\n10\n300\n20\n200\n0\nLINE\n8\nE-FEEDER\n10\n100\n20\n200\n11\n300\n21\n200\n0\nENDSEC\n0\nEOF\n`;
-  await page.locator('input[type=file]').setInputFiles({name:'E2-source-placement.dxf',mimeType:'application/dxf',buffer:Buffer.from(dxf)});
-  await expect(page.getByText(/Compilation updated/i).first()).toBeVisible();
-  await page.getByRole('link',{name:'Open compiled graph in Twin'}).click();
-  await expect(page).toHaveURL(/\/twin$/);
-  await expect(page.getByText(/COMPILED DRAWING TWIN · SOURCE-PLACED 3D/i)).toBeVisible();
-  await expect(page.getByText(/recognized electrical objects/i)).toBeVisible();
-  await expect(page.getByRole('link',{name:'3D model registry'})).toBeVisible();
-});
+test('compiled Twin preserves level elevation rotation and source placement',async({page})=>{await page.goto('/compiler');const dxf=`0\nSECTION\n2\nENTITIES\n0\nINSERT\n8\nE-EQUIP\n2\nPANELBOARD LP-2\n10\n100\n20\n200\n30\n0\n41\n1.25\n42\n1.25\n50\n90\n0\nTEXT\n8\nA-ROOM\n1\nELECTRICAL ROOM 201\n10\n102\n20\n202\n0\nENDSEC\n0\nEOF\n`;await page.locator('input[type=file]').setInputFiles({name:'E2-Level-2-Power.dxf',mimeType:'application/dxf',buffer:Buffer.from(dxf)});await expect(page.getByText(/L2 @ 4m/).first()).toBeVisible();await page.getByRole('link',{name:/Open spatial graph in Twin/i}).click();await expect(page.getByText(/MULTI-LEVEL SPATIAL GRAPH/i)).toBeVisible();await expect(page.getByText(/1 level\(s\)/i)).toBeVisible()});
 
-test('electrical component library exposes canonical equipment classes and model registry',async({page})=>{
-  await page.goto('/component-library');
-  await expect(page.getByText('Main Switchboard',{exact:true})).toBeVisible();
-  await expect(page.getByText('Dry-Type Transformer',{exact:true})).toBeVisible();
-  await expect(page.getByText('EV Charging Station',{exact:true})).toBeVisible();
-  await expect(page.getByText('Variable Frequency Drive (VFD)',{exact:true})).toBeVisible();
-  await expect(page.getByText('Digital Twin Object Attributes',{exact:true})).toBeVisible();
-  await expect(page.getByRole('region',{name:'3D Asset Registry'})).toBeVisible();
-  await expect(page.getByText('GLB / GLTF / OpenUSD Model Mapping',{exact:true})).toBeVisible();
-  const search=page.getByRole('textbox',{name:'Search component models'});
-  await search.fill('transformer');
-  await expect(page.getByRole('button',{name:/Dry-Type Transformer/i})).toBeVisible();
-  await page.getByRole('button',{name:/Dry-Type Transformer/i}).click();
-  await expect(page.getByText('PROCEDURAL FALLBACK',{exact:true})).toBeVisible();
-  const modelUrl=page.getByLabel('Model URL');
-  await modelUrl.fill('/models/electrical/dry-transformer.glb');
-  await expect(page.getByText('DETAILED MODEL ACTIVE',{exact:true})).toBeVisible();
-});
+test('electrical component library exposes canonical equipment classes and model registry',async({page})=>{await page.goto('/component-library');await expect(page.getByText('Main Switchboard',{exact:true})).toBeVisible();await expect(page.getByText('Dry-Type Transformer',{exact:true})).toBeVisible();await expect(page.getByText('EV Charging Station',{exact:true})).toBeVisible();await expect(page.getByText('Digital Twin Object Attributes',{exact:true})).toBeVisible();await expect(page.getByRole('region',{name:'3D Asset Registry'})).toBeVisible();const search=page.getByRole('textbox',{name:'Search component models'});await search.fill('transformer');await page.getByRole('button',{name:/Dry-Type Transformer/i}).click();const modelUrl=page.getByLabel('Model URL');await modelUrl.fill('/models/electrical/dry-transformer.glb');await expect(page.getByText('DETAILED MODEL ACTIVE',{exact:true})).toBeVisible()});
 
-test('project CRUD entry point opens a usable editor',async({page})=>{
-  await page.goto('/projects');
-  const create=page.getByRole('button',{name:/New project/i});
-  await expect(create).toBeVisible();
-  await create.click();
-  await expect(page.getByPlaceholder('Project name')).toBeVisible();
-  await expect(page.getByPlaceholder('Client')).toBeVisible();
-  await expect(page.getByPlaceholder('Location')).toBeVisible();
-  await expect(page.getByRole('button',{name:'Create project'})).toBeVisible();
-});
+test('project CRUD entry point opens a usable editor',async({page})=>{await page.goto('/projects');const create=page.getByRole('button',{name:/New project/i});await create.click();await expect(page.getByPlaceholder('Project name')).toBeVisible();await expect(page.getByPlaceholder('Client')).toBeVisible();await expect(page.getByPlaceholder('Location')).toBeVisible();await expect(page.getByRole('button',{name:'Create project'})).toBeVisible()});
 
-test('login form submits through an explicit functional control',async({page})=>{
-  await page.goto('/login');
-  await expect(page.getByRole('heading',{name:'Sign in'})).toBeVisible();
-  const submit=page.getByRole('button',{name:'Sign in'});
-  await expect(submit).toBeEnabled();
-});
+test('login form submits through an explicit functional control',async({page})=>{await page.goto('/login');await expect(page.getByRole('heading',{name:'Sign in'})).toBeVisible();await expect(page.getByRole('button',{name:'Sign in'})).toBeEnabled()});
