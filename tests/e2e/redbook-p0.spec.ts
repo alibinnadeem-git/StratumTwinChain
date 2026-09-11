@@ -1,5 +1,8 @@
 import {expect,test} from '@playwright/test';
 import {
+ acceptProposal,
+ acceptProposalWithHigherRoundPLC,
+ beginCommit,
  canonicalEventForLegacy,
  createLifecycleMicroDirCandidate,
  createPoVIHeightState,
@@ -10,16 +13,32 @@ import {
  nanoDirSchema,
  recordCommitVote,
  recordVerifyVote,
- beginCommit,
- acceptProposal,
  requiredPoviQuorum,
  stateTransitionRegistry,
  validateStateTransition,
  type PoVIFinalityCertificate,
+ type VerifiedPoVILockCertificate,
  type VerifiedRoundChangeQuorumEvidence,
 } from '../../lib/redbook';
 
 const h=(char:string)=>char.repeat(64);
+const active=['validator-a','validator-b','validator-c'];
+
+function verifiedRoundChange(chainId:string,height:number,triggerRound:number,newRound:number):VerifiedRoundChangeQuorumEvidence{
+ return{
+  verified:true,
+  evidence:{evidenceVersion:'STRATUM-ROUND-CHANGE-EVIDENCE/1',chainId,height,triggerRound,newRound,validatorSetRoot:h('f'),protocolVersion:'POVI/1',roundChangeVotes:[],priorRoundNILVotes:[]},
+  activeValidatorCount:3,requiredQuorum:3,validSignerIds:active,nilQuorumVerified:true,lockClaims:[],validValueClaims:[],safeUnlockAuthorized:false,
+ };
+}
+
+function verifiedPLC(chainId:string,height:number,round:number,proposalHash:string):VerifiedPoVILockCertificate{
+ return{
+  verified:true,
+  PLC:{domain:'STRATUM/PLC/PROOF/1',certificateVersion:'STRATUM-PLC-PROOF/1',chainId,height,round,proposalHash,validatorSetRoot:h('f'),protocolVersion:'POVI/1',signerIds:active,VERIFYSignatures:[]},
+  activeValidatorCount:3,requiredQuorum:3,validSignerIds:active,
+ };
+}
 
 test('Redbook locked PoVI quorum table is enforced',()=>{
  const expected:Record<number,number>={3:3,4:3,5:4,6:5,7:5,8:6,9:7,12:9};
@@ -81,7 +100,6 @@ test('NDIR schema preserves source time, sequence, quality and signature provena
 });
 
 test('PoVI state reducer requires 3-of-3 for a three-validator network',()=>{
- const active=['validator-a','validator-b','validator-c'];
  let state=createPoVIHeightState('stratum-test',1);
  state=acceptProposal(state,{proposalHash:h('c'),stateRoot:h('d'),round:0});
  state=recordVerifyVote(state,{validatorId:'validator-a',proposalHash:h('c'),activeValidatorIds:active});
@@ -102,18 +120,45 @@ test('PoVI state reducer requires 3-of-3 for a three-validator network',()=>{
 });
 
 test('PoVI higher round requires verified evidence and preserves an existing lock',()=>{
- const active=['validator-a','validator-b','validator-c'];
  let state=createPoVIHeightState('stratum-test',2);
  state=acceptProposal(state,{proposalHash:h('1'),stateRoot:h('2'),round:0});
  for(const validatorId of active)state=recordVerifyVote(state,{validatorId,proposalHash:h('1'),activeValidatorIds:active});
  expect(state.lockedDIR).toBe(h('1'));
- const verified={
-  verified:true,
-  evidence:{evidenceVersion:'STRATUM-ROUND-CHANGE-EVIDENCE/1',chainId:'stratum-test',height:2,triggerRound:0,newRound:1,validatorSetRoot:h('f'),protocolVersion:'POVI/1',roundChangeVotes:[],priorRoundNILVotes:[]},
-  activeValidatorCount:3,requiredQuorum:3,validSignerIds:active,nilQuorumVerified:true,lockClaims:[],validValueClaims:[],safeUnlockAuthorized:false,
- } satisfies VerifiedRoundChangeQuorumEvidence;
- state=enterHigherRound(state,verified);
+ state=enterHigherRound(state,verifiedRoundChange('stratum-test',2,0,1));
  expect(state.round).toBe(1);
  expect(state.lockedDIR).toBe(h('1'));
  expect(()=>acceptProposal(state,{proposalHash:h('3'),stateRoot:h('4'),round:1})).toThrow(/safe-unlock evidence/i);
+});
+
+test('higher-round PLC authorizes reproposal without clearing the old lock until fresh VERIFY quorum',()=>{
+ let state=createPoVIHeightState('stratum-test',20);
+ state=acceptProposal(state,{proposalHash:h('1'),stateRoot:h('2'),round:0});
+ for(const validatorId of active)state=recordVerifyVote(state,{validatorId,proposalHash:h('1'),activeValidatorIds:active});
+ expect(state.lockedDIR).toBe(h('1'));
+ expect(state.lockedRound).toBe(0);
+
+ state=enterHigherRound(state,verifiedRoundChange('stratum-test',20,0,1));
+ state=enterHigherRound(state,verifiedRoundChange('stratum-test',20,1,2));
+ expect(state.round).toBe(2);
+
+ const equalRoundPLC=verifiedPLC('stratum-test',20,0,h('3'));
+ expect(()=>acceptProposalWithHigherRoundPLC(state,{proposalHash:h('3'),stateRoot:h('4'),round:2,verifiedPLC:equalRoundPLC})).toThrow(/strictly higher/i);
+ const currentRoundPLC=verifiedPLC('stratum-test',20,2,h('3'));
+ expect(()=>acceptProposalWithHigherRoundPLC(state,{proposalHash:h('3'),stateRoot:h('4'),round:2,verifiedPLC:currentRoundPLC})).toThrow(/prior round/i);
+
+ const higherPriorPLC=verifiedPLC('stratum-test',20,1,h('3'));
+ state=acceptProposalWithHigherRoundPLC(state,{proposalHash:h('3'),stateRoot:h('4'),round:2,verifiedPLC:higherPriorPLC});
+ expect(state.phase).toBe('VERIFY');
+ expect(state.lockedDIR).toBe(h('1'));
+ expect(state.lockedRound).toBe(0);
+ expect(state.validDIR).toBe(h('3'));
+ expect(state.validRound).toBe(1);
+
+ state=recordVerifyVote(state,{validatorId:'validator-a',proposalHash:h('3'),activeValidatorIds:active});
+ state=recordVerifyVote(state,{validatorId:'validator-b',proposalHash:h('3'),activeValidatorIds:active});
+ expect(state.lockedDIR).toBe(h('1'));
+ state=recordVerifyVote(state,{validatorId:'validator-c',proposalHash:h('3'),activeValidatorIds:active});
+ expect(state.phase).toBe('LOCK');
+ expect(state.lockedDIR).toBe(h('3'));
+ expect(state.lockedRound).toBe(2);
 });
