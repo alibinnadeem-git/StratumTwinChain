@@ -1,0 +1,172 @@
+{
+  "validatorSet": {
+    "setVersion": "STRATUM-VALIDATOR-SET/1",
+    "chainId": "stratum-devnet-1",
+    "members": [
+      {
+        "validatorId": "validator-a",
+        "identityUuid": "11111111-1111-4111-8111-111111111111",
+        "operatorOrg": "stratum-electric",
+        "activationHeight": 1,
+        "retirementHeight": null,
+        "keys": [
+          {
+            "keyId": "consensus-a-v1",
+            "purpose": "CONSENSUS",
+            "algorithm": "Ed25519",
+            "publicKeyDerB64": "MCowBQYDK2VwAyEA0kdKAdw7llMbPVosJmRpD5fQbjJKy5KD3Yznff1CwNk=",
+            "activeFromHeight": 1,
+            "retiredAtHeight": null
+          }
+        ]
+      },
+      {
+        "validatorId": "validator-b",
+        "identityUuid": "11111111-1111-4111-8111-111111111112",
+        "operatorOrg": "stratum-electric",
+        "activationHeight": 1,
+        "retirementHeight": null,
+        "keys": [
+          {
+            "keyId": "consensus-b-v1",
+            "purpose": "CONSENSUS",
+            "algorithm": "Ed25519",
+            "publicKeyDerB64": "MCowBQYDK2VwAyEAMCgcz24KHFBxgS2G6LahSbBJY2DuGKjxL8yDGEX7zs4=",
+            "activeFromHeight": 1,
+            "retiredAtHeight": null
+          }
+        ]
+      },
+      {
+        "validatorId": "validator-c",
+        "identityUuid": "11111111-1111-4111-8111-111111111113",
+        "operatorOrg": "stratum-electric",
+        "activationHeight": 1,
+        "retirementHeight": null,
+        "keys": [
+          {
+            "keyId": "consensus-c-v1",
+            "purpose": "CONSENSUS",
+            "algorithm": "Ed25519",
+            "publicKeyDerB64": "MCowBQYDK2VwAyEANAJRvJGbsJiw1om1TvBexXXJHVsr+fLyHkDkblE3viY=",
+            "activeFromHeight": 1,
+            "retiredAtHeight": null
+          }
+        ]
+      }
+    ]
+  },
+  "expectedValidatorSetRoot": "6fe0ea61c0cd9e7d4c251a594edc6cf8396b2583ac8b4d8f383b039925814650",
+  "evidence": {
+    "evidenceVersion": "STRATUM-ROUND-CHANGE-EVIDENCE/1",
+    "chainId": "stratum-devnet-1",
+    "height": 11,
+    "triggerRound": 0,
+    "newRound": 1,
+    "validatorSetRoot": "6fe0ea61c0cd9e7d4c251a594edc6cf8396b2583ac8b4d8f383b039925814650",
+    "protocolVersion": "POVI/1",
+    "roundChangeVotes": [
+      {
+        "domain": "STRATUM/POVI/ROUND_CHANGE/1",
+        "chainId": "stratum-devnet-1",
+        "height": 11,
+        "newRound": 1,
+        "validatorId": "validator-a",
+        "validatorSetRoot": "6fe0ea61c0cd9e7d4c251a594edc6cf8396b2583ac8b4d8f383b039925814650",
+        "protocolVersion": "POVI/1",
+        "lockedDIR": null,
+        "lockedRound": null,
+        "validDIR": null,
+        "validRound": null,
+        "evidenceRefs": [],
+        "keyId": "consensus-a-v1",
+        "algorithm": "Ed25519",
+        "messageHash": "a5f7a8344a41e623f870724c639294272b5555482825c2ee1fc29668b0a71f63",
+        "signatureB64": "VQX825bizVbpaycM+JNEweQPZRNVz09kZG++qlfUxnY8jgCKf3pnjsf88UM7hywAHQnlIo1lAM7C7/5m1UCTCw=="
+      },
+      {
+        "domain": "STRATUM/POVI/ROUND_CHANGE/1",
+        "chainId": "stratum-devnet-1",
+        "height": 11,
+        "newRound": 1,
+        "validatorId": "validator-b",
+        "validatorSetRoot": "6fe0ea61c0cd9e7d4c251a594edc6cf8396b2583ac8b4d8f383b039925814650",
+        "protocolVersion": "POVI/1",
+        "lockedDIR": null,
+        "lockedRound": null,
+        "validDIR": null,
+        "validRound": null,
+        "evidenceRefs": [],
+        "keyId": "consensus-b-v1",
+        "algorithm": "Ed25519",
+        "messageHash": "a93b39219b628120ec95ba2609d21615d0f771226cf81c1690820cfbc638f6d5",
+        "signatureB64": "PnTFWbUvywWOYVFQz+Dm9BJ64etbF6mULCFkbZT+sklk1KRV61lb6IZ87oDZPlWTEGM8TeTCmwi+5qYAJB44DQ=="
+      },
+      {
+        "domain": "STRATUM/POVI/ROUND_CHANGE/1",
+        "chainId": "stratum-devnet-1",
+        "height": 11,
+        "newRound": 1,
+        "validatorId": "validator-c",
+        "validatorSetRoot": "6fe0ea61c0cd9e7d4c251a594edc6cf8396b2583ac8b4d8f383b039925814650",
+        "protocolVersion": "POVI/1",
+        "lockedDIR": null,
+        "lockedRound": null,
+        "validDIR": null,
+        "validRound": null,
+        "evidenceRefs": [],
+        "keyId": "consensus-c-v1",
+        "algorithm": "Ed25519",
+        "messageHash": "3e740bfdd247f13688fd688dc2be4590b60be14332af358ecc8a6904b4fd067d",
+        "signatureB64": "3B1YkIS78XbQFKPz+arzUV5kZ6LwK6E/7gUHXYN7V0yqNoEdczpHEd70hM36UcDPUiaMsBJzt04ggR1T2nu+AA=="
+      }
+    ],
+    "priorRoundNILVotes": [
+      {
+        "domain": "STRATUM/POVI/VERIFY/1",
+        "chainId": "stratum-devnet-1",
+        "height": 11,
+        "round": 0,
+        "step": "VERIFY",
+        "proposalHash": "NIL",
+        "validatorId": "validator-a",
+        "validatorSetRoot": "6fe0ea61c0cd9e7d4c251a594edc6cf8396b2583ac8b4d8f383b039925814650",
+        "protocolVersion": "POVI/1",
+        "keyId": "consensus-a-v1",
+        "algorithm": "Ed25519",
+        "messageHash": "5d0e1e5c51307b7a26bd07dfac4e08358e76815265368ccd67844f3acfb32d09",
+        "signatureB64": "JQf/oDCPujI6WNHYuvWd5vJhsQGDVRAjy2gJI3eQ4DdmhPwKT44aigI0XKOLDnZEmjHUx7rWbjG/LUFXTpCbAQ=="
+      },
+      {
+        "domain": "STRATUM/POVI/VERIFY/1",
+        "chainId": "stratum-devnet-1",
+        "height": 11,
+        "round": 0,
+        "step": "VERIFY",
+        "proposalHash": "NIL",
+        "validatorId": "validator-b",
+        "validatorSetRoot": "6fe0ea61c0cd9e7d4c251a594edc6cf8396b2583ac8b4d8f383b039925814650",
+        "protocolVersion": "POVI/1",
+        "keyId": "consensus-b-v1",
+        "algorithm": "Ed25519",
+        "messageHash": "7137aeb81260e044b08754d5e3a39cbe1ea81025d5f28dc9e513cbf6bcb02dc9",
+        "signatureB64": "/PMEGdr2RBayqBjKX2VR1ROsdu12F8WWyWGou3HTKWDza4ulXUVBRyp08KJ04uxjSLluYO3za/ndZR9dE3uOBQ=="
+      },
+      {
+        "domain": "STRATUM/POVI/VERIFY/1",
+        "chainId": "stratum-devnet-1",
+        "height": 11,
+        "round": 0,
+        "step": "VERIFY",
+        "proposalHash": "NIL",
+        "validatorId": "validator-c",
+        "validatorSetRoot": "6fe0ea61c0cd9e7d4c251a594edc6cf8396b2583ac8b4d8f383b039925814650",
+        "protocolVersion": "POVI/1",
+        "keyId": "consensus-c-v1",
+        "algorithm": "Ed25519",
+        "messageHash": "90405100def802fede8aadc2ffa532568c45b1fb78b3b9c2632c9b4d4016fb9b",
+        "signatureB64": "gD9TUWQe+7gjmlhqyxn6g1WEhF0QEdWhASQN6N4uMF928zXMD/J/8GN78wGGguY6dEuRK6wf4MV/rKTO9t5YAQ=="
+      }
+    ]
+  }
+}
