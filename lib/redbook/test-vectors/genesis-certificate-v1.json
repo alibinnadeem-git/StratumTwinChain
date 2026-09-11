@@ -1,0 +1,23 @@
+{
+  "domain": "STRATUM/GENESIS/CERT/1",
+  "certificateVersion": "STRATUM-GENESIS-CERT/1",
+  "chainId": "stratum-devnet-1",
+  "GenesisDIRHash": "51d5fd798fca7a43feb4904ba42ca4f15300ba630dab9ba19a61fba28a0bbe07",
+  "protocolVersion": "POVI/1",
+  "issuedAt": "2026-09-11T00:00:00.000Z",
+  "trustBundleHash": "3015412c19e6c1b7af0f362dad3b8089eed42c3aaba2f569e7008080891e315e",
+  "signatures": [
+    {
+      "rootId": "root-a",
+      "keyId": "root-a-v1",
+      "algorithm": "Ed25519",
+      "signatureB64": "ydLM7rvVJjK47UagdTP4J4ypqtIU6lshjtqjDhU11wWfgsvu9U4kFJDpTtOlbQKCDMvu2XktjHcfVewLggzRDA=="
+    },
+    {
+      "rootId": "root-b",
+      "keyId": "root-b-v1",
+      "algorithm": "Ed25519",
+      "signatureB64": "bdJkuaRxrKPggDLXxw9j9j+bldrDiNchaCGR2Zw6UzKxZsuqSK2XzD3ayFdAIbkZX7vMWSUT0p8EW/okts6tAg=="
+    }
+  ]
+}
