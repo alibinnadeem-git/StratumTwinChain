@@ -27,6 +27,7 @@ const (
 type ConsensusSafetyDecision struct {
 	Height           uint64  `json:"height"`
 	Round            uint64  `json:"round"`
+	NewRound         *uint64 `json:"newRound,omitempty"`
 	Step             string  `json:"step"`
 	ProposalHash     string  `json:"proposalHash,omitempty"`
 	StateRoot        string  `json:"stateRoot,omitempty"`
@@ -44,6 +45,7 @@ type ConsensusSafetyRecord struct {
 	Sequence           uint64  `json:"sequence"`
 	Height             uint64  `json:"height"`
 	Round              uint64  `json:"round"`
+	NewRound           *uint64 `json:"newRound,omitempty"`
 	Step               string  `json:"step"`
 	ProposalHash       string  `json:"proposalHash,omitempty"`
 	StateRoot          string  `json:"stateRoot,omitempty"`
@@ -71,6 +73,7 @@ type consensusSafetyPayload struct {
 	Sequence           uint64  `json:"sequence"`
 	Height             uint64  `json:"height"`
 	Round              uint64  `json:"round"`
+	NewRound           *uint64 `json:"newRound,omitempty"`
 	Step               string  `json:"step"`
 	ProposalHash       string  `json:"proposalHash,omitempty"`
 	StateRoot          string  `json:"stateRoot,omitempty"`
@@ -91,7 +94,7 @@ type consensusSafetyPayload struct {
 func safetyPayload(record ConsensusSafetyRecord) consensusSafetyPayload {
 	return consensusSafetyPayload{
 		Version: record.Version, Domain: record.Domain, ChainID: record.ChainID, ValidatorID: record.ValidatorID,
-		Sequence: record.Sequence, Height: record.Height, Round: record.Round, Step: record.Step,
+		Sequence: record.Sequence, Height: record.Height, Round: record.Round, NewRound: record.NewRound, Step: record.Step,
 		ProposalHash: record.ProposalHash, StateRoot: record.StateRoot, MessageHash: record.MessageHash,
 		UnlockProofHash: record.UnlockProofHash, UnlockProofRound: record.UnlockProofRound,
 		LockedDIR: record.LockedDIR, LockedRound: record.LockedRound, ValidDIR: record.ValidDIR, ValidRound: record.ValidRound,
@@ -152,7 +155,7 @@ func verifyConsensusSafetyRecord(cfg BootstrapConfig, previous *ConsensusSafetyR
 	ref, ok := cfg.Keys["CONSENSUS"]
 	if !ok || !strings.EqualFold(record.ConsensusKeyHash, ref.PublicKeyHash) { return errors.New("consensus safety record key hash does not match configured CONSENSUS key") }
 	if previous == nil {
-		if record.Sequence != 0 || record.Step != "BOOTSTRAP" || record.Height != 0 || record.Round != 0 { return errors.New("consensus safety journal must begin with BOOTSTRAP sequence 0") }
+		if record.Sequence != 0 || record.Step != "BOOTSTRAP" || record.Height != 0 || record.Round != 0 || record.NewRound != nil { return errors.New("consensus safety journal must begin with BOOTSTRAP sequence 0") }
 		if !strings.EqualFold(record.PreviousRecordHash, cfg.GenesisDIRHash) { return errors.New("BOOTSTRAP safety record must bind the pinned Genesis DIR hash") }
 		if record.LockedDIR != "" || record.LockedRound != nil || record.ValidDIR != "" || record.ValidRound != nil || record.FinalizedDIRHash != "" { return errors.New("BOOTSTRAP safety record must not contain consensus decisions") }
 	} else {
@@ -193,6 +196,11 @@ func validateDecisionShape(decision ConsensusSafetyDecision) error {
 	if decision.MessageHash != "" && !isSHA256(decision.MessageHash) { return errors.New("messageHash must be a SHA-256 digest") }
 	if decision.UnlockProofHash != "" && !isSHA256(decision.UnlockProofHash) { return errors.New("unlockProofHash must be a SHA-256 digest") }
 	if decision.FinalizedDIRHash != "" && !isSHA256(decision.FinalizedDIRHash) { return errors.New("finalizedDIRHash must be a SHA-256 digest") }
+	if decision.Step == "ROUND_CHANGE" {
+		if decision.NewRound == nil || *decision.NewRound <= decision.Round { return errors.New("ROUND_CHANGE requires newRound strictly greater than trigger round") }
+	} else if decision.NewRound != nil {
+		return errors.New("newRound is valid only for ROUND_CHANGE")
+	}
 	switch decision.Step {
 	case "VERIFY":
 		if decision.ProposalHash == "" { return errors.New("VERIFY requires proposalHash or NIL") }
@@ -210,10 +218,15 @@ func validateDecisionShape(decision ConsensusSafetyDecision) error {
 	return nil
 }
 
+func minimumRoundAfter(record ConsensusSafetyRecord) uint64 {
+	if record.Step == "ROUND_CHANGE" && record.NewRound != nil { return *record.NewRound }
+	return record.Round
+}
+
 func validateSafetyTransition(previous, record ConsensusSafetyRecord) error {
 	if record.Height < previous.Height { return errors.New("consensus safety height rollback is forbidden") }
 	heightAdvanced := record.Height > previous.Height
-	if !heightAdvanced && record.Round < previous.Round { return errors.New("consensus safety round rollback is forbidden") }
+	if !heightAdvanced && record.Round < minimumRoundAfter(previous) { return errors.New("consensus safety round rollback is forbidden") }
 	if !heightAdvanced && record.Round == previous.Round && safetyStepRank(record.Step) <= safetyStepRank(previous.Step) { return errors.New("consensus safety step rollback or duplicate journal entry is forbidden") }
 	if heightAdvanced {
 		if previous.Height != 0 && previous.FinalizedDIRHash == "" { return errors.New("cannot advance consensus safety height before prior height FINALIZE is durably recorded") }
@@ -307,7 +320,7 @@ func findSafetyDecision(records []ConsensusSafetyRecord, decision ConsensusSafet
 	for i := range records {
 		record := records[i]
 		if record.Height == decision.Height && record.Round == decision.Round && record.Step == decision.Step {
-			if record.ProposalHash == decision.ProposalHash && record.StateRoot == decision.StateRoot && record.MessageHash == decision.MessageHash && record.UnlockProofHash == decision.UnlockProofHash && sameOptionalUint64(record.UnlockProofRound, decision.UnlockProofRound) && record.FinalizedDIRHash == decision.FinalizedDIRHash {
+			if sameOptionalUint64(record.NewRound, decision.NewRound) && record.ProposalHash == decision.ProposalHash && record.StateRoot == decision.StateRoot && record.MessageHash == decision.MessageHash && record.UnlockProofHash == decision.UnlockProofHash && sameOptionalUint64(record.UnlockProofRound, decision.UnlockProofRound) && record.FinalizedDIRHash == decision.FinalizedDIRHash {
 				return &records[i], nil
 			}
 			return nil, fmt.Errorf("EQUIVOCATION_BLOCKED: conflicting %s decision already durably recorded at height %d round %d", decision.Step, decision.Height, decision.Round)
@@ -332,7 +345,7 @@ func recordConsensusSafetyDecision(dir string, decision ConsensusSafetyDecision)
 	heightAdvanced := decision.Height > previous.Height
 	record := ConsensusSafetyRecord{
 		Version: consensusSafetyVersion, Domain: consensusSafetyDomain, ChainID: cfg.ChainID, ValidatorID: cfg.ValidatorID,
-		Sequence: previous.Sequence+1, Height: decision.Height, Round: decision.Round, Step: decision.Step,
+		Sequence: previous.Sequence+1, Height: decision.Height, Round: decision.Round, NewRound: cloneUint64(decision.NewRound), Step: decision.Step,
 		ProposalHash: decision.ProposalHash, StateRoot: decision.StateRoot, MessageHash: decision.MessageHash,
 		UnlockProofHash: decision.UnlockProofHash, UnlockProofRound: cloneUint64(decision.UnlockProofRound),
 		VoteAuthority: cfg.VoteAuthority, ConsensusKeyHash: strings.ToLower(ref.PublicKeyHash), PreviousRecordHash: previous.RecordHash,
@@ -406,6 +419,10 @@ func recoverConsensusSafetyCache(dir string) (ConsensusSafetyRecord, error) {
 	return latest, nil
 }
 
+func recoveredConsensusRound(record ConsensusSafetyRecord) uint64 {
+	return minimumRoundAfter(record)
+}
+
 func initConsensusSafetyCommand(args []string) error {
 	fs := flag.NewFlagSet("init-consensus-safety", flag.ContinueOnError)
 	dir := fs.String("dir", defaultHome(), "validator data directory")
@@ -427,7 +444,7 @@ func verifyConsensusSafetyCommand(args []string) error {
 	if err != nil { return err }
 	if *repairCache { if _, err := recoverConsensusSafetyCache(*dir); err != nil { return err } }
 	fmt.Printf("OK: verified %d signed immutable consensus safety record(s) through sequence %d\n", len(records), latest.Sequence)
-	fmt.Printf("OK: recovered height=%d round=%d step=%s lockedDIR=%s\n", latest.Height, latest.Round, latest.Step, latest.LockedDIR)
+	fmt.Printf("OK: recovered height=%d round=%d step=%s lockedDIR=%s\n", latest.Height, recoveredConsensusRound(latest), latest.Step, latest.LockedDIR)
 	fmt.Println("NOTE: the immutable journal is authoritative; consensus-safety.json is a recoverable cache")
 	return nil
 }
