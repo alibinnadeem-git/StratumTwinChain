@@ -2,6 +2,7 @@ import {z} from 'zod';
 import {canonicalHashSchema,canonicalIdSchema,schemaVersionSchema,utcIsoTimestampSchema} from './common';
 import {snapshotTrustCertificateSchema,snapshotValidatorSetSchema} from './snapshot';
 import {dirFinalityProofSchema} from './finality';
+import {validatorSetChangeProofSchema} from './validator-governance';
 
 export const PEER_SYNC_PROFILE='STRATUM-PEER-SYNC/1' as const;
 
@@ -55,6 +56,7 @@ export const peerSyncProofBundleSchema=z.object({
  protocolVersion:schemaVersionSchema,
  validatorSet:snapshotValidatorSetSchema,
  snapshotCertificate:snapshotTrustCertificateSchema.nullable(),
+ validatorSetTransitions:z.array(validatorSetChangeProofSchema).max(64).optional().default([]),
  finalityProofs:z.array(dirFinalityProofSchema).min(1).max(512),
  generatedAt:utcIsoTimestampSchema,
 }).strict().superRefine((value,ctx)=>{
@@ -63,6 +65,12 @@ export const peerSyncProofBundleSchema=z.object({
   const height=proof.header.height;
   if(height<=previousHeight)ctx.addIssue({code:z.ZodIssueCode.custom,path:['finalityProofs',index],message:'finalityProofs must be strictly height-ordered'});
   previousHeight=height;
+ }
+ const transitionHeights=new Set<number>();
+ for(const [index,transition] of value.validatorSetTransitions.entries()){
+  const height=transition.action.effectiveHeight;
+  if(transitionHeights.has(height))ctx.addIssue({code:z.ZodIssueCode.custom,path:['validatorSetTransitions',index],message:`Duplicate validator-set transition at effective height ${height}`});
+  transitionHeights.add(height);
  }
 });
 
