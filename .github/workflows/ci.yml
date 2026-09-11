@@ -20,6 +20,8 @@ jobs:
       - run: npm install --no-audit --no-fund
       - name: Redbook terminology conformance
         run: npm run qa:redbook
+      - name: Genesis hash conformance
+        run: npm run qa:genesis
       - run: npm run qa:ui
       - run: npm run typecheck
       - run: npm run build
