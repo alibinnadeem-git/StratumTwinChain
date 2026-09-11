@@ -50,14 +50,14 @@ func finalityAncestryFixture(t *testing.T) (BootstrapConfig, PeerHeadObservation
 		},
 	}
 	bundle := PeerSyncGovernedProofBundle{
-		ProfileVersion: peerSyncProfile,
-		ResponseType: peerSyncProfile[:0] + "SYNC_PROOF",
-		ChainID: cfg.ChainID,
-		GenesisDIRHash: cfg.GenesisDIRHash,
+		ProfileVersion:  peerSyncProfile,
+		ResponseType:    "SYNC_PROOF",
+		ChainID:         cfg.ChainID,
+		GenesisDIRHash:  cfg.GenesisDIRHash,
 		ProtocolVersion: cfg.ProtocolVersion,
-		ValidatorSet: v.ValidatorSet,
-		FinalityProofs: []DIRFinalityProof{v.Proof},
-		GeneratedAt: time.Now().UTC().Format(time.RFC3339Nano),
+		ValidatorSet:    v.ValidatorSet,
+		FinalityProofs:  []DIRFinalityProof{v.Proof},
+		GeneratedAt:     time.Now().UTC().Format(time.RFC3339Nano),
 	}
 	return cfg, lower, higher, bundle
 }
