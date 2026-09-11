@@ -11,6 +11,7 @@
     "qa:redbook": "node scripts/redbook-conformance.mjs",
     "qa:genesis": "node scripts/genesis-conformance.mjs",
     "qa:genesis-trust": "node scripts/genesis-trust-conformance.mjs",
+    "qa:snapshot": "node scripts/snapshot-conformance.mjs",
     "qa:e2e": "playwright test"
   },
   "dependencies": {
