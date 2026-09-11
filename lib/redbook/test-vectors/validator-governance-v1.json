@@ -1,0 +1,65 @@
+{
+  "expectedGovernancePolicyHash": "c2c77a6f64d23947e291ce21cb132b860847dc9849f66c7c6463aefd5e5d7364",
+  "expectedPreviousValidatorSetRoot": "65cbc5192742522ad318844274a9031f2c30e9d7299ebdad26dc938f8c88481d",
+  "proof": {
+    "action": {
+      "domain": "STRATUM/VALIDATOR_SET_CHANGE/1",
+      "actionVersion": "STRATUM-VALIDATOR-SET-CHANGE/1",
+      "chainId": "stratum-devnet-1",
+      "actionId": "validator-b-consensus-rotation-12",
+      "actionType": "ROTATE_CONSENSUS_KEY",
+      "validatorId": "validator-b",
+      "approvedAtHeight": 11,
+      "effectiveHeight": 12,
+      "previousValidatorSetRoot": "65cbc5192742522ad318844274a9031f2c30e9d7299ebdad26dc938f8c88481d",
+      "nextValidatorSetRoot": "6411ce43c586b6c908c015f0ed206d18a24ea3723e43094cfe7a2d931903c9a7",
+      "previousValidatorSetHash": "a4c3191b3ed053a0bc7d29af25680ff66e558355ccdc27ea519c2b21d7b28b30",
+      "nextValidatorSetHash": "c65b50ecfce685ff1a01b69a5edbe09d225cb60a2992a5a756bd458b61fac861",
+      "subjectIdentityHash": "744745932e0344b9dfa6c6d3998d5386cd2431d130130d75314ab63485116d6f",
+      "governancePolicyHash": "c2c77a6f64d23947e291ce21cb132b860847dc9849f66c7c6463aefd5e5d7364",
+      "reasonHash": "988bfb65021c3546508acd92e7617fd45ba627d1aea21a47c190cbf1e9dc483b"
+    },
+    "governancePolicy": {
+      "profile": "STRATUM-VALIDATOR-GOVERNANCE/1",
+      "chainId": "stratum-devnet-1",
+      "authorityId": "validator-governance-authority-v1",
+      "authorityType": "VALIDATOR",
+      "organizationId": "STRATUM",
+      "jurisdiction": null,
+      "scope": ["VALIDATOR_CONSENSUS_KEYS", "VALIDATOR_MEMBERSHIP", "VALIDATOR_RECOVERY"],
+      "votingPolicy": "THRESHOLD",
+      "threshold": 3,
+      "effectiveFromHeight": 0,
+      "effectiveUntilHeight": null,
+      "status": "ACTIVE",
+      "members": [
+        {"authorityMemberId":"validator-governance-a","keyId":"validator-governance-a:governance:v1","purpose":"GOVERNANCE","algorithm":"Ed25519","publicKeyDerB64":"MCowBQYDK2VwAyEAoQmKL3EsgIw/Drjxu7Q2exqWBTvAvB5stC5sLh3/KBE=","state":"ACTIVE","validFromHeight":0,"validUntilHeight":null},
+        {"authorityMemberId":"validator-governance-b","keyId":"validator-governance-b:governance:v1","purpose":"GOVERNANCE","algorithm":"Ed25519","publicKeyDerB64":"MCowBQYDK2VwAyEAqa+cvFL8lAUONSpWr3Tg7U9K/ho5eGcqEM6j0Eina5I=","state":"ACTIVE","validFromHeight":0,"validUntilHeight":null},
+        {"authorityMemberId":"validator-governance-c","keyId":"validator-governance-c:governance:v1","purpose":"GOVERNANCE","algorithm":"Ed25519","publicKeyDerB64":"MCowBQYDK2VwAyEA0VW9T36SOCGUx+TLpoqPDoWk4+vjqHzZZ+HMz9jJ7yI=","state":"ACTIVE","validFromHeight":0,"validUntilHeight":null}
+      ]
+    },
+    "previousValidatorSet": {
+      "setVersion": "STRATUM-VALIDATOR-SET/1",
+      "chainId": "stratum-devnet-1",
+      "members": [
+        {"validatorId":"validator-a","identityUuid":"00000000-0000-5000-a000-000000000001","operatorOrg":"STRATUM","activationHeight":0,"retirementHeight":null,"keys":[{"keyId":"validator-a:consensus:v1","purpose":"CONSENSUS","algorithm":"Ed25519","publicKeyDerB64":"MCowBQYDK2VwAyEAiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w=","activeFromHeight":0,"retiredAtHeight":null}]},
+        {"validatorId":"validator-b","identityUuid":"00000000-0000-5000-a000-000000000002","operatorOrg":"STRATUM","activationHeight":0,"retirementHeight":null,"keys":[{"keyId":"validator-b:consensus:v1","purpose":"CONSENSUS","algorithm":"Ed25519","publicKeyDerB64":"MCowBQYDK2VwAyEAgTl3Dqh9F19Wo1Rmw0x+zMuNipG07jeiXfYPW4/Js5Q=","activeFromHeight":0,"retiredAtHeight":null}]},
+        {"validatorId":"validator-c","identityUuid":"00000000-0000-5000-a000-000000000003","operatorOrg":"STRATUM","activationHeight":0,"retirementHeight":null,"keys":[{"keyId":"validator-c:consensus:v1","purpose":"CONSENSUS","algorithm":"Ed25519","publicKeyDerB64":"MCowBQYDK2VwAyEA7UkoxijRwsbq6QM4kFmVYSlZJzpcY/k2NsFGFKyHN9E=","activeFromHeight":0,"retiredAtHeight":null}]}
+      ]
+    },
+    "nextValidatorSet": {
+      "setVersion": "STRATUM-VALIDATOR-SET/1",
+      "chainId": "stratum-devnet-1",
+      "members": [
+        {"validatorId":"validator-a","identityUuid":"00000000-0000-5000-a000-000000000001","operatorOrg":"STRATUM","activationHeight":0,"retirementHeight":null,"keys":[{"keyId":"validator-a:consensus:v1","purpose":"CONSENSUS","algorithm":"Ed25519","publicKeyDerB64":"MCowBQYDK2VwAyEAiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w=","activeFromHeight":0,"retiredAtHeight":null}]},
+        {"validatorId":"validator-b","identityUuid":"00000000-0000-5000-a000-000000000002","operatorOrg":"STRATUM","activationHeight":0,"retirementHeight":null,"keys":[{"keyId":"validator-b:consensus:v1","purpose":"CONSENSUS","algorithm":"Ed25519","publicKeyDerB64":"MCowBQYDK2VwAyEAgTl3Dqh9F19Wo1Rmw0x+zMuNipG07jeiXfYPW4/Js5Q=","activeFromHeight":0,"retiredAtHeight":12},{"keyId":"validator-b:consensus:v2","purpose":"CONSENSUS","algorithm":"Ed25519","publicKeyDerB64":"MCowBQYDK2VwAyEAk1C6h5cnjVmopXuYLNNkPmxny4jClJO1ZSKCQgn8KTo=","activeFromHeight":12,"retiredAtHeight":null}]},
+        {"validatorId":"validator-c","identityUuid":"00000000-0000-5000-a000-000000000003","operatorOrg":"STRATUM","activationHeight":0,"retirementHeight":null,"keys":[{"keyId":"validator-c:consensus:v1","purpose":"CONSENSUS","algorithm":"Ed25519","publicKeyDerB64":"MCowBQYDK2VwAyEA7UkoxijRwsbq6QM4kFmVYSlZJzpcY/k2NsFGFKyHN9E=","activeFromHeight":0,"retiredAtHeight":null}]}
+      ]
+    },
+    "signatures": [
+      {"authorityMemberId":"validator-governance-a","keyId":"validator-governance-a:governance:v1","algorithm":"Ed25519","domain":"STRATUM/VALIDATOR_SET_CHANGE/1","signatureB64":"/aAz9psSRA4xTDoCofiz8uv3r/R5oCObWs25eTDT9n9Y1JpIikWsVK70GTp/PPjkhKiZRUoujEBOi50Ya4QWAg=="},
+      {"authorityMemberId":"validator-governance-b","keyId":"validator-governance-b:governance:v1","algorithm":"Ed25519","domain":"STRATUM/VALIDATOR_SET_CHANGE/1","signatureB64":"bSe6on8Yrri0RIuTBoZcNwmDk7OcJvmAjl2VuHOROUdfZu3esvUS+PtQS1yB7A/TXBPrbrUPZAAsrYgBo35lCQ=="},
+      {"authorityMemberId":"validator-governance-c","keyId":"validator-governance-c:governance:v1","algorithm":"Ed25519","domain":"STRATUM/VALIDATOR_SET_CHANGE/1","signatureB64":"l0TEfhNYOvqp+T/BvAGra9Rlx3nQnduicaACRDaFTeyHsoRI2iw5+keQtBFNJ4dmywNptYdwc8ebzgNudCWhBQ=="}
+    ]
+  }
+}
