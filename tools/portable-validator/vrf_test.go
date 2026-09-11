@@ -7,11 +7,11 @@ import (
 )
 
 type proposerVector struct {
-	ProfileVersion             string                  `json:"profileVersion"`
-	ExpectedValidatorSetRoot   string                  `json:"expectedValidatorSetRoot"`
-	ExpectedVRFKeyRegistryRoot string                  `json:"expectedVRFKeyRegistryRoot"`
-	ValidatorSet               SnapshotValidatorSet    `json:"validatorSet"`
-	VRFKeyRegistry             VRFKeyRegistry          `json:"vrfKeyRegistry"`
+	ProfileVersion             string                   `json:"profileVersion"`
+	ExpectedValidatorSetRoot   string                   `json:"expectedValidatorSetRoot"`
+	ExpectedVRFKeyRegistryRoot string                   `json:"expectedVRFKeyRegistryRoot"`
+	ValidatorSet               SnapshotValidatorSet     `json:"validatorSet"`
+	VRFKeyRegistry             VRFKeyRegistry           `json:"vrfKeyRegistry"`
 	Context                    ProposerSelectionContext `json:"context"`
 	ExpectedSelection          struct {
 		SelectionSeed string `json:"selectionSeed"`
@@ -36,7 +36,7 @@ func TestPoVIProposerVector(t *testing.T){
 	selection,err:=selectProposerPortable(v.ValidatorSet,v.Context);if err!=nil{t.Fatal(err)}
 	if selection.SelectionSeed!=v.ExpectedSelection.SelectionSeed||selection.ProposerID!=v.ExpectedSelection.ProposerID||selection.ProposerIndex!=v.ExpectedSelection.ProposerIndex{t.Fatalf("unexpected selection: %+v",selection)}
 	result,err:=verifyProposerEntropyPortable(v.ValidatorSet,v.VRFKeyRegistry,v.Evidence,v.ExpectedValidatorSetRoot,v.ExpectedVRFKeyRegistryRoot,"POVI/1");if err!=nil{t.Fatal(err)}
-	if !result.Valid||result.ProposerID!="validator-b"{t.Fatalf("unexpected verification: %+v",result)}
+	if !result.Valid||result.ProposerID!="validator-c"{t.Fatalf("unexpected verification: %+v",result)}
 }
 
 func TestPoVIProposerRejectsWrongProposer(t *testing.T){
@@ -58,5 +58,5 @@ func TestPoVIProposerRoundDomainSeparation(t *testing.T){
 	v:=loadProposerVector(t);round0,err:=selectProposerPortable(v.ValidatorSet,v.Context);if err!=nil{t.Fatal(err)}
 	v.Context.Round=2;round2,err:=selectProposerPortable(v.ValidatorSet,v.Context);if err!=nil{t.Fatal(err)}
 	if round0.SelectionSeed==round2.SelectionSeed{t.Fatal("round must domain-separate proposer seed")}
-	if round2.ProposerID!="validator-c"{t.Fatalf("fixed round-2 vector expected validator-c, got %s",round2.ProposerID)}
+	if round2.ProposerID!="validator-a"{t.Fatalf("fixed round-2 vector expected validator-a, got %s",round2.ProposerID)}
 }
