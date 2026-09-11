@@ -1,5 +1,5 @@
-import type {PoVIFinalityCertificate} from '../schema/povi';
-import {assertPoviQuorum,hasPoviQuorum} from './quorum';
+import {hasPoviQuorum} from './quorum';
+import type {VerifiedPoVIFinalityCertificate} from './finality';
 
 export type PoVIPhase='PROPOSE'|'VERIFY'|'LOCK'|'COMMIT'|'FINALIZE'|'FINALIZED';
 export type VerifyChoice=string|'NIL';
@@ -68,14 +68,17 @@ export function recordCommitVote(state:PoVIHeightState,args:{validatorId:string;
  return{...state,phase:hasPoviQuorum(active.size,signerCount)?'FINALIZE':'COMMIT',commitVotes};
 }
 
-export function finalizeWithPFC(state:PoVIHeightState,args:{PFC:PoVIFinalityCertificate;activeValidatorIds:Iterable<string>}):PoVIHeightState{
+export function finalizeWithPFC(state:PoVIHeightState,args:{verifiedPFC:VerifiedPoVIFinalityCertificate}):PoVIHeightState{
  if(state.phase!=='FINALIZE')throw new Error('DIR cannot finalize before a COMMIT quorum exists');
- if(args.PFC.chainId!==state.chainId||args.PFC.height!==state.height||args.PFC.round!==state.round){
+ const PFC=args.verifiedPFC.PFC;
+ if(!args.verifiedPFC.verified)throw new Error('PFC must be cryptographically verified before finalization');
+ if(PFC.chainId!==state.chainId||PFC.height!==state.height||PFC.round!==state.round){
   throw new Error('PFC consensus context does not match local height state');
  }
- if(!state.proposedStateRoot||args.PFC.stateRoot!==state.proposedStateRoot)throw new Error('PFC stateRoot does not match the proposal');
- assertPoviQuorum(args.activeValidatorIds,args.PFC.signerProof.signerIds);
- return{...state,phase:'FINALIZED',finalizedDIRHash:args.PFC.DIRHash};
+ if(!state.lockedDIR||PFC.DIRHash!==state.lockedDIR)throw new Error('PFC DIRHash must equal the proposal locked by COMMIT quorum');
+ if(!state.proposalHash||PFC.DIRHash!==state.proposalHash)throw new Error('PFC DIRHash must equal the canonical proposal hash');
+ if(!state.proposedStateRoot||PFC.stateRoot!==state.proposedStateRoot)throw new Error('PFC stateRoot does not match the proposal');
+ return{...state,phase:'FINALIZED',finalizedDIRHash:PFC.DIRHash};
 }
 
 export function enterHigherRound(state:PoVIHeightState,newRound:number):PoVIHeightState{
