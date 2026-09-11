@@ -1,7 +1,7 @@
-import type {PoVIFinalityCertificate} from '../schema/povi';
+import {assertVerifiedDIRFinalityResult,type VerifiedDIRFinalityResult} from '../finality-proof';
 import type {VerifiedRoundChangeQuorumEvidence} from './liveness';
 import type {VerifiedPoVILockCertificate} from './plc';
-import {assertPoviQuorum,hasPoviQuorum} from './quorum';
+import {hasPoviQuorum} from './quorum';
 
 export type PoVIPhase='PROPOSE'|'VERIFY'|'LOCK'|'COMMIT'|'FINALIZE'|'FINALIZED';
 export type VerifyChoice=string|'NIL';
@@ -56,12 +56,14 @@ export function recordCommitVote(state:PoVIHeightState,args:{validatorId:string;
  return{...state,phase:hasPoviQuorum(active.size,signerCount)?'FINALIZE':'COMMIT',commitVotes};
 }
 
-export function finalizeWithPFC(state:PoVIHeightState,args:{PFC:PoVIFinalityCertificate;activeValidatorIds:Iterable<string>}):PoVIHeightState{
+export function finalizeWithVerifiedDIRProof(state:PoVIHeightState,verified:VerifiedDIRFinalityResult):PoVIHeightState{
  if(state.phase!=='FINALIZE')throw new Error('DIR cannot finalize before a COMMIT quorum exists');
- if(args.PFC.chainId!==state.chainId||args.PFC.height!==state.height||args.PFC.round!==state.round)throw new Error('PFC consensus context does not match local height state');
- if(!state.proposedStateRoot||args.PFC.stateRoot!==state.proposedStateRoot)throw new Error('PFC stateRoot does not match the proposal');
- assertPoviQuorum(args.activeValidatorIds,args.PFC.signerProof.signerIds);
- return{...state,phase:'FINALIZED',finalizedDIRHash:args.PFC.DIRHash};
+ assertVerifiedDIRFinalityResult(verified);
+ if(verified.chainId!==state.chainId||verified.height!==state.height||verified.round!==state.round)throw new Error('Verified DIR finality proof does not match local consensus context');
+ if(!state.proposedStateRoot||verified.stateRoot!==state.proposedStateRoot)throw new Error('Verified DIR finality stateRoot does not match the proposal');
+ if(!state.proposalHash||verified.proposalHash!==state.proposalHash)throw new Error('Verified DIR finality proposalHash does not match the local proposal');
+ if(!state.lockedDIR||verified.proposalHash!==state.lockedDIR)throw new Error('Verified DIR finality proposalHash does not match the locked proposal');
+ return{...state,phase:'FINALIZED',finalizedDIRHash:verified.DIRHash};
 }
 
 export function enterHigherRound(state:PoVIHeightState,verified:VerifiedRoundChangeQuorumEvidence):PoVIHeightState{
