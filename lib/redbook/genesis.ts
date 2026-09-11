@@ -6,6 +6,23 @@ export const GENESIS_HASH_PROFILE='STRATUM-GENESIS-HASH/1' as const;
 
 export type GenesisHashMaterial=Omit<GenesisDIR,'objectId'|'GenesisDIRHash'>;
 
+function assertCanonicalGenesisValue(value:unknown,path='$'):void{
+ if(value===null||typeof value==='string'||typeof value==='boolean')return;
+ if(typeof value==='number'){
+  if(!Number.isSafeInteger(value))throw new Error(`Genesis v1 numeric value at ${path} must be a finite safe integer; encode decimal/high-precision values as canonical strings`);
+  return;
+ }
+ if(Array.isArray(value)){
+  value.forEach((item,index)=>assertCanonicalGenesisValue(item,`${path}[${index}]`));
+  return;
+ }
+ if(typeof value==='object'){
+  for(const [key,item] of Object.entries(value as Record<string,unknown>))assertCanonicalGenesisValue(item,`${path}.${key}`);
+  return;
+ }
+ throw new Error(`Unsupported Genesis v1 canonical value at ${path}: ${typeof value}`);
+}
+
 /**
  * Genesis is self-identifying: objectId === GenesisDIRHash. Those two fields are
  * therefore excluded from their own preimage. Every other canonical field is
@@ -15,6 +32,7 @@ export type GenesisHashMaterial=Omit<GenesisDIR,'objectId'|'GenesisDIRHash'>;
 export function genesisHashMaterial(input:GenesisDIR|unknown){
  const parsed=genesisDIRSchema.parse(input);
  const {objectId:_objectId,GenesisDIRHash:_hash,...genesis}=parsed;
+ assertCanonicalGenesisValue(genesis);
  return{domain:GENESIS_HASH_DOMAIN,profile:GENESIS_HASH_PROFILE,genesis};
 }
 
