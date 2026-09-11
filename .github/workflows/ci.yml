@@ -36,6 +36,8 @@ jobs:
         run: npm run qa:round-change
       - name: PoVI PLC safe-reproposal conformance
         run: npm run qa:plc
+      - name: PoVI deterministic proposer conformance
+        run: npm run qa:proposer
       - run: npm run qa:ui
       - run: npm run typecheck
       - run: npm run build
