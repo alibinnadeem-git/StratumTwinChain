@@ -148,6 +148,8 @@ func peerMultiSurveyCommand(args []string) error {
 	expectedRoot := fs.String("peer-registry-root", "", "trusted peer registry root")
 	targetsRaw := fs.String("targets", "", "comma-separated peer base URLs")
 	sessionStatePath := fs.String("session-state", "", "durable peer session state path")
+	headStatePath := fs.String("peer-head-state", "", "durable authenticated peer head observation state path")
+	evidenceJournalPath := fs.String("evidence-journal", "", "durable peer safety evidence journal path")
 	quarantineStatePath := fs.String("quarantine-state", "", "local read-only peer quarantine state path")
 	maxSkew := fs.Duration("max-clock-skew", 30*time.Second, "maximum accepted clock skew")
 	if err := fs.Parse(args); err != nil {
@@ -159,6 +161,12 @@ func peerMultiSurveyCommand(args []string) error {
 	if *sessionStatePath == "" {
 		*sessionStatePath = filepath.Join(*dir, "state", "peer-session.json")
 	}
+	if *headStatePath == "" {
+		*headStatePath = filepath.Join(*dir, "state", "peer-heads.json")
+	}
+	if *evidenceJournalPath == "" {
+		*evidenceJournalPath = filepath.Join(*dir, "state", "peer-evidence.json")
+	}
 	if *quarantineStatePath == "" {
 		*quarantineStatePath = filepath.Join(*dir, "state", "peer-quarantine.json")
 	}
@@ -167,10 +175,6 @@ func peerMultiSurveyCommand(args []string) error {
 		return err
 	}
 	session, err := newPeerSessionRuntime(*dir, registry, *height, *expectedRoot, *sessionStatePath, *maxSkew)
-	if err != nil {
-		return err
-	}
-	quarantineState, err := loadPeerQuarantineState(*quarantineStatePath, session.cfg)
 	if err != nil {
 		return err
 	}
@@ -193,10 +197,6 @@ func peerMultiSurveyCommand(args []string) error {
 			failures[target] = err.Error()
 			continue
 		}
-		if peerIsQuarantined(quarantineState, obs.PeerValidatorID) {
-			failures[target] = "authenticated peer is locally quarantined from read-only sync selection"
-			continue
-		}
 		if seenPeers[obs.PeerValidatorID] {
 			failures[target] = "duplicate authenticated validator identity"
 			continue
@@ -204,12 +204,25 @@ func peerMultiSurveyCommand(args []string) error {
 		seenPeers[obs.PeerValidatorID] = true
 		observations = append(observations, obs)
 	}
+	crossRunEvidence, err := persistAuthenticatedPeerHeads(*headStatePath, *evidenceJournalPath, *quarantineStatePath, session.cfg, observations)
+	if err != nil {
+		return fmt.Errorf("persist authenticated peer heads: %w", err)
+	}
+	quarantineState, err := loadPeerQuarantineState(*quarantineStatePath, session.cfg)
+	if err != nil {
+		return err
+	}
+	observations, blockedPeers := filterQuarantinedPeerHeads(quarantineState, observations)
+	for _, peerValidatorID := range blockedPeers {
+		failures["validator:"+peerValidatorID] = "authenticated peer is locally quarantined from read-only sync selection"
+	}
 	survey := classifyPeerHeads(observations)
 	out, _ := json.MarshalIndent(map[string]any{
-		"survey": failuresAwareSurvey(survey, failures),
-		"state": session.cfg.State,
-		"voteAuthority": false,
-		"consensusParticipation": false,
+		"survey":                  failuresAwareSurvey(survey, failures),
+		"crossRunSafetyEvidence": crossRunEvidence,
+		"state":                   session.cfg.State,
+		"voteAuthority":           false,
+		"consensusParticipation":  false,
 	}, "", "  ")
 	fmt.Println(string(out))
 	if survey.Classification == "FINALIZED_HEAD_CONFLICT" {
@@ -226,14 +239,14 @@ func peerMultiSurveyCommand(args []string) error {
 
 func failuresAwareSurvey(survey PeerHeadSurvey, failures map[string]string) map[string]any {
 	return map[string]any{
-		"profileVersion": survey.ProfileVersion,
-		"classification": survey.Classification,
-		"observations": survey.Observations,
-		"conflicts": survey.Conflicts,
-		"lowestObservedHeight": survey.LowestObservedHeight,
+		"profileVersion":        survey.ProfileVersion,
+		"classification":        survey.Classification,
+		"observations":          survey.Observations,
+		"conflicts":             survey.Conflicts,
+		"lowestObservedHeight":  survey.LowestObservedHeight,
 		"highestObservedHeight": survey.HighestObservedHeight,
-		"autoAdvanceAllowed": survey.AutoAdvanceAllowed,
-		"reason": survey.Reason,
-		"peerFailures": failures,
+		"autoAdvanceAllowed":    survey.AutoAdvanceAllowed,
+		"reason":                survey.Reason,
+		"peerFailures":          failures,
 	}
 }
