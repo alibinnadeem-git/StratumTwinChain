@@ -15,6 +15,7 @@
     "qa:finality": "node scripts/finality-conformance.mjs",
     "qa:validator-governance": "node scripts/validator-governance-conformance.mjs",
     "qa:round-change": "node scripts/round-change-conformance.mjs",
+    "qa:proposer-selection": "node scripts/proposer-selection-conformance.mjs",
     "qa:e2e": "playwright test"
   },
   "dependencies": {
