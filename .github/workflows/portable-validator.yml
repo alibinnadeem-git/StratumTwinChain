@@ -15,6 +15,7 @@ on:
       - 'lib/redbook/schema/validator-governance.ts'
       - 'lib/redbook/schema/liveness.ts'
       - 'lib/redbook/schema/plc.ts'
+      - 'lib/redbook/schema/vrf.ts'
       - 'lib/redbook/test-vectors/**'
       - 'scripts/genesis-conformance.mjs'
       - 'scripts/genesis-trust-conformance.mjs'
@@ -23,6 +24,7 @@ on:
       - 'scripts/validator-governance-conformance.mjs'
       - 'scripts/round-change-conformance.mjs'
       - 'scripts/plc-conformance.mjs'
+      - 'scripts/vrf-proposer-conformance.mjs'
       - '.github/workflows/portable-validator.yml'
   push:
     branches-ignore: [main]
@@ -40,6 +42,7 @@ on:
       - 'lib/redbook/schema/validator-governance.ts'
       - 'lib/redbook/schema/liveness.ts'
       - 'lib/redbook/schema/plc.ts'
+      - 'lib/redbook/schema/vrf.ts'
       - 'lib/redbook/test-vectors/**'
       - 'scripts/genesis-conformance.mjs'
       - 'scripts/genesis-trust-conformance.mjs'
@@ -48,6 +51,7 @@ on:
       - 'scripts/validator-governance-conformance.mjs'
       - 'scripts/round-change-conformance.mjs'
       - 'scripts/plc-conformance.mjs'
+      - 'scripts/vrf-proposer-conformance.mjs'
       - '.github/workflows/portable-validator.yml'
 jobs:
   portable-validator:
@@ -71,6 +75,8 @@ jobs:
         run: node scripts/round-change-conformance.mjs
       - name: PoVI PLC safe-reproposal test vector
         run: node scripts/plc-conformance.mjs
+      - name: PoVI proposer entropy profile test vector
+        run: node scripts/vrf-proposer-conformance.mjs
       - uses: actions/setup-go@v6
         with:
           go-version: '1.24.x'
@@ -118,7 +124,7 @@ jobs:
           if(source.includes('fs.String("enrollment-code"')) throw new Error('Raw enrollment secret must not be accepted as a command-line value');
           const dispatcher=fs.readFileSync('tools/portable-validator/main.go','utf8');
           if(/case\s+"(activate|vote|force-active)"/.test(dispatcher)) throw new Error('Bootstrap must not expose vote-authority or activation commands');
-          for(const required of ['verify-genesis-trust','verify-snapshot','verify-finality','verify-validator-governance','verify-round-change','verify-plc']) if(!dispatcher.includes(required)) throw new Error(`Portable validator missing trust command: ${required}`);
+          for(const required of ['verify-genesis-trust','verify-snapshot','verify-finality','verify-validator-governance','verify-round-change','verify-plc','verify-proposer']) if(!dispatcher.includes(required)) throw new Error(`Portable validator missing trust command: ${required}`);
           const genesis=fs.readFileSync('tools/portable-validator/genesis.go','utf8');
           for(const required of ['STRATUM/GENESIS/DIR/1','STRATUM-GENESIS-HASH/1','objectId','GenesisDIRHash','maxSafeJSONInteger']) if(!genesis.includes(required)) throw new Error(`Missing Genesis verifier invariant: ${required}`);
           const trust=fs.readFileSync('tools/portable-validator/trust.go','utf8');
@@ -133,5 +139,7 @@ jobs:
           for(const required of ['STRATUM/POVI/VERIFY/1','STRATUM/POVI/ROUND_CHANGE/1','STRATUM-ROUND-CHANGE-EVIDENCE/1','NIL VERIFY quorum not met','ROUND_CHANGE quorum not met','never authorizes a safe unlock','ed25519.Verify']) if(!liveness.includes(required)) throw new Error(`Missing round-change liveness invariant: ${required}`);
           const plc=fs.readFileSync('tools/portable-validator/plc.go','utf8');
           for(const required of ['STRATUM-PLC-PROOF/1','STRATUM/PLC/PROOF/1','PLC PoVI quorum not met','PLC signerIds do not exactly match valid VERIFY signatures','verifyConsensusHashSignature']) if(!plc.includes(required)) throw new Error(`Missing PLC invariant: ${required}`);
-          console.log('Portable validator candidate-only, Genesis, snapshot, finality, validator-governance, round-change liveness, and PLC invariants passed');
+          const proposer=fs.readFileSync('tools/portable-validator/vrf.go','utf8');
+          for(const required of ['STRATUM-POVI-PROPOSER/1','STRATUM/POVI/PROPOSER_SELECTION/1','STRATUM/POVI/VRF_EVIDENCE/1','STRATUM-VRF-KEY-REGISTRY/1','VRF-key registry must cover exactly the ACTIVE validator set','wrong proposer','ed25519.Verify']) if(!proposer.includes(required)) throw new Error(`Missing proposer entropy invariant: ${required}`);
+          console.log('Portable validator candidate-only, Genesis, snapshot, finality, validator-governance, round-change liveness, PLC, and proposer-entropy invariants passed');
           NODE
