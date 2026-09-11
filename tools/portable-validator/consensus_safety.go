@@ -37,55 +37,55 @@ type ConsensusSafetyDecision struct {
 }
 
 type ConsensusSafetyRecord struct {
-	Version             string  `json:"version"`
-	Domain              string  `json:"domain"`
-	ChainID             string  `json:"chainId"`
-	ValidatorID         string  `json:"validatorId"`
-	Sequence            uint64  `json:"sequence"`
-	Height              uint64  `json:"height"`
-	Round               uint64  `json:"round"`
-	Step                string  `json:"step"`
-	ProposalHash        string  `json:"proposalHash,omitempty"`
-	StateRoot           string  `json:"stateRoot,omitempty"`
-	MessageHash         string  `json:"messageHash,omitempty"`
-	UnlockProofHash     string  `json:"unlockProofHash,omitempty"`
-	UnlockProofRound    *uint64 `json:"unlockProofRound,omitempty"`
-	LockedDIR           string  `json:"lockedDIR,omitempty"`
-	LockedRound         *uint64 `json:"lockedRound,omitempty"`
-	ValidDIR            string  `json:"validDIR,omitempty"`
-	ValidRound          *uint64 `json:"validRound,omitempty"`
-	FinalizedDIRHash    string  `json:"finalizedDIRHash,omitempty"`
-	VoteAuthority       bool    `json:"voteAuthority"`
-	ConsensusKeyHash    string  `json:"consensusKeyHash"`
-	PreviousRecordHash  string  `json:"previousRecordHash"`
-	RecordedAt          string  `json:"recordedAt"`
-	RecordHash          string  `json:"recordHash"`
-	Signature           string  `json:"signature"`
+	Version            string  `json:"version"`
+	Domain             string  `json:"domain"`
+	ChainID            string  `json:"chainId"`
+	ValidatorID        string  `json:"validatorId"`
+	Sequence           uint64  `json:"sequence"`
+	Height             uint64  `json:"height"`
+	Round              uint64  `json:"round"`
+	Step               string  `json:"step"`
+	ProposalHash       string  `json:"proposalHash,omitempty"`
+	StateRoot          string  `json:"stateRoot,omitempty"`
+	MessageHash        string  `json:"messageHash,omitempty"`
+	UnlockProofHash    string  `json:"unlockProofHash,omitempty"`
+	UnlockProofRound   *uint64 `json:"unlockProofRound,omitempty"`
+	LockedDIR          string  `json:"lockedDIR,omitempty"`
+	LockedRound        *uint64 `json:"lockedRound,omitempty"`
+	ValidDIR           string  `json:"validDIR,omitempty"`
+	ValidRound         *uint64 `json:"validRound,omitempty"`
+	FinalizedDIRHash   string  `json:"finalizedDIRHash,omitempty"`
+	VoteAuthority      bool    `json:"voteAuthority"`
+	ConsensusKeyHash   string  `json:"consensusKeyHash"`
+	PreviousRecordHash string  `json:"previousRecordHash"`
+	RecordedAt         string  `json:"recordedAt"`
+	RecordHash         string  `json:"recordHash"`
+	Signature          string  `json:"signature"`
 }
 
 type consensusSafetyPayload struct {
-	Version             string  `json:"version"`
-	Domain              string  `json:"domain"`
-	ChainID             string  `json:"chainId"`
-	ValidatorID         string  `json:"validatorId"`
-	Sequence            uint64  `json:"sequence"`
-	Height              uint64  `json:"height"`
-	Round               uint64  `json:"round"`
-	Step                string  `json:"step"`
-	ProposalHash        string  `json:"proposalHash,omitempty"`
-	StateRoot           string  `json:"stateRoot,omitempty"`
-	MessageHash         string  `json:"messageHash,omitempty"`
-	UnlockProofHash     string  `json:"unlockProofHash,omitempty"`
-	UnlockProofRound    *uint64 `json:"unlockProofRound,omitempty"`
-	LockedDIR           string  `json:"lockedDIR,omitempty"`
-	LockedRound         *uint64 `json:"lockedRound,omitempty"`
-	ValidDIR            string  `json:"validDIR,omitempty"`
-	ValidRound          *uint64 `json:"validRound,omitempty"`
-	FinalizedDIRHash    string  `json:"finalizedDIRHash,omitempty"`
-	VoteAuthority       bool    `json:"voteAuthority"`
-	ConsensusKeyHash    string  `json:"consensusKeyHash"`
-	PreviousRecordHash  string  `json:"previousRecordHash"`
-	RecordedAt          string  `json:"recordedAt"`
+	Version            string  `json:"version"`
+	Domain             string  `json:"domain"`
+	ChainID            string  `json:"chainId"`
+	ValidatorID        string  `json:"validatorId"`
+	Sequence           uint64  `json:"sequence"`
+	Height             uint64  `json:"height"`
+	Round              uint64  `json:"round"`
+	Step               string  `json:"step"`
+	ProposalHash       string  `json:"proposalHash,omitempty"`
+	StateRoot          string  `json:"stateRoot,omitempty"`
+	MessageHash        string  `json:"messageHash,omitempty"`
+	UnlockProofHash    string  `json:"unlockProofHash,omitempty"`
+	UnlockProofRound   *uint64 `json:"unlockProofRound,omitempty"`
+	LockedDIR          string  `json:"lockedDIR,omitempty"`
+	LockedRound        *uint64 `json:"lockedRound,omitempty"`
+	ValidDIR           string  `json:"validDIR,omitempty"`
+	ValidRound         *uint64 `json:"validRound,omitempty"`
+	FinalizedDIRHash   string  `json:"finalizedDIRHash,omitempty"`
+	VoteAuthority      bool    `json:"voteAuthority"`
+	ConsensusKeyHash   string  `json:"consensusKeyHash"`
+	PreviousRecordHash string  `json:"previousRecordHash"`
+	RecordedAt         string  `json:"recordedAt"`
 }
 
 func safetyPayload(record ConsensusSafetyRecord) consensusSafetyPayload {
@@ -212,20 +212,28 @@ func validateDecisionShape(decision ConsensusSafetyDecision) error {
 
 func validateSafetyTransition(previous, record ConsensusSafetyRecord) error {
 	if record.Height < previous.Height { return errors.New("consensus safety height rollback is forbidden") }
-	if record.Height == previous.Height && record.Round < previous.Round { return errors.New("consensus safety round rollback is forbidden") }
-	if record.Height == previous.Height && record.Round == previous.Round && safetyStepRank(record.Step) <= safetyStepRank(previous.Step) { return errors.New("consensus safety step rollback or duplicate journal entry is forbidden") }
-	if record.Height > previous.Height && previous.FinalizedDIRHash == "" && previous.Height != 0 { return errors.New("cannot advance consensus safety height before prior height FINALIZE is durably recorded") }
-	if record.Step == "VERIFY" && record.ProposalHash != "NIL" && previous.LockedDIR != "" && record.ProposalHash != previous.LockedDIR {
+	heightAdvanced := record.Height > previous.Height
+	if !heightAdvanced && record.Round < previous.Round { return errors.New("consensus safety round rollback is forbidden") }
+	if !heightAdvanced && record.Round == previous.Round && safetyStepRank(record.Step) <= safetyStepRank(previous.Step) { return errors.New("consensus safety step rollback or duplicate journal entry is forbidden") }
+	if heightAdvanced {
+		if previous.Height != 0 && previous.FinalizedDIRHash == "" { return errors.New("cannot advance consensus safety height before prior height FINALIZE is durably recorded") }
+		if record.Step != "VERIFY" && record.Step != "ROUND_CHANGE" { return errors.New("new consensus height must begin with a durable VERIFY or ROUND_CHANGE decision") }
+		if record.LockedDIR != "" || record.LockedRound != nil || record.ValidDIR != "" || record.ValidRound != nil || record.FinalizedDIRHash != "" { return errors.New("new consensus height must start with clean lock, valid-value, and finality state") }
+	}
+	if !heightAdvanced && record.Step == "VERIFY" && record.ProposalHash != "NIL" && previous.LockedDIR != "" && record.ProposalHash != previous.LockedDIR {
 		if record.UnlockProofRound == nil || record.UnlockProofHash == "" || *record.UnlockProofRound <= valueOrZero(previous.LockedRound) || *record.UnlockProofRound >= record.Round { return errors.New("conflicting VERIFY requires higher-round PLC proof between lockedRound and current round") }
 	}
 	if record.Step == "LOCK" {
+		if heightAdvanced { return errors.New("LOCK cannot be the first durable decision of a new height") }
 		if record.LockedDIR != record.ProposalHash || record.LockedRound == nil || *record.LockedRound != record.Round { return errors.New("LOCK safety record must persist the current proposal and round") }
-	} else if record.LockedDIR != previous.LockedDIR || !sameOptionalUint64(record.LockedRound, previous.LockedRound) {
+	} else if !heightAdvanced && (record.LockedDIR != previous.LockedDIR || !sameOptionalUint64(record.LockedRound, previous.LockedRound)) {
 		return errors.New("existing PoVI lock changed without a durable LOCK transition")
 	}
-	if record.Step == "COMMIT" && (previous.LockedDIR == "" || record.ProposalHash != previous.LockedDIR || previous.LockedRound == nil || *previous.LockedRound != record.Round) { return errors.New("COMMIT safety record must match the current-round durable lock") }
+	if record.Step == "COMMIT" {
+		if heightAdvanced || previous.LockedDIR == "" || record.ProposalHash != previous.LockedDIR || previous.LockedRound == nil || *previous.LockedRound != record.Round { return errors.New("COMMIT safety record must match the current-round durable lock") }
+	}
 	if record.Step == "FINALIZE" {
-		if previous.LockedDIR == "" || record.ProposalHash != previous.LockedDIR { return errors.New("FINALIZE safety record must match the durable lock") }
+		if heightAdvanced || previous.LockedDIR == "" || record.ProposalHash != previous.LockedDIR { return errors.New("FINALIZE safety record must match the durable lock") }
 		if safetyStepRank(previous.Step) < safetyStepRank("COMMIT") { return errors.New("FINALIZE cannot be recorded before COMMIT") }
 	}
 	return nil
@@ -275,7 +283,12 @@ func initializeConsensusSafety(dir string) error {
 	if err := os.MkdirAll(consensusSafetyDir(dir), 0o700); err != nil { return err }
 	entries, err := os.ReadDir(consensusSafetyDir(dir))
 	if err != nil { return err }
-	for _, entry := range entries { if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".json") { _, _, _, err := latestConsensusSafetyRecord(dir); return err } }
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".json") {
+			_, _, _, verifyErr := latestConsensusSafetyRecord(dir)
+			return verifyErr
+		}
+	}
 	ref, ok := cfg.Keys["CONSENSUS"]
 	if !ok || ref.PublicKeyHash == "" { return errors.New("CONSENSUS key reference missing from validator config") }
 	record := ConsensusSafetyRecord{
@@ -316,17 +329,24 @@ func recordConsensusSafetyDecision(dir string, decision ConsensusSafetyDecision)
 	if err != nil { return ConsensusSafetyRecord{}, err }
 	if existing, err := findSafetyDecision(records, decision); err != nil { return ConsensusSafetyRecord{}, err } else if existing != nil { return *existing, nil }
 	ref := cfg.Keys["CONSENSUS"]
+	heightAdvanced := decision.Height > previous.Height
 	record := ConsensusSafetyRecord{
 		Version: consensusSafetyVersion, Domain: consensusSafetyDomain, ChainID: cfg.ChainID, ValidatorID: cfg.ValidatorID,
 		Sequence: previous.Sequence+1, Height: decision.Height, Round: decision.Round, Step: decision.Step,
 		ProposalHash: decision.ProposalHash, StateRoot: decision.StateRoot, MessageHash: decision.MessageHash,
 		UnlockProofHash: decision.UnlockProofHash, UnlockProofRound: cloneUint64(decision.UnlockProofRound),
-		LockedDIR: previous.LockedDIR, LockedRound: cloneUint64(previous.LockedRound), ValidDIR: previous.ValidDIR, ValidRound: cloneUint64(previous.ValidRound),
-		FinalizedDIRHash: previous.FinalizedDIRHash, VoteAuthority: cfg.VoteAuthority,
-		ConsensusKeyHash: strings.ToLower(ref.PublicKeyHash), PreviousRecordHash: previous.RecordHash, RecordedAt: time.Now().UTC().Format(time.RFC3339Nano),
+		VoteAuthority: cfg.VoteAuthority, ConsensusKeyHash: strings.ToLower(ref.PublicKeyHash), PreviousRecordHash: previous.RecordHash,
+		RecordedAt: time.Now().UTC().Format(time.RFC3339Nano),
+	}
+	if !heightAdvanced {
+		record.LockedDIR = previous.LockedDIR
+		record.LockedRound = cloneUint64(previous.LockedRound)
+		record.ValidDIR = previous.ValidDIR
+		record.ValidRound = cloneUint64(previous.ValidRound)
+		record.FinalizedDIRHash = previous.FinalizedDIRHash
 	}
 	if record.Step == "LOCK" { r := record.Round; record.LockedDIR = record.ProposalHash; record.LockedRound = &r; record.ValidDIR = record.ProposalHash; record.ValidRound = &r }
-	if record.Step == "VERIFY" && record.ProposalHash != "NIL" && previous.LockedDIR != "" && record.ProposalHash != previous.LockedDIR { record.ValidDIR = record.ProposalHash; record.ValidRound = cloneUint64(record.UnlockProofRound) }
+	if record.Step == "VERIFY" && !heightAdvanced && record.ProposalHash != "NIL" && previous.LockedDIR != "" && record.ProposalHash != previous.LockedDIR { record.ValidDIR = record.ProposalHash; record.ValidRound = cloneUint64(record.UnlockProofRound) }
 	if record.Step == "FINALIZE" { record.FinalizedDIRHash = decision.FinalizedDIRHash }
 	if err := validateSafetyTransition(previous, record); err != nil { return ConsensusSafetyRecord{}, err }
 	record, err = signConsensusSafetyRecord(dir, record)
@@ -337,6 +357,7 @@ func recordConsensusSafetyDecision(dir string, decision ConsensusSafetyDecision)
 }
 
 func prepareConsensusSignature(dir string, decision ConsensusSafetyDecision) (ConsensusSafetyRecord, string, error) {
+	decision.Step = strings.ToUpper(strings.TrimSpace(decision.Step))
 	var cfg BootstrapConfig
 	if err := readJSON(filepath.Join(dir, "config.json"), &cfg); err != nil { return ConsensusSafetyRecord{}, "", err }
 	if !cfg.VoteAuthority { return ConsensusSafetyRecord{}, "", errors.New("vote authority is false; governed activation is required before consensus signing") }
@@ -367,8 +388,8 @@ func writeImmutableSafetyRecord(path string, record ConsensusSafetyRecord) error
 	if err := file.Close(); err != nil { return err }
 	if err := os.Rename(tmp, path); err != nil { return err }
 	if runtime.GOOS != "windows" {
-		dir, err := os.Open(filepath.Dir(path)); if err != nil { return err }
-		defer dir.Close(); if err := dir.Sync(); err != nil { return err }
+		dirHandle, err := os.Open(filepath.Dir(path)); if err != nil { return err }
+		defer dirHandle.Close(); if err := dirHandle.Sync(); err != nil { return err }
 	}
 	ok = true
 	return nil
