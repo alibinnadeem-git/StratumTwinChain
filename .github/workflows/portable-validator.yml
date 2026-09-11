@@ -84,7 +84,7 @@ jobs:
           for(const required of ['STRATUM/GENESIS/DIR/1','STRATUM-GENESIS-HASH/1','objectId','GenesisDIRHash','maxSafeJSONInteger'])
             if(!genesis.includes(required)) throw new Error(`Missing Genesis verifier invariant: ${required}`);
           const trust=fs.readFileSync('tools/portable-validator/trust.go','utf8');
-          for(const required of ['STRATUM/BOOTSTRAP/TRUST/1','STRATUM-GENESIS/CERT/1','bootstrap trust bundle pin mismatch','duplicate Genesis signer','Genesis trust threshold not met','ed25519.Verify'])
+          for(const required of ['STRATUM/BOOTSTRAP/TRUST/1','STRATUM-GENESIS-CERT/1','bootstrap trust bundle pin mismatch','duplicate Genesis signer','Genesis trust threshold not met','ed25519.Verify'])
             if(!trust.includes(required)) throw new Error(`Missing Genesis trust invariant: ${required}`);
           console.log('Portable validator candidate-only, Genesis, and threshold-trust safety invariants passed');
           NODE
