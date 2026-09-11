@@ -16,6 +16,7 @@
     "qa:validator-governance": "node scripts/validator-governance-conformance.mjs",
     "qa:round-change": "node scripts/round-change-conformance.mjs",
     "qa:plc": "node scripts/plc-conformance.mjs",
+    "qa:vrf": "node scripts/vrf-proposer-conformance.mjs",
     "qa:e2e": "playwright test"
   },
   "dependencies": {
