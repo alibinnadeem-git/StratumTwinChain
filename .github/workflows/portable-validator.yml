@@ -6,12 +6,15 @@ on:
       - 'lib/redbook/genesis.ts'
       - 'lib/redbook/genesis-trust.ts'
       - 'lib/redbook/snapshot-trust.ts'
+      - 'lib/redbook/finality-proof.ts'
       - 'lib/redbook/schema/bootstrap.ts'
       - 'lib/redbook/schema/snapshot.ts'
+      - 'lib/redbook/schema/finality.ts'
       - 'lib/redbook/test-vectors/**'
       - 'scripts/genesis-conformance.mjs'
       - 'scripts/genesis-trust-conformance.mjs'
       - 'scripts/snapshot-conformance.mjs'
+      - 'scripts/finality-conformance.mjs'
       - '.github/workflows/portable-validator.yml'
   push:
     branches-ignore: [main]
@@ -20,12 +23,15 @@ on:
       - 'lib/redbook/genesis.ts'
       - 'lib/redbook/genesis-trust.ts'
       - 'lib/redbook/snapshot-trust.ts'
+      - 'lib/redbook/finality-proof.ts'
       - 'lib/redbook/schema/bootstrap.ts'
       - 'lib/redbook/schema/snapshot.ts'
+      - 'lib/redbook/schema/finality.ts'
       - 'lib/redbook/test-vectors/**'
       - 'scripts/genesis-conformance.mjs'
       - 'scripts/genesis-trust-conformance.mjs'
       - 'scripts/snapshot-conformance.mjs'
+      - 'scripts/finality-conformance.mjs'
       - '.github/workflows/portable-validator.yml'
 jobs:
   portable-validator:
@@ -41,6 +47,8 @@ jobs:
         run: node scripts/genesis-trust-conformance.mjs
       - name: Snapshot certificate test vector
         run: node scripts/snapshot-conformance.mjs
+      - name: PFC and DIR continuity test vector
+        run: node scripts/finality-conformance.mjs
       - uses: actions/setup-go@v6
         with:
           go-version: '1.24.x'
@@ -87,7 +95,7 @@ jobs:
           if(source.includes('fs.String("enrollment-code"')) throw new Error('Raw enrollment secret must not be accepted as a command-line value');
           const dispatcher=fs.readFileSync('tools/portable-validator/main.go','utf8');
           if(/case\s+"(activate|vote|force-active)"/.test(dispatcher)) throw new Error('Bootstrap must not expose vote-authority or activation commands');
-          for(const required of ['verify-genesis-trust','verify-snapshot']) if(!dispatcher.includes(required)) throw new Error(`Portable validator missing trust command: ${required}`);
+          for(const required of ['verify-genesis-trust','verify-snapshot','verify-finality']) if(!dispatcher.includes(required)) throw new Error(`Portable validator missing trust command: ${required}`);
           const genesis=fs.readFileSync('tools/portable-validator/genesis.go','utf8');
           for(const required of ['STRATUM/GENESIS/DIR/1','STRATUM-GENESIS-HASH/1','objectId','GenesisDIRHash','maxSafeJSONInteger'])
             if(!genesis.includes(required)) throw new Error(`Missing Genesis verifier invariant: ${required}`);
@@ -97,5 +105,8 @@ jobs:
           const snapshot=fs.readFileSync('tools/portable-validator/snapshot.go','utf8');
           for(const required of ['STRATUM/SNAPSHOT/CERT/1','STRATUM/VALIDATOR_SET/1','exactly one active CONSENSUS key','trusted validator-set root mismatch','snapshot PoVI quorum not met','ed25519.Verify'])
             if(!snapshot.includes(required)) throw new Error(`Missing snapshot trust invariant: ${required}`);
-          console.log('Portable validator candidate-only, Genesis, threshold-trust, and snapshot safety invariants passed');
+          const finality=fs.readFileSync('tools/portable-validator/finality.go','utf8');
+          for(const required of ['STRATUM/PFC/PROOF/1','STRATUM/POVI/COMMIT/1','DIR previousDIRHash does not continue the trusted head','PFC PoVI quorum not met','PFC signerIds do not exactly match valid COMMIT signatures','DIRHash mismatch','ed25519.Verify'])
+            if(!finality.includes(required)) throw new Error(`Missing finality invariant: ${required}`);
+          console.log('Portable validator candidate-only, Genesis, snapshot, and PFC/DIR continuity invariants passed');
           NODE
