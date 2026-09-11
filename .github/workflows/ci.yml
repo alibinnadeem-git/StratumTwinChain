@@ -2,7 +2,9 @@ name: STRATUM Spatial Verified CI
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - 'redbook/**'
   pull_request:
     branches: [main]
 
@@ -26,6 +28,8 @@ jobs:
         run: npm run qa:genesis-trust
       - name: Snapshot trust conformance
         run: npm run qa:snapshot
+      - name: PFC and DIR finality conformance
+        run: npm run qa:finality
       - run: npm run qa:ui
       - run: npm run typecheck
       - run: npm run build
