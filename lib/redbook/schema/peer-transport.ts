@@ -6,7 +6,7 @@ export const PEER_TRANSPORT_ENVELOPE_DOMAIN='STRATUM/PEER/ENVELOPE/1' as const;
 export const PEER_TRANSPORT_REGISTRY_PROFILE='STRATUM-PEER-REGISTRY/1' as const;
 export const PEER_TRANSPORT_REGISTRY_DOMAIN='STRATUM/PEER_REGISTRY/1' as const;
 
-export const readOnlyPeerMessageTypes=['PING','STATUS','TRUST_ROOTS'] as const;
+export const readOnlyPeerMessageTypes=['PING','STATUS','TRUST_ROOTS','SYNC_HEAD','SYNC_PROOF'] as const;
 export const readOnlyPeerMessageTypeSchema=z.enum(readOnlyPeerMessageTypes);
 
 export const peerTransportKeySchema=z.object({
