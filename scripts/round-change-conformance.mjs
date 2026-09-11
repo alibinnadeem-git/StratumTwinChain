@@ -32,7 +32,7 @@ const alteredRound=structuredClone(evidence.roundChangeVotes);alteredRound[0].ne
 let duplicateRejected=false;try{validRoundChanges([evidence.roundChangeVotes[0],evidence.roundChangeVotes[0],evidence.roundChangeVotes[2]]);}catch{duplicateRejected=true;}if(!duplicateRejected)throw new Error('Duplicate ROUND_CHANGE signer was not rejected');
 
 const schema=fs.readFileSync('lib/redbook/schema/liveness.ts','utf8');
-for(const token of ['STRATUM/POVI/VERIFY/1','STRATUM/POVI/ROUND_CHANGE/1','STRATUM-ROUND-CHANGE-EVIDENCE/1','validatorSetRoot','protocolVersion','Lock claims require evidence references'])if(!schema.includes(token))throw new Error(`Missing liveness schema invariant: ${token}`);
+for(const token of ['STRATUM/POVI/VERIFY/1','STRATUM/POVI/ROUND_CHANGE/1','STRATUM-ROUND-CHANGE-EVIDENCE/1','validatorSetRoot','protocolVersion','ROUND_CHANGE alone never proves an unlock'])if(!schema.includes(token))throw new Error(`Missing liveness schema invariant: ${token}`);
 const verifier=fs.readFileSync('lib/redbook/povi/liveness.ts','utf8');
 for(const token of ['NIL VERIFY quorum not met','ROUND_CHANGE quorum not met','safeUnlockAuthorized:false','verifySignature(null'])if(!verifier.includes(token))throw new Error(`Missing liveness verifier invariant: ${token}`);
 const stateMachine=fs.readFileSync('lib/redbook/povi/state-machine.ts','utf8');
