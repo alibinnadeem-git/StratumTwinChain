@@ -1,41 +1,77 @@
-# STRATUM Portable Validator Bootstrap
+# STRATUM Portable Validator
 
-Status: **P0 foundation / candidate-only bootstrap**. This is not yet a PoVI-conformant voting runtime.
+Status: **P0 / candidate-only portable validator with read-only authenticated peer sessions**. This is **not yet a live PoVI voting runtime** and does not grant consensus authority.
 
-The Redbook portable-validator flow is: install → verify Genesis → local key generation → enrollment → peer discovery → proof-verifying sync → `CANDIDATE` → governed future-height `ACTIVE`.
+The Redbook portable-validator flow is:
 
-This bootstrap implements the first safe executable slice of that flow:
+install → verify Genesis → local purpose-separated keys → enrollment → peer discovery → proof-verifying sync → `CANDIDATE` → governed future-height `ACTIVE`.
 
-- local validator identity creation without overwriting an existing identity;
-- local purpose-separated key material for `CONSENSUS`, `VRF`, and `TRANSPORT`;
+The repository now implements substantial trust-verification and crash-safety portions of that flow while deliberately keeping portable nodes non-voting.
+
+## Implemented foundation
+
+The portable validator currently provides:
+
+- permanent local validator identity creation without overwriting an existing identity;
+- purpose-separated `CONSENSUS`, `VRF`, and `TRANSPORT` key material;
 - private key files stored only under `keys/private` with restrictive filesystem permissions;
-- raw enrollment codes accepted only through `STRATUM_ENROLLMENT_CODE` or a permission-restricted file, never as a command-line secret value;
-- enrollment code persisted only as a SHA-256 digest;
-- public enrollment bundle containing public keys and package-build attestation only;
-- pinned `chainId` and `GenesisDIRHash` verification;
-- persistent crash-safety state scaffold;
-- candidate health checks;
-- signed universal package-manifest verification;
-- cross-compilation gates for Linux ARM64, Linux AMD64, macOS ARM64, and Windows AMD64.
+- enrollment codes accepted through `STRATUM_ENROLLMENT_CODE` or a permission-restricted file, never as a command-line secret value;
+- canonical Genesis DIR verification and threshold Genesis trust-certificate verification;
+- snapshot certificate and validator-set-root verification;
+- PFC and finalized DIR continuity verification;
+- governed validator-set-change verification;
+- ROUND_CHANGE liveness verification;
+- PLC safe-reproposal verification;
+- proposer/entropy implementation-profile verification;
+- authenticated read-only peer-envelope verification;
+- crash/restart consensus-safety journal verification;
+- signed package-manifest verification;
+- cross-build gates for Raspberry Pi/Linux ARM64, Linux AMD64, macOS ARM64, and Windows AMD64.
 
 ## Safety boundary
 
-A successful install **never grants vote authority**. `voteAuthority` is created as `false`, state is created as `CANDIDATE`, and this CLI intentionally exposes no `activate`, `vote`, or `force-active` command. Validator admission and activation remain governed future-height actions.
+A successful install **never grants vote authority**. The validator is created as `CANDIDATE` with `voteAuthority: false`. The CLI exposes no `activate`, `vote`, or `force-active` command.
 
-This release also intentionally blocks activation for two protocol gaps:
+Governed activation and live consensus participation are separate future steps. The local bootstrap retains these explicit blockers:
 
-1. `VRF_CONFORMANCE_NOT_YET_IMPLEMENTED` — the generated VRF-purpose key is candidate key material only; the Redbook's production VRF proposer algorithm has not yet been implemented in this bootstrap.
-2. `FULL_GENESIS_PROOF_VERIFIER_NOT_YET_IMPLEMENTED` — `verify-genesis` checks the locally pinned Genesis DIR identity (`chainId` + `GenesisDIRHash`), but does not yet perform complete canonical Genesis signatures/certificate/history verification.
+- `GOVERNANCE_ACTIVATION_REQUIRED`
+- `VRF_CONFORMANCE_NOT_YET_IMPLEMENTED`
+- `LIVE_POVI_NETWORK_EXECUTION_NOT_YET_IMPLEMENTED`
 
-These blocks prevent the bootstrap from overstating protocol conformance.
+The current proposer/entropy mechanism is a STRATUM implementation profile used for deterministic cross-language verification. It is not represented as the Redbook having normatively selected an RFC 9381 ECVRF primitive.
 
-## Build
+## Read-only authenticated peer transport
+
+The current peer transport is intentionally restricted to these application messages:
+
+- `PING`
+- `STATUS`
+- `TRUST_ROOTS`
+
+Every peer envelope is bound to the STRATUM Chain identity, network name, Genesis DIR hash, protocol version, sender validator identity, sender TRANSPORT key, monotonic sequence, nonce, issuance/expiry times, message type, canonical payload hash, message hash, and Ed25519 TRANSPORT signature.
+
+The peer-key registry is height-aware. Incoming envelopes are rejected for wrong chain/Genesis/protocol context, untrusted or inactive peer keys, signature/hash mismatch, stale or future timestamps, reused nonce, or sequence rollback.
+
+`PROPOSAL`, `VERIFY`, `COMMIT`, `ROUND_CHANGE`, PLC/PFC traffic, and all other consensus-bearing messages remain disabled in this runtime slice.
+
+### Transport security boundary
+
+The signed application envelope provides peer authentication and message integrity. It does **not** by itself provide network confidentiality.
+
+`serve-readonly-peer` defaults to loopback-only plaintext (`127.0.0.1:9443`). A non-loopback plaintext listener is refused unless the operator explicitly acknowledges a trusted reverse-proxy/TLS boundary with `--allow-plaintext-lan`. `peer-probe` refuses non-loopback `http://` targets; remote peers are expected to use HTTPS or a future native secure transport profile.
+
+This is an implementation profile. It does not claim that the Redbook normatively mandates HTTP, TLS termination, mTLS, QUIC, WebSockets, or another specific wire transport.
+
+## Build and test
 
 ```bash
 cd tools/portable-validator
-go test ./...
+go test -race ./...
+go vet ./...
 go build -trimpath -o stratum-validator-bootstrap .
 ```
+
+CI also cross-compiles Linux ARM64 for Raspberry Pi, Linux AMD64, macOS ARM64, and Windows AMD64.
 
 ## Candidate initialization
 
@@ -54,7 +90,7 @@ chmod 600 /path/to/enrollment-code
 
 For automated installers, `STRATUM_ENROLLMENT_CODE` may be supplied by the installer process rather than putting the secret in shell history.
 
-The bootstrap writes:
+The bootstrap writes approximately:
 
 ```text
 ~/.stratum/validator/
@@ -64,32 +100,57 @@ The bootstrap writes:
     consensus.pk8
     vrf.pk8
     transport.pk8
-  state/consensus-safety.json
+  state/
+    consensus-safety.json
+    peer-session.json
   logs/
   snapshots/
 ```
 
-Only `public-enrollment.json` is intended for an authorized enrollment service. The contents of `keys/private/` must stay local.
+Only `public-enrollment.json` is intended for an authorized enrollment service. Files under `keys/private/` must stay local.
 
-## Health check
+## Health and trust verification
 
 ```bash
 ./stratum-validator-bootstrap doctor
+./stratum-validator-bootstrap verify-genesis --file genesis-dir.json
+./stratum-validator-bootstrap verify-genesis-trust <options>
+./stratum-validator-bootstrap verify-snapshot <options>
+./stratum-validator-bootstrap verify-finality <options>
+./stratum-validator-bootstrap verify-validator-governance <options>
+./stratum-validator-bootstrap verify-round-change <options>
+./stratum-validator-bootstrap verify-plc <options>
+./stratum-validator-bootstrap verify-proposer <options>
+./stratum-validator-bootstrap verify-peer-envelope <options>
 ```
 
-The doctor fails if vote authority is enabled, the state is not `CANDIDATE`, a required key is missing, private-key permissions are too broad on Unix systems, the Genesis hash is malformed, or the governance activation block is missing.
+The doctor verifies candidate-only state, purpose-separated key presence, pinned Genesis identity, and the signed crash/restart safety journal. Individual trust commands verify the corresponding Redbook/STRATUM implementation-profile proof surfaces.
 
-## Verify pinned Genesis identity
+## Read-only peer session
+
+Start a loopback read-only peer service:
 
 ```bash
-./stratum-validator-bootstrap verify-genesis --file genesis-dir.json
+./stratum-validator-bootstrap serve-readonly-peer \
+  --peer-registry peer-registry.json \
+  --peer-registry-root <64-char-sha256> \
+  --height <trusted-height> \
+  --listen 127.0.0.1:9443
 ```
 
-This rejects a mismatched `chainId` or `GenesisDIRHash`. Full certified Genesis proof verification remains a subsequent P0 implementation step.
+Probe an authenticated peer and verify its signed `STATUS` response:
 
-## Verify a package
+```bash
+./stratum-validator-bootstrap peer-probe \
+  --peer-registry peer-registry.json \
+  --peer-registry-root <64-char-sha256> \
+  --height <trusted-height> \
+  --target https://validator-b.example
+```
 
-The Redbook package manifest contains `packageId`, `validatorVersion`, `protocolVersion`, `platform`, `architecture`, `binaryHash`, `SBOMHash`, `publisherSignature`, `minimumResources`, `supportedFeatures`, and `releaseChannel`.
+The session state persists outbound sequence and inbound replay watermarks. The runtime refuses to start if the local validator is not `CANDIDATE`, if `voteAuthority` is true, if the live-execution safety blocker has been removed, or if the local TRANSPORT identity does not match the trusted height-specific peer registry.
+
+## Package verification
 
 ```bash
 ./stratum-validator-bootstrap verify-package \
@@ -99,17 +160,21 @@ The Redbook package manifest contains `packageId`, `validatorVersion`, `protocol
   --sbom sbom.json
 ```
 
-The command verifies the publisher's Ed25519 signature and, when supplied, the actual binary and SBOM hashes.
+The command verifies the publisher Ed25519 signature and, when supplied, the actual binary and SBOM hashes.
 
-## Still required before production PoVI voting
+## Still required before live production PoVI voting
 
-- canonical Genesis signature/PFC/trust-root verification;
-- proof-verifying snapshot/DIR catch-up;
-- actual VRF implementation and proposer proof verification;
-- dynamic registry activation governed at a future height;
-- persistent PoVI runtime integration with crash-safe locks/last-signed state;
-- peer discovery/NAT/VPN/manual bootstrap runtime;
-- service installation/auto-start for each operating system;
-- signed release pipeline, SBOM generation, installers (MSI/PKG/DEB/RPM/Raspberry Pi image/package);
-- adversarial/Byzantine and power-loss testing;
-- resource benchmarking before publishing minimum hardware claims.
+The following remain incomplete and must not be represented as implemented:
+
+- a production-selected VRF primitive/profile and corresponding activation decision;
+- governed conversion from `CANDIDATE` to `ACTIVE` at a future height;
+- live distributed PROPOSAL → VERIFY → LOCK → COMMIT → PFC execution across validators;
+- consensus-bearing peer transport integrated with the persist-before-sign safety journal;
+- complete peer discovery/service-discovery strategy across cloud, PC, and Raspberry Pi deployments;
+- native production transport hardening as selected for the deployment model, including certificate/key lifecycle where applicable;
+- service installation and auto-start for supported operating systems;
+- signed release pipeline, SBOM generation, and production installers/packages;
+- wider Byzantine, network-partition, clock-skew, storage-failure, and power-loss qualification;
+- resource benchmarking before publishing final minimum hardware claims.
+
+Until those activation gates are completed and distributed UAT passes, the portable validator remains **PARTIAL / candidate-only**, even though its proof-verification and read-only peer-session surfaces are operational.
