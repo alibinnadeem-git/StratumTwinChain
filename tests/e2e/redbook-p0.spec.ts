@@ -1,3 +1,4 @@
+import {readFileSync} from 'node:fs';
 import {expect,test} from '@playwright/test';
 import {
  acceptProposal,
@@ -8,7 +9,7 @@ import {
  createPoVIHeightState,
  enterHigherRound,
  eventRegistry,
- finalizeWithPFC,
+ finalizeWithVerifiedDIRProof,
  hasPoviQuorum,
  nanoDirSchema,
  recordCommitVote,
@@ -16,13 +17,21 @@ import {
  requiredPoviQuorum,
  stateTransitionRegistry,
  validateStateTransition,
- type PoVIFinalityCertificate,
+ verifyDIRFinalityProof,
+ type VerifiedDIRFinalityResult,
  type VerifiedPoVILockCertificate,
  type VerifiedRoundChangeQuorumEvidence,
 } from '../../lib/redbook';
 
 const h=(char:string)=>char.repeat(64);
 const active=['validator-a','validator-b','validator-c'];
+const finalityVector=JSON.parse(readFileSync('lib/redbook/test-vectors/finality-v1.json','utf8')) as {
+ trustedPreviousHeight:number;
+ trustedPreviousDIRHash:string;
+ expectedValidatorSetRoot:string;
+ validatorSet:unknown;
+ proof:{header:{chainId:string;height:number;round:number;stateRoot:string};PFC:{proposalHash:string;DIRHash:string}};
+};
 
 function verifiedRoundChange(chainId:string,height:number,triggerRound:number,newRound:number):VerifiedRoundChangeQuorumEvidence{
  return{
@@ -99,24 +108,41 @@ test('NDIR schema preserves source time, sequence, quality and signature provena
  expect(ndir.quality).toBe('GOOD');
 });
 
-test('PoVI state reducer requires 3-of-3 for a three-validator network',()=>{
- let state=createPoVIHeightState('stratum-test',1);
- state=acceptProposal(state,{proposalHash:h('c'),stateRoot:h('d'),round:0});
- state=recordVerifyVote(state,{validatorId:'validator-a',proposalHash:h('c'),activeValidatorIds:active});
- state=recordVerifyVote(state,{validatorId:'validator-b',proposalHash:h('c'),activeValidatorIds:active});
+test('PoVI state reducer finalizes only from an immutable cryptographically verified DIR proof',()=>{
+ const vector=finalityVector;
+ let state=createPoVIHeightState(vector.proof.header.chainId,vector.proof.header.height);
+ state=acceptProposal(state,{proposalHash:vector.proof.PFC.proposalHash,stateRoot:vector.proof.header.stateRoot,round:vector.proof.header.round});
+ state=recordVerifyVote(state,{validatorId:'validator-a',proposalHash:vector.proof.PFC.proposalHash,activeValidatorIds:active});
+ state=recordVerifyVote(state,{validatorId:'validator-b',proposalHash:vector.proof.PFC.proposalHash,activeValidatorIds:active});
  expect(state.phase).toBe('VERIFY');
- state=recordVerifyVote(state,{validatorId:'validator-c',proposalHash:h('c'),activeValidatorIds:active});
+ state=recordVerifyVote(state,{validatorId:'validator-c',proposalHash:vector.proof.PFC.proposalHash,activeValidatorIds:active});
  expect(state.phase).toBe('LOCK');
  state=beginCommit(state);
- state=recordCommitVote(state,{validatorId:'validator-a',proposalHash:h('c'),activeValidatorIds:active});
- state=recordCommitVote(state,{validatorId:'validator-b',proposalHash:h('c'),activeValidatorIds:active});
+ state=recordCommitVote(state,{validatorId:'validator-a',proposalHash:vector.proof.PFC.proposalHash,activeValidatorIds:active});
+ state=recordCommitVote(state,{validatorId:'validator-b',proposalHash:vector.proof.PFC.proposalHash,activeValidatorIds:active});
  expect(state.phase).toBe('COMMIT');
- state=recordCommitVote(state,{validatorId:'validator-c',proposalHash:h('c'),activeValidatorIds:active});
+ state=recordCommitVote(state,{validatorId:'validator-c',proposalHash:vector.proof.PFC.proposalHash,activeValidatorIds:active});
  expect(state.phase).toBe('FINALIZE');
- const pfc:PoVIFinalityCertificate={chainId:'stratum-test',height:1,round:0,DIRHash:h('e'),stateRoot:h('d'),validatorSetRoot:h('f'),protocolVersion:'POVI/1',signerProof:{signerIds:active,aggregateProof:'test-proof'}};
- state=finalizeWithPFC(state,{PFC:pfc,activeValidatorIds:active});
+
+ const forged={valid:true,chainId:vector.proof.header.chainId,height:vector.proof.header.height,round:0,DIRHash:vector.proof.PFC.DIRHash,proposalHash:vector.proof.PFC.proposalHash,stateRoot:vector.proof.header.stateRoot} as unknown as VerifiedDIRFinalityResult;
+ expect(()=>finalizeWithVerifiedDIRProof(state,forged)).toThrow(/cryptographically verified DIR finality result/i);
+
+ const verified=verifyDIRFinalityProof({
+  validatorSet:vector.validatorSet,
+  proof:vector.proof,
+  expectedChainId:vector.proof.header.chainId,
+  trustedPreviousHeight:vector.trustedPreviousHeight,
+  trustedPreviousDIRHash:vector.trustedPreviousDIRHash,
+  expectedValidatorSetRoot:vector.expectedValidatorSetRoot,
+  expectedProtocolVersion:'POVI/1',
+ });
+ expect(Object.isFrozen(verified)).toBeTruthy();
+ expect(Object.isFrozen(verified.validSigners)).toBeTruthy();
+ const tamperedCopy={...verified,DIRHash:h('0')} as unknown as VerifiedDIRFinalityResult;
+ expect(()=>finalizeWithVerifiedDIRProof(state,tamperedCopy)).toThrow(/cryptographically verified DIR finality result/i);
+ state=finalizeWithVerifiedDIRProof(state,verified);
  expect(state.phase).toBe('FINALIZED');
- expect(state.finalizedDIRHash).toBe(h('e'));
+ expect(state.finalizedDIRHash).toBe(vector.proof.PFC.DIRHash);
 });
 
 test('PoVI higher round requires verified evidence and preserves an existing lock',()=>{

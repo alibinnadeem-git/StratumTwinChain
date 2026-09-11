@@ -11,6 +11,31 @@ import {
 import {snapshotValidatorSetSchema,type SnapshotValidatorSet} from './schema/snapshot';
 import {activeConsensusKeyAtHeight,validatorActiveAtHeight,validatorSetRootAtHeight} from './snapshot-trust';
 
+const VERIFIED_DIR_FINALITY=Symbol('STRATUM_VERIFIED_DIR_FINALITY');
+
+export type VerifiedDIRFinalityResult={
+ readonly valid:true;
+ readonly chainId:string;
+ readonly height:number;
+ readonly round:number;
+ readonly DIRHash:string;
+ readonly proposalHash:string;
+ readonly stateRoot:string;
+ readonly validatorSetRoot:string;
+ readonly protocolVersion:string;
+ readonly activeValidatorCount:number;
+ readonly requiredQuorum:number;
+ readonly validSigners:readonly string[];
+ readonly trustedHead:Readonly<{height:number;DIRHash:string;stateRoot:string;validatorSetRoot:string;protocolVersion:string}>;
+ readonly [VERIFIED_DIR_FINALITY]:true;
+};
+
+export function assertVerifiedDIRFinalityResult(value:unknown):asserts value is VerifiedDIRFinalityResult{
+ if(typeof value!=='object'||value===null||(value as {[VERIFIED_DIR_FINALITY]?:unknown})[VERIFIED_DIR_FINALITY]!==true){
+  throw new Error('Cryptographically verified DIR finality result is required');
+ }
+}
+
 export function proposalHashForDIRHeader(header:DIRFinalityProof['header']){
  return canonicalHash({domain:POVI_PROPOSAL_DOMAIN,DIRCandidateHeader:header});
 }
@@ -25,7 +50,7 @@ export function finalizedDIRHash(header:DIRFinalityProof['header'],args:{proposa
 
 function sameStrings(a:string[],b:string[]){return a.length===b.length&&a.every((value,index)=>value===b[index]);}
 
-export function verifyDIRFinalityProof(args:{validatorSet:unknown;proof:unknown;expectedChainId:string;trustedPreviousHeight:number;trustedPreviousDIRHash:string;expectedValidatorSetRoot:string;expectedProtocolVersion?:string;}){
+export function verifyDIRFinalityProof(args:{validatorSet:unknown;proof:unknown;expectedChainId:string;trustedPreviousHeight:number;trustedPreviousDIRHash:string;expectedValidatorSetRoot:string;expectedProtocolVersion?:string;}):VerifiedDIRFinalityResult{
  const validatorSet:SnapshotValidatorSet=snapshotValidatorSetSchema.parse(args.validatorSet);
  const proof=dirFinalityProofSchema.parse(args.proof);
  const {header,PFC}=proof;
@@ -62,5 +87,22 @@ export function verifyDIRFinalityProof(args:{validatorSet:unknown;proof:unknown;
  if(!sameStrings(declared,uniqueValid))throw new Error('PFC signerIds do not exactly match valid COMMIT signatures');
  const computedDIRHash=finalizedDIRHash(header,{proposalHash,signerIds:declared});
  if(PFC.DIRHash!==computedDIRHash)throw new Error(`DIRHash mismatch: computed ${computedDIRHash}`);
- return{valid:true as const,chainId:header.chainId,height:header.height,round:header.round,DIRHash:computedDIRHash,proposalHash,stateRoot:header.stateRoot,validatorSetRoot:computedValidatorSetRoot,protocolVersion:header.protocolVersion,activeValidatorCount:activeMembers.length,requiredQuorum:required,validSigners:uniqueValid,trustedHead:{height:header.height,DIRHash:computedDIRHash,stateRoot:header.stateRoot,validatorSetRoot:computedValidatorSetRoot,protocolVersion:header.protocolVersion}};
+ const trustedHead=Object.freeze({height:header.height,DIRHash:computedDIRHash,stateRoot:header.stateRoot,validatorSetRoot:computedValidatorSetRoot,protocolVersion:header.protocolVersion});
+ const result={
+  valid:true as const,
+  chainId:header.chainId,
+  height:header.height,
+  round:header.round,
+  DIRHash:computedDIRHash,
+  proposalHash,
+  stateRoot:header.stateRoot,
+  validatorSetRoot:computedValidatorSetRoot,
+  protocolVersion:header.protocolVersion,
+  activeValidatorCount:activeMembers.length,
+  requiredQuorum:required,
+  validSigners:Object.freeze([...uniqueValid]),
+  trustedHead,
+ } as Omit<VerifiedDIRFinalityResult,typeof VERIFIED_DIR_FINALITY>&Partial<Pick<VerifiedDIRFinalityResult,typeof VERIFIED_DIR_FINALITY>>;
+ Object.defineProperty(result,VERIFIED_DIR_FINALITY,{value:true,enumerable:false,configurable:false,writable:false});
+ return Object.freeze(result) as VerifiedDIRFinalityResult;
 }

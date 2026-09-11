@@ -8,6 +8,7 @@ export * from './schema/liveness';
 export * from './schema/plc';
 export * from './schema/validator-governance';
 export * from './validator-governance';
+export * from './finality-proof';
 export * from './registry/events';
 export * from './registry/state-transitions';
 export * from './adapters/lifecycle';
