@@ -14,6 +14,7 @@
     "qa:snapshot": "node scripts/snapshot-conformance.mjs",
     "qa:finality": "node scripts/finality-conformance.mjs",
     "qa:validator-governance": "node scripts/validator-governance-conformance.mjs",
+    "qa:protocol-governance": "node scripts/protocol-governance-conformance.mjs",
     "qa:e2e": "playwright test"
   },
   "dependencies": {
