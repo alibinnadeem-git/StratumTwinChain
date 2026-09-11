@@ -32,6 +32,8 @@ jobs:
         run: npm run qa:finality
       - name: Validator governance conformance
         run: npm run qa:validator-governance
+      - name: PoVI round-change liveness conformance
+        run: npm run qa:round-change
       - run: npm run qa:ui
       - run: npm run typecheck
       - run: npm run build
