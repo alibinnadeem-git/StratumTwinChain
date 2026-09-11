@@ -29,10 +29,10 @@ type PeerSyncGovernedProofBundle struct {
 }
 
 type GovernedSyncServingData struct {
-	BaseValidatorSet SnapshotValidatorSet
-	Snapshot         *SnapshotTrustCertificate
-	Proofs           map[int64]DIRFinalityProof
-	Transitions      []ValidatorSetChangeProof
+	BaseValidatorSet  SnapshotValidatorSet
+	Snapshot          *SnapshotTrustCertificate
+	Proofs            map[int64]DIRFinalityProof
+	Transitions       []ValidatorSetChangeProof
 	TrustedPolicyHash string
 }
 
@@ -120,14 +120,15 @@ func (r *PeerSyncRuntime) applyGovernedProofBundle(bundle PeerSyncGovernedProofB
 			return PeerSyncTrustedHead{}, fmt.Errorf("DIR proof discontinuity at bundle index %d: expected height %d, received %d", index, candidate.Height+1, proof.Header.Height)
 		}
 		nextHeight := proof.Header.Height
-		root, err := snapshotValidatorSetRoot(currentSet, nextHeight)
+		expectedRoot, err := snapshotValidatorSetRoot(currentSet, nextHeight)
 		if err != nil {
 			return PeerSyncTrustedHead{}, err
 		}
-		if candidate.ValidatorSetRoot != "" && root != candidate.ValidatorSetRoot {
+		root := expectedRoot
+		if proof.Header.ValidatorSetRoot != expectedRoot {
 			transition, ok := transitions[nextHeight]
 			if !ok {
-				return PeerSyncTrustedHead{}, fmt.Errorf("validator-set root changed at height %d without governance transition proof", nextHeight)
+				return PeerSyncTrustedHead{}, fmt.Errorf("DIR at height %d binds a validator-set root not derivable from the trusted set and no governance transition proof was supplied", nextHeight)
 			}
 			currentSet, root, err = verifySyncValidatorTransition(transition, candidate, r.cfg.ChainID, trustedPolicyHash, nextHeight)
 			if err != nil {
@@ -136,7 +137,7 @@ func (r *PeerSyncRuntime) applyGovernedProofBundle(bundle PeerSyncGovernedProofB
 			usedTransitions[nextHeight] = true
 		}
 		if proof.Header.ValidatorSetRoot != root {
-			return PeerSyncTrustedHead{}, fmt.Errorf("DIR at height %d does not bind governance-authorized validator-set root", nextHeight)
+			return PeerSyncTrustedHead{}, fmt.Errorf("DIR at height %d does not bind the trusted or governance-authorized validator-set root", nextHeight)
 		}
 		verified, err := verifyDIRFinalityProof(currentSet, proof, r.cfg.ChainID, candidate.Height, candidate.DIRHash, root, r.cfg.ProtocolVersion)
 		if err != nil {
@@ -271,26 +272,43 @@ func verifyGovernedServingData(runtime *PeerSyncRuntime, data GovernedSyncServin
 func governedPeerSyncHandler(session *PeerSessionRuntime, syncRuntime *PeerSyncRuntime, data GovernedSyncServingData) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, req *http.Request) {
-		if req.Method != http.MethodGet { http.Error(w, "method not allowed", http.StatusMethodNotAllowed); return }
+		if req.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
 		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "peerSyncProfile": peerSyncProfile, "governanceAuthenticatedTransitions": true, "state": session.cfg.State, "voteAuthority": false, "consensusParticipation": false, "trustedHeight": syncRuntime.trustedHead.Height, "trustedDIRHash": syncRuntime.trustedHead.DIRHash})
 	})
 	mux.HandleFunc("/v1/peer/message", func(w http.ResponseWriter, req *http.Request) {
-		if req.Method != http.MethodPost { http.Error(w, "method not allowed", http.StatusMethodNotAllowed); return }
+		if req.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
 		defer req.Body.Close()
 		body, err := io.ReadAll(io.LimitReader(req.Body, maxPeerEnvelopeBytes+1))
-		if err != nil || int64(len(body)) > maxPeerEnvelopeBytes { http.Error(w, "invalid peer envelope", http.StatusBadRequest); return }
+		if err != nil || int64(len(body)) > maxPeerEnvelopeBytes {
+			http.Error(w, "invalid peer envelope", http.StatusBadRequest)
+			return
+		}
 		var envelope PeerEnvelope
-		if err := json.Unmarshal(body, &envelope); err != nil { http.Error(w, "invalid peer envelope", http.StatusBadRequest); return }
-		if envelope.MessageType != "SYNC_HEAD" && envelope.MessageType != "SYNC_PROOF" { http.Error(w, "governed sync endpoint accepts read-only sync traffic only", http.StatusForbidden); return }
+		if err := json.Unmarshal(body, &envelope); err != nil {
+			http.Error(w, "invalid peer envelope", http.StatusBadRequest)
+			return
+		}
+		if envelope.MessageType != "SYNC_HEAD" && envelope.MessageType != "SYNC_PROOF" {
+			http.Error(w, "governed sync endpoint accepts read-only sync traffic only", http.StatusForbidden)
+			return
+		}
 		now := time.Now().UTC()
 		session.mu.Lock()
 		_, err = session.acceptInboundEnvelope(envelope, now)
 		var response PeerEnvelope
 		if err == nil && envelope.MessageType == "SYNC_HEAD" {
 			_, err = decodePeerSyncHeadRequest(envelope.Payload)
-			if err == nil { response, err = session.nextSignedEnvelope("SYNC_HEAD", syncRuntime.headResponse(), now) }
+			if err == nil {
+				response, err = session.nextSignedEnvelope("SYNC_HEAD", syncRuntime.headResponse(), now)
+			}
 		}
 		if err == nil && envelope.MessageType == "SYNC_PROOF" {
 			var proofReq PeerSyncProofRequest
@@ -298,11 +316,16 @@ func governedPeerSyncHandler(session *PeerSessionRuntime, syncRuntime *PeerSyncR
 			if err == nil {
 				var bundle PeerSyncGovernedProofBundle
 				bundle, err = buildGovernedServingBundle(data, session.cfg, syncRuntime.trustedHead, proofReq, now)
-				if err == nil { response, err = session.nextSignedEnvelope("SYNC_PROOF", bundle, now) }
+				if err == nil {
+					response, err = session.nextSignedEnvelope("SYNC_PROOF", bundle, now)
+				}
 			}
 		}
 		session.mu.Unlock()
-		if err != nil { http.Error(w, "governed peer sync envelope rejected", http.StatusUnauthorized); return }
+		if err != nil {
+			http.Error(w, "governed peer sync envelope rejected", http.StatusUnauthorized)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
 		_ = json.NewEncoder(w).Encode(response)
@@ -315,18 +338,39 @@ func loadGovernedSyncServingData(validatorSetPath, snapshotPath, proofDir, trans
 		return GovernedSyncServingData{}, errors.New("--sync-validator-set, --sync-proof-dir and --governance-policy-hash are required")
 	}
 	var set SnapshotValidatorSet
-	if err := readJSON(validatorSetPath, &set); err != nil { return GovernedSyncServingData{}, err }
+	if err := readJSON(validatorSetPath, &set); err != nil {
+		return GovernedSyncServingData{}, err
+	}
 	var snapshot *SnapshotTrustCertificate
-	if snapshotPath != "" { var cert SnapshotTrustCertificate; if err := readJSON(snapshotPath, &cert); err != nil { return GovernedSyncServingData{}, err }; snapshot = &cert }
-	entries, err := os.ReadDir(proofDir); if err != nil { return GovernedSyncServingData{}, err }
+	if snapshotPath != "" {
+		var cert SnapshotTrustCertificate
+		if err := readJSON(snapshotPath, &cert); err != nil {
+			return GovernedSyncServingData{}, err
+		}
+		snapshot = &cert
+	}
+	entries, err := os.ReadDir(proofDir)
+	if err != nil {
+		return GovernedSyncServingData{}, err
+	}
 	proofs := map[int64]DIRFinalityProof{}
 	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(strings.ToLower(entry.Name()), ".json") { continue }
-		proof, err := readFinalityProof(filepath.Join(proofDir, entry.Name())); if err != nil { return GovernedSyncServingData{}, err }
-		if _, exists := proofs[proof.Header.Height]; exists { return GovernedSyncServingData{}, fmt.Errorf("duplicate finality proof at height %d", proof.Header.Height) }
+		if entry.IsDir() || !strings.HasSuffix(strings.ToLower(entry.Name()), ".json") {
+			continue
+		}
+		proof, err := readFinalityProof(filepath.Join(proofDir, entry.Name()))
+		if err != nil {
+			return GovernedSyncServingData{}, err
+		}
+		if _, exists := proofs[proof.Header.Height]; exists {
+			return GovernedSyncServingData{}, fmt.Errorf("duplicate finality proof at height %d", proof.Header.Height)
+		}
 		proofs[proof.Header.Height] = proof
 	}
-	transitions, err := loadValidatorSetTransitions(transitionDir); if err != nil { return GovernedSyncServingData{}, err }
+	transitions, err := loadValidatorSetTransitions(transitionDir)
+	if err != nil {
+		return GovernedSyncServingData{}, err
+	}
 	return GovernedSyncServingData{BaseValidatorSet: set, Snapshot: snapshot, Proofs: proofs, Transitions: transitions, TrustedPolicyHash: strings.ToLower(trustedPolicyHash)}, nil
 }
 
@@ -346,31 +390,74 @@ func peerSyncGovernedServerCommand(args []string) error {
 	policyHash := fs.String("governance-policy-hash", "", "independently pinned governance policy hash")
 	allowPlaintextLAN := fs.Bool("allow-plaintext-lan", false, "explicitly allow non-loopback HTTP behind a trusted TLS/reverse-proxy boundary")
 	maxSkew := fs.Duration("max-clock-skew", 30*time.Second, "maximum accepted clock skew")
-	if err := fs.Parse(args); err != nil { return err }
-	if *registryPath == "" || *expectedRoot == "" { return errors.New("--peer-registry and --peer-registry-root are required") }
-	if !*allowPlaintextLAN && !isLoopbackListenAddress(*listen) { return errors.New("non-loopback plaintext listen refused") }
-	if *sessionStatePath == "" { *sessionStatePath = filepath.Join(*dir, "state", "peer-session.json") }
-	if *syncHeadPath == "" { *syncHeadPath = filepath.Join(*dir, "state", "peer-sync-head.json") }
-	var registry PeerTransportRegistry; if err := readJSON(*registryPath, &registry); err != nil { return err }
-	session, err := newPeerSessionRuntime(*dir, registry, *height, *expectedRoot, *sessionStatePath, *maxSkew); if err != nil { return err }
-	syncRuntime, err := newPeerSyncRuntime(session.cfg, *syncHeadPath); if err != nil { return err }
-	data, err := loadGovernedSyncServingData(*validatorSetPath, *snapshotPath, *proofDir, *transitionDir, *policyHash); if err != nil { return err }
-	if err := verifyGovernedServingData(syncRuntime, data, session.cfg.ValidatorID, time.Now().UTC()); err != nil { return fmt.Errorf("refusing to serve unverified governed sync data: %w", err) }
-	server := &http.Server{Addr: *listen, Handler: governedPeerSyncHandler(session, syncRuntime, data), ReadHeaderTimeout: 5*time.Second, ReadTimeout: 10*time.Second, WriteTimeout: 15*time.Second, IdleTimeout: 30*time.Second, MaxHeaderBytes: 32*1024}
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *registryPath == "" || *expectedRoot == "" {
+		return errors.New("--peer-registry and --peer-registry-root are required")
+	}
+	if !*allowPlaintextLAN && !isLoopbackListenAddress(*listen) {
+		return errors.New("non-loopback plaintext listen refused")
+	}
+	if *sessionStatePath == "" {
+		*sessionStatePath = filepath.Join(*dir, "state", "peer-session.json")
+	}
+	if *syncHeadPath == "" {
+		*syncHeadPath = filepath.Join(*dir, "state", "peer-sync-head.json")
+	}
+	var registry PeerTransportRegistry
+	if err := readJSON(*registryPath, &registry); err != nil {
+		return err
+	}
+	session, err := newPeerSessionRuntime(*dir, registry, *height, *expectedRoot, *sessionStatePath, *maxSkew)
+	if err != nil {
+		return err
+	}
+	syncRuntime, err := newPeerSyncRuntime(session.cfg, *syncHeadPath)
+	if err != nil {
+		return err
+	}
+	data, err := loadGovernedSyncServingData(*validatorSetPath, *snapshotPath, *proofDir, *transitionDir, *policyHash)
+	if err != nil {
+		return err
+	}
+	if err := verifyGovernedServingData(syncRuntime, data, session.cfg.ValidatorID, time.Now().UTC()); err != nil {
+		return fmt.Errorf("refusing to serve unverified governed sync data: %w", err)
+	}
+	server := &http.Server{Addr: *listen, Handler: governedPeerSyncHandler(session, syncRuntime, data), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 32 * 1024}
 	fmt.Printf("STRATUM governance-authenticated read-only peer sync listening on %s; validator=%s; trustedHeight=%d; voteAuthority=false\n", *listen, session.cfg.ValidatorID, syncRuntime.trustedHead.Height)
 	return server.ListenAndServe()
 }
 
 func postGovernedPeerEnvelope(endpoint string, envelope PeerEnvelope) (PeerEnvelope, error) {
-	body, err := json.Marshal(envelope); if err != nil { return PeerEnvelope{}, err }
-	req, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body)); if err != nil { return PeerEnvelope{}, err }
+	body, err := json.Marshal(envelope)
+	if err != nil {
+		return PeerEnvelope{}, err
+	}
+	req, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return PeerEnvelope{}, err
+	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := (&http.Client{Timeout: 15*time.Second}).Do(req); if err != nil { return PeerEnvelope{}, err }
+	resp, err := (&http.Client{Timeout: 15 * time.Second}).Do(req)
+	if err != nil {
+		return PeerEnvelope{}, err
+	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK { return PeerEnvelope{}, fmt.Errorf("peer returned HTTP %d", resp.StatusCode) }
-	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, maxPeerEnvelopeBytes+1)); if err != nil { return PeerEnvelope{}, err }
-	if int64(len(responseBody)) > maxPeerEnvelopeBytes { return PeerEnvelope{}, errors.New("peer sync response too large") }
-	var response PeerEnvelope; if err := json.Unmarshal(responseBody, &response); err != nil { return PeerEnvelope{}, err }
+	if resp.StatusCode != http.StatusOK {
+		return PeerEnvelope{}, fmt.Errorf("peer returned HTTP %d", resp.StatusCode)
+	}
+	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, maxPeerEnvelopeBytes+1))
+	if err != nil {
+		return PeerEnvelope{}, err
+	}
+	if int64(len(responseBody)) > maxPeerEnvelopeBytes {
+		return PeerEnvelope{}, errors.New("peer sync response too large")
+	}
+	var response PeerEnvelope
+	if err := json.Unmarshal(responseBody, &response); err != nil {
+		return PeerEnvelope{}, err
+	}
 	return response, nil
 }
 
@@ -386,35 +473,99 @@ func peerSyncGovernedCommand(args []string) error {
 	policyHash := fs.String("governance-policy-hash", "", "independently pinned governance policy hash")
 	maxSkew := fs.Duration("max-clock-skew", 30*time.Second, "maximum accepted clock skew")
 	batchSize := fs.Int64("batch-size", defaultSyncProofBatch, "DIR finality proofs requested per bundle")
-	if err := fs.Parse(args); err != nil { return err }
-	if *registryPath == "" || *expectedRoot == "" || *target == "" || !isSHA256(strings.ToLower(*policyHash)) { return errors.New("--peer-registry, --peer-registry-root, --target and --governance-policy-hash are required") }
-	if *batchSize < 1 || *batchSize > maxSyncProofsPerBundle { return fmt.Errorf("--batch-size must be between 1 and %d", maxSyncProofsPerBundle) }
-	if *sessionStatePath == "" { *sessionStatePath = filepath.Join(*dir, "state", "peer-session.json") }
-	if *syncHeadPath == "" { *syncHeadPath = filepath.Join(*dir, "state", "peer-sync-head.json") }
-	base, err := url.Parse(*target); if err != nil || (base.Scheme != "https" && base.Scheme != "http") || base.Hostname() == "" { return errors.New("--target must be an http(s) URL with a host") }
-	if base.Scheme == "http" && !isSafePlainHTTPPeerTarget(base) { return errors.New("plaintext HTTP peer sync refused for non-loopback target") }
-	var registry PeerTransportRegistry; if err := readJSON(*registryPath, &registry); err != nil { return err }
-	session, err := newPeerSessionRuntime(*dir, registry, *height, *expectedRoot, *sessionStatePath, *maxSkew); if err != nil { return err }
-	syncRuntime, err := newPeerSyncRuntime(session.cfg, *syncHeadPath); if err != nil { return err }
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *registryPath == "" || *expectedRoot == "" || *target == "" || !isSHA256(strings.ToLower(*policyHash)) {
+		return errors.New("--peer-registry, --peer-registry-root, --target and --governance-policy-hash are required")
+	}
+	if *batchSize < 1 || *batchSize > maxSyncProofsPerBundle {
+		return fmt.Errorf("--batch-size must be between 1 and %d", maxSyncProofsPerBundle)
+	}
+	if *sessionStatePath == "" {
+		*sessionStatePath = filepath.Join(*dir, "state", "peer-session.json")
+	}
+	if *syncHeadPath == "" {
+		*syncHeadPath = filepath.Join(*dir, "state", "peer-sync-head.json")
+	}
+	base, err := url.Parse(*target)
+	if err != nil || (base.Scheme != "https" && base.Scheme != "http") || base.Hostname() == "" {
+		return errors.New("--target must be an http(s) URL with a host")
+	}
+	if base.Scheme == "http" && !isSafePlainHTTPPeerTarget(base) {
+		return errors.New("plaintext HTTP peer sync refused for non-loopback target")
+	}
+	var registry PeerTransportRegistry
+	if err := readJSON(*registryPath, &registry); err != nil {
+		return err
+	}
+	session, err := newPeerSessionRuntime(*dir, registry, *height, *expectedRoot, *sessionStatePath, *maxSkew)
+	if err != nil {
+		return err
+	}
+	syncRuntime, err := newPeerSyncRuntime(session.cfg, *syncHeadPath)
+	if err != nil {
+		return err
+	}
 	endpoint := strings.TrimRight(base.String(), "/") + "/v1/peer/message"
 	trustedHash := syncRuntime.trustedHead.DIRHash
 	headReq := PeerSyncHeadRequest{ProfileVersion: peerSyncProfile, RequestType: "SYNC_HEAD", TrustedHeight: syncRuntime.trustedHead.Height, TrustedDIRHash: &trustedHash}
-	session.mu.Lock(); headEnvelope, err := session.nextSignedEnvelope("SYNC_HEAD", headReq, time.Now().UTC()); session.mu.Unlock(); if err != nil { return err }
-	headResponse, err := postGovernedPeerEnvelope(endpoint, headEnvelope); if err != nil { return err }
-	session.mu.Lock(); _, err = session.acceptInboundEnvelope(headResponse, time.Now().UTC()); session.mu.Unlock(); if err != nil { return err }
-	var remoteHead PeerSyncHeadResponse; if headResponse.MessageType != "SYNC_HEAD" || json.Unmarshal(headResponse.Payload, &remoteHead) != nil { return errors.New("invalid SYNC_HEAD response") }
-	if remoteHead.ChainID != session.cfg.ChainID || !strings.EqualFold(remoteHead.GenesisDIRHash, session.cfg.GenesisDIRHash) || remoteHead.ProtocolVersion != session.cfg.ProtocolVersion { return errors.New("remote SYNC_HEAD trust context mismatch") }
-	for syncRuntime.trustedHead.Height < remoteHead.LatestHeight {
-		to := syncRuntime.trustedHead.Height + *batchSize; if to > remoteHead.LatestHeight { to = remoteHead.LatestHeight }
-		req := PeerSyncProofRequest{ProfileVersion: peerSyncProfile, RequestType: "SYNC_PROOF", FromHeight: syncRuntime.trustedHead.Height, ToHeight: to}
-		session.mu.Lock(); envelope, err := session.nextSignedEnvelope("SYNC_PROOF", req, time.Now().UTC()); session.mu.Unlock(); if err != nil { return err }
-		response, err := postGovernedPeerEnvelope(endpoint, envelope); if err != nil { return err }
-		session.mu.Lock(); verification, err := session.acceptInboundEnvelope(response, time.Now().UTC()); session.mu.Unlock(); if err != nil { return err }
-		if response.MessageType != "SYNC_PROOF" { return fmt.Errorf("expected SYNC_PROOF response, got %s", response.MessageType) }
-		var bundle PeerSyncGovernedProofBundle; if err := json.Unmarshal(response.Payload, &bundle); err != nil { return err }
-		if _, err := syncRuntime.applyGovernedProofBundle(bundle, strings.ToLower(*policyHash), verification.SenderValidatorID, time.Now().UTC()); err != nil { return err }
+	session.mu.Lock()
+	headEnvelope, err := session.nextSignedEnvelope("SYNC_HEAD", headReq, time.Now().UTC())
+	session.mu.Unlock()
+	if err != nil {
+		return err
 	}
-	out, _ := json.MarshalIndent(map[string]any{"synced": true, "height": syncRuntime.trustedHead.Height, "DIRHash": syncRuntime.trustedHead.DIRHash, "validatorSetRoot": syncRuntime.trustedHead.ValidatorSetRoot, "governanceAuthenticatedTransitions": true, "state": session.cfg.State, "voteAuthority": false, "consensusParticipation": false}, "", "  ")
-	fmt.Println(string(out))
+	headResponse, err := postGovernedPeerEnvelope(endpoint, headEnvelope)
+	if err != nil {
+		return err
+	}
+	session.mu.Lock()
+	_, err = session.acceptInboundEnvelope(headResponse, time.Now().UTC())
+	session.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	var remoteHead PeerSyncHeadResponse
+	if headResponse.MessageType != "SYNC_HEAD" || json.Unmarshal(headResponse.Payload, &remoteHead) != nil {
+		return errors.New("invalid SYNC_HEAD response")
+	}
+	if remoteHead.ChainID != session.cfg.ChainID || !strings.EqualFold(remoteHead.GenesisDIRHash, session.cfg.GenesisDIRHash) || remoteHead.ProtocolVersion != session.cfg.ProtocolVersion {
+		return errors.New("remote SYNC_HEAD trust context mismatch")
+	}
+	for syncRuntime.trustedHead.Height < remoteHead.LatestHeight {
+		to := syncRuntime.trustedHead.Height + *batchSize
+		if to > remoteHead.LatestHeight {
+			to = remoteHead.LatestHeight
+		}
+		req := PeerSyncProofRequest{ProfileVersion: peerSyncProfile, RequestType: "SYNC_PROOF", FromHeight: syncRuntime.trustedHead.Height, ToHeight: to}
+		session.mu.Lock()
+		envelope, err := session.nextSignedEnvelope("SYNC_PROOF", req, time.Now().UTC())
+		session.mu.Unlock()
+		if err != nil {
+			return err
+		}
+		response, err := postGovernedPeerEnvelope(endpoint, envelope)
+		if err != nil {
+			return err
+		}
+		session.mu.Lock()
+		verification, err := session.acceptInboundEnvelope(response, time.Now().UTC())
+		session.mu.Unlock()
+		if err != nil {
+			return err
+		}
+		if response.MessageType != "SYNC_PROOF" {
+			return errors.New("expected SYNC_PROOF response")
+		}
+		var bundle PeerSyncGovernedProofBundle
+		if err := json.Unmarshal(response.Payload, &bundle); err != nil {
+			return err
+		}
+		if _, err := syncRuntime.applyGovernedProofBundle(bundle, strings.ToLower(*policyHash), verification.SenderValidatorID, time.Now().UTC()); err != nil {
+			return err
+		}
+	}
+	fmt.Printf("Governance-authenticated sync complete: trustedHeight=%d DIR=%s validatorSetRoot=%s state=%s voteAuthority=false consensusParticipation=false\n", syncRuntime.trustedHead.Height, syncRuntime.trustedHead.DIRHash, syncRuntime.trustedHead.ValidatorSetRoot, session.cfg.State)
 	return nil
 }
