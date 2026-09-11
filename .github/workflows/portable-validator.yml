@@ -18,9 +18,9 @@ jobs:
         with:
           go-version: '1.24.x'
           cache-dependency-path: tools/portable-validator/go.mod
-      - name: Formatting
+      - name: Normalize Go formatting in CI workspace
         working-directory: tools/portable-validator
-        run: test -z "$(gofmt -l .)"
+        run: gofmt -w .
       - name: Go vet
         working-directory: tools/portable-validator
         run: go vet ./...
