@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -79,7 +81,17 @@ func verifyPeerHeadAncestry(cfg BootstrapConfig, lower, higher PeerHeadObservati
 		return result, fmt.Errorf("ancestry proof must end at higher peer height %d, received %d", higher.Head.LatestHeight, lastHeight)
 	}
 
-	runtime := &PeerSyncRuntime{cfg: cfg, trustedHead: lowerHead, proofs: map[int64]DIRFinalityProof{}}
+	verificationDir, err := os.MkdirTemp("", "stratum-peer-ancestry-")
+	if err != nil {
+		return result, err
+	}
+	defer os.RemoveAll(verificationDir)
+	runtime := &PeerSyncRuntime{
+		cfg:         cfg,
+		statePath:   filepath.Join(verificationDir, "verified-head.json"),
+		trustedHead: lowerHead,
+		proofs:      map[int64]DIRFinalityProof{},
+	}
 	verified, err := runtime.applyGovernedProofBundle(bundle, trustedPolicyHash, higher.PeerValidatorID, now.UTC())
 	if err != nil {
 		result.Classification = "HISTORICAL_DIVERGENCE"
@@ -113,7 +125,7 @@ func verifyPeerAncestryCommand(args []string) error {
 		return errors.New("--lower-head, --higher-head, --proof-bundle and a valid --governance-policy-hash are required")
 	}
 	var cfg BootstrapConfig
-	if err := readJSON(*dir+"/config.json", &cfg); err != nil {
+	if err := readJSON(filepath.Join(*dir, "config.json"), &cfg); err != nil {
 		return err
 	}
 	if cfg.State != candidateState || cfg.VoteAuthority {
