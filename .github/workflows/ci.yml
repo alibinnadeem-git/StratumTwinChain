@@ -2,7 +2,9 @@ name: STRATUM Spatial Verified CI
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - 'redbook/**'
   pull_request:
     branches: [main]
 
