@@ -1,0 +1,40 @@
+{
+  "bundleVersion": "STRATUM-BOOTSTRAP-TRUST/1",
+  "chainId": "stratum-devnet-1",
+  "policyId": "genesis-bootstrap-v1",
+  "threshold": 2,
+  "roots": [
+    {
+      "rootId": "root-a",
+      "keyId": "root-a-v1",
+      "purpose": "GOVERNANCE",
+      "algorithm": "Ed25519",
+      "publicKeyDerB64": "MCowBQYDK2VwAyEAiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w=",
+      "state": "ACTIVE",
+      "validFrom": "2026-09-01T00:00:00.000Z",
+      "validUntil": null
+    },
+    {
+      "rootId": "root-b",
+      "keyId": "root-b-v1",
+      "purpose": "GOVERNANCE",
+      "algorithm": "Ed25519",
+      "publicKeyDerB64": "MCowBQYDK2VwAyEAgTl3Dqh9F19Wo1Rmw0x+zMuNipG07jeiXfYPW4/Js5Q=",
+      "state": "ACTIVE",
+      "validFrom": "2026-09-01T00:00:00.000Z",
+      "validUntil": null
+    },
+    {
+      "rootId": "root-c",
+      "keyId": "root-c-v1",
+      "purpose": "GOVERNANCE",
+      "algorithm": "Ed25519",
+      "publicKeyDerB64": "MCowBQYDK2VwAyEA7UkoxijRwsbq6QM4kFmVYSlZJzpcY/k2NsFGFKyHN9E=",
+      "state": "ACTIVE",
+      "validFrom": "2026-09-01T00:00:00.000Z",
+      "validUntil": null
+    }
+  ],
+  "validFrom": "2026-09-01T00:00:00.000Z",
+  "validUntil": null
+}
