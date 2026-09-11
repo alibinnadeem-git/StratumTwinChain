@@ -17,6 +17,10 @@ func finalityAncestryFixture(t *testing.T) (BootstrapConfig, PeerHeadObservation
 	t.Helper()
 	v := loadFinalityVector(t)
 	cfg := ancestryConfig()
+	lowerRoot, err := snapshotValidatorSetRoot(v.ValidatorSet, v.TrustedPreviousHeight)
+	if err != nil {
+		t.Fatal(err)
+	}
 	lower := PeerHeadObservation{
 		PeerValidatorID: "validator-a",
 		Head: PeerSyncHeadResponse{
@@ -28,7 +32,7 @@ func finalityAncestryFixture(t *testing.T) (BootstrapConfig, PeerHeadObservation
 			LatestHeight:     v.TrustedPreviousHeight,
 			LatestDIRHash:    v.TrustedPreviousDIRHash,
 			LatestStateRoot:  strings.Repeat("2", 64),
-			ValidatorSetRoot: v.ExpectedValidatorSetRoot,
+			ValidatorSetRoot: lowerRoot,
 		},
 	}
 	higher := PeerHeadObservation{
@@ -46,14 +50,14 @@ func finalityAncestryFixture(t *testing.T) (BootstrapConfig, PeerHeadObservation
 		},
 	}
 	bundle := PeerSyncGovernedProofBundle{
-		ProfileVersion:      peerSyncProfile,
-		ResponseType:        "SYNC_PROOF",
-		ChainID:             cfg.ChainID,
-		GenesisDIRHash:      cfg.GenesisDIRHash,
-		ProtocolVersion:     cfg.ProtocolVersion,
-		ValidatorSet:        v.ValidatorSet,
-		FinalityProofs:      []DIRFinalityProof{v.Proof},
-		GeneratedAt:         time.Now().UTC().Format(time.RFC3339Nano),
+		ProfileVersion: peerSyncProfile,
+		ResponseType: peerSyncProfile[:0] + "SYNC_PROOF",
+		ChainID: cfg.ChainID,
+		GenesisDIRHash: cfg.GenesisDIRHash,
+		ProtocolVersion: cfg.ProtocolVersion,
+		ValidatorSet: v.ValidatorSet,
+		FinalityProofs: []DIRFinalityProof{v.Proof},
+		GeneratedAt: time.Now().UTC().Format(time.RFC3339Nano),
 	}
 	return cfg, lower, higher, bundle
 }
