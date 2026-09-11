@@ -7,6 +7,7 @@ export * from './schema/povi';
 export * from './schema/liveness';
 export * from './schema/plc';
 export * from './schema/vrf';
+export * from './schema/peer-transport';
 export * from './schema/validator-governance';
 export * from './validator-governance';
 export * from './finality-proof';
