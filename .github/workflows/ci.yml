@@ -32,6 +32,8 @@ jobs:
         run: npm run qa:finality
       - name: Validator governance conformance
         run: npm run qa:validator-governance
+      - name: Protocol governance conformance
+        run: npm run qa:protocol-governance
       - run: npm run qa:ui
       - run: npm run typecheck
       - run: npm run build
