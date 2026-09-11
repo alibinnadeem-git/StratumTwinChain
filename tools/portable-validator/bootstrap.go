@@ -136,9 +136,10 @@ func initCommand(args []string) error {
 	if err := writeJSON(filepath.Join(*dir, "config.json"), cfg, 0o600); err != nil { return err }
 	bundle := PublicEnrollmentBundle{bootstrapVersion, *validatorID, *friendlyLabel, *chainID, *networkName, strings.ToLower(*genesisHash), *protocolVersion, candidateState, false, blocked, hex.EncodeToString(codeDigest[:]), keys, map[string]string{"packageId": *packageID, "validatorVersion": *validatorVersion, "platform": runtime.GOOS, "architecture": runtime.GOARCH}, now}
 	if err := writeJSON(filepath.Join(*dir, "public-enrollment.json"), bundle, 0o600); err != nil { return err }
-	if err := writeJSON(filepath.Join(*dir, "state", "consensus-safety.json"), map[string]any{"lastSignedHeight": nil, "lastSignedRound": nil, "lastSignedStep": nil, "lockedDIR": nil, "lockedRound": nil, "voteAuthority": false, "state": candidateState}, 0o600); err != nil { return err }
+	if err := initializeConsensusSafety(*dir); err != nil { return fmt.Errorf("initialize signed consensus safety journal: %w", err) }
 	fmt.Printf("Initialized STRATUM validator candidate %s (%s) in %s\n", *friendlyLabel, *validatorID, *dir)
 	fmt.Println("Vote authority: false. Governance activation at a future height is required before voting.")
+	fmt.Println("Signed PoVI consensus-safety journal initialized and bound to the pinned Genesis DIR.")
 	fmt.Println("Share public-enrollment.json with the authorized enrollment service; never share files under keys/private.")
 	return nil
 }
@@ -186,11 +187,14 @@ func doctorCommand(args []string) error {
 		if err != nil { problems = append(problems, "missing private key for "+purpose); continue }
 		if runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 { problems = append(problems, "private key permissions are too broad for "+purpose) }
 	}
+	_, safetyLatest, safetyRecords, safetyErr := latestConsensusSafetyRecord(*dir)
+	if safetyErr != nil { problems = append(problems, "signed consensus safety journal verification failed: "+safetyErr.Error()) }
 	if len(problems) > 0 { sort.Strings(problems); for _, p := range problems { fmt.Println("FAIL:", p) }; return fmt.Errorf("doctor found %d problem(s)", len(problems)) }
 	fmt.Printf("OK: %s is a healthy local CANDIDATE bootstrap\n", cfg.FriendlyLabel)
 	fmt.Println("OK: purpose-separated local key material present")
 	fmt.Println("OK: vote authority is false and governance activation is blocked")
 	fmt.Printf("OK: Genesis DIR pinned to %s\n", cfg.GenesisDIRHash)
+	fmt.Printf("OK: signed consensus safety journal verified through sequence %d (%d record(s)); recovered round %d\n", safetyLatest.Sequence, len(safetyRecords), recoveredConsensusRound(safetyLatest))
 	return nil
 }
 
