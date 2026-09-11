@@ -11,6 +11,8 @@ func main() {
 	switch os.Args[1] {
 	case "init": err = initCommand(os.Args[2:])
 	case "doctor": err = doctorCommand(os.Args[2:])
+	case "init-consensus-safety": err = initConsensusSafetyCommand(os.Args[2:])
+	case "verify-consensus-safety": err = verifyConsensusSafetyCommand(os.Args[2:])
 	case "verify-genesis": err = verifyCanonicalGenesisCommand(os.Args[2:])
 	case "verify-genesis-trust": err = verifyGenesisTrustCommand(os.Args[2:])
 	case "verify-snapshot": err = verifySnapshotCommand(os.Args[2:])
@@ -27,6 +29,6 @@ func main() {
 
 func usage() {
 	fmt.Fprintln(os.Stderr,"STRATUM portable validator bootstrap")
-	fmt.Fprintln(os.Stderr,"commands: init, doctor, verify-genesis, verify-genesis-trust, verify-snapshot, verify-finality, verify-validator-governance, verify-round-change, verify-plc, verify-package, version")
+	fmt.Fprintln(os.Stderr,"commands: init, doctor, init-consensus-safety, verify-consensus-safety, verify-genesis, verify-genesis-trust, verify-snapshot, verify-finality, verify-validator-governance, verify-round-change, verify-plc, verify-package, version")
 	fmt.Fprintln(os.Stderr,"This bootstrap creates CANDIDATE nodes only. It never grants vote authority.")
 }
