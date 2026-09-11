@@ -12,11 +12,11 @@ import {
  type SnapshotValidatorSet,
 } from './schema/snapshot';
 
-function validatorActiveAtHeight(member:SnapshotValidatorSet['members'][number],height:number){
+export function validatorActiveAtHeight(member:SnapshotValidatorSet['members'][number],height:number){
  return member.activationHeight<=height&&(member.retirementHeight===null||member.retirementHeight>height);
 }
 
-function activeConsensusKeyAtHeight(member:SnapshotValidatorSet['members'][number],height:number){
+export function activeConsensusKeyAtHeight(member:SnapshotValidatorSet['members'][number],height:number){
  const keys=member.keys.filter(key=>key.activeFromHeight<=height&&(key.retiredAtHeight===null||key.retiredAtHeight>height));
  if(keys.length!==1)throw new Error(`Validator ${member.validatorId} must have exactly one active CONSENSUS key at height ${height}; found ${keys.length}`);
  return keys[0];
