@@ -1,0 +1,20 @@
+{
+  "expectedValidatorSetRoot": "08bf50e118797a37a1b2105fd268049ea7a3fcb4411cdbb796dd3c50cadc428a",
+  "validatorSet": {
+    "setVersion": "STRATUM-VALIDATOR-SET/1",
+    "chainId": "stratum-plc-test-1",
+    "members": [
+      {"validatorId":"validator-a","identityUuid":"00000000-0000-5000-b000-000000000001","operatorOrg":"STRATUM","activationHeight":0,"retirementHeight":null,"keys":[{"keyId":"validator-a:consensus:plc-v1","purpose":"CONSENSUS","algorithm":"Ed25519","publicKeyDerB64":"MCowBQYDK2VwAyEAZkVMz8CCfs/mchrR8620UnCkhlP9SDvrrnE1js2MiNk=","activeFromHeight":0,"retiredAtHeight":null}]},
+      {"validatorId":"validator-b","identityUuid":"00000000-0000-5000-b000-000000000002","operatorOrg":"STRATUM","activationHeight":0,"retirementHeight":null,"keys":[{"keyId":"validator-b:consensus:plc-v1","purpose":"CONSENSUS","algorithm":"Ed25519","publicKeyDerB64":"MCowBQYDK2VwAyEApzbitWwWZ+dUgwCkXA6q5yJSI0vOO/4JCd0HMxQRNQ8=","activeFromHeight":0,"retiredAtHeight":null}]},
+      {"validatorId":"validator-c","identityUuid":"00000000-0000-5000-b000-000000000003","operatorOrg":"STRATUM","activationHeight":0,"retirementHeight":null,"keys":[{"keyId":"validator-c:consensus:plc-v1","purpose":"CONSENSUS","algorithm":"Ed25519","publicKeyDerB64":"MCowBQYDK2VwAyEA3IdY0kt5LpdfIxqcgjE+VO1q42AhNlVsZkmWfOxuoOY=","activeFromHeight":0,"retiredAtHeight":null}]}
+    ]
+  },
+  "PLC": {
+    "domain":"STRATUM/PLC/PROOF/1","certificateVersion":"STRATUM-PLC-PROOF/1","chainId":"stratum-plc-test-1","height":20,"round":1,"proposalHash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","validatorSetRoot":"08bf50e118797a37a1b2105fd268049ea7a3fcb4411cdbb796dd3c50cadc428a","protocolVersion":"POVI/1","signerIds":["validator-a","validator-b","validator-c"],
+    "VERIFYSignatures":[
+      {"domain":"STRATUM/POVI/VERIFY/1","chainId":"stratum-plc-test-1","height":20,"round":1,"step":"VERIFY","proposalHash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","validatorId":"validator-a","validatorSetRoot":"08bf50e118797a37a1b2105fd268049ea7a3fcb4411cdbb796dd3c50cadc428a","protocolVersion":"POVI/1","keyId":"validator-a:consensus:plc-v1","algorithm":"Ed25519","messageHash":"9edb7a7fbe6fb11414abb0bed1c7fc1939958b5fbd37b375191d3e85d1d03ebc","signatureB64":"2uOzsWRKK9SBZWzSpU1aheYfZMkC1HWyJgD8IEh0B12B9vvUfZ/F+YGbT2rVtJ3IVV/DFahXBJyY4ciZwIEPCQ=="},
+      {"domain":"STRATUM/POVI/VERIFY/1","chainId":"stratum-plc-test-1","height":20,"round":1,"step":"VERIFY","proposalHash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","validatorId":"validator-b","validatorSetRoot":"08bf50e118797a37a1b2105fd268049ea7a3fcb4411cdbb796dd3c50cadc428a","protocolVersion":"POVI/1","keyId":"validator-b:consensus:plc-v1","algorithm":"Ed25519","messageHash":"0c3cfecbf065aca647dc84da5c5628d0cb63e203f7bebc2a913b043d76d5fe24","signatureB64":"+7+9LbrPARA4LfIxGKIJRJJ6bDOSPkOpEbnhcHW/vNO6fAbhGKHzZfCw3Z3lGniiy4872Gh50/m6UkfxBoaBCA=="},
+      {"domain":"STRATUM/POVI/VERIFY/1","chainId":"stratum-plc-test-1","height":20,"round":1,"step":"VERIFY","proposalHash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","validatorId":"validator-c","validatorSetRoot":"08bf50e118797a37a1b2105fd268049ea7a3fcb4411cdbb796dd3c50cadc428a","protocolVersion":"POVI/1","keyId":"validator-c:consensus:plc-v1","algorithm":"Ed25519","messageHash":"7b6c6ff5f7e1c05da0d90a117a167e5e9ae523225be8b7e94bbb0ac66dfab619","signatureB64":"jvvYX/nri7w9GBKsIOOMx7epZf2daMn45Dsx1a4Gw2KjMXQ3A2m0ZPpju8Db5SwAy5tjWdlfv1ccQzQVvTf8Dw=="}
+    ]
+  }
+}
