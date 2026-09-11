@@ -1,0 +1,60 @@
+{
+  "validatorSet": {
+    "setVersion": "STRATUM-VALIDATOR-SET/1",
+    "chainId": "stratum-devnet-1",
+    "members": [
+      {
+        "validatorId": "validator-a",
+        "identityUuid": "11111111-1111-4111-8111-111111111111",
+        "operatorOrg": "stratum-electric",
+        "activationHeight": 1,
+        "retirementHeight": null,
+        "keys": [{"keyId":"consensus-a-v1","purpose":"CONSENSUS","algorithm":"Ed25519","publicKeyDerB64":"MCowBQYDK2VwAyEA0kdKAdw7llMbPVosJmRpD5fQbjJKy5KD3Yznff1CwNk=","activeFromHeight":1,"retiredAtHeight":null}]
+      },
+      {
+        "validatorId": "validator-b",
+        "identityUuid": "11111111-1111-4111-8111-111111111112",
+        "operatorOrg": "stratum-electric",
+        "activationHeight": 1,
+        "retirementHeight": null,
+        "keys": [{"keyId":"consensus-b-v1","purpose":"CONSENSUS","algorithm":"Ed25519","publicKeyDerB64":"MCowBQYDK2VwAyEAMCgcz24KHFBxgS2G6LahSbBJY2DuGKjxL8yDGEX7zs4=","activeFromHeight":1,"retiredAtHeight":null}]
+      },
+      {
+        "validatorId": "validator-c",
+        "identityUuid": "11111111-1111-4111-8111-111111111113",
+        "operatorOrg": "stratum-electric",
+        "activationHeight": 1,
+        "retirementHeight": null,
+        "keys": [{"keyId":"consensus-c-v1","purpose":"CONSENSUS","algorithm":"Ed25519","publicKeyDerB64":"MCowBQYDK2VwAyEANAJRvJGbsJiw1om1TvBexXXJHVsr+fLyHkDkblE3viY=","activeFromHeight":1,"retiredAtHeight":null}]
+      }
+    ]
+  },
+  "selection": {
+    "selectionProfile": "STRATUM-PROPOSER-SELECTION/1",
+    "chainId": "stratum-devnet-1",
+    "height": 11,
+    "round": 1,
+    "validatorSetRoot": "6fe0ea61c0cd9e7d4c251a594edc6cf8396b2583ac8b4d8f383b039925814650",
+    "protocolVersion": "POVI/1",
+    "collectiveEntropy": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "collectiveEntropyProofRefs": ["entropy-proof:height-11"],
+    "collectiveEntropyVerifiedExternally": true,
+    "candidates": [
+      {"validatorId":"validator-a","vrfOutput":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","vrfProofRef":"vrf-proof:a:11:1","vrfProofVerifiedExternally":true},
+      {"validatorId":"validator-b","vrfOutput":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","vrfProofRef":"vrf-proof:b:11:1","vrfProofVerifiedExternally":true},
+      {"validatorId":"validator-c","vrfOutput":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","vrfProofRef":"vrf-proof:c:11:1","vrfProofVerifiedExternally":true}
+    ]
+  },
+  "expected": {
+    "selectedProposerId": "validator-b",
+    "selectedScore": "2ccbf7ff185f75ef4a01ed79acd8b46aa3d018ff7e6673b815eb11ce915e528c",
+    "candidateScores": {
+      "validator-a": "33b6845944556bd726dce792a4e672928cca510a01f98aac560e50022cc7fd90",
+      "validator-b": "2ccbf7ff185f75ef4a01ed79acd8b46aa3d018ff7e6673b815eb11ce915e528c",
+      "validator-c": "b5d51e7fe58a8cc2855dc4058c9b3b0a1be2ddb62f96ef1a2efa29f4898a1a8d"
+    },
+    "eligibleValidatorCount": 3,
+    "vrfProofVerification": "EXTERNAL_VERIFIED_INPUT",
+    "cryptographicVRFConformant": false
+  }
+}
