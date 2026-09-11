@@ -1,0 +1,78 @@
+{
+  "expectedGovernancePolicyHash": "b738b085d13ce51afcd4c84e54252b02f15b959a674ab021dff367b367babed9",
+  "expectedPreviousProtocolStateHash": "fe34193519f7f07e6c455be7c3513790641f86dfefd050c9db941b0f81b47df0",
+  "proof": {
+    "action": {
+      "domain": "STRATUM/PROTOCOL_CHANGE/1",
+      "actionVersion": "STRATUM-PROTOCOL-CHANGE/1",
+      "chainId": "stratum-devnet-1",
+      "actionId": "activate-povi-1-1-height-20",
+      "fromProtocolVersion": "POVI/1",
+      "toProtocolVersion": "POVI/1.1",
+      "approvedAtHeight": 12,
+      "activationHeight": 20,
+      "previousProtocolStateHash": "fe34193519f7f07e6c455be7c3513790641f86dfefd050c9db941b0f81b47df0",
+      "nextProtocolStateHash": "326048b74d0f3616cb3565724743aeabad7fdadaac0e132c7834a85f035af47c",
+      "governancePolicyHash": "b738b085d13ce51afcd4c84e54252b02f15b959a674ab021dff367b367babed9",
+      "changeHash": "a5c4db577f6e69872c77d7b73fd9115bf59216ddffdea6200543f8e547188e25"
+    },
+    "governancePolicy": {
+      "profile": "STRATUM-PROTOCOL-GOVERNANCE/1",
+      "chainId": "stratum-devnet-1",
+      "authorityId": "protocol-governance-authority-v1",
+      "authorityType": "PROTOCOL",
+      "organizationId": "STRATUM",
+      "jurisdiction": null,
+      "scope": ["CONSENSUS_RULES", "PROTOCOL_VERSION"],
+      "votingPolicy": "THRESHOLD",
+      "thresholdClass": "SUPERMAJORITY",
+      "threshold": 2,
+      "effectiveFromHeight": 0,
+      "effectiveUntilHeight": null,
+      "status": "ACTIVE",
+      "members": [
+        {"authorityMemberId":"protocol-governance-a","keyId":"protocol-governance-a:governance:v1","purpose":"GOVERNANCE","algorithm":"Ed25519","publicKeyDerB64":"MCowBQYDK2VwAyEAnieQEct1n4sLiJq/zp4m17NGbHwayyOVU8xHlxfn4qo=","state":"ACTIVE","validFromHeight":0,"validUntilHeight":null},
+        {"authorityMemberId":"protocol-governance-b","keyId":"protocol-governance-b:governance:v1","purpose":"GOVERNANCE","algorithm":"Ed25519","publicKeyDerB64":"MCowBQYDK2VwAyEA6ZD27zVkZxnL99woRoFqn7AeiFKBIj30B/1uOoAkXhU=","state":"ACTIVE","validFromHeight":0,"validUntilHeight":null},
+        {"authorityMemberId":"protocol-governance-c","keyId":"protocol-governance-c:governance:v1","purpose":"GOVERNANCE","algorithm":"Ed25519","publicKeyDerB64":"MCowBQYDK2VwAyEAn/WxCYHQVD7ZjXQrRBZplIut9ahGiFG+J2gBgpvDKVE=","state":"ACTIVE","validFromHeight":0,"validUntilHeight":null}
+      ]
+    },
+    "changeManifest": {
+      "manifestVersion": "STRATUM-PROTOCOL-CHANGE-MANIFEST/1",
+      "chainId": "stratum-devnet-1",
+      "fromProtocolVersion": "POVI/1",
+      "toProtocolVersion": "POVI/1.1",
+      "rationaleHash": "681e3338b9e30c06eab7e755b8c55860009a280e498a23327bfc723a3eccd32c",
+      "securityImpactHash": "63d20ac918af68910ae06ffc4c489ba71c8270dd95f43ffab6160091de0d73c6",
+      "compatibilityImpactHash": "f86b6c358c97eccbb962c07f197740289790053d9fd5e3a49a01cc6446af2f65",
+      "migrationPlanHash": "9c5713620993702b1f5d4d6ec70d6685b33d2b25612a088ec7f663988397849b",
+      "testEvidenceRoot": "ed5b0437e05055964c006fd7f959053e308da07984f960ebc153a8e2fc64c6e3",
+      "minimumValidatorVersion": "STRATUM-VALIDATOR/0.6.0",
+      "resourceProfileHash": "09dc67602fa878b33d81aa67f0dbd9bd92635f4ea3549b9ae634e68458fb776b"
+    },
+    "previousProtocolState": {
+      "profile": "STRATUM-PROTOCOL-STATE/1",
+      "chainId": "stratum-devnet-1",
+      "protocolVersion": "POVI/1",
+      "canonicalSchemaVersion": "STRATUM-SCHEMA/1",
+      "consensusRulesHash": "f8e3a69d92d9415881583475e0257bb96b0d6ecadf7bfd65897f52efce65e15b",
+      "resourcePolicyHash": "96e8a19180a21f20ef26b00ab182323a58a5795f4cf4ab1ff09d7ec185e416a4",
+      "moduleRegistryHash": "c35f76ed541020236922623b6177678c1a2f69c30ae98def473b4d6475f99164",
+      "activeFromHeight": 0
+    },
+    "nextProtocolState": {
+      "profile": "STRATUM-PROTOCOL-STATE/1",
+      "chainId": "stratum-devnet-1",
+      "protocolVersion": "POVI/1.1",
+      "canonicalSchemaVersion": "STRATUM-SCHEMA/1",
+      "consensusRulesHash": "be76aac7f79e7aa8a35472a72fbfaab19e4054af2446d01c3fbb2ed1af627817",
+      "resourcePolicyHash": "96e8a19180a21f20ef26b00ab182323a58a5795f4cf4ab1ff09d7ec185e416a4",
+      "moduleRegistryHash": "c35f76ed541020236922623b6177678c1a2f69c30ae98def473b4d6475f99164",
+      "activeFromHeight": 20
+    },
+    "signatures": [
+      {"authorityMemberId":"protocol-governance-a","keyId":"protocol-governance-a:governance:v1","algorithm":"Ed25519","domain":"STRATUM/PROTOCOL_CHANGE/1","signatureB64":"J+P3DPI5gKZViIgzw98bbFHxQosE1Et9M14gyyTLgdZAyd+LCcGWkpvGsFzLsyz7O/KTRBULqyQpt3RDUbj/Cw=="},
+      {"authorityMemberId":"protocol-governance-b","keyId":"protocol-governance-b:governance:v1","algorithm":"Ed25519","domain":"STRATUM/PROTOCOL_CHANGE/1","signatureB64":"etG5BYWZnSiIHsAevVlg5d/wu2pUYc6QuydBqD25BmxJGubEyTZT5QBzJKsVC9CWotMTz0enkr4xLGfRxb9/Cw=="},
+      {"authorityMemberId":"protocol-governance-c","keyId":"protocol-governance-c:governance:v1","algorithm":"Ed25519","domain":"STRATUM/PROTOCOL_CHANGE/1","signatureB64":"qF1lVqIICsqJRL73jF1C3+RA2XjgmztBJZUvhwuq9Msl5pNZ47Ho10e3PG2hAIJJkqRJ4L76q8DiCm4FbH4EDg=="}
+    ]
+  }
+}
