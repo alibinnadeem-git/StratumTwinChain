@@ -1,4 +1,4 @@
-name: STRATUM Twin Chain CI
+name: STRATUM Spatial Verified CI
 
 on:
   push:
@@ -18,6 +18,8 @@ jobs:
           cache: 'npm'
           cache-dependency-path: package.json
       - run: npm install --no-audit --no-fund
+      - name: Redbook terminology conformance
+        run: npm run qa:redbook
       - run: npm run qa:ui
       - run: npm run typecheck
       - run: npm run build

@@ -8,6 +8,7 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "qa:ui": "node scripts/qa-ui.mjs",
+    "qa:redbook": "node scripts/redbook-conformance.mjs",
     "qa:e2e": "playwright test"
   },
   "dependencies": {
@@ -27,7 +28,7 @@
     "@types/pg": "^8.11.11",
     "@types/qrcode": "^1.5.5",
     "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
+    "@types/react-dom": "^19.2.0",
     "@types/three": "^0.179.0",
     "typescript": "^5.7.0"
   }
