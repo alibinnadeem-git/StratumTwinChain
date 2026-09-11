@@ -1,6 +1,6 @@
 # STRATUM Proof-Verifying Peer Sync Implementation Profile
 
-Status: **PARTIAL — read-only proof-verifying catch-up with governance-aware ancestry**
+Status: **PARTIAL — read-only proof-verifying catch-up with governance-aware ancestry and local peer safety controls**
 
 This profile records the current engineering implementation for read-only STRATUM Chain catch-up. The STRATUM Redbook remains the architectural authority. This profile does not grant consensus authority and does not redefine PoVI finality, validator governance, or activation rules.
 
@@ -12,7 +12,8 @@ The implementation keeps these trust domains separate:
 2. **PoVI finality** — PFC/COMMIT evidence proves that a DIR was finalized by the ACTIVE validator set at that height.
 3. **Validator governance** — independently trusted governance authority proves validator membership and CONSENSUS-key transitions.
 4. **Local trusted head** — advances only after independent cryptographic verification succeeds.
-5. **Validator activation** — remains a separate governed process; synchronization never grants vote authority.
+5. **Local peer-safety state** — records authenticated head observations, evidence, and local read-only quarantine without changing PoVI membership.
+6. **Validator activation** — remains a separate governed process; synchronization never grants vote authority.
 
 A downloaded peer proof may provide evidence, but it cannot nominate its own trust root.
 
@@ -23,7 +24,7 @@ A downloaded peer proof may provide evidence, but it cannot nominate its own tru
 - `SYNC_HEAD` — discovery of a peer's claimed latest finalized head.
 - `SYNC_PROOF` — transport of snapshot, PFC/DIR finality, and validator-governance continuity evidence.
 
-Neither message is a PoVI vote.
+Both are explicitly permitted by the read-only peer transport profile. Neither message is a PoVI vote.
 
 ## Trusted-head rule
 
@@ -35,31 +36,34 @@ A durable trusted head advances only after all applicable checks succeed:
 
 1. chain ID / Genesis DIR / protocol trust-context binding;
 2. snapshot certificate verification when a snapshot is used;
-3. validator-set root verification;
+3. validator-set root verification at the applicable height;
 4. exact DIR height continuity;
 5. exact `previousDIRHash` continuity;
 6. proposal and COMMIT message reconstruction;
 7. ACTIVE-validator signature verification;
 8. PoVI finality quorum verification;
 9. DIR hash reconstruction;
-10. validator-governance transition verification where the validator-set root changes.
+10. validator-governance transition verification when the next DIR root cannot be derived from the already trusted validator set at that next height.
 
 Advancement is transactional: a failed bundle leaves the prior durable trusted head unchanged.
 
-## Validator-set transitions
+## Height-bound validator-set roots and governance transitions
 
-A new validator-set root cannot be accepted because a peer supplied it.
+The validator-set root is height-bound. Therefore, a root value changing from height H to H+1 does **not** by itself prove that validator membership changed.
 
-When a DIR changes validator-set root A to B, the verifier requires a valid `STRATUM-VALIDATOR-GOVERNANCE/1` transition at the exact effective height, chained from the locally trusted prior root and verified against an independently pinned governance-policy hash.
+For each next DIR, the verifier first derives the expected validator-set root from the currently trusted validator set at that exact height.
 
-Only after that proof succeeds may B become the validator set used to verify subsequent PFC/DIR proofs.
+- If the DIR binds that derived root, no governance transition is required.
+- If the DIR binds a different root, the verifier requires a valid `STRATUM-VALIDATOR-GOVERNANCE/1` transition at the exact effective height, chained from independently trusted prior governance state and verified against an independently pinned governance-policy hash.
+
+A downloaded proof cannot self-authorize a validator-set mutation.
 
 ## Multi-peer disagreement handling
 
 `STRATUM-PEER-MULTI-SYNC/1` compares authenticated peer head claims.
 
 - same height + same DIR hash => `EXACT_HEAD_AGREEMENT`;
-- same height + different DIR hash => `FINALIZED_HEAD_CONFLICT` and automatic advancement is blocked;
+- same height + different DIR hash from different authenticated validators => `FINALIZED_HEAD_CONFLICT` and automatic advancement is blocked;
 - different heights => `UNRESOLVED_HEIGHT_SKEW` until proof ancestry is established.
 
 Different heights are not automatically treated as harmless lag because a head claim alone does not prove ancestry.
@@ -78,7 +82,34 @@ A higher peer must provide a governance-aware PFC/DIR proof chain that:
 
 A snapshot checkpoint above the lower peer's head may not be used to skip over the lower checkpoint when proving ancestry.
 
-Successful verification yields `PROVEN_LAG`. A broken chain, invalid finality proof, wrong governance transition, or terminal-head mismatch yields `HISTORICAL_DIVERGENCE` or another fail-closed rejection.
+Successful verification yields `PROVEN_LAG`. A broken chain, invalid finality proof, wrong governance transition, or terminal-head mismatch yields a fail-closed result and blocks automatic advancement.
+
+## Cross-run authenticated-head evidence
+
+`STRATUM-PEER-HEAD-STATE/1` durably records the latest authenticated `SYNC_HEAD` observation for each peer identity, bound to chain ID, Genesis DIR hash, and protocol version.
+
+A later observation from the same authenticated validator is compared with the previous observation across process restarts:
+
+- same peer + same finalized height + same DIR hash => consistent repeat observation;
+- same peer + higher finalized height => ordinary advancement, not equivocation;
+- same peer + same finalized height + different DIR hash => `HEAD_EQUIVOCATION` evidence.
+
+`HEAD_EQUIVOCATION` is persisted in the peer evidence journal and the peer becomes locally quarantined from read-only synchronization selection.
+
+## Evidence and local quarantine
+
+Peer safety evidence is persisted under `STRATUM-PEER-EVIDENCE-JOURNAL/1`. Local quarantine is persisted under `STRATUM-PEER-QUARANTINE/1`.
+
+The implementation distinguishes network disagreement from peer self-inconsistency:
+
+- `FINALIZED_HEAD_CONFLICT` between different authenticated validators => evidence + safety halt; no automatic punishment of either validator;
+- separately observed divergent history => evidence + safety halt/operator review;
+- a peer's proof-verified terminal DIR contradicting that same peer's authenticated `SYNC_HEAD` => `PROOF_HEAD_MISMATCH` and local quarantine;
+- the same authenticated peer issuing contradictory finalized heads at the same height => `HEAD_EQUIVOCATION` and local quarantine.
+
+Local quarantine affects only read-only sync peer selection. It does **not** remove a validator from the PoVI validator set, change consensus weight, revoke vote authority, alter validator governance, or activate/deactivate a validator.
+
+Operators may inspect quarantine state and explicitly release a peer after review. Release preserves the historical evidence hashes.
 
 ## Candidate-only boundary
 
@@ -101,29 +132,36 @@ Synchronization can make a candidate cryptographically informed about finalized 
 ### Implemented on feature branch
 
 - authenticated read-only peer transport;
-- `SYNC_HEAD` and `SYNC_PROOF` recognition;
+- explicit `SYNC_HEAD` and `SYNC_PROOF` transport recognition;
 - durable proof-verified trusted head;
 - snapshot-assisted catch-up;
 - PFC/DIR continuity verification;
 - transactional trusted-head advancement;
+- height-bound validator-set root handling;
 - governance-authenticated validator-set transitions;
 - multi-peer finalized-head survey;
-- same-height conflict detection;
-- proof-backed ancestry verification command;
-- `PROVEN_LAG` / `HISTORICAL_DIVERGENCE` classification;
+- same-height network conflict detection;
+- proof-backed ancestry verification;
+- live survey-to-ancestry resolver;
+- `PROVEN_LAG`, `HISTORICAL_DIVERGENCE`, and fail-closed unresolved classifications;
+- trust-context-bound peer evidence journal;
+- local peer quarantine state;
+- operator quarantine status/release commands;
+- proof/head self-inconsistency quarantine policy;
+- durable cross-run authenticated peer-head state;
+- cross-run `HEAD_EQUIVOCATION` detection;
 - candidate-only/non-voting safety tests.
 
 ### Partial
 
-- live multi-peer survey is implemented, while automatic network retrieval of ancestry proofs after a skewed survey is not yet fully wired into one command;
-- peer disagreement handling blocks unsafe advancement but persistent peer reputation/quarantine policy is not yet implemented.
+- cross-run authenticated head state and quarantine are wired into live survey/resolver flows, with current CI validation still in progress on the feature branch;
+- peer operational reliability/reputation metadata is not yet implemented;
+- continuous follower mode is not yet implemented.
 
 ### Planned
 
-- automatic ancestry-proof retrieval across surveyed peers;
-- multi-source proof comparison;
-- malicious/equivocating peer quarantine evidence;
-- durable peer reputation and operator alerts;
-- bounded proof-cache retention/pruning;
+- operational peer reliability metadata for peer selection only, never consensus weighting;
+- operator alerts for safety halts and quarantines;
+- bounded evidence/proof-cache retention and pruning;
 - continuous follower mode;
 - separately governed validator activation and live PoVI participation.
