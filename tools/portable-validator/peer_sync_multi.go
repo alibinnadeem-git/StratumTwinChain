@@ -27,14 +27,14 @@ type PeerHeadConflict struct {
 }
 
 type PeerHeadSurvey struct {
-	ProfileVersion       string                `json:"profileVersion"`
-	Classification       string                `json:"classification"`
-	Observations         []PeerHeadObservation `json:"observations"`
-	Conflicts            []PeerHeadConflict    `json:"conflicts"`
-	LowestObservedHeight int64                 `json:"lowestObservedHeight"`
-	HighestObservedHeight int64                `json:"highestObservedHeight"`
-	AutoAdvanceAllowed   bool                  `json:"autoAdvanceAllowed"`
-	Reason               string                `json:"reason"`
+	ProfileVersion        string                `json:"profileVersion"`
+	Classification        string                `json:"classification"`
+	Observations          []PeerHeadObservation `json:"observations"`
+	Conflicts             []PeerHeadConflict    `json:"conflicts"`
+	LowestObservedHeight  int64                 `json:"lowestObservedHeight"`
+	HighestObservedHeight int64                 `json:"highestObservedHeight"`
+	AutoAdvanceAllowed    bool                  `json:"autoAdvanceAllowed"`
+	Reason                string                `json:"reason"`
 }
 
 func classifyPeerHeads(observations []PeerHeadObservation) PeerHeadSurvey {
@@ -148,6 +148,7 @@ func peerMultiSurveyCommand(args []string) error {
 	expectedRoot := fs.String("peer-registry-root", "", "trusted peer registry root")
 	targetsRaw := fs.String("targets", "", "comma-separated peer base URLs")
 	sessionStatePath := fs.String("session-state", "", "durable peer session state path")
+	quarantineStatePath := fs.String("quarantine-state", "", "local read-only peer quarantine state path")
 	maxSkew := fs.Duration("max-clock-skew", 30*time.Second, "maximum accepted clock skew")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -158,11 +159,18 @@ func peerMultiSurveyCommand(args []string) error {
 	if *sessionStatePath == "" {
 		*sessionStatePath = filepath.Join(*dir, "state", "peer-session.json")
 	}
+	if *quarantineStatePath == "" {
+		*quarantineStatePath = filepath.Join(*dir, "state", "peer-quarantine.json")
+	}
 	var registry PeerTransportRegistry
 	if err := readJSON(*registryPath, &registry); err != nil {
 		return err
 	}
 	session, err := newPeerSessionRuntime(*dir, registry, *height, *expectedRoot, *sessionStatePath, *maxSkew)
+	if err != nil {
+		return err
+	}
+	quarantineState, err := loadPeerQuarantineState(*quarantineStatePath, session.cfg)
 	if err != nil {
 		return err
 	}
@@ -183,6 +191,10 @@ func peerMultiSurveyCommand(args []string) error {
 		obs, err := observePeerHead(session, endpoint, base.String())
 		if err != nil {
 			failures[target] = err.Error()
+			continue
+		}
+		if peerIsQuarantined(quarantineState, obs.PeerValidatorID) {
+			failures[target] = "authenticated peer is locally quarantined from read-only sync selection"
 			continue
 		}
 		if seenPeers[obs.PeerValidatorID] {
@@ -207,7 +219,7 @@ func peerMultiSurveyCommand(args []string) error {
 		return errors.New("peer height skew requires proof ancestry before automatic sync advancement")
 	}
 	if survey.Classification == "NO_AUTHENTICATED_PEERS" {
-		return errors.New("no authenticated peers available for sync survey")
+		return errors.New("no authenticated non-quarantined peers available for sync survey")
 	}
 	return nil
 }
