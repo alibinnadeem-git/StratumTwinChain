@@ -122,21 +122,16 @@ func initCommand(args []string) error {
 	if !isSHA256(*genesisHash) { return errors.New("--genesis-hash must be a 64-character SHA-256 hex digest") }
 	enrollmentCode, err := loadEnrollmentCode(*enrollmentCodeFile)
 	if err != nil { return err }
-	if *validatorID == "" {
-		id, err := randomUUID(); if err != nil { return err }; *validatorID = id
-	}
+	if *validatorID == "" { id, err := randomUUID(); if err != nil { return err }; *validatorID = id }
 	if err := ensureNewInstall(*dir); err != nil { return err }
-	for _, sub := range []string{"keys/private", "state", "logs", "snapshots"} {
-		if err := os.MkdirAll(filepath.Join(*dir, sub), 0o700); err != nil { return err }
-	}
+	for _, sub := range []string{"keys/private", "state", "logs", "snapshots"} { if err := os.MkdirAll(filepath.Join(*dir, sub), 0o700); err != nil { return err } }
 	keys := map[string]KeyRef{}
 	for _, purpose := range []string{"CONSENSUS", "VRF", "TRANSPORT"} {
 		ref, err := generateLocalKey(*dir, purpose); if err != nil { return fmt.Errorf("generate %s key: %w", purpose, err) }; keys[purpose] = ref
 	}
-	codeDigest := sha256.Sum256([]byte(enrollmentCode))
-	enrollmentCode = ""
+	codeDigest := sha256.Sum256([]byte(enrollmentCode)); enrollmentCode = ""
 	now := time.Now().UTC().Format(time.RFC3339Nano)
-	blocked := []string{"GOVERNANCE_ACTIVATION_REQUIRED", "VRF_CONFORMANCE_NOT_YET_IMPLEMENTED", "FULL_GENESIS_PROOF_VERIFIER_NOT_YET_IMPLEMENTED"}
+	blocked := []string{"GOVERNANCE_ACTIVATION_REQUIRED", "VRF_CONFORMANCE_NOT_YET_IMPLEMENTED", "LIVE_POVI_NETWORK_EXECUTION_NOT_YET_IMPLEMENTED"}
 	cfg := BootstrapConfig{bootstrapVersion, *validatorID, *friendlyLabel, *chainID, *networkName, strings.ToLower(*genesisHash), *protocolVersion, candidateState, false, blocked, hex.EncodeToString(codeDigest[:]), now, runtime.GOOS, runtime.GOARCH, splitNonEmpty(*bootstrapEndpoints), keys}
 	if err := writeJSON(filepath.Join(*dir, "config.json"), cfg, 0o600); err != nil { return err }
 	bundle := PublicEnrollmentBundle{bootstrapVersion, *validatorID, *friendlyLabel, *chainID, *networkName, strings.ToLower(*genesisHash), *protocolVersion, candidateState, false, blocked, hex.EncodeToString(codeDigest[:]), keys, map[string]string{"packageId": *packageID, "validatorVersion": *validatorVersion, "platform": runtime.GOOS, "architecture": runtime.GOARCH}, now}
@@ -208,7 +203,7 @@ func verifyGenesisCommand(args []string) error {
 	if genesis.ChainID != cfg.ChainID { return fmt.Errorf("Genesis chainId mismatch: expected %s got %s", cfg.ChainID, genesis.ChainID) }
 	if !strings.EqualFold(genesis.GenesisDIRHash, cfg.GenesisDIRHash) { return errors.New("Genesis DIR hash does not match locally pinned trust root") }
 	fmt.Println("OK: Genesis DIR identity matches the locally pinned chain trust root")
-	fmt.Println("NOTE: full canonical Genesis signature/proof verification remains an activation blocker in this bootstrap release")
+	fmt.Println("NOTE: this legacy identity-only helper does not establish governance authority; use verify-genesis-trust for the threshold certificate.")
 	return nil
 }
 
