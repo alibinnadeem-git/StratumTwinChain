@@ -16,6 +16,7 @@ import (
 const (
 	genesisHashDomain  = "STRATUM/GENESIS/DIR/1"
 	genesisHashProfile = "STRATUM-GENESIS-HASH/1"
+	maxSafeJSONInteger = int64(9007199254740991)
 )
 
 type GenesisVerification struct {
@@ -32,7 +33,8 @@ func readCanonicalJSON(path string) (map[string]any, error) {
 	dec.UseNumber()
 	var value map[string]any
 	if err := dec.Decode(&value); err != nil { return nil, fmt.Errorf("decode Genesis DIR: %w", err) }
-	if dec.More() { return nil, errors.New("unexpected trailing JSON content") }
+	var extra any
+	if err := dec.Decode(&extra); err == nil { return nil, errors.New("unexpected trailing JSON content") }
 	return value, nil
 }
 
@@ -43,16 +45,15 @@ func canonicalJSON(value any) (string, error) {
 	case bool:
 		if v { return "true", nil }; return "false", nil
 	case string:
-		b, _ := json.Marshal(v); return string(b), nil
+		return strconv.Quote(v), nil
 	case json.Number:
-		if strings.ContainsAny(v.String(), "eE.") {
-			f, err := strconv.ParseFloat(v.String(), 64); if err != nil { return "", err }
-			return strconv.FormatFloat(f, 'g', -1, 64), nil
-		}
-		if _, err := strconv.ParseInt(v.String(), 10, 64); err != nil { return "", fmt.Errorf("invalid integer %q", v.String()) }
-		return v.String(), nil
+		if strings.ContainsAny(v.String(), "eE.") { return "", fmt.Errorf("Genesis v1 numeric value %q is not a safe integer; encode decimal/high-precision values as canonical strings", v.String()) }
+		n, err := strconv.ParseInt(v.String(), 10, 64); if err != nil { return "", fmt.Errorf("invalid Genesis integer %q", v.String()) }
+		if n > maxSafeJSONInteger || n < -maxSafeJSONInteger { return "", fmt.Errorf("Genesis integer %q exceeds the JavaScript safe-integer range", v.String()) }
+		return strconv.FormatInt(n, 10), nil
 	case float64:
-		return strconv.FormatFloat(v, 'g', -1, 64), nil
+		if v != float64(int64(v)) || v > float64(maxSafeJSONInteger) || v < -float64(maxSafeJSONInteger) { return "", fmt.Errorf("Genesis v1 numeric value %v is not a safe integer", v) }
+		return strconv.FormatInt(int64(v), 10), nil
 	case []any:
 		parts := make([]string, len(v))
 		for i, item := range v { s, err := canonicalJSON(item); if err != nil { return "", err }; parts[i] = s }
@@ -61,8 +62,8 @@ func canonicalJSON(value any) (string, error) {
 		keys := make([]string, 0, len(v)); for k := range v { keys = append(keys, k) }; sort.Strings(keys)
 		parts := make([]string, 0, len(keys))
 		for _, k := range keys {
-			ks, _ := json.Marshal(k); vs, err := canonicalJSON(v[k]); if err != nil { return "", err }
-			parts = append(parts, string(ks)+":"+vs)
+			vs, err := canonicalJSON(v[k]); if err != nil { return "", err }
+			parts = append(parts, strconv.Quote(k)+":"+vs)
 		}
 		return "{" + strings.Join(parts, ",") + "}", nil
 	default:
