@@ -1,6 +1,6 @@
 {
   "profileVersion": "STRATUM-POVI-PROPOSER/1",
-  "expectedValidatorSetRoot": "65cbc5192742522ad318844274a9031f2c30e9d7299ebdad26dc938f8c88481d",
+  "expectedValidatorSetRoot": "7706bea0efd621ae822e60fc6e1bde3c54192b6199fb90f68766e4e823dca47e",
   "expectedVRFKeyRegistryRoot": "aaa4a3b3c78d73df3dda78be0004d248514e74ec3ebc30fd3e180e3c7ef03ab4",
   "validatorSet": {
     "setVersion": "STRATUM-VALIDATOR-SET/1",
@@ -27,14 +27,14 @@
     "round": 0,
     "previousDIRHash": "33f0ff2b7802b7b0a577d39e90974ac0cc3cd36d3ca308439e7d81c96558cf73",
     "previousEntropy": "7c30b4e8ef7cd9760172325967f4d19d5e75c9c907a357176b284e6f298aae29",
-    "validatorSetRoot": "65cbc5192742522ad318844274a9031f2c30e9d7299ebdad26dc938f8c88481d",
+    "validatorSetRoot": "7706bea0efd621ae822e60fc6e1bde3c54192b6199fb90f68766e4e823dca47e",
     "vrfKeyRegistryRoot": "aaa4a3b3c78d73df3dda78be0004d248514e74ec3ebc30fd3e180e3c7ef03ab4",
     "protocolVersion": "POVI/1"
   },
   "expectedSelection": {
-    "selectionSeed": "33cc5fde0573ff2064315f3bb51a651929c04755d1f6c5d851ad727f8ecb11cd",
-    "proposerId": "validator-b",
-    "proposerIndex": 1
+    "selectionSeed": "5d72836241a7e524a751b9cc3138b841f9a8cd76af7e536a9984382183276a3e",
+    "proposerId": "validator-c",
+    "proposerIndex": 2
   },
   "evidence": {
     "profileVersion": "STRATUM-POVI-PROPOSER/1",
@@ -44,14 +44,14 @@
     "round": 0,
     "previousDIRHash": "33f0ff2b7802b7b0a577d39e90974ac0cc3cd36d3ca308439e7d81c96558cf73",
     "previousEntropy": "7c30b4e8ef7cd9760172325967f4d19d5e75c9c907a357176b284e6f298aae29",
-    "validatorSetRoot": "65cbc5192742522ad318844274a9031f2c30e9d7299ebdad26dc938f8c88481d",
+    "validatorSetRoot": "7706bea0efd621ae822e60fc6e1bde3c54192b6199fb90f68766e4e823dca47e",
     "vrfKeyRegistryRoot": "aaa4a3b3c78d73df3dda78be0004d248514e74ec3ebc30fd3e180e3c7ef03ab4",
     "protocolVersion": "POVI/1",
-    "proposerId": "validator-b",
-    "keyId": "validator-b:vrf:v1",
-    "selectionSeed": "33cc5fde0573ff2064315f3bb51a651929c04755d1f6c5d851ad727f8ecb11cd",
-    "messageHash": "f306ce248e07286f94bdc1bed3c06d631b421821a3b20a87a4c8b4424d925644",
-    "proofB64": "KGXtG0ALX69kFdsx4HDp2IcuGCEsfclSqCv0ZdJ0RRWmes6JxzmCSaDogkvwHZ8hIcKLcgj6jK6wQeZwTJGgBg==",
-    "vrfOutput": "f1f07a541e8c9fe02895de9fb355031cf0afb3a35cdd3feeceb5dee45a61e93c"
+    "proposerId": "validator-c",
+    "keyId": "validator-c:vrf:v1",
+    "selectionSeed": "5d72836241a7e524a751b9cc3138b841f9a8cd76af7e536a9984382183276a3e",
+    "messageHash": "ed9d738a43bbd2b87ea30e9a6a0f3c79c38915ac724b846843503f494e12c78f",
+    "proofB64": "2cV7TYSC1C3FUtx4doTw1Ml9ScEVAgrg1IbafxefzOLRTiqvqI3bFrn6X/me4pp7NWv4E6JaIzsktaQKgBnCAw==",
+    "vrfOutput": "d1dd4255a4b144fc8b9ae88c652fd02cff3f4247e38b633e836e2d0f023ad944"
   }
 }
