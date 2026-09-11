@@ -17,6 +17,7 @@ on:
       - 'lib/redbook/schema/plc.ts'
       - 'lib/redbook/schema/vrf.ts'
       - 'lib/redbook/schema/peer-transport.ts'
+      - 'lib/redbook/schema/peer-session.ts'
       - 'lib/redbook/test-vectors/**'
       - 'scripts/genesis-conformance.mjs'
       - 'scripts/genesis-trust-conformance.mjs'
@@ -45,6 +46,7 @@ on:
       - 'lib/redbook/schema/plc.ts'
       - 'lib/redbook/schema/vrf.ts'
       - 'lib/redbook/schema/peer-transport.ts'
+      - 'lib/redbook/schema/peer-session.ts'
       - 'lib/redbook/test-vectors/**'
       - 'scripts/genesis-conformance.mjs'
       - 'scripts/genesis-trust-conformance.mjs'
@@ -155,6 +157,9 @@ jobs:
           const peerSession=fs.readFileSync('tools/portable-validator/peer_session.go','utf8');
           for(const required of ['STRATUM-PEER-SESSION/1','CANDIDATE state with voteAuthority=false','LIVE_POVI_NETWORK_EXECUTION_NOT_YET_IMPLEMENTED','read-only session cannot sign consensus-bearing message type','serve-readonly-peer','peer-probe','plaintext HTTP peer probe refused for non-loopback target']) if(!peerSession.includes(required)) throw new Error(`Missing read-only peer-session invariant: ${required}`);
           if(!peerSession.includes('f.Sync()')) throw new Error('Peer session replay/sequence state must be fsynced before replacement');
+
+          const peerSessionSchema=fs.readFileSync('lib/redbook/schema/peer-session.ts','utf8');
+          for(const required of ['STRATUM-PEER-SESSION/1',"state:z.literal('CANDIDATE')","voteAuthority:z.literal(false)","readOnly:z.literal(true)","consensusBearingTrafficEnabled:z.literal(false)","livePoviNetworkExecution:z.literal(false)",'PING','STATUS','TRUST_ROOTS']) if(!peerSessionSchema.includes(required)) throw new Error(`Missing peer-session schema invariant: ${required}`);
 
           console.log('Portable validator candidate-only, Genesis, snapshot, finality, governance, liveness, PLC, proposer-entropy, authenticated peer transport, and read-only peer-session invariants passed');
           NODE
