@@ -5,10 +5,12 @@ on:
       - 'tools/portable-validator/**'
       - 'lib/redbook/genesis.ts'
       - 'lib/redbook/genesis-trust.ts'
+      - 'lib/redbook/povi/**'
       - 'lib/redbook/schema/bootstrap.ts'
       - 'lib/redbook/test-vectors/**'
       - 'scripts/genesis-conformance.mjs'
       - 'scripts/genesis-trust-conformance.mjs'
+      - 'scripts/pfc-conformance.mjs'
       - '.github/workflows/portable-validator.yml'
   push:
     branches-ignore: [main]
@@ -16,10 +18,12 @@ on:
       - 'tools/portable-validator/**'
       - 'lib/redbook/genesis.ts'
       - 'lib/redbook/genesis-trust.ts'
+      - 'lib/redbook/povi/**'
       - 'lib/redbook/schema/bootstrap.ts'
       - 'lib/redbook/test-vectors/**'
       - 'scripts/genesis-conformance.mjs'
       - 'scripts/genesis-trust-conformance.mjs'
+      - 'scripts/pfc-conformance.mjs'
       - '.github/workflows/portable-validator.yml'
 jobs:
   portable-validator:
@@ -33,6 +37,8 @@ jobs:
         run: node scripts/genesis-conformance.mjs
       - name: Genesis trust certificate test vector
         run: node scripts/genesis-trust-conformance.mjs
+      - name: PoVI PFC cross-language test vector
+        run: node scripts/pfc-conformance.mjs
       - uses: actions/setup-go@v6
         with:
           go-version: '1.24.x'
@@ -71,7 +77,6 @@ jobs:
             'VoteAuthority',
             'GOVERNANCE_ACTIVATION_REQUIRED',
             'VRF_CONFORMANCE_NOT_YET_IMPLEMENTED',
-            'FULL_GENESIS_PROOF_VERIFIER_NOT_YET_IMPLEMENTED',
             'STRATUM_ENROLLMENT_CODE',
             'keys/private',
             'publisher signature verification failed'
@@ -79,12 +84,15 @@ jobs:
           if(source.includes('fs.String("enrollment-code"')) throw new Error('Raw enrollment secret must not be accepted as a command-line value');
           const dispatcher=fs.readFileSync('tools/portable-validator/main.go','utf8');
           if(/case\s+"(activate|vote|force-active)"/.test(dispatcher)) throw new Error('Bootstrap must not expose vote-authority or activation commands');
-          if(!dispatcher.includes('verify-genesis-trust')) throw new Error('Portable validator must expose Genesis trust verification');
+          for(const required of ['verify-genesis-trust','verify-pfc']) if(!dispatcher.includes(required)) throw new Error(`Portable validator missing command: ${required}`);
           const genesis=fs.readFileSync('tools/portable-validator/genesis.go','utf8');
           for(const required of ['STRATUM/GENESIS/DIR/1','STRATUM-GENESIS-HASH/1','objectId','GenesisDIRHash','maxSafeJSONInteger'])
             if(!genesis.includes(required)) throw new Error(`Missing Genesis verifier invariant: ${required}`);
           const trust=fs.readFileSync('tools/portable-validator/trust.go','utf8');
           for(const required of ['STRATUM/BOOTSTRAP/TRUST/1','STRATUM-GENESIS-CERT/1','bootstrap trust bundle pin mismatch','duplicate Genesis signer','Genesis trust threshold not met','ed25519.Verify'])
             if(!trust.includes(required)) throw new Error(`Missing Genesis trust invariant: ${required}`);
-          console.log('Portable validator candidate-only, Genesis, and threshold-trust safety invariants passed');
+          const finality=fs.readFileSync('tools/portable-validator/finality.go','utf8');
+          for(const required of ['STRATUM/VALIDATOR/SET/1','STRATUM/DIR/CANDIDATE/1','STRATUM/POVI/COMMIT/1','PFC cryptographic quorum not met','ed25519.Verify'])
+            if(!finality.includes(required)) throw new Error(`Missing PoVI PFC invariant: ${required}`);
+          console.log('Portable validator candidate-only, Genesis, threshold-trust, and PoVI PFC safety invariants passed');
           NODE
