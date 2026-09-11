@@ -555,16 +555,16 @@ func peerSyncCommand(args []string) error {
 	}
 
 	out, _ := json.MarshalIndent(map[string]any{
-		"synced":                 true,
-		"profileVersion":         peerSyncProfile,
-		"height":                 syncRuntime.trustedHead.Height,
-		"DIRHash":                syncRuntime.trustedHead.DIRHash,
-		"stateRoot":              syncRuntime.trustedHead.StateRoot,
-		"validatorSetRoot":       syncRuntime.trustedHead.ValidatorSetRoot,
-		"sourcePeerValidatorId": syncRuntime.trustedHead.SourcePeerValidatorID,
-		"state":                  session.cfg.State,
-		"voteAuthority":          false,
-		"consensusParticipation": false,
+		"synced":                  true,
+		"profileVersion":          peerSyncProfile,
+		"height":                  syncRuntime.trustedHead.Height,
+		"DIRHash":                 syncRuntime.trustedHead.DIRHash,
+		"stateRoot":               syncRuntime.trustedHead.StateRoot,
+		"validatorSetRoot":        syncRuntime.trustedHead.ValidatorSetRoot,
+		"sourcePeerValidatorId":   syncRuntime.trustedHead.SourcePeerValidatorID,
+		"state":                   session.cfg.State,
+		"voteAuthority":           false,
+		"consensusParticipation":  false,
 	}, "", "  ")
 	fmt.Println(string(out))
 	return nil
