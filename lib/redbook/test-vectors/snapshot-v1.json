@@ -1,0 +1,96 @@
+{
+  "expectedValidatorSetRoot": "e5c98de61b8829a7090f933bbfda7db66b6a4f4a88a4b54897335a66f203a358",
+  "validatorSet": {
+    "setVersion": "STRATUM-VALIDATOR-SET/1",
+    "chainId": "stratum-devnet-1",
+    "members": [
+      {
+        "validatorId": "validator-a",
+        "identityUuid": "00000000-0000-5000-a000-000000000001",
+        "operatorOrg": "STRATUM",
+        "activationHeight": 0,
+        "retirementHeight": null,
+        "keys": [
+          {
+            "keyId": "validator-a:consensus:v1",
+            "purpose": "CONSENSUS",
+            "algorithm": "Ed25519",
+            "publicKeyDerB64": "MCowBQYDK2VwAyEAiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w=",
+            "activeFromHeight": 0,
+            "retiredAtHeight": null
+          }
+        ]
+      },
+      {
+        "validatorId": "validator-b",
+        "identityUuid": "00000000-0000-5000-a000-000000000002",
+        "operatorOrg": "STRATUM",
+        "activationHeight": 0,
+        "retirementHeight": null,
+        "keys": [
+          {
+            "keyId": "validator-b:consensus:v1",
+            "purpose": "CONSENSUS",
+            "algorithm": "Ed25519",
+            "publicKeyDerB64": "MCowBQYDK2VwAyEAgTl3Dqh9F19Wo1Rmw0x+zMuNipG07jeiXfYPW4/Js5Q=",
+            "activeFromHeight": 0,
+            "retiredAtHeight": null
+          }
+        ]
+      },
+      {
+        "validatorId": "validator-c",
+        "identityUuid": "00000000-0000-5000-a000-000000000003",
+        "operatorOrg": "STRATUM",
+        "activationHeight": 0,
+        "retirementHeight": null,
+        "keys": [
+          {
+            "keyId": "validator-c:consensus:v1",
+            "purpose": "CONSENSUS",
+            "algorithm": "Ed25519",
+            "publicKeyDerB64": "MCowBQYDK2VwAyEA7UkoxijRwsbq6QM4kFmVYSlZJzpcY/k2NsFGFKyHN9E=",
+            "activeFromHeight": 0,
+            "retiredAtHeight": null
+          }
+        ]
+      }
+    ]
+  },
+  "certificate": {
+    "domain": "STRATUM/SNAPSHOT/CERT/1",
+    "certificateVersion": "STRATUM-SNAPSHOT-CERT/1",
+    "chainId": "stratum-devnet-1",
+    "snapshotHeight": 10,
+    "DIRHash": "1111111111111111111111111111111111111111111111111111111111111111",
+    "stateRoot": "2222222222222222222222222222222222222222222222222222222222222222",
+    "validatorSetRoot": "e5c98de61b8829a7090f933bbfda7db66b6a4f4a88a4b54897335a66f203a358",
+    "protocolVersion": "POVI/1",
+    "stateManifestRoot": "3333333333333333333333333333333333333333333333333333333333333333",
+    "SpatialManifestRoot": "4444444444444444444444444444444444444444444444444444444444444444",
+    "evidenceManifestRoot": "5555555555555555555555555555555555555555555555555555555555555555",
+    "signatures": [
+      {
+        "signerId": "validator-a",
+        "keyId": "validator-a:consensus:v1",
+        "algorithm": "Ed25519",
+        "domain": "STRATUM/SNAPSHOT/CERT/1",
+        "signatureB64": "G2ZDA3i1tdSvfrUr6Si5wW30pUFOmHfT3+gOZvLQsxRXGWwy+wgQPDUuoc2T9JFpTLmEP720bwvSJy1KqiiYBg=="
+      },
+      {
+        "signerId": "validator-b",
+        "keyId": "validator-b:consensus:v1",
+        "algorithm": "Ed25519",
+        "domain": "STRATUM/SNAPSHOT/CERT/1",
+        "signatureB64": "1S9k5fYgTQn6tgMh4XUJ2HoIpUHELJNUBjjkKoXyefKwM/5hcb3oDEaC5ZA4dbTEROLlRz59TjugfqJjDkLxCg=="
+      },
+      {
+        "signerId": "validator-c",
+        "keyId": "validator-c:consensus:v1",
+        "algorithm": "Ed25519",
+        "domain": "STRATUM/SNAPSHOT/CERT/1",
+        "signatureB64": "LTy+S196VVsw/oFZaIESlCJ9uiU5Umdq4lObyQ7c9Rad823nJMyzRtswTamvMma3x1+F/27knMJmLbIu6zpwAw=="
+      }
+    ]
+  }
+}
