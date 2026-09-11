@@ -46,6 +46,7 @@ export function createLifecycleMicroDirCandidate(args:{
  submittedAt:string;
  payloadHash:string;
  currentState:AssetLifecycleState;
+ transitionValidated:boolean;
  evidenceRefs?:string[];
  sourceRefs?:string[];
 }):MicroDIR{
@@ -80,7 +81,7 @@ export function createLifecycleMicroDirCandidate(args:{
   NDIRRoots:[],
   NDIRRefs:[],
   payloadHash:args.payloadHash,
-  proposedStateTransition:transition?{fromState:args.currentState,toState:transition.targetState}:null,
+  proposedStateTransition:transition&&args.transitionValidated?{fromState:args.currentState,toState:transition.targetState}:null,
   signatures:[],
  });
 }
