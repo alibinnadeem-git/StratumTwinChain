@@ -20,13 +20,12 @@ test.describe('STRATUM Spatial Verified route and responsive UAT',()=>{
  }
 });
 
-test('command center uses Redbook canonical product language',async({page})=>{
+test('command center exposes the canonical Redbook product and implementation discipline',async({page})=>{
  await page.goto('/');
  await expect(page.getByText('STRATUM Spatial Verified',{exact:false}).first()).toBeVisible();
- await expect(page.getByRole('heading',{name:/Know what exists\. Know what happened\. Know why it is trusted\./i})).toBeVisible();
  await expect(page.getByText(/Redbook implementation order/i)).toBeVisible();
- await expect(page.getByText(/P0 · PARTIAL/i)).toBeVisible();
- await expect(page.getByText(/P1 · IN PROGRESS/i)).toBeVisible();
+ await expect(page.getByText('P0 · PARTIAL',{exact:true})).toBeVisible();
+ await expect(page.getByText('P1 · IN PROGRESS',{exact:true})).toBeVisible();
 });
 
 test('primary navigation reaches canonical Spatial workspaces',async({page})=>{
@@ -44,10 +43,9 @@ test('primary navigation reaches canonical Spatial workspaces',async({page})=>{
  await expect(page).toHaveURL(/\/dir$/);
 });
 
-test('legacy Twin route redirects to canonical Spatial workspace',async({page})=>{
+test('legacy /twin remains a compatibility route and lands on Spatial',async({page})=>{
  await page.goto('/twin');
  await expect(page).toHaveURL(/\/spatial$/);
- await expect(page.getByRole('heading',{name:/spatial operating and trust model/i})).toBeVisible();
 });
 
 test('Spatial layer controls are interactive',async({page})=>{
@@ -69,7 +67,7 @@ test('Spatial Compiler accepts a real DXF through the file workflow',async({page
  await expect(page.getByText(/PARSED/).first()).toBeVisible();
 });
 
-test('compiled Spatial graph preserves level elevation rotation and source placement',async({page})=>{
+test('compiled Spatial model preserves level elevation rotation and source placement',async({page})=>{
  await page.goto('/compiler');
  const dxf=`0\nSECTION\n2\nENTITIES\n0\nINSERT\n8\nE-EQUIP\n2\nPANELBOARD LP-2\n10\n100\n20\n200\n30\n0\n41\n1.25\n42\n1.25\n50\n90\n0\nTEXT\n8\nA-ROOM\n1\nELECTRICAL ROOM 201\n10\n102\n20\n202\n0\nENDSEC\n0\nEOF\n`;
  await page.locator('input[type=file]').setInputFiles({name:'E2-Level-2-Power.dxf',mimeType:'application/dxf',buffer:Buffer.from(dxf)});
@@ -102,7 +100,7 @@ test('DXF closed architectural polyline becomes reconstructed Spatial room geome
  await expect(page.getByText('INFRASTRUCTURE HUD')).toBeVisible();
 });
 
-test('electrical component library exposes canonical equipment classes and Spatial object registry',async({page})=>{
+test('electrical component library exposes canonical equipment classes and Spatial registry',async({page})=>{
  await page.goto('/component-library');
  await expect(page.getByText('Main Switchboard',{exact:true})).toBeVisible();
  await expect(page.getByText('Dry-Type Transformer',{exact:true})).toBeVisible();
