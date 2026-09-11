@@ -1,0 +1,64 @@
+name: STRATUM Portable Validator CI
+on:
+  pull_request:
+    paths:
+      - 'tools/portable-validator/**'
+      - '.github/workflows/portable-validator.yml'
+  push:
+    branches-ignore: [main]
+    paths:
+      - 'tools/portable-validator/**'
+      - '.github/workflows/portable-validator.yml'
+jobs:
+  portable-validator:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.24.x'
+          cache-dependency-path: tools/portable-validator/go.mod
+      - name: Formatting
+        working-directory: tools/portable-validator
+        run: test -z "$(gofmt -l .)"
+      - name: Go vet
+        working-directory: tools/portable-validator
+        run: go vet ./...
+      - name: Unit and safety tests
+        working-directory: tools/portable-validator
+        run: go test -race ./...
+      - name: Build host binary
+        working-directory: tools/portable-validator
+        run: go build -trimpath -o /tmp/stratum-validator-bootstrap .
+      - name: Cross-compile Linux ARM64 Raspberry Pi target
+        working-directory: tools/portable-validator
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -o /tmp/stratum-validator-bootstrap-linux-arm64 .
+      - name: Cross-compile Linux AMD64 target
+        working-directory: tools/portable-validator
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o /tmp/stratum-validator-bootstrap-linux-amd64 .
+      - name: Cross-compile macOS ARM64 target
+        working-directory: tools/portable-validator
+        run: CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -o /tmp/stratum-validator-bootstrap-darwin-arm64 .
+      - name: Cross-compile Windows AMD64 target
+        working-directory: tools/portable-validator
+        run: CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -o /tmp/stratum-validator-bootstrap-windows-amd64.exe .
+      - name: Portable-validator safety invariants
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const source=fs.readFileSync('tools/portable-validator/bootstrap.go','utf8');
+          for(const required of [
+            'candidateState   = "CANDIDATE"',
+            'VoteAuthority',
+            'GOVERNANCE_ACTIVATION_REQUIRED',
+            'VRF_CONFORMANCE_NOT_YET_IMPLEMENTED',
+            'FULL_GENESIS_PROOF_VERIFIER_NOT_YET_IMPLEMENTED',
+            'STRATUM_ENROLLMENT_CODE',
+            'keys/private',
+            'publisher signature verification failed'
+          ]) if(!source.includes(required)) throw new Error(`Missing portable validator invariant: ${required}`);
+          if(source.includes('fs.String("enrollment-code"')) throw new Error('Raw enrollment secret must not be accepted as a command-line value');
+          const dispatcher=fs.readFileSync('tools/portable-validator/main.go','utf8');
+          if(/case\s+"(activate|vote|force-active)"/.test(dispatcher)) throw new Error('Bootstrap must not expose vote-authority or activation commands');
+          console.log('Portable validator candidate-only safety invariants passed');
+          NODE
