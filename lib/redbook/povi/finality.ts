@@ -42,6 +42,7 @@ export function computeDIRCandidateHash(input:unknown){
 
 export function verifyProposalIdentity(input:unknown){
  const proposal=proposalSchema.parse(input);
+ if(proposal.domain!==POVI_PROPOSAL_DOMAIN)throw new Error(`Proposal domain must be ${POVI_PROPOSAL_DOMAIN}`);
  const computedProposalHash=computeDIRCandidateHash(proposal.DIRCandidateHeader);
  if(proposal.proposalHash!==computedProposalHash)throw new Error(`proposalHash mismatch: computed ${computedProposalHash}`);
  if(proposal.chainId!==proposal.DIRCandidateHeader.chainId||proposal.height!==proposal.DIRCandidateHeader.height||proposal.round!==proposal.DIRCandidateHeader.round)throw new Error('Proposal context does not match its DIR candidate header');
@@ -95,11 +96,13 @@ export function verifyPoVIFinalityCertificate(args:{PFC:unknown;validators:unkno
   if(!validator)throw new Error(`PFC signer ${signature.signerId} is not in the ACTIVE validator set`);
   if(signature.algorithm!=='Ed25519')throw new Error(`PFC signer ${signature.signerId} must use Ed25519 in PoVI PFC v1`);
   if(signature.domain!==POVI_COMMIT_DOMAIN)throw new Error(`PFC signer ${signature.signerId} has invalid COMMIT signature domain`);
+  if(signature.keyId)throw new Error('PoVI PFC v1 keyId mapping is not yet canonical; validator-set consensus key/version is authoritative');
   if(signature.signedAt)throw new Error('PoVI PFC v1 does not accept unsigned signedAt metadata inside COMMIT signature wrappers');
   const payload=commitSchema.parse({...commitPayloadFromPFC(PFC,signature.signerId),signature:{signerId:signature.signerId,signature:'detached'}});
   const {signature:_detached,...message}=payload;
   let publicKey;
   try{publicKey=createPublicKey({key:Buffer.from(validator.consensusPublicKey,'base64'),format:'der',type:'spki'});}catch{throw new Error(`Validator ${validator.validatorId} consensusPublicKey is not valid base64 SPKI DER`);}
+  if(publicKey.asymmetricKeyType!=='ed25519')throw new Error(`Validator ${validator.validatorId} consensusPublicKey must be Ed25519 in PoVI PFC v1`);
   const valid=verifySignature(null,Buffer.from(canonicalize(message),'utf8'),publicKey,Buffer.from(signature.signature,'base64'));
   if(!valid)throw new Error(`Invalid COMMIT signature from ${signature.signerId}`);
   validSignerIds.push(signature.signerId);
@@ -117,4 +120,10 @@ export function assertPFCBindsDIRCandidate(args:{PFC:unknown;DIRCandidateHeader:
  if(PFC.chainId!==header.chainId||PFC.height!==header.height||PFC.round!==header.round)throw new Error('PFC consensus context does not match DIR candidate header');
  if(PFC.stateRoot!==header.stateRoot||PFC.validatorSetRoot!==header.validatorSetRoot||PFC.protocolVersion!==header.protocolVersion)throw new Error('PFC roots/protocol do not match DIR candidate header');
  return{valid:true as const,candidateHash,PFC,header};
+}
+
+export function verifyFinalityForDIRCandidate(args:{PFC:unknown;validators:unknown;DIRCandidateHeader:unknown}){
+ const binding=assertPFCBindsDIRCandidate({PFC:args.PFC,DIRCandidateHeader:args.DIRCandidateHeader});
+ const finality=verifyPoVIFinalityCertificate({PFC:binding.PFC,validators:args.validators});
+ return{...finality,candidateHash:binding.candidateHash,DIRCandidateHeader:binding.header};
 }
