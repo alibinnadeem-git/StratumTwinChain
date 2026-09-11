@@ -12,7 +12,7 @@ export const roundChangeVoteProofSchema=z.object({domain:z.literal(POVI_ROUND_CH
  const validPair=(value.validDIR===null)===(value.validRound===null); if(!validPair)ctx.addIssue({code:z.ZodIssueCode.custom,path:['validDIR'],message:'validDIR and validRound must be supplied together'});
  if(value.lockedRound!==null&&value.lockedRound>=value.newRound)ctx.addIssue({code:z.ZodIssueCode.custom,path:['lockedRound'],message:'lockedRound must precede newRound'});
  if(value.validRound!==null&&value.validRound>=value.newRound)ctx.addIssue({code:z.ZodIssueCode.custom,path:['validRound'],message:'validRound must precede newRound'});
- if((value.lockedDIR!==null||value.validDIR!==null)&&value.evidenceRefs.length===0)ctx.addIssue({code:z.ZodIssueCode.custom,path:['evidenceRefs'],message:'Lock claims require evidence references'});
+ if((value.lockedDIR!==null||value.validDIR!==null)&&value.evidenceRefs.length===0)ctx.addIssue({code:z.ZodIssueCode.custom,path:['evidenceRefs'],message:'Lock/valid-value claims require evidenceRefs; ROUND_CHANGE alone never proves an unlock'});
 });
 
 export const roundChangeQuorumEvidenceSchema=z.object({evidenceVersion:z.literal(ROUND_CHANGE_EVIDENCE_VERSION),chainId:canonicalIdSchema,height:z.number().int().positive(),triggerRound:z.number().int().nonnegative(),newRound:z.number().int().positive(),validatorSetRoot:canonicalHashSchema,protocolVersion:schemaVersionSchema,roundChangeVotes:z.array(roundChangeVoteProofSchema).min(1),priorRoundNILVotes:z.array(verifyVoteProofSchema).default([])}).strict().superRefine((value,ctx)=>{
