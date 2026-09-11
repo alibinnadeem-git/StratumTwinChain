@@ -1,4 +1,5 @@
 import type {PoVIFinalityCertificate} from '../schema/povi';
+import type {VerifiedRoundChangeQuorumEvidence} from './liveness';
 import {assertPoviQuorum,hasPoviQuorum} from './quorum';
 
 export type PoVIPhase='PROPOSE'|'VERIFY'|'LOCK'|'COMMIT'|'FINALIZE'|'FINALIZED';
@@ -78,8 +79,26 @@ export function finalizeWithPFC(state:PoVIHeightState,args:{PFC:PoVIFinalityCert
  return{...state,phase:'FINALIZED',finalizedDIRHash:args.PFC.DIRHash};
 }
 
-export function enterHigherRound(state:PoVIHeightState,newRound:number):PoVIHeightState{
+export function enterHigherRound(state:PoVIHeightState,verified:VerifiedRoundChangeQuorumEvidence):PoVIHeightState{
+ if(!verified.verified)throw new Error('Verified ROUND_CHANGE evidence is required');
+ const evidence=verified.evidence;
  if(state.phase==='FINALIZED')throw new Error('Finalized height cannot enter a new round');
- if(!Number.isInteger(newRound)||newRound<=state.round)throw new Error('newRound must be greater than the current round');
- return{...state,round:newRound,phase:'PROPOSE',proposalHash:null,proposedStateRoot:null,verifyVotes:{},commitVotes:{}};
+ if(state.chainId!==evidence.chainId||state.height!==evidence.height||state.round!==evidence.triggerRound){
+  throw new Error('ROUND_CHANGE evidence does not match local consensus state');
+ }
+ if(evidence.newRound<=state.round)throw new Error('ROUND_CHANGE must advance the round');
+ return{
+  ...state,
+  round:evidence.newRound,
+  phase:'PROPOSE',
+  proposalHash:null,
+  proposedStateRoot:null,
+  verifyVotes:{},
+  commitVotes:{},
+  // ROUND_CHANGE alone never clears or replaces a lock or valid value.
+  lockedDIR:state.lockedDIR,
+  lockedRound:state.lockedRound,
+  validDIR:state.validDIR,
+  validRound:state.validRound,
+ };
 }
