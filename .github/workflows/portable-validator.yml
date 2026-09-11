@@ -16,6 +16,7 @@ on:
       - 'lib/redbook/schema/liveness.ts'
       - 'lib/redbook/schema/plc.ts'
       - 'lib/redbook/schema/vrf.ts'
+      - 'lib/redbook/schema/peer-transport.ts'
       - 'lib/redbook/test-vectors/**'
       - 'scripts/genesis-conformance.mjs'
       - 'scripts/genesis-trust-conformance.mjs'
@@ -43,6 +44,7 @@ on:
       - 'lib/redbook/schema/liveness.ts'
       - 'lib/redbook/schema/plc.ts'
       - 'lib/redbook/schema/vrf.ts'
+      - 'lib/redbook/schema/peer-transport.ts'
       - 'lib/redbook/test-vectors/**'
       - 'scripts/genesis-conformance.mjs'
       - 'scripts/genesis-trust-conformance.mjs'
@@ -122,9 +124,11 @@ jobs:
           ]) if(!source.includes(required)) throw new Error(`Missing portable validator invariant: ${required}`);
           if(source.includes('FULL_GENESIS_PROOF_VERIFIER_NOT_YET_IMPLEMENTED')) throw new Error('Obsolete Genesis activation blocker must not return after canonical Genesis + threshold trust verification shipped');
           if(source.includes('fs.String("enrollment-code"')) throw new Error('Raw enrollment secret must not be accepted as a command-line value');
+
           const dispatcher=fs.readFileSync('tools/portable-validator/main.go','utf8');
           if(/case\s+"(activate|vote|force-active)"/.test(dispatcher)) throw new Error('Bootstrap must not expose vote-authority or activation commands');
-          for(const required of ['verify-genesis-trust','verify-snapshot','verify-finality','verify-validator-governance','verify-round-change','verify-plc','verify-proposer']) if(!dispatcher.includes(required)) throw new Error(`Portable validator missing trust command: ${required}`);
+          for(const required of ['verify-genesis-trust','verify-snapshot','verify-finality','verify-validator-governance','verify-round-change','verify-plc','verify-proposer','verify-peer-envelope','serve-readonly-peer','peer-probe']) if(!dispatcher.includes(required)) throw new Error(`Portable validator missing trust/session command: ${required}`);
+
           const genesis=fs.readFileSync('tools/portable-validator/genesis.go','utf8');
           for(const required of ['STRATUM/GENESIS/DIR/1','STRATUM-GENESIS-HASH/1','objectId','GenesisDIRHash','maxSafeJSONInteger']) if(!genesis.includes(required)) throw new Error(`Missing Genesis verifier invariant: ${required}`);
           const trust=fs.readFileSync('tools/portable-validator/trust.go','utf8');
@@ -141,5 +145,16 @@ jobs:
           for(const required of ['STRATUM-PLC-PROOF/1','STRATUM/PLC/PROOF/1','PLC PoVI quorum not met','PLC signerIds do not exactly match valid VERIFY signatures','verifyConsensusHashSignature']) if(!plc.includes(required)) throw new Error(`Missing PLC invariant: ${required}`);
           const proposer=fs.readFileSync('tools/portable-validator/vrf.go','utf8');
           for(const required of ['STRATUM-POVI-PROPOSER/1','STRATUM/POVI/PROPOSER_SELECTION/1','STRATUM/POVI/VRF_EVIDENCE/1','STRATUM-VRF-KEY-REGISTRY/1','VRF-key registry must cover exactly the ACTIVE validator set','wrong proposer','ed25519.Verify']) if(!proposer.includes(required)) throw new Error(`Missing proposer entropy invariant: ${required}`);
-          console.log('Portable validator candidate-only, Genesis, snapshot, finality, validator-governance, round-change liveness, PLC, and proposer-entropy invariants passed');
+
+          const peerTransport=fs.readFileSync('tools/portable-validator/peer_transport.go','utf8');
+          for(const required of ['STRATUM-PEER-TRANSPORT/1','STRATUM/PEER/ENVELOPE/1','STRATUM-PEER-REGISTRY/1','PING','STATUS','TRUST_ROOTS','peer envelope message type is not allowed in read-only transport profile','peer envelope sequence must be positive','ed25519.Verify']) if(!peerTransport.includes(required)) throw new Error(`Missing authenticated peer-transport invariant: ${required}`);
+          const allowListMatch=peerTransport.match(/readOnlyPeerMessageTypes\s*=\s*map\[string\]bool\{([\s\S]*?)\n\}/);
+          if(!allowListMatch) throw new Error('Unable to locate read-only peer message allow-list');
+          for(const forbidden of ['PROPOSAL','VERIFY','COMMIT','ROUND_CHANGE','PLC','PFC']) if(allowListMatch[1].includes(`"${forbidden}"`)) throw new Error(`Consensus-bearing peer message must remain disabled: ${forbidden}`);
+
+          const peerSession=fs.readFileSync('tools/portable-validator/peer_session.go','utf8');
+          for(const required of ['STRATUM-PEER-SESSION/1','CANDIDATE state with voteAuthority=false','LIVE_POVI_NETWORK_EXECUTION_NOT_YET_IMPLEMENTED','read-only session cannot sign consensus-bearing message type','serve-readonly-peer','peer-probe','plaintext HTTP peer probe refused for non-loopback target']) if(!peerSession.includes(required)) throw new Error(`Missing read-only peer-session invariant: ${required}`);
+          if(!peerSession.includes('f.Sync()')) throw new Error('Peer session replay/sequence state must be fsynced before replacement');
+
+          console.log('Portable validator candidate-only, Genesis, snapshot, finality, governance, liveness, PLC, proposer-entropy, authenticated peer transport, and read-only peer-session invariants passed');
           NODE
