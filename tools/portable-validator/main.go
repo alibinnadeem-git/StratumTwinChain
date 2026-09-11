@@ -17,7 +17,7 @@ func main() {
 	case "doctor":
 		err = doctorCommand(os.Args[2:])
 	case "verify-genesis":
-		err = verifyGenesisCommand(os.Args[2:])
+		err = verifyCanonicalGenesisCommand(os.Args[2:])
 	case "verify-package":
 		err = verifyPackageCommand(os.Args[2:])
 	case "version":
