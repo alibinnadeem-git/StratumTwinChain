@@ -8,5 +8,6 @@ export * from './registry/events';
 export * from './registry/state-transitions';
 export * from './adapters/lifecycle';
 export * from './adapters/evidence';
+export * from './adapters/asset';
 export * from './povi/quorum';
 export * from './povi/state-machine';
