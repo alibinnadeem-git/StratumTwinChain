@@ -16,6 +16,7 @@ import {
  stateTransitionRegistry,
  validateStateTransition,
  type PoVIFinalityCertificate,
+ type VerifiedRoundChangeQuorumEvidence,
 } from '../../lib/redbook';
 
 const h=(char:string)=>char.repeat(64);
@@ -100,13 +101,19 @@ test('PoVI state reducer requires 3-of-3 for a three-validator network',()=>{
  expect(state.finalizedDIRHash).toBe(h('e'));
 });
 
-test('PoVI higher round preserves an existing lock',()=>{
+test('PoVI higher round requires verified evidence and preserves an existing lock',()=>{
  const active=['validator-a','validator-b','validator-c'];
  let state=createPoVIHeightState('stratum-test',2);
  state=acceptProposal(state,{proposalHash:h('1'),stateRoot:h('2'),round:0});
  for(const validatorId of active)state=recordVerifyVote(state,{validatorId,proposalHash:h('1'),activeValidatorIds:active});
  expect(state.lockedDIR).toBe(h('1'));
- state=enterHigherRound(state,1);
+ const verified={
+  verified:true,
+  evidence:{evidenceVersion:'STRATUM-ROUND-CHANGE-EVIDENCE/1',chainId:'stratum-test',height:2,triggerRound:0,newRound:1,validatorSetRoot:h('f'),protocolVersion:'POVI/1',roundChangeVotes:[],priorRoundNILVotes:[]},
+  activeValidatorCount:3,requiredQuorum:3,validSignerIds:active,nilQuorumVerified:true,lockClaims:[],validValueClaims:[],safeUnlockAuthorized:false,
+ } satisfies VerifiedRoundChangeQuorumEvidence;
+ state=enterHigherRound(state,verified);
+ expect(state.round).toBe(1);
  expect(state.lockedDIR).toBe(h('1'));
  expect(()=>acceptProposal(state,{proposalHash:h('3'),stateRoot:h('4'),round:1})).toThrow(/safe-unlock evidence/i);
 });
