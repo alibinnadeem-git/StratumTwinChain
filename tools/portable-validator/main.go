@@ -52,6 +52,12 @@ func main() {
 		err = peerSyncGovernedCommand(os.Args[2:])
 	case "peer-sync-survey":
 		err = peerMultiSurveyCommand(os.Args[2:])
+	case "peer-sync-resolve":
+		err = peerSyncResolveCommand(os.Args[2:])
+	case "peer-quarantine-status":
+		err = peerQuarantineStatusCommand(os.Args[2:])
+	case "peer-quarantine-release":
+		err = peerQuarantineReleaseCommand(os.Args[2:])
 	case "verify-peer-ancestry":
 		err = verifyPeerAncestryCommand(os.Args[2:])
 	case "verify-package":
@@ -71,7 +77,8 @@ func main() {
 
 func usage() {
 	fmt.Fprintln(os.Stderr, "STRATUM portable validator bootstrap")
-	fmt.Fprintln(os.Stderr, "commands: init, doctor, init-consensus-safety, verify-consensus-safety, verify-genesis, verify-genesis-trust, verify-snapshot, verify-finality, verify-validator-governance, verify-round-change, verify-plc, verify-proposer, verify-peer-envelope, serve-readonly-peer, serve-readonly-peer-sync, serve-readonly-peer-sync-governed, peer-probe, peer-sync, peer-sync-governed, peer-sync-survey, verify-peer-ancestry, verify-package, version")
+	fmt.Fprintln(os.Stderr, "commands: init, doctor, init-consensus-safety, verify-consensus-safety, verify-genesis, verify-genesis-trust, verify-snapshot, verify-finality, verify-validator-governance, verify-round-change, verify-plc, verify-proposer, verify-peer-envelope, serve-readonly-peer, serve-readonly-peer-sync, serve-readonly-peer-sync-governed, peer-probe, peer-sync, peer-sync-governed, peer-sync-survey, peer-sync-resolve, peer-quarantine-status, peer-quarantine-release, verify-peer-ancestry, verify-package, version")
 	fmt.Fprintln(os.Stderr, "This bootstrap creates CANDIDATE nodes only. It never grants vote authority.")
 	fmt.Fprintln(os.Stderr, "Peer sync is read-only. Height skew becomes PROVEN_LAG only after governance-aware PFC/DIR ancestry verification; otherwise advancement remains blocked.")
+	fmt.Fprintln(os.Stderr, "Peer quarantine is local sync-selection state only; it does not alter PoVI membership, governance, or vote authority.")
 }
