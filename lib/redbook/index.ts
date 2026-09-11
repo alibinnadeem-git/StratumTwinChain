@@ -4,6 +4,8 @@ export * from './schema/envelope';
 export * from './schema/domain';
 export * from './schema/records';
 export * from './schema/povi';
+export * from './schema/validator-governance';
+export * from './validator-governance';
 export * from './registry/events';
 export * from './registry/state-transitions';
 export * from './adapters/lifecycle';
