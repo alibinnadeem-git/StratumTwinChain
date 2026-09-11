@@ -1,5 +1,6 @@
 import './globals.css';
 import './responsive.css';
+import './redbook.css';
 import Shell from '@/components/Shell';
 import {STRATUM_PRODUCT} from '@/lib/redbook/terminology';
 
