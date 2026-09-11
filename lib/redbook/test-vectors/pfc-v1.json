@@ -1,0 +1,98 @@
+{
+  "profile": "STRATUM-PFC-TEST/1",
+  "validators": [
+    {
+      "validatorId": "validator-a",
+      "friendlyLabel": "Validator A",
+      "consensusPublicKey": "MCowBQYDK2VwAyEACgPHqXjqbQgKj99hN3xS4G/7Fcl5rCdQP2UZsvjwT48=",
+      "consensusKeyVersion": "1",
+      "vrfPublicKey": "vrf-a-v1",
+      "vrfKeyVersion": "1",
+      "transportPublicKey": "transport-a-v1",
+      "transportKeyVersion": "1",
+      "operatorOrg": "STRATUM",
+      "state": "ACTIVE",
+      "activationHeight": 0,
+      "retirementHeight": null,
+      "assurance": "SOFTWARE_TEST_VECTOR"
+    },
+    {
+      "validatorId": "validator-b",
+      "friendlyLabel": "Validator B",
+      "consensusPublicKey": "MCowBQYDK2VwAyEAmXMP+j29BOX1ujc6ziVEUy3JxR9yLRRQI8W+bB0Veec=",
+      "consensusKeyVersion": "1",
+      "vrfPublicKey": "vrf-b-v1",
+      "vrfKeyVersion": "1",
+      "transportPublicKey": "transport-b-v1",
+      "transportKeyVersion": "1",
+      "operatorOrg": "STRATUM",
+      "state": "ACTIVE",
+      "activationHeight": 0,
+      "retirementHeight": null,
+      "assurance": "SOFTWARE_TEST_VECTOR"
+    },
+    {
+      "validatorId": "validator-c",
+      "friendlyLabel": "Validator C",
+      "consensusPublicKey": "MCowBQYDK2VwAyEAC/KvDaScUnUSVGf0T0Q/THZsepM6GHm9vBmrxW1Fdew=",
+      "consensusKeyVersion": "1",
+      "vrfPublicKey": "vrf-c-v1",
+      "vrfKeyVersion": "1",
+      "transportPublicKey": "transport-c-v1",
+      "transportKeyVersion": "1",
+      "operatorOrg": "STRATUM",
+      "state": "ACTIVE",
+      "activationHeight": 0,
+      "retirementHeight": null,
+      "assurance": "SOFTWARE_TEST_VECTOR"
+    }
+  ],
+  "DIRCandidateHeader": {
+    "chainId": "stratum-devnet-1",
+    "height": 1,
+    "round": 0,
+    "previousDIRHash": "51d5fd798fca7a43feb4904ba42ca4f15300ba630dab9ba19a61fba28a0bbe07",
+    "orderedMicroDIRRoot": "1111111111111111111111111111111111111111111111111111111111111111",
+    "stateRoot": "2222222222222222222222222222222222222222222222222222222222222222",
+    "validatorSetRoot": "f0f2854ca630f6e6cf80e531100f449c6ba01a4f4755cb79d2240855a1604b83",
+    "protocolVersion": "POVI/1",
+    "proposerId": "validator-a",
+    "entropyVRFEvidence": {
+      "mode": "TEST_VECTOR",
+      "vrfOutput": "3333333333333333333333333333333333333333333333333333333333333333"
+    }
+  },
+  "proposalHash": "220b8c257e601e97386c55a36c866a53d3160a4e90d197ce463d238574c3beee",
+  "PFC": {
+    "chainId": "stratum-devnet-1",
+    "height": 1,
+    "round": 0,
+    "DIRHash": "220b8c257e601e97386c55a36c866a53d3160a4e90d197ce463d238574c3beee",
+    "stateRoot": "2222222222222222222222222222222222222222222222222222222222222222",
+    "validatorSetRoot": "f0f2854ca630f6e6cf80e531100f449c6ba01a4f4755cb79d2240855a1604b83",
+    "protocolVersion": "POVI/1",
+    "signerProof": {
+      "signerIds": ["validator-a", "validator-b", "validator-c"],
+      "signatures": [
+        {
+          "signerId": "validator-a",
+          "signature": "WxhBCRq9V2Hb3tZktyyWEp0O3VmXWqAFLbndanWI+/vNVv2OQ4pPpE/DUYLeHOfKc4kDpP8XJqkCwTBwe7UpDA==",
+          "algorithm": "Ed25519",
+          "domain": "STRATUM/POVI/COMMIT/1"
+        },
+        {
+          "signerId": "validator-b",
+          "signature": "8ZwVYsWrYi5jDwbHgtHCQODrC+SMkQUtVqvlwNTGstxbXHTfzC/fpeqSYTFKtIyfGVdJ0AS2Za2c+oTUJyslDw==",
+          "algorithm": "Ed25519",
+          "domain": "STRATUM/POVI/COMMIT/1"
+        },
+        {
+          "signerId": "validator-c",
+          "signature": "6glJNDkO/zgQUdo68GWLbqhabC7NSrXcLTMzaIWkXnb8ab4zgEWYObeZyqknUeerjrQm0kHz4p9ar3T9FkGsDA==",
+          "algorithm": "Ed25519",
+          "domain": "STRATUM/POVI/COMMIT/1"
+        }
+      ]
+    }
+  }
+}
