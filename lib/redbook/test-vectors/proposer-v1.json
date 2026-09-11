@@ -1,0 +1,28 @@
+{
+  "context": {
+    "profile": "STRATUM-POVI-PROPOSER/1",
+    "chainId": "stratum-devnet-1",
+    "height": 11,
+    "round": 0,
+    "previousDIRHash": "1111111111111111111111111111111111111111111111111111111111111111",
+    "validatorSetRoot": "65cbc5192742522ad318844274a9031f2c30e9d7299ebdad26dc938f8c88481d",
+    "protocolVersion": "POVI/1"
+  },
+  "validatorSet": {
+    "setVersion": "STRATUM-VALIDATOR-SET/1",
+    "chainId": "stratum-devnet-1",
+    "members": [
+      {"validatorId":"validator-a","identityUuid":"00000000-0000-5000-a000-000000000001","operatorOrg":"STRATUM","activationHeight":0,"retirementHeight":null,"keys":[{"keyId":"validator-a:consensus:v1","purpose":"CONSENSUS","algorithm":"Ed25519","publicKeyDerB64":"MCowBQYDK2VwAyEAiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w=","activeFromHeight":0,"retiredAtHeight":null}]},
+      {"validatorId":"validator-b","identityUuid":"00000000-0000-5000-a000-000000000002","operatorOrg":"STRATUM","activationHeight":0,"retirementHeight":null,"keys":[{"keyId":"validator-b:consensus:v1","purpose":"CONSENSUS","algorithm":"Ed25519","publicKeyDerB64":"MCowBQYDK2VwAyEAgTl3Dqh9F19Wo1Rmw0x+zMuNipG07jeiXfYPW4/Js5Q=","activeFromHeight":0,"retiredAtHeight":null}]},
+      {"validatorId":"validator-c","identityUuid":"00000000-0000-5000-a000-000000000003","operatorOrg":"STRATUM","activationHeight":0,"retirementHeight":null,"keys":[{"keyId":"validator-c:consensus:v1","purpose":"CONSENSUS","algorithm":"Ed25519","publicKeyDerB64":"MCowBQYDK2VwAyEA7UkoxijRwsbq6QM4kFmVYSlZJzpcY/k2NsFGFKyHN9E=","activeFromHeight":0,"retiredAtHeight":null}]}
+    ]
+  },
+  "expectedEvidence": {
+    "profile": "STRATUM-POVI-PROPOSER/1",
+    "mode": "HASH_CHAINED_FINALIZED_ENTROPY",
+    "seedHash": "e506c5697e42db7a89403331c0ab05a9dd4f7deeea98d415bc2fe8c606362422",
+    "activeValidatorIdsHash": "d73039aeb86e12fb23f60b7f5b3c5864b864dc90ecabacc2e55b2c04e3b1129d",
+    "selectedIndex": 1,
+    "proposerId": "validator-b"
+  }
+}
