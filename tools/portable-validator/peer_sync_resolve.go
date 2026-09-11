@@ -15,12 +15,12 @@ import (
 const peerResolveProfile = "STRATUM-PEER-RESOLVE/1"
 
 type PeerAncestryPeerResult struct {
-	PeerValidatorID string `json:"peerValidatorId"`
-	TargetURL       string `json:"targetUrl"`
-	Classification string `json:"classification"`
-	VerifiedHeight int64  `json:"verifiedHeight"`
+	PeerValidatorID  string `json:"peerValidatorId"`
+	TargetURL        string `json:"targetUrl"`
+	Classification  string `json:"classification"`
+	VerifiedHeight  int64  `json:"verifiedHeight"`
 	VerifiedDIRHash string `json:"verifiedDIRHash"`
-	Reason          string `json:"reason"`
+	Reason           string `json:"reason"`
 }
 
 type PeerResolveResult struct {
@@ -213,6 +213,7 @@ func peerSyncResolveCommand(args []string) error {
 	expectedRoot := fs.String("peer-registry-root", "", "trusted peer registry root")
 	targetsRaw := fs.String("targets", "", "comma-separated peer base URLs")
 	sessionStatePath := fs.String("session-state", "", "durable peer session state path")
+	headStatePath := fs.String("peer-head-state", "", "durable authenticated peer head observation state path")
 	evidenceJournalPath := fs.String("evidence-journal", "", "durable peer safety evidence journal path")
 	quarantineStatePath := fs.String("quarantine-state", "", "durable local peer quarantine state path")
 	policyHash := fs.String("governance-policy-hash", "", "independently pinned validator-governance policy SHA-256")
@@ -229,6 +230,9 @@ func peerSyncResolveCommand(args []string) error {
 	}
 	if *sessionStatePath == "" {
 		*sessionStatePath = filepath.Join(*dir, "state", "peer-session.json")
+	}
+	if *headStatePath == "" {
+		*headStatePath = filepath.Join(*dir, "state", "peer-heads.json")
 	}
 	if *evidenceJournalPath == "" {
 		*evidenceJournalPath = filepath.Join(*dir, "state", "peer-evidence.json")
@@ -247,11 +251,15 @@ func peerSyncResolveCommand(args []string) error {
 	if session.cfg.State != candidateState || session.cfg.VoteAuthority {
 		return errors.New("peer sync resolver requires CANDIDATE state with voteAuthority=false")
 	}
+	observations, failures := surveyPeerTargets(session, splitNonEmpty(*targetsRaw))
+	crossRunEvidence, err := persistAuthenticatedPeerHeads(*headStatePath, *evidenceJournalPath, *quarantineStatePath, session.cfg, observations)
+	if err != nil {
+		return fmt.Errorf("persist authenticated peer heads: %w", err)
+	}
 	quarantineState, err := loadPeerQuarantineState(*quarantineStatePath, session.cfg)
 	if err != nil {
 		return err
 	}
-	observations, failures := surveyPeerTargets(session, splitNonEmpty(*targetsRaw))
 	observations, blockedPeers := filterQuarantinedPeerHeads(quarantineState, observations)
 	for _, peerValidatorID := range blockedPeers {
 		failures["validator:"+peerValidatorID] = "authenticated peer is locally quarantined from read-only sync selection"
@@ -264,6 +272,7 @@ func peerSyncResolveCommand(args []string) error {
 	out, _ := json.MarshalIndent(map[string]any{
 		"resolution":             result,
 		"peerFailures":           failures,
+		"crossRunSafetyEvidence": crossRunEvidence,
 		"safetyEvidence":         evidence,
 		"state":                  session.cfg.State,
 		"voteAuthority":          false,
