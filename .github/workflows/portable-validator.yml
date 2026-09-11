@@ -4,16 +4,22 @@ on:
     paths:
       - 'tools/portable-validator/**'
       - 'lib/redbook/genesis.ts'
+      - 'lib/redbook/genesis-trust.ts'
+      - 'lib/redbook/schema/bootstrap.ts'
       - 'lib/redbook/test-vectors/**'
       - 'scripts/genesis-conformance.mjs'
+      - 'scripts/genesis-trust-conformance.mjs'
       - '.github/workflows/portable-validator.yml'
   push:
     branches-ignore: [main]
     paths:
       - 'tools/portable-validator/**'
       - 'lib/redbook/genesis.ts'
+      - 'lib/redbook/genesis-trust.ts'
+      - 'lib/redbook/schema/bootstrap.ts'
       - 'lib/redbook/test-vectors/**'
       - 'scripts/genesis-conformance.mjs'
+      - 'scripts/genesis-trust-conformance.mjs'
       - '.github/workflows/portable-validator.yml'
 jobs:
   portable-validator:
@@ -25,6 +31,8 @@ jobs:
           node-version: '22'
       - name: Genesis cross-language test vector
         run: node scripts/genesis-conformance.mjs
+      - name: Genesis trust certificate test vector
+        run: node scripts/genesis-trust-conformance.mjs
       - uses: actions/setup-go@v6
         with:
           go-version: '1.24.x'
@@ -71,8 +79,12 @@ jobs:
           if(source.includes('fs.String("enrollment-code"')) throw new Error('Raw enrollment secret must not be accepted as a command-line value');
           const dispatcher=fs.readFileSync('tools/portable-validator/main.go','utf8');
           if(/case\s+"(activate|vote|force-active)"/.test(dispatcher)) throw new Error('Bootstrap must not expose vote-authority or activation commands');
+          if(!dispatcher.includes('verify-genesis-trust')) throw new Error('Portable validator must expose Genesis trust verification');
           const genesis=fs.readFileSync('tools/portable-validator/genesis.go','utf8');
           for(const required of ['STRATUM/GENESIS/DIR/1','STRATUM-GENESIS-HASH/1','objectId','GenesisDIRHash','maxSafeJSONInteger'])
             if(!genesis.includes(required)) throw new Error(`Missing Genesis verifier invariant: ${required}`);
-          console.log('Portable validator candidate-only and Genesis safety invariants passed');
+          const trust=fs.readFileSync('tools/portable-validator/trust.go','utf8');
+          for(const required of ['STRATUM/BOOTSTRAP/TRUST/1','STRATUM-GENESIS-CERT/1','bootstrap trust bundle pin mismatch','duplicate Genesis signer','Genesis trust threshold not met','ed25519.Verify'])
+            if(!trust.includes(required)) throw new Error(`Missing Genesis trust invariant: ${required}`);
+          console.log('Portable validator candidate-only, Genesis, and threshold-trust safety invariants passed');
           NODE

@@ -22,6 +22,8 @@ jobs:
         run: npm run qa:redbook
       - name: Genesis hash conformance
         run: npm run qa:genesis
+      - name: Genesis trust certificate conformance
+        run: npm run qa:genesis-trust
       - run: npm run qa:ui
       - run: npm run typecheck
       - run: npm run build
