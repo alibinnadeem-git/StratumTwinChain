@@ -131,10 +131,24 @@ func peerSyncHandler(session *PeerSessionRuntime, syncRuntime *PeerSyncRuntime) 
 				var proofReq PeerSyncProofRequest
 				proofReq, err = decodePeerSyncProofRequest(envelope.Payload)
 				if err == nil {
-					var bundle PeerSyncProofBundle
-					bundle, err = syncRuntime.proofBundle(proofReq, now)
-					if err == nil {
-						response, err = session.nextSignedEnvelope("SYNC_PROOF", bundle, now)
+					// If the requester is behind our certified snapshot, start the proof
+					// range immediately after that snapshot. The bundle still carries the
+					// certificate, so the requester must cryptographically verify the jump.
+					if syncRuntime.snapshotCertificate != nil && proofReq.FromHeight < syncRuntime.snapshotCertificate.SnapshotHeight {
+						proofReq.FromHeight = syncRuntime.snapshotCertificate.SnapshotHeight
+						proofReq.ToHeight = proofReq.FromHeight + defaultSyncProofBatch
+						if proofReq.ToHeight > syncRuntime.trustedHead.Height {
+							proofReq.ToHeight = syncRuntime.trustedHead.Height
+						}
+					}
+					if proofReq.ToHeight <= proofReq.FromHeight {
+						err = errors.New("no post-snapshot proof available for requested sync range")
+					} else {
+						var bundle PeerSyncProofBundle
+						bundle, err = syncRuntime.proofBundle(proofReq, now)
+						if err == nil {
+							response, err = session.nextSignedEnvelope("SYNC_PROOF", bundle, now)
+						}
 					}
 				}
 			}
