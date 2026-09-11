@@ -213,6 +213,8 @@ func peerSyncResolveCommand(args []string) error {
 	expectedRoot := fs.String("peer-registry-root", "", "trusted peer registry root")
 	targetsRaw := fs.String("targets", "", "comma-separated peer base URLs")
 	sessionStatePath := fs.String("session-state", "", "durable peer session state path")
+	evidenceJournalPath := fs.String("evidence-journal", "", "durable peer safety evidence journal path")
+	quarantineStatePath := fs.String("quarantine-state", "", "durable local peer quarantine state path")
 	policyHash := fs.String("governance-policy-hash", "", "independently pinned validator-governance policy SHA-256")
 	maxSkew := fs.Duration("max-clock-skew", 30*time.Second, "maximum accepted clock skew")
 	batchSize := fs.Int64("batch-size", defaultSyncProofBatch, "DIR finality proofs requested per ancestry bundle")
@@ -228,6 +230,12 @@ func peerSyncResolveCommand(args []string) error {
 	if *sessionStatePath == "" {
 		*sessionStatePath = filepath.Join(*dir, "state", "peer-session.json")
 	}
+	if *evidenceJournalPath == "" {
+		*evidenceJournalPath = filepath.Join(*dir, "state", "peer-evidence.json")
+	}
+	if *quarantineStatePath == "" {
+		*quarantineStatePath = filepath.Join(*dir, "state", "peer-quarantine.json")
+	}
 	var registry PeerTransportRegistry
 	if err := readJSON(*registryPath, &registry); err != nil {
 		return err
@@ -239,11 +247,24 @@ func peerSyncResolveCommand(args []string) error {
 	if session.cfg.State != candidateState || session.cfg.VoteAuthority {
 		return errors.New("peer sync resolver requires CANDIDATE state with voteAuthority=false")
 	}
+	quarantineState, err := loadPeerQuarantineState(*quarantineStatePath, session.cfg)
+	if err != nil {
+		return err
+	}
 	observations, failures := surveyPeerTargets(session, splitNonEmpty(*targetsRaw))
+	observations, blockedPeers := filterQuarantinedPeerHeads(quarantineState, observations)
+	for _, peerValidatorID := range blockedPeers {
+		failures["validator:"+peerValidatorID] = "authenticated peer is locally quarantined from read-only sync selection"
+	}
 	result := resolvePeerSurvey(session, observations, strings.ToLower(*policyHash), *batchSize)
+	evidence, err := persistResolverEvidence(*evidenceJournalPath, *quarantineStatePath, session.cfg, result, time.Now().UTC())
+	if err != nil {
+		return fmt.Errorf("persist peer resolver safety evidence: %w", err)
+	}
 	out, _ := json.MarshalIndent(map[string]any{
 		"resolution":             result,
 		"peerFailures":           failures,
+		"safetyEvidence":         evidence,
 		"state":                  session.cfg.State,
 		"voteAuthority":          false,
 		"consensusParticipation": false,
