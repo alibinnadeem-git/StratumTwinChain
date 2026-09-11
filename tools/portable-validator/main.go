@@ -6,10 +6,7 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		usage()
-		os.Exit(2)
-	}
+	if len(os.Args) < 2 { usage(); os.Exit(2) }
 	var err error
 	switch os.Args[1] {
 	case "init":
@@ -28,23 +25,20 @@ func main() {
 		err = verifyValidatorGovernanceCommand(os.Args[2:])
 	case "verify-round-change":
 		err = verifyRoundChangeCommand(os.Args[2:])
+	case "verify-proposer-selection":
+		err = verifyProposerSelectionCommand(os.Args[2:])
 	case "verify-package":
 		err = verifyPackageCommand(os.Args[2:])
 	case "version":
-		fmt.Println(bootstrapVersion)
-		return
+		fmt.Println(bootstrapVersion); return
 	default:
-		usage()
-		os.Exit(2)
+		usage(); os.Exit(2)
 	}
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "ERROR:", err)
-		os.Exit(1)
-	}
+	if err != nil { fmt.Fprintln(os.Stderr, "ERROR:", err); os.Exit(1) }
 }
 
 func usage() {
 	fmt.Fprintln(os.Stderr, "STRATUM portable validator bootstrap")
-	fmt.Fprintln(os.Stderr, "commands: init, doctor, verify-genesis, verify-genesis-trust, verify-snapshot, verify-finality, verify-validator-governance, verify-round-change, verify-package, version")
+	fmt.Fprintln(os.Stderr, "commands: init, doctor, verify-genesis, verify-genesis-trust, verify-snapshot, verify-finality, verify-validator-governance, verify-round-change, verify-proposer-selection, verify-package, version")
 	fmt.Fprintln(os.Stderr, "This bootstrap creates CANDIDATE nodes only. It never grants vote authority.")
 }
