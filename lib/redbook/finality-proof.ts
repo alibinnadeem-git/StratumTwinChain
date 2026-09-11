@@ -25,8 +25,8 @@ export type VerifiedDIRFinalityResult={
  readonly protocolVersion:string;
  readonly activeValidatorCount:number;
  readonly requiredQuorum:number;
- readonly validSigners:string[];
- readonly trustedHead:{height:number;DIRHash:string;stateRoot:string;validatorSetRoot:string;protocolVersion:string};
+ readonly validSigners:readonly string[];
+ readonly trustedHead:Readonly<{height:number;DIRHash:string;stateRoot:string;validatorSetRoot:string;protocolVersion:string}>;
  readonly [VERIFIED_DIR_FINALITY]:true;
 };
 
@@ -87,8 +87,9 @@ export function verifyDIRFinalityProof(args:{validatorSet:unknown;proof:unknown;
  if(!sameStrings(declared,uniqueValid))throw new Error('PFC signerIds do not exactly match valid COMMIT signatures');
  const computedDIRHash=finalizedDIRHash(header,{proposalHash,signerIds:declared});
  if(PFC.DIRHash!==computedDIRHash)throw new Error(`DIRHash mismatch: computed ${computedDIRHash}`);
- return{
-  valid:true,
+ const trustedHead=Object.freeze({height:header.height,DIRHash:computedDIRHash,stateRoot:header.stateRoot,validatorSetRoot:computedValidatorSetRoot,protocolVersion:header.protocolVersion});
+ const result={
+  valid:true as const,
   chainId:header.chainId,
   height:header.height,
   round:header.round,
@@ -99,8 +100,9 @@ export function verifyDIRFinalityProof(args:{validatorSet:unknown;proof:unknown;
   protocolVersion:header.protocolVersion,
   activeValidatorCount:activeMembers.length,
   requiredQuorum:required,
-  validSigners:uniqueValid,
-  trustedHead:{height:header.height,DIRHash:computedDIRHash,stateRoot:header.stateRoot,validatorSetRoot:computedValidatorSetRoot,protocolVersion:header.protocolVersion},
-  [VERIFIED_DIR_FINALITY]:true,
- };
+  validSigners:Object.freeze([...uniqueValid]),
+  trustedHead,
+ } as Omit<VerifiedDIRFinalityResult,typeof VERIFIED_DIR_FINALITY>&Partial<Pick<VerifiedDIRFinalityResult,typeof VERIFIED_DIR_FINALITY>>;
+ Object.defineProperty(result,VERIFIED_DIR_FINALITY,{value:true,enumerable:false,configurable:false,writable:false});
+ return Object.freeze(result) as VerifiedDIRFinalityResult;
 }
