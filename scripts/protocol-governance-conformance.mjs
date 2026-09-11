@@ -1,0 +1,23 @@
+import fs from 'node:fs';
+import crypto from 'node:crypto';
+
+const vector=JSON.parse(fs.readFileSync('lib/redbook/test-vectors/protocol-governance-v1.json','utf8'));
+function canonicalize(value){if(value===null||typeof value!=='object')return JSON.stringify(value);if(Array.isArray(value))return `[${value.map(canonicalize).join(',')}]`;return `{${Object.keys(value).sort().map(k=>`${JSON.stringify(k)}:${canonicalize(value[k])}`).join(',')}}`;}
+const hash=value=>crypto.createHash('sha256').update(canonicalize(value)).digest('hex');
+function policyHash(policy){return hash({...policy,scope:[...policy.scope].sort(),members:[...policy.members].sort((a,b)=>a.authorityMemberId.localeCompare(b.authorityMemberId)||a.keyId.localeCompare(b.keyId))});}
+function requiredAuthority(policy,n){let floor=1;if(policy.thresholdClass==='DUAL'||policy.thresholdClass==='MULTI_PARTY_HIGH_ASSURANCE')floor=2;if(policy.thresholdClass==='MAJORITY')floor=Math.floor(n/2)+1;if(policy.thresholdClass==='SUPERMAJORITY')floor=Math.floor((2*n)/3)+1;return Math.max(policy.threshold,floor);}
+const {proof,expectedGovernancePolicyHash,expectedPreviousProtocolStateHash}=vector;const {action,governancePolicy:policy,changeManifest:manifest,previousProtocolState:previous,nextProtocolState:next}=proof;
+if(action.activationHeight<=action.approvedAtHeight)throw new Error('protocol activation is not future-height governed');
+const computedPolicyHash=policyHash(policy);if(computedPolicyHash!==expectedGovernancePolicyHash||action.governancePolicyHash!==computedPolicyHash)throw new Error('protocol governance policy hash mismatch');
+const previousHash=hash(previous),nextHash=hash(next);if(previousHash!==expectedPreviousProtocolStateHash||action.previousProtocolStateHash!==previousHash||action.nextProtocolStateHash!==nextHash)throw new Error('protocol state hash mismatch');
+const changeHash=hash(manifest);if(action.changeHash!==changeHash)throw new Error('protocol change manifest hash mismatch');
+if(action.fromProtocolVersion!==previous.protocolVersion||action.toProtocolVersion!==next.protocolVersion||manifest.fromProtocolVersion!==previous.protocolVersion||manifest.toProtocolVersion!==next.protocolVersion)throw new Error('protocol version binding mismatch');
+if(next.activeFromHeight!==action.activationHeight||previous.activeFromHeight>action.activationHeight-1)throw new Error('protocol activation-height binding mismatch');
+if(!policy.scope.includes('PROTOCOL_VERSION')||previous.consensusRulesHash!==next.consensusRulesHash&&!policy.scope.includes('CONSENSUS_RULES'))throw new Error('protocol governance scope mismatch');
+const eligible=policy.members.filter(m=>m.state==='ACTIVE'&&m.validFromHeight<=action.approvedAtHeight&&(m.validUntilHeight===null||m.validUntilHeight>action.approvedAtHeight));const required=requiredAuthority(policy,eligible.length);if(required!==3)throw new Error(`unexpected protocol authority threshold ${required}`);
+const byId=new Map(eligible.map(m=>[m.authorityMemberId,m]));const payload=Buffer.from(canonicalize(action),'utf8');const valid=new Set();for(const sig of proof.signatures){const member=byId.get(sig.authorityMemberId);if(!member||sig.keyId!==member.keyId||sig.domain!=='STRATUM/PROTOCOL_CHANGE/1')continue;const pub=crypto.createPublicKey({key:Buffer.from(member.publicKeyDerB64,'base64'),format:'der',type:'spki'});if(crypto.verify(null,payload,pub,Buffer.from(sig.signatureB64,'base64')))valid.add(sig.authorityMemberId);}if(valid.size<required)throw new Error(`protocol governance threshold failed ${valid.size}/${required}`);
+if(proof.signatures.slice(0,2).length>=required)throw new Error('2-of-3 must be below SUPERMAJORITY for N=3');
+const mutatedManifest={...manifest,securityImpactHash:'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'};if(hash(mutatedManifest)===changeHash)throw new Error('manifest mutation did not change changeHash');
+const mutatedNext={...next,consensusRulesHash:'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'};if(hash(mutatedNext)===nextHash)throw new Error('next protocol-state mutation did not change state hash');
+const implementation=fs.readFileSync('lib/redbook/protocol-governance.ts','utf8');for(const token of ['expectedGovernancePolicyHash','expectedPreviousProtocolStateHash','requiredProtocolAuthority','CONSENSUS_RULES','Next protocol state must activate exactly at governed activationHeight','Protocol governance threshold not met'])if(!implementation.includes(token))throw new Error(`Missing protocol-governance invariant: ${token}`);
+console.log(`Protocol governance conformance passed: ${previous.protocolVersion} -> ${next.protocolVersion} at height ${action.activationHeight}, authority ${valid.size}/${eligible.length}`);
