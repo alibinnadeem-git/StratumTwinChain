@@ -102,9 +102,9 @@ test('DXF closed architectural polyline becomes reconstructed Spatial room geome
 
 test('electrical component library exposes canonical equipment classes and Spatial registry',async({page})=>{
  await page.goto('/component-library');
- await expect(page.getByText('Main Switchboard',{exact:true})).toBeVisible();
- await expect(page.getByText('Dry-Type Transformer',{exact:true})).toBeVisible();
- await expect(page.getByText('EV Charging Station',{exact:true})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Main Switchboard',exact:true})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Dry-Type Transformer',exact:true})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'EV Charging Station',exact:true})).toBeVisible();
  await expect(page.getByText('Spatial Asset Object Attributes',{exact:true})).toBeVisible();
  await expect(page.getByRole('region',{name:'3D Asset Registry'})).toBeVisible();
  const search=page.getByRole('textbox',{name:'Search component models'});
