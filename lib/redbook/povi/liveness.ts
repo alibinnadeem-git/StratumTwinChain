@@ -8,6 +8,7 @@ import {
  POVI_VERIFY_DOMAIN,
  ROUND_CHANGE_EVIDENCE_VERSION,
  roundChangeQuorumEvidenceSchema,
+ verifyVoteProofSchema,
  type RoundChangeQuorumEvidence,
  type RoundChangeVoteProof,
  type VerifyVoteProof,
@@ -73,7 +74,7 @@ export function verifyNilVerifyQuorum(args:{
  if(validatorSet.chainId!==args.expectedChainId)throw new Error('NIL VERIFY validator-set chainId mismatch');
  const computedRoot=validatorSetRootAtHeight(validatorSet,args.height);
  if(computedRoot!==args.expectedValidatorSetRoot)throw new Error(`NIL VERIFY trusted validator-set root mismatch: computed ${computedRoot}`);
- const parsed=args.votes.map(vote=>roundChangeQuorumEvidenceSchema.shape.priorRoundNILVotes.element.parse(vote));
+ const parsed=args.votes.map(vote=>verifyVoteProofSchema.parse(vote));
  const seen=new Set<string>();
  const validSigners:string[]=[];
  for(const vote of parsed){
