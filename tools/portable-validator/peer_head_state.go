@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const peerHeadStateProfile = "STRATUM-PEER-HEAD-STATE/1"
@@ -72,6 +73,14 @@ func savePeerHeadStateAtomic(path string, state PeerHeadState) error {
 	return nil
 }
 
+func peerObservationTime(value string) time.Time {
+	parsed, err := time.Parse(time.RFC3339Nano, value)
+	if err == nil {
+		return parsed.UTC()
+	}
+	return time.Now().UTC()
+}
+
 func recordAuthenticatedPeerHead(path, evidencePath, quarantinePath string, cfg BootstrapConfig, observation PeerHeadObservation) (*PeerEvidence, error) {
 	if observation.PeerValidatorID == "" {
 		return nil, errors.New("authenticated peer head requires validator identity")
@@ -86,7 +95,7 @@ func recordAuthenticatedPeerHead(path, evidencePath, quarantinePath string, cfg 
 	previous, exists := state.Peers[observation.PeerValidatorID]
 	var evidence *PeerEvidence
 	if exists {
-		evidence, err = detectPeerHeadEquivocation(cfg, previous, observation, parseObservationTime(observation.ObservedAt))
+		evidence, err = detectPeerHeadEquivocation(cfg, previous, observation, peerObservationTime(observation.ObservedAt))
 		if err != nil {
 			return nil, err
 		}
