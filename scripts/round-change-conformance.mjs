@@ -27,14 +27,15 @@ const nilValid=validNilVotes(evidence.priorRoundNILVotes);if(nilValid<required)t
 const roundValid=validRoundChanges(evidence.roundChangeVotes);if(roundValid<required)throw new Error(`ROUND_CHANGE quorum failed ${roundValid}/${required}`);
 if(validNilVotes(evidence.priorRoundNILVotes.slice(0,2))>=required)throw new Error('2-of-3 NIL VERIFY must be below PoVI quorum');
 if(validRoundChanges(evidence.roundChangeVotes.slice(0,2))>=required)throw new Error('2-of-3 ROUND_CHANGE must be below PoVI quorum');
-
 const badSig=structuredClone(evidence.roundChangeVotes);badSig[0].signatureB64='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==';if(validRoundChanges(badSig)>=required)throw new Error('Tampered ROUND_CHANGE signature unexpectedly retained quorum');
 const alteredRound=structuredClone(evidence.roundChangeVotes);alteredRound[0].newRound=2;if(validRoundChanges(alteredRound)>=required)throw new Error('Altered newRound unexpectedly retained quorum');
 let duplicateRejected=false;try{validRoundChanges([evidence.roundChangeVotes[0],evidence.roundChangeVotes[0],evidence.roundChangeVotes[2]]);}catch{duplicateRejected=true;}if(!duplicateRejected)throw new Error('Duplicate ROUND_CHANGE signer was not rejected');
 
 const schema=fs.readFileSync('lib/redbook/schema/liveness.ts','utf8');
-for(const token of ['STRATUM/POVI/VERIFY/1','STRATUM/POVI/ROUND_CHANGE/1','STRATUM-ROUND-CHANGE-EVIDENCE/1','validatorSetRoot','protocolVersion','Lock/valid-value claims require evidenceRefs'])if(!schema.includes(token))throw new Error(`Missing liveness schema invariant: ${token}`);
-const implementation=fs.readFileSync('lib/redbook/povi/liveness.ts','utf8');
-for(const token of ['NIL VERIFY quorum not met','ROUND_CHANGE quorum not met','safeUnlockAuthorized:false','ROUND_CHANGE quorum alone never clears or replaces a lock','lockedDIR:state.lockedDIR','lockedRound:state.lockedRound','validDIR:state.validDIR','validRound:state.validRound'])if(!implementation.includes(token))throw new Error(`Missing liveness safety invariant: ${token}`);
-
+for(const token of ['STRATUM/POVI/VERIFY/1','STRATUM/POVI/ROUND_CHANGE/1','STRATUM-ROUND-CHANGE-EVIDENCE/1','validatorSetRoot','protocolVersion','Lock claims require evidence references'])if(!schema.includes(token))throw new Error(`Missing liveness schema invariant: ${token}`);
+const verifier=fs.readFileSync('lib/redbook/povi/liveness.ts','utf8');
+for(const token of ['NIL VERIFY quorum not met','ROUND_CHANGE quorum not met','safeUnlockAuthorized:false','verifySignature(null'])if(!verifier.includes(token))throw new Error(`Missing liveness verifier invariant: ${token}`);
+const stateMachine=fs.readFileSync('lib/redbook/povi/state-machine.ts','utf8');
+for(const token of ['verified:VerifiedRoundChangeQuorumEvidence','Verified ROUND_CHANGE evidence is required','ROUND_CHANGE evidence does not match local consensus state','lockedDIR:state.lockedDIR','lockedRound:state.lockedRound','validDIR:state.validDIR','validRound:state.validRound'])if(!stateMachine.includes(token))throw new Error(`Missing proof-gated state transition invariant: ${token}`);
+if(stateMachine.includes('enterHigherRound(state:PoVIHeightState,newRound:number)'))throw new Error('Bare-number higher-round transition bypass still exists');
 console.log(`PoVI round-change conformance passed: NIL ${nilValid}/${active.length}, ROUND_CHANGE ${roundValid}/${active.length}, ${evidence.triggerRound}->${evidence.newRound}, safeUnlock=false`);
