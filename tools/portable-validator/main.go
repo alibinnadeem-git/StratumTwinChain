@@ -21,6 +21,7 @@ func main() {
 	case "verify-round-change": err = verifyRoundChangeCommand(os.Args[2:])
 	case "verify-plc": err = verifyPLCCommand(os.Args[2:])
 	case "verify-proposer": err = verifyProposerCommand(os.Args[2:])
+	case "verify-peer-envelope": err = verifyPeerEnvelopeCommand(os.Args[2:])
 	case "verify-package": err = verifyPackageCommand(os.Args[2:])
 	case "version": fmt.Println(bootstrapVersion); return
 	default: usage(); os.Exit(2)
@@ -30,6 +31,7 @@ func main() {
 
 func usage() {
 	fmt.Fprintln(os.Stderr,"STRATUM portable validator bootstrap")
-	fmt.Fprintln(os.Stderr,"commands: init, doctor, init-consensus-safety, verify-consensus-safety, verify-genesis, verify-genesis-trust, verify-snapshot, verify-finality, verify-validator-governance, verify-round-change, verify-plc, verify-proposer, verify-package, version")
+	fmt.Fprintln(os.Stderr,"commands: init, doctor, init-consensus-safety, verify-consensus-safety, verify-genesis, verify-genesis-trust, verify-snapshot, verify-finality, verify-validator-governance, verify-round-change, verify-plc, verify-proposer, verify-peer-envelope, verify-package, version")
 	fmt.Fprintln(os.Stderr,"This bootstrap creates CANDIDATE nodes only. It never grants vote authority.")
+	fmt.Fprintln(os.Stderr,"Peer transport V1 is read-only: PING, STATUS and TRUST_ROOTS only.")
 }
