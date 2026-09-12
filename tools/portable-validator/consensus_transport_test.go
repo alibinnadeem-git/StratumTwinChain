@@ -138,9 +138,20 @@ func TestCommitWireRequiresDurableLockAndVerifies(t *testing.T) {
 
 func TestCommitWithoutLockFailsBeforeSignature(t *testing.T) {
 	f := makeConsensusTransportFixture(t, true)
-	_, err := signCommitWireMessage(f.dir, f.set, 1, 0, strings.Repeat("b", 64), strings.Repeat("d", 64), f.root, "POVI/1")
+	proposal := strings.Repeat("b", 64)
+	if _, err := signVerifyWireMessage(f.dir, f.set, 1, 0, proposal, f.root, "POVI/1", "", nil); err != nil {
+		t.Fatal(err)
+	}
+	_, err := signCommitWireMessage(f.dir, f.set, 1, 0, proposal, strings.Repeat("d", 64), f.root, "POVI/1")
 	if err == nil || !strings.Contains(err.Error(), "durable lock") {
 		t.Fatalf("expected durable lock rejection, got %v", err)
+	}
+	_, latest, records, err := latestConsensusSafetyRecord(f.dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if latest.Step != "VERIFY" || len(records) != 2 {
+		t.Fatalf("failed COMMIT mutated durable journal: %+v", latest)
 	}
 }
 
