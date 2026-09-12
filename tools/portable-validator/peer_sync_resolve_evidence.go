@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -15,6 +16,14 @@ func persistResolverEvidence(evidencePath, quarantinePath string, cfg BootstrapC
 		persisted = append(persisted, evidence)
 		return nil
 	}
+	persistReliability := func() error {
+		if len(persisted) == 0 {
+			return nil
+		}
+		reliabilityPath := filepath.Join(filepath.Dir(evidencePath), "peer-reliability.json")
+		_, err := updatePeerReliability(reliabilityPath, cfg, nil, result.AncestryResults, persisted, now)
+		return err
+	}
 
 	if result.Classification == "FINALIZED_HEAD_CONFLICT" {
 		for _, observation := range result.Survey.Observations {
@@ -25,6 +34,9 @@ func persistResolverEvidence(evidencePath, quarantinePath string, cfg BootstrapC
 			if err := appendEvidence(evidence); err != nil {
 				return persisted, err
 			}
+		}
+		if err := persistReliability(); err != nil {
+			return persisted, err
 		}
 		return persisted, nil
 	}
@@ -70,6 +82,9 @@ func persistResolverEvidence(evidencePath, quarantinePath string, cfg BootstrapC
 				return persisted, fmt.Errorf("persist peer quarantine after proof/head mismatch: %w", err)
 			}
 		}
+	}
+	if err := persistReliability(); err != nil {
+		return persisted, err
 	}
 	return persisted, nil
 }
