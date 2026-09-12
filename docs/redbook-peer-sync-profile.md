@@ -1,6 +1,6 @@
 # STRATUM Proof-Verifying Peer Sync Implementation Profile
 
-Status: **PARTIAL overall — read-only proof-verifying catch-up, governance-aware ancestry, peer safety controls, bounded evidence retention, operational reliability metadata, advisory peer ordering, continuous candidate follower, request-level cancellation, durable follower status, local operator alert journaling, and append-only alert acknowledgements are implemented; live PoVI participation remains intentionally unimplemented**
+Status: **PARTIAL overall — read-only proof-verifying catch-up, governance-aware ancestry, peer safety controls, bounded evidence retention, operational reliability metadata, advisory peer ordering, continuous candidate follower, request-level cancellation, durable follower status, local operator alert journaling, append-only alert acknowledgements, and bounded non-authoritative verified-proof caching are implemented; live PoVI participation remains intentionally unimplemented**
 
 This profile records the current engineering implementation for read-only STRATUM Chain catch-up. The STRATUM Redbook remains the architectural authority. This profile does not grant consensus authority and does not redefine PoVI finality, validator governance, or activation rules.
 
@@ -16,7 +16,8 @@ The implementation keeps these trust domains separate:
 6. **Operational peer reliability** — records sync-service observations only; it is never consensus weighting.
 7. **Follower runtime status** — records local operational lifecycle/heartbeat state only; it has no consensus authority.
 8. **Local operator alerts and acknowledgements** — surface already-derived safety events and record operator review metadata; they carry no consensus authority and cannot release quarantine or resume advancement.
-9. **Validator activation** — remains a separate governed process; synchronization never grants vote authority.
+9. **Verified proof cache** — stores only redundant copies of proof bundles after successful governed verification; it cannot select canonical history or carry consensus authority.
+10. **Validator activation** — remains a separate governed process; synchronization never grants vote authority.
 
 A downloaded peer proof may provide evidence, but it cannot nominate its own trust root.
 
@@ -143,7 +144,8 @@ Each cycle:
 9. selects only an authenticated proof-eligible peer, with reliability used only as an advisory ordering signal among that eligible set;
 10. re-authenticates that peer and requires its finalized head to remain unchanged since the survey;
 11. downloads bounded governed `SYNC_PROOF` batches;
-12. advances only through the existing governance-aware proof verifier and durable trusted-head transaction boundary.
+12. advances only through the existing governance-aware proof verifier and durable trusted-head transaction boundary;
+13. only after successful verification and durable advancement, may persist a redundant non-authoritative copy of that verified proof bundle in the bounded local cache.
 
 `FINALIZED_HEAD_CONFLICT` and `HISTORICAL_DIVERGENCE` cause a safety halt. Transient/unresolved conditions use bounded retry/backoff. A follower cycle never converts a candidate into an ACTIVE validator.
 
@@ -177,6 +179,21 @@ Alert IDs are deterministic SHA-256 identifiers bound to chain/Genesis/protocol 
 `peer-alert-ack` appends a separate `PeerOperatorAlertAcknowledgement` record bound to an existing alert ID, operator identity, note, and acknowledgement timestamp. The original alert remains present and unchanged. Acknowledgement is idempotent for an already-acknowledged alert and cannot release a quarantined peer, clear a follower safety halt, resume automatic advancement, change reliability scoring, or affect consensus state. Quarantine release remains a separate explicit operator action.
 
 External email, webhook, paging, or third-party alert delivery is not implemented by this profile.
+
+## Bounded non-authoritative verified-proof cache
+
+`STRATUM-PEER-PROOF-CACHE/1` stores redundant local copies of governed `SYNC_PROOF` bundles only after the existing verifier has successfully applied the bundle and durably advanced the local trusted head.
+
+The cache manifest is bound to chain ID, Genesis DIR hash, and protocol version. It hard-fails if either `consensusAuthority=true` or `canonicalHistorySelection=true`. Cache content therefore cannot decide which chain is canonical, grant vote authority, change PoVI quorum weight, alter validator membership, or bypass PFC/DIR/governance verification.
+
+Retention is bounded to **64 verified bundles or 64 MiB**, whichever limit is reached first. Pruning removes the oldest redundant manifest-listed `verified-bundle-*.json` files only. It does not prune the durable trusted head, source snapshots, peer evidence, quarantine state, DIR/PFC trust history, operator-supplied proof material, or any other trust-critical chain record.
+
+Cache persistence is deliberately best-effort and occurs after verification/advancement. A cache write or prune failure cannot roll back or block an already proof-verified trusted-head advance. Cached material currently has no authority-bearing replay path back into verification; future reuse would still require the normal independent trust verification path.
+
+Operators may inspect or enforce the bounded retention policy with:
+
+- `peer-proof-cache-status`
+- `peer-proof-cache-prune`
 
 ## Candidate-only boundary
 
@@ -234,20 +251,25 @@ Synchronization can make a candidate cryptographically informed about finalized 
 - read-only `peer-alert-status` command;
 - append-only/idempotent `peer-alert-ack` operator acknowledgement workflow;
 - permanent tests/CI guard that alert acknowledgement does not release quarantine or gain consensus authority;
+- trust-context-bound `STRATUM-PEER-PROOF-CACHE/1` manifest;
+- post-verification-only caching of governed proof bundles;
+- bounded retention at 64 bundles / 64 MiB with deterministic oldest-first pruning;
+- cache pruning limited to safe manifest-listed `verified-bundle-*` files;
+- explicit `consensusAuthority=false` and `canonicalHistorySelection=false` cache invariants;
+- `peer-proof-cache-status` and `peer-proof-cache-prune` operator commands;
+- permanent CI assertion that proof caching occurs only after governed proof verification and remains best-effort/non-authoritative;
 - candidate-only/non-voting safety tests;
-- dedicated peer-sync CI covering formatting, vet, race tests, host build, Raspberry Pi ARM64 build, alert/reliability/cancellation boundaries, and trust-boundary invariants;
+- dedicated peer-sync CI covering formatting, vet, race tests, host build, Raspberry Pi ARM64 build, alert/reliability/cancellation/cache boundaries, and trust-boundary invariants;
 - full portable-validator CI covering trust vectors, host build, Linux ARM64/AMD64, macOS ARM64, Windows AMD64, and safety invariants.
 
 ### Partial
 
 - external operator alert delivery/integration for safety halts and quarantines is not yet implemented;
-- proof-cache retention/pruning remains incomplete; the implemented evidence-retention mechanism covers local peer-operational evidence, not trust-critical chain history;
 - service lifecycle packaging/auto-start for supported operating systems is not yet implemented;
 - wider Byzantine/network/storage/power-loss qualification remains incomplete.
 
 ### Planned
 
 - optional external alert integrations for local safety-halt/quarantine alerts;
-- bounded non-authoritative proof-cache lifecycle management where appropriate, without pruning trust-critical DIR/PFC history;
 - service lifecycle packaging/auto-start for supported operating systems;
 - separately governed validator activation and live PoVI participation.
