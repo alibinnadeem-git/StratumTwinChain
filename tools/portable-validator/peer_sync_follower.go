@@ -14,37 +14,37 @@ import (
 const peerFollowerProfile = "STRATUM-PEER-FOLLOWER/1"
 
 type PeerFollowerCycleResult struct {
-	ProfileVersion         string                   `json:"profileVersion"`
-	Resolution             PeerResolveResult        `json:"resolution"`
-	PeerFailures           map[string]string        `json:"peerFailures,omitempty"`
-	CrossRunSafetyEvidence []PeerEvidence           `json:"crossRunSafetyEvidence,omitempty"`
-	SafetyEvidence         []PeerEvidence           `json:"safetyEvidence,omitempty"`
-	SelectedPeerValidatorID string                  `json:"selectedPeerValidatorId,omitempty"`
-	SelectedTargetURL      string                   `json:"selectedTargetUrl,omitempty"`
-	TrustedHead            PeerSyncTrustedHead      `json:"trustedHead"`
-	Advanced               bool                     `json:"advanced"`
-	State                  string                   `json:"state"`
-	VoteAuthority          bool                     `json:"voteAuthority"`
-	ConsensusParticipation bool                     `json:"consensusParticipation"`
+	ProfileVersion          string              `json:"profileVersion"`
+	Resolution              PeerResolveResult   `json:"resolution"`
+	PeerFailures            map[string]string   `json:"peerFailures,omitempty"`
+	CrossRunSafetyEvidence  []PeerEvidence      `json:"crossRunSafetyEvidence,omitempty"`
+	SafetyEvidence          []PeerEvidence      `json:"safetyEvidence,omitempty"`
+	SelectedPeerValidatorID string              `json:"selectedPeerValidatorId,omitempty"`
+	SelectedTargetURL       string              `json:"selectedTargetUrl,omitempty"`
+	TrustedHead             PeerSyncTrustedHead `json:"trustedHead"`
+	Advanced                bool                `json:"advanced"`
+	State                   string              `json:"state"`
+	VoteAuthority           bool                `json:"voteAuthority"`
+	ConsensusParticipation  bool                `json:"consensusParticipation"`
 }
 
 type PeerFollowerConfig struct {
-	Dir                 string
-	RegistryPath        string
-	RegistryHeight      int64
-	RegistryRoot        string
-	Targets             []string
-	SessionStatePath    string
-	SyncHeadPath        string
-	PeerHeadStatePath   string
-	EvidenceJournalPath string
-	QuarantineStatePath string
+	Dir                  string
+	RegistryPath         string
+	RegistryHeight       int64
+	RegistryRoot         string
+	Targets              []string
+	SessionStatePath     string
+	SyncHeadPath         string
+	PeerHeadStatePath    string
+	EvidenceJournalPath  string
+	QuarantineStatePath  string
 	GovernancePolicyHash string
-	MaxClockSkew        time.Duration
-	BatchSize           int64
-	PollInterval        time.Duration
-	MaxBackoff          time.Duration
-	Once                bool
+	MaxClockSkew         time.Duration
+	BatchSize            int64
+	PollInterval         time.Duration
+	MaxBackoff           time.Duration
+	Once                 bool
 }
 
 func followerBackoff(base, max time.Duration, failures int) time.Duration {
@@ -247,15 +247,15 @@ func runPeerFollowerCycle(cfg PeerFollowerConfig) (PeerFollowerCycleResult, erro
 		return PeerFollowerCycleResult{}, fmt.Errorf("persist follower safety evidence: %w", err)
 	}
 	result := PeerFollowerCycleResult{
-		ProfileVersion:          peerFollowerProfile,
-		Resolution:              resolution,
-		PeerFailures:            failures,
-		CrossRunSafetyEvidence:  crossRunEvidence,
-		SafetyEvidence:          evidence,
-		TrustedHead:             runtime.trustedHead,
-		State:                   session.cfg.State,
-		VoteAuthority:           false,
-		ConsensusParticipation:  false,
+		ProfileVersion:         peerFollowerProfile,
+		Resolution:             resolution,
+		PeerFailures:           failures,
+		CrossRunSafetyEvidence: crossRunEvidence,
+		SafetyEvidence:         evidence,
+		TrustedHead:            runtime.trustedHead,
+		State:                  session.cfg.State,
+		VoteAuthority:          false,
+		ConsensusParticipation: false,
 	}
 	if !resolution.AutoAdvanceAllowed {
 		return result, fmt.Errorf("follower advancement blocked: %s", resolution.Classification)
