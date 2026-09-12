@@ -17,7 +17,7 @@ export default async function SpatialPage(){
  }
 
  return <>
-  <div className="page-head"><div><div className="eyebrow">{STRATUM_PRODUCT} · Source → Spatial → Systems → Assets → Operations → Trust</div><h1 className="title">The spatial operating and trust model for physical infrastructure.</h1><p className="subtitle">Navigate physical infrastructure spatially, logically, operationally and historically while preserving source provenance, evidence, approvals and PoVI finality. Legacy internal Twin names remain only for compatibility; the user-facing product and model are Spatial.</p></div><div className="badge">DIRs · {process.env.STRATUM_CHAIN_ID||'stratum-devnet-1'}</div></div>
+  <div className="page-head"><div><div className="eyebrow">{STRATUM_PRODUCT} · Source → Spatial → Systems → Assets → Operations → Trust</div><h1 className="title">The spatial operating and trust model for physical infrastructure.</h1><p className="subtitle">Navigate physical infrastructure spatially, logically, operationally and historically while preserving source provenance, evidence, approvals and PoVI finality.</p></div><div className="badge">DIRs · {process.env.STRATUM_CHAIN_ID||'stratum-devnet-1'}</div></div>
 
   <div className="card redbook-strip"><div><div className="eyebrow">Redbook trust vocabulary</div><div className="trust-row"><TrustBadge state={backendOnline?'LIVE':'STALE'}/><TrustBadge state={assets.some(a=>a.ledger_block_height)?'POVI_VERIFIED':'UNVERIFIED'}/><span className="muted">Cryptographic finality, engineering approval, live state and physical truth remain distinct.</span></div></div></div>
 
