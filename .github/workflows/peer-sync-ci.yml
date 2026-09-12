@@ -62,6 +62,7 @@ jobs:
           const fs=require('fs');
           const sync=fs.readFileSync('tools/portable-validator/peer_sync.go','utf8');
           const server=fs.readFileSync('tools/portable-validator/peer_sync_server.go','utf8');
+          const follower=fs.readFileSync('tools/portable-validator/peer_sync_follower.go','utf8');
           const main=fs.readFileSync('tools/portable-validator/main.go','utf8');
           const transport=fs.readFileSync('tools/portable-validator/peer_transport.go','utf8');
           const reliability=fs.readFileSync('tools/portable-validator/peer_reliability.go','utf8');
@@ -90,5 +91,20 @@ jobs:
           if (!schema.includes('STRATUM-PEER-SYNC/1') || !schema.includes('SYNC_HEAD') || !schema.includes('SYNC_PROOF')) throw new Error('Peer-sync schema profile is incomplete');
           if (!reliability.includes('ConsensusWeighting') || !reliability.includes('consensus weighting')) throw new Error('Peer reliability must explicitly reject consensus weighting');
 
-          console.log('Peer-sync proof-verification and non-participation invariants passed');
+          for (const required of [
+            'STRATUM-PEER-FOLLOWER/1',
+            'candidateState',
+            'VoteAuthority',
+            'ConsensusParticipation',
+            'applyGovernedProofBundle',
+            'persistAuthenticatedPeerHeads',
+            'filterQuarantinedPeerHeads',
+            'resolvePeerSurvey',
+            'followerSafetyHalt'
+          ]) if (!follower.includes(required)) throw new Error(`Missing follower safety invariant: ${required}`);
+          if (!main.includes('peer-sync-follow')) throw new Error('Read-only follower command must remain explicitly registered');
+          if (!follower.includes('session.cfg.State != candidateState') || !follower.includes('session.cfg.VoteAuthority')) throw new Error('Follower must fail closed outside CANDIDATE/voteAuthority=false state');
+          if (!follower.includes('FINALIZED_HEAD_CONFLICT') || !follower.includes('HISTORICAL_DIVERGENCE')) throw new Error('Follower must halt on finalized-history safety conflicts');
+
+          console.log('Peer-sync proof-verification, follower, and non-participation invariants passed');
           NODE
