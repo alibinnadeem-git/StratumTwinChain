@@ -1,0 +1,38 @@
+name: STRATUM Peer Follower Gofmt Fix
+
+on:
+  push:
+    branches:
+      - redbook/povi-proof-verifying-sync-runtime-v1
+    paths:
+      - '.github/workflows/peer-follower-gofmt-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  gofmt-follower:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: redbook/povi-proof-verifying-sync-runtime-v1
+          fetch-depth: 0
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.24.x'
+          cache: false
+      - name: Canonical follower formatting
+        run: gofmt -w tools/portable-validator/peer_sync_follower.go tools/portable-validator/peer_sync_follower_test.go
+      - name: Commit formatting-only normalization
+        run: |
+          if git diff --quiet -- tools/portable-validator/peer_sync_follower.go tools/portable-validator/peer_sync_follower_test.go; then
+            echo 'No follower formatting changes required.'
+            exit 0
+          fi
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add tools/portable-validator/peer_sync_follower.go tools/portable-validator/peer_sync_follower_test.go
+          git commit -m 'Normalize peer follower Go formatting'
+          git push origin HEAD:redbook/povi-proof-verifying-sync-runtime-v1
