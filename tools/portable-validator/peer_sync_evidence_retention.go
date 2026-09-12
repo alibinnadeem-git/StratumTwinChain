@@ -29,6 +29,7 @@ func quarantinePinnedEvidenceHashes(state PeerQuarantineState) map[string]struct
 			if isSHA256(hash) {
 				pinned[hash] = struct{}{}
 			}
+		}
 	}
 	return pinned
 }
