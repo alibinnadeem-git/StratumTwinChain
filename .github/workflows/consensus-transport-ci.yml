@@ -98,7 +98,7 @@ jobs:
           ]) if(!runtime.includes(required)) throw new Error(`Missing consensus transport runtime invariant: ${required}`);
 
           const prepareIndex=safety.indexOf('recordConsensusSafetyDecision(dir, decision)');
-          const keyIndex=safety.indexOf('consensusPrivateKey(dir)');
+          const keyIndex=safety.indexOf('loadConsensusPrivateKey(dir)');
           if(prepareIndex<0||keyIndex<0||prepareIndex>keyIndex) throw new Error('Consensus safety intent must be durably recorded before private-key signing');
 
           if(!dispatcher.includes('case "verify-consensus-wire"')) throw new Error('Verification-only consensus wire command missing');
