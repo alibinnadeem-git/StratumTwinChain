@@ -32,7 +32,8 @@ func TestRenderPeerFollowerLaunchdPlistIsCandidateOnlyAndValidXML(t *testing.T) 
 	if strings.Contains(plist, `\"`) {
 		t.Fatal("launchd plist must not contain backslash-escaped XML attribute quotes")
 	}
-	if err := xml.Unmarshal([]byte(plist), new(any)); err != nil {
+	var probe struct{}
+	if err := xml.Unmarshal([]byte(plist), &probe); err != nil {
 		t.Fatalf("launchd plist must be well-formed XML: %v", err)
 	}
 	for _, required := range []string{"com.stratum.validator-follower", "peer-sync-follow", "RunAtLoad", "KeepAlive", "UserName", "validator-a.example/path?a=1&amp;b=2"} {
@@ -98,7 +99,7 @@ func TestLaunchdXMLStringEscapesSpecialCharacters(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != `a&amp;b&lt;c&gt;d&#34;e` && got != `a&amp;b&lt;c&gt;d&#34;e` {
+	if got != `a&amp;b&lt;c&gt;d"e` {
 		t.Fatalf("unexpected launchd XML escaping: %s", got)
 	}
 }
