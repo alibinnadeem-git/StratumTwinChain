@@ -6,7 +6,7 @@ The Redbook portable-validator flow is:
 
 install → verify Genesis → local purpose-separated keys → enrollment → peer discovery → proof-verifying sync → `CANDIDATE` → governed future-height `ACTIVE`.
 
-The repository now implements substantial trust-verification, crash-safety, read-only peer synchronization, multi-peer disagreement handling, bounded verified-proof caching, and continuous follower portions of that flow while deliberately keeping portable nodes non-voting.
+The repository now implements substantial trust-verification, crash-safety, read-only peer synchronization, multi-peer disagreement handling, bounded verified-proof caching, continuous follower operation, and reviewable candidate-only auto-start packaging while deliberately keeping portable nodes non-voting.
 
 ## Implemented foundation
 
@@ -36,6 +36,9 @@ The portable validator currently provides:
 - durable local operator-alert journaling from objective follower safety evidence;
 - append-only operator alert acknowledgements that do not clear quarantine or safety state;
 - bounded non-authoritative caching of already verified governed proof bundles;
+- reviewable Linux/Raspberry Pi `systemd` candidate-follower auto-start packaging;
+- reviewable macOS `launchd` candidate-follower auto-start packaging;
+- reviewable Windows Task Scheduler candidate-follower auto-start packaging;
 - crash/restart consensus-safety journal verification;
 - signed package-manifest verification;
 - cross-build gates for Raspberry Pi/Linux ARM64, Linux AMD64, macOS ARM64, and Windows AMD64.
@@ -142,6 +145,42 @@ For continuous operation, omit `--once`. The default successful polling interval
 
 `peer-follower-status` exposes the local trust-context-bound follower heartbeat/status without changing chain state, validator membership, or consensus authority.
 
+## Candidate follower auto-start packaging
+
+Auto-start package generation is reviewable and candidate-only. Each package generator reads the local validator configuration and refuses to generate artifacts unless the node is `CANDIDATE` with `voteAuthority=false`. Generated runtimes launch `peer-sync-follow` only.
+
+### Linux / Raspberry Pi systemd
+
+```bash
+./stratum-validator-bootstrap peer-service-package-systemd <options>
+```
+
+This emits reviewable `systemd` unit/install/uninstall artifacts. The generated unit is constrained to the read-only follower and does not expose activation or consensus commands.
+
+### macOS launchd
+
+```bash
+./stratum-validator-bootstrap peer-service-package-launchd <options>
+```
+
+This emits reviewable LaunchDaemon plist/install/uninstall artifacts. The generated plist runs the candidate follower only.
+
+### Windows Task Scheduler
+
+```powershell
+.\stratum-validator-bootstrap.exe peer-service-package-windows-task <options>
+```
+
+This emits:
+
+- `install-windows-task.ps1`
+- `uninstall-windows-task.ps1`
+- `manifest.json`
+
+The generated installer uses an `AtStartup` Task Scheduler trigger and `RunLevel Limited`, requests the configured Windows user's credential at install time, and does not persist the password into generated package files. This is **Windows Task Scheduler auto-start packaging, not a Windows Service Control Manager service**.
+
+None of the three packaging paths can grant vote authority, transition the validator to `ACTIVE`, or enable PROPOSE/VERIFY/COMMIT/ROUND_CHANGE/PLC/PFC voting.
+
 ## Peer evidence, quarantine, reliability, retention, and local alerts
 
 Authenticated peer-head observations are persisted and compared across runs. Objective self-inconsistency can produce evidence such as:
@@ -198,7 +237,7 @@ go vet ./...
 go build -trimpath -o stratum-validator-bootstrap .
 ```
 
-CI also cross-compiles Linux ARM64 for Raspberry Pi, Linux AMD64, macOS ARM64, and Windows AMD64. The dedicated peer-sync CI additionally guards the candidate-only follower, request-context cancellation, advisory reliability-ordering boundary, local alert/acknowledgement non-authority, post-verification-only proof caching, proof-cache non-authority/non-canonicality, proof-verification, transport allow-list, and non-consensus reliability invariants.
+CI cross-compiles Linux ARM64 for Raspberry Pi, Linux AMD64, macOS ARM64, and Windows AMD64. The dedicated peer-sync CI additionally guards the candidate-only follower, request-context cancellation, advisory reliability-ordering boundary, local alert/acknowledgement non-authority, post-verification-only proof caching, proof-cache non-authority/non-canonicality, proof-verification, transport allow-list, and non-consensus reliability invariants. A dedicated Windows startup-task CI also checks formatting, vet, package tests, Windows AMD64 cross-build, credential-at-install behavior, and the non-SCM/non-consensus boundary.
 
 ## Candidate initialization
 
@@ -312,10 +351,10 @@ The following remain incomplete and must not be represented as implemented:
 - consensus-bearing peer transport integrated with the persist-before-sign safety journal;
 - complete peer discovery/service-discovery strategy across cloud, PC, and Raspberry Pi deployments;
 - native production transport hardening as selected for the deployment model, including certificate/key lifecycle where applicable;
-- service installation and auto-start for supported operating systems;
+- optional native Windows SCM service integration if required operationally; current Windows auto-start packaging uses Task Scheduler instead;
 - external operator alert delivery/integration for safety halts and quarantine events;
 - signed release pipeline, SBOM generation, and production installers/packages;
 - wider Byzantine, network-partition, clock-skew, storage-failure, and power-loss qualification;
 - resource benchmarking before publishing final minimum hardware claims.
 
-Until those activation gates are completed and distributed UAT passes, the portable validator remains **PARTIAL overall / candidate-only**, even though proof verification, multi-peer resolution, local peer-safety controls, bounded peer-evidence retention, operational reliability state, advisory sync-peer ordering, request-cancelable continuous read-only following, durable follower status, local operator alert journaling, append-only alert acknowledgement, and bounded non-authoritative verified-proof caching are implemented on this feature branch.
+Until those activation gates are completed and distributed UAT passes, the portable validator remains **PARTIAL overall / candidate-only**, even though proof verification, multi-peer resolution, local peer-safety controls, bounded peer-evidence retention, operational reliability state, advisory sync-peer ordering, request-cancelable continuous read-only following, durable follower status, local operator alert journaling, append-only alert acknowledgement, bounded non-authoritative verified-proof caching, and reviewable Linux/Raspberry Pi, macOS, and Windows candidate-follower auto-start packaging are implemented on this feature branch.
