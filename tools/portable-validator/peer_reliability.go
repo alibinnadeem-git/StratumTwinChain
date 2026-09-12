@@ -10,6 +10,7 @@ import (
 	"time"
 )
 
+// Peer reliability is operational sync-selection metadata only; it never grants consensus weight or PoVI vote authority.
 const peerReliabilityProfile = "STRATUM-PEER-RELIABILITY/1"
 
 type PeerReliabilityEntry struct {
