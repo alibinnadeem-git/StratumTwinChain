@@ -3,6 +3,9 @@ on:
   pull_request:
     paths:
       - 'tools/portable-validator/peer_sync*.go'
+      - 'tools/portable-validator/peer_head*.go'
+      - 'tools/portable-validator/peer_quarantine*.go'
+      - 'tools/portable-validator/peer_reliability*.go'
       - 'tools/portable-validator/peer_session.go'
       - 'tools/portable-validator/peer_transport.go'
       - 'tools/portable-validator/finality.go'
@@ -15,6 +18,9 @@ on:
     branches-ignore: [main]
     paths:
       - 'tools/portable-validator/peer_sync*.go'
+      - 'tools/portable-validator/peer_head*.go'
+      - 'tools/portable-validator/peer_quarantine*.go'
+      - 'tools/portable-validator/peer_reliability*.go'
       - 'tools/portable-validator/peer_session.go'
       - 'tools/portable-validator/peer_transport.go'
       - 'tools/portable-validator/finality.go'
@@ -36,8 +42,8 @@ jobs:
       - name: Go formatting check
         working-directory: tools/portable-validator
         run: |
-          gofmt -w peer_sync.go peer_sync_server.go peer_sync_test.go main.go
-          git diff --exit-code -- peer_sync.go peer_sync_server.go peer_sync_test.go main.go
+          gofmt -w *.go
+          git diff --exit-code -- '*.go'
       - name: Go vet
         working-directory: tools/portable-validator
         run: go vet ./...
@@ -58,6 +64,7 @@ jobs:
           const server=fs.readFileSync('tools/portable-validator/peer_sync_server.go','utf8');
           const main=fs.readFileSync('tools/portable-validator/main.go','utf8');
           const transport=fs.readFileSync('tools/portable-validator/peer_transport.go','utf8');
+          const reliability=fs.readFileSync('tools/portable-validator/peer_reliability.go','utf8');
           const schema=fs.readFileSync('lib/redbook/schema/peer-sync.ts','utf8');
 
           for (const required of [
@@ -81,6 +88,7 @@ jobs:
           if (!server.includes('consensusParticipation') || !server.includes('voteAuthority')) throw new Error('Sync health must expose non-participation state');
           if (!transport.includes('SYNC_HEAD') || !transport.includes('SYNC_PROOF')) throw new Error('Peer transport allow-list must recognize read-only sync traffic');
           if (!schema.includes('STRATUM-PEER-SYNC/1') || !schema.includes('SYNC_HEAD') || !schema.includes('SYNC_PROOF')) throw new Error('Peer-sync schema profile is incomplete');
+          if (!reliability.includes('ConsensusWeighting') || !reliability.includes('consensus weighting')) throw new Error('Peer reliability must explicitly reject consensus weighting');
 
           console.log('Peer-sync proof-verification and non-participation invariants passed');
           NODE
