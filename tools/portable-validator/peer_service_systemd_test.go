@@ -96,7 +96,8 @@ func TestSafeSystemdValueEscapesPercentAndQuotes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(value, "%i") || !strings.Contains(value, "%%i") || !strings.Contains(value, `\\\"candidate\\\"`) {
-		t.Fatalf("systemd value escaping is incomplete: %s", value)
+	expected := `"/opt/STRATUM %%i/validator \"candidate\""`
+	if value != expected {
+		t.Fatalf("systemd value escaping mismatch: got %s want %s", value, expected)
 	}
 }
