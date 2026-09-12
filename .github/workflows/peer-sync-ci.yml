@@ -65,6 +65,7 @@ jobs:
           const follower=fs.readFileSync('tools/portable-validator/peer_sync_follower.go','utf8');
           const managedFollower=fs.readFileSync('tools/portable-validator/peer_sync_follower_managed.go','utf8');
           const followerContext=fs.readFileSync('tools/portable-validator/peer_sync_follower_context.go','utf8');
+          const followerReliability=fs.readFileSync('tools/portable-validator/peer_sync_follower_reliability.go','utf8');
           const resolveContext=fs.readFileSync('tools/portable-validator/peer_sync_resolve_context.go','utf8');
           const httpContext=fs.readFileSync('tools/portable-validator/peer_sync_http_context.go','utf8');
           const main=fs.readFileSync('tools/portable-validator/main.go','utf8');
@@ -120,5 +121,19 @@ jobs:
             if (!followerContext.includes(required)) throw new Error(`Missing context-aware follower path: ${required}`);
           }
 
-          console.log('Peer-sync proof-verification, cancellation, follower, and non-participation invariants passed');
+          for (const required of [
+            'followerEligiblePeers',
+            'orderFollowerPeersByReliability',
+            'selectFollowerPeerWithReliability',
+            'AutoAdvanceAllowed',
+            'EXACT_HEAD_AGREEMENT',
+            'PROVEN_LAG',
+            'ConsensusWeighting',
+            'refusing follower reliability ordering with consensus weighting enabled'
+          ]) if (!followerReliability.includes(required)) throw new Error(`Missing advisory reliability-ordering invariant: ${required}`);
+          if (!followerReliability.includes('ancestry.Classification == "PROVEN_LAG"')) throw new Error('PROVEN_LAG follower candidates must remain ancestry-proven');
+          if (!followerContext.includes('selectFollowerPeerWithReliability')) throw new Error('Managed follower must use advisory reliability ordering only after resolver eligibility');
+          if (!followerContext.includes('if !resolution.AutoAdvanceAllowed')) throw new Error('Reliability ordering must not bypass resolver AutoAdvanceAllowed');
+
+          console.log('Peer-sync proof-verification, cancellation, advisory ordering, follower, and non-participation invariants passed');
           NODE
