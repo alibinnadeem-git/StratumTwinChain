@@ -1,0 +1,110 @@
+name: STRATUM Consensus Transport Staging CI
+on:
+  pull_request:
+    paths:
+      - 'tools/portable-validator/consensus_transport*.go'
+      - 'tools/portable-validator/consensus_safety.go'
+      - 'tools/portable-validator/snapshot.go'
+      - 'tools/portable-validator/liveness.go'
+      - 'tools/portable-validator/main.go'
+      - 'lib/redbook/schema/consensus-transport.ts'
+      - 'lib/redbook/schema/liveness.ts'
+      - 'lib/redbook/index.ts'
+      - '.github/workflows/consensus-transport-ci.yml'
+  push:
+    branches-ignore: [main]
+    paths:
+      - 'tools/portable-validator/consensus_transport*.go'
+      - 'tools/portable-validator/consensus_safety.go'
+      - 'tools/portable-validator/snapshot.go'
+      - 'tools/portable-validator/liveness.go'
+      - 'tools/portable-validator/main.go'
+      - 'lib/redbook/schema/consensus-transport.ts'
+      - 'lib/redbook/schema/liveness.ts'
+      - 'lib/redbook/index.ts'
+      - '.github/workflows/consensus-transport-ci.yml'
+
+jobs:
+  staged-consensus-transport:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install TypeScript dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Typecheck consensus wire schema
+        run: npm run typecheck
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.24.x'
+          cache-dependency-path: tools/portable-validator/go.mod
+
+      - name: Go formatting check
+        working-directory: tools/portable-validator
+        run: |
+          gofmt -w consensus_transport*.go
+          git diff --exit-code -- consensus_transport*.go
+
+      - name: Go vet
+        working-directory: tools/portable-validator
+        run: go vet ./...
+
+      - name: Race-enabled consensus transport safety tests
+        working-directory: tools/portable-validator
+        run: go test -race ./... -run 'Test(CandidateCannotSignConsensusWire|VerifyWirePersistsIntentAndBlocksEquivocation|CommitWireRequiresDurableLockAndVerifies|CommitWithoutLockFailsBeforeSignature|RoundChangeWireUsesRecoveredSafetyState|ConsensusWireRejectsTamper|ConsensusIntentPersistsBeforePrivateKeyFailure)$'
+
+      - name: Build host binary
+        working-directory: tools/portable-validator
+        run: go build -trimpath -o /tmp/stratum-validator-bootstrap .
+
+      - name: Cross-compile Raspberry Pi ARM64
+        working-directory: tools/portable-validator
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -o /tmp/stratum-validator-bootstrap-linux-arm64 .
+
+      - name: Consensus transport staging invariants
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const schema=fs.readFileSync('lib/redbook/schema/consensus-transport.ts','utf8');
+          const runtime=fs.readFileSync('tools/portable-validator/consensus_transport.go','utf8');
+          const safety=fs.readFileSync('tools/portable-validator/consensus_safety.go','utf8');
+          const dispatcher=fs.readFileSync('tools/portable-validator/main.go','utf8');
+
+          for(const required of [
+            'STRATUM-CONSENSUS-TRANSPORT/1',
+            "messageType:z.literal('VERIFY')",
+            "messageType:z.literal('COMMIT')",
+            "messageType:z.literal('ROUND_CHANGE')",
+            'PROPOSAL is intentionally excluded'
+          ]) if(!schema.includes(required)) throw new Error(`Missing consensus wire schema invariant: ${required}`);
+          if(/messageType:z\.literal\('PROPOSAL'\)/.test(schema)) throw new Error('PROPOSAL must remain excluded until proposer intent has its own durable journal profile');
+
+          for(const required of [
+            'consensusSigningRuntimeReady',
+            'cfg.State != "ACTIVE" || !cfg.VoteAuthority',
+            'len(cfg.ActivationBlockedReasons) != 0',
+            'prepareConsensusTransportSignature',
+            'prepareConsensusSignature',
+            'verifyConsensusWireMessage',
+            'verifySingleConsensusVerify',
+            'verifySingleConsensusCommit',
+            'verifySingleConsensusRoundChange'
+          ]) if(!runtime.includes(required)) throw new Error(`Missing consensus transport runtime invariant: ${required}`);
+
+          const prepareIndex=safety.indexOf('recordConsensusSafetyDecision(dir, decision)');
+          const keyIndex=safety.indexOf('consensusPrivateKey(dir)');
+          if(prepareIndex<0||keyIndex<0||prepareIndex>keyIndex) throw new Error('Consensus safety intent must be durably recorded before private-key signing');
+
+          if(!dispatcher.includes('case "verify-consensus-wire"')) throw new Error('Verification-only consensus wire command missing');
+          for(const forbidden of ['case "vote"','case "activate"','case "force-active"','case "send-consensus"','case "serve-consensus"','case "sign-consensus"']) {
+            if(dispatcher.includes(forbidden)) throw new Error(`Live/authority command must remain disabled in staging profile: ${forbidden}`);
+          }
+
+          console.log('Consensus transport remains verification/staging-only with governed ACTIVE gating and persist-before-sign safety');
+          NODE
