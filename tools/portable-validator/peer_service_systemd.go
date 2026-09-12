@@ -106,7 +106,6 @@ RestartSec=5s
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
-ProtectHome=read-only
 ReadWritePaths=%s
 UMask=0077
 
@@ -137,13 +136,13 @@ UNIT_TARGET="/etc/systemd/system/stratum-validator-follower.service"
 install -o root -g root -m 0644 "$UNIT_SOURCE" "$UNIT_TARGET"
 systemctl daemon-reload
 systemctl enable --now stratum-validator-follower.service
-` 
+`
 	uninstall := `#!/bin/sh
 set -eu
 systemctl disable --now stratum-validator-follower.service 2>/dev/null || true
 rm -f /etc/systemd/system/stratum-validator-follower.service
 systemctl daemon-reload
-` 
+`
 	if err := os.WriteFile(filepath.Join(packageDir, "install-systemd.sh"), []byte(install), 0o700); err != nil {
 		return err
 	}
