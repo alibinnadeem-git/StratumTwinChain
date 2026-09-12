@@ -54,7 +54,11 @@ func TestPeerOperatorAlertAcknowledgementDoesNotReleaseQuarantine(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := quarantinePeerFromEvidence(quarantinePath, cfg, evidence, time.Unix(101, 0).UTC()); err != nil {
+	state := defaultPeerQuarantineState(cfg)
+	if err := quarantinePeer(&state, evidence); err != nil {
+		t.Fatal(err)
+	}
+	if err := savePeerQuarantineStateAtomic(quarantinePath, state); err != nil {
 		t.Fatal(err)
 	}
 	alert, err := newPeerOperatorAlert(cfg, "PEER_QUARANTINED", "HIGH", evidence.EvidenceType, evidence.PeerValidatorID, evidence.EvidenceHash, evidence.Detail, evidence.EvidenceHash, time.Unix(101, 0).UTC())
@@ -67,12 +71,12 @@ func TestPeerOperatorAlertAcknowledgementDoesNotReleaseQuarantine(t *testing.T) 
 	if _, err := acknowledgePeerOperatorAlert(alertPath, cfg, alert.AlertID, "operator-a", "reviewed only", time.Unix(102, 0).UTC()); err != nil {
 		t.Fatal(err)
 	}
-	state, err := loadPeerQuarantineState(quarantinePath, cfg)
+	state, err = loadPeerQuarantineState(quarantinePath, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	entry, ok := state.Peers["validator-d"]
+	entry, ok := state.Entries["validator-d"]
 	if !ok || entry.Status != "QUARANTINED" {
-		t.Fatalf("alert acknowledgement must not release quarantine: %+v", state.Peers)
+		t.Fatalf("alert acknowledgement must not release quarantine: %+v", state.Entries)
 	}
 }
