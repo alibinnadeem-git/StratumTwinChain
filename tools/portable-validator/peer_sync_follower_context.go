@@ -108,6 +108,18 @@ func syncGovernedFollowerToObservedHeadContext(ctx context.Context, session *Pee
 		if runtime.trustedHead.Height <= before {
 			return runtime.trustedHead, errors.New("governed follower proof bundle did not advance durable trusted head")
 		}
+		// Cache only after the governed proof bundle has independently verified and
+		// durably advanced the trusted head. This cache is redundant local metadata:
+		// a cache write/prune failure must never roll back or block verified history.
+		_ = cacheVerifiedGovernedProofBundle(
+			peerProofCacheDirFromSyncHeadPath(runtime.statePath),
+			runtime.cfg,
+			bundle,
+			runtime.trustedHead,
+			proofVerification.SenderValidatorID,
+			trustedPolicyHash,
+			time.Now().UTC(),
+		)
 	}
 	if runtime.trustedHead.Height != refreshed.LatestHeight || !strings.EqualFold(runtime.trustedHead.DIRHash, refreshed.LatestDIRHash) {
 		return runtime.trustedHead, errors.New("proof-verified follower head does not match surveyed finalized head")
