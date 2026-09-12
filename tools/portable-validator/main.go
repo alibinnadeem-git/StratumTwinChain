@@ -76,6 +76,8 @@ func main() {
 		err = peerFollowerSystemdPackageCommand(os.Args[2:])
 	case "peer-service-package-launchd":
 		err = peerFollowerLaunchdPackageCommand(os.Args[2:])
+	case "peer-service-package-windows-task":
+		err = peerFollowerWindowsTaskPackageCommand(os.Args[2:])
 	case "verify-peer-ancestry":
 		err = verifyPeerAncestryCommand(os.Args[2:])
 	case "verify-package":
@@ -95,10 +97,11 @@ func main() {
 
 func usage() {
 	fmt.Fprintln(os.Stderr, "STRATUM portable validator bootstrap")
-	fmt.Fprintln(os.Stderr, "commands: init, doctor, init-consensus-safety, verify-consensus-safety, verify-genesis, verify-genesis-trust, verify-snapshot, verify-finality, verify-validator-governance, verify-round-change, verify-plc, verify-proposer, verify-peer-envelope, serve-readonly-peer, serve-readonly-peer-sync, serve-readonly-peer-sync-governed, peer-probe, peer-sync, peer-sync-governed, peer-sync-survey, peer-sync-resolve, peer-sync-follow, peer-follower-status, peer-quarantine-status, peer-quarantine-release, peer-reliability-status, peer-alert-status, peer-alert-ack, peer-proof-cache-status, peer-proof-cache-prune, peer-service-package-systemd, peer-service-package-launchd, verify-peer-ancestry, verify-package, version")
+	fmt.Fprintln(os.Stderr, "commands: init, doctor, init-consensus-safety, verify-consensus-safety, verify-genesis, verify-genesis-trust, verify-snapshot, verify-finality, verify-validator-governance, verify-round-change, verify-plc, verify-proposer, verify-peer-envelope, serve-readonly-peer, serve-readonly-peer-sync, serve-readonly-peer-sync-governed, peer-probe, peer-sync, peer-sync-governed, peer-sync-survey, peer-sync-resolve, peer-sync-follow, peer-follower-status, peer-quarantine-status, peer-quarantine-release, peer-reliability-status, peer-alert-status, peer-alert-ack, peer-proof-cache-status, peer-proof-cache-prune, peer-service-package-systemd, peer-service-package-launchd, peer-service-package-windows-task, verify-peer-ancestry, verify-package, version")
 	fmt.Fprintln(os.Stderr, "This bootstrap creates CANDIDATE nodes only. It never grants vote authority.")
 	fmt.Fprintln(os.Stderr, "Peer sync is read-only. Height skew becomes PROVEN_LAG only after governance-aware PFC/DIR ancestry verification; otherwise advancement remains blocked.")
 	fmt.Fprintln(os.Stderr, "peer-sync-follow is a signal-aware read-only CANDIDATE proof follower. It never proposes, votes, commits, round-changes, creates PLC/PFC votes, or activates a validator.")
-	fmt.Fprintln(os.Stderr, "peer-service-package-systemd and peer-service-package-launchd only generate reviewable CANDIDATE follower service artifacts; they do not install, start, activate, or grant vote authority by themselves.")
+	fmt.Fprintln(os.Stderr, "peer-service-package-systemd and peer-service-package-launchd generate reviewable CANDIDATE follower service artifacts. peer-service-package-windows-task generates reviewable Task Scheduler auto-start artifacts and is explicitly not a Windows SCM service.")
+	fmt.Fprintln(os.Stderr, "Service/startup package generators do not install, start, activate, or grant vote authority by themselves.")
 	fmt.Fprintln(os.Stderr, "Peer follower status, alerts, alert acknowledgements, quarantine, reliability, and the verified proof cache are local operational metadata only; they do not alter PoVI membership, governance, canonical history, consensus weighting, or vote authority.")
 }
