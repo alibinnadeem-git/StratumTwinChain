@@ -64,6 +64,7 @@ type Graph = {
   links?: GraphLink[];
   stats: Record<Layer, number>;
 };
+type AssetActivity = { id: string; occurredAt: string; activity: string; state: string; actor: string; status: "PENDING" | "SUBMITTED" };
 const layerNames: Record<Layer, string> = {
   L0: "Source",
   L1: "Architectural",
@@ -109,6 +110,10 @@ export default function CompiledGraphViewer() {
   const [graph, setGraph] = useState<Graph | null>(null),
     [active, setActive] = useState<Layer[]>(["L0", "L1", "L2", "L3", "L4"]),
     [selected, setSelected] = useState<Entity | null>(null),
+    [activities, setActivities] = useState<AssetActivity[]>([]),
+    [activity, setActivity] = useState(""),
+    [nextState, setNextState] = useState("IN_SERVICE"),
+    [activityMessage, setActivityMessage] = useState(""),
     [registry, setRegistry] = useState<ElectricalModelConfig[]>(
       DEFAULT_ELECTRICAL_MODEL_REGISTRY,
     ),
@@ -146,6 +151,19 @@ export default function CompiledGraphViewer() {
       window.removeEventListener("storage", refresh);
     };
   }, []);
+  useEffect(() => {
+    if (!selected) { setActivities([]); return; }
+    try { setActivities(JSON.parse(localStorage.getItem(`stratum_asset_activity:${selected.id}`) || "[]")); } catch { setActivities([]); }
+    setActivity(""); setActivityMessage(""); setNextState("IN_SERVICE");
+  }, [selected]);
+  function saveActivity() {
+    if (!selected || !activity.trim()) { setActivityMessage("Enter an activity before saving."); return; }
+    const item: AssetActivity = { id: crypto.randomUUID(), occurredAt: new Date().toISOString(), activity: activity.trim(), state: nextState, actor: "Current operator", status: "PENDING" };
+    const next = [item, ...activities];
+    setActivities(next); setActivity("");
+    try { localStorage.setItem(`stratum_asset_activity:${selected.id}`, JSON.stringify(next)); } catch {}
+    setActivityMessage("Saved as a pending field update. Review and approval are still required before finality.");
+  }
   const counts = useMemo(
     () =>
       graph
@@ -711,6 +729,8 @@ export default function CompiledGraphViewer() {
         );
         ring.rotation.x = Math.PI / 2;
         ring.position.set(e.x, displayY(e) + 0.04, e.y);
+        ring.userData.entity = e;
+        clickable.push(ring);
         groups.L4.add(ring);
       }
       function loadEquipment(e: Entity) {
@@ -1222,6 +1242,7 @@ export default function CompiledGraphViewer() {
                 >
                   Focus equipment
                 </button>
+                <Link className="ghost" href={`/verify?q=${encodeURIComponent(selected.id)}`}>QR / verify</Link>
               </div>
               <div className="passport-facts">
                 <div>
@@ -1276,6 +1297,20 @@ export default function CompiledGraphViewer() {
                     </div>
                   </>
                 )}
+              </div>
+              <div className="notice" style={{ marginTop: 14 }}>
+                <strong>ASSET DESCRIPTION</strong>
+                <span>{String(selected.meta?.description || selected.meta?.text || `${selected.kind} placed from ${selected.source}`)}</span>
+              </div>
+              <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #17334a" }}>
+                <div className="eyebrow">FIELD ACTIVITY / NEW STATE</div>
+                <select aria-label="New asset state" value={nextState} onChange={e => setNextState(e.target.value)} style={{ width: "100%", marginTop: 8, padding: "9px 10px", background: "#08131d", color: "#d9eef5", border: "1px solid #28465f", borderRadius: 9 }}>
+                  <option>IN_SERVICE</option><option>INSPECTION_DUE</option><option>OUT_OF_SERVICE</option><option>MAINTENANCE</option><option>DECOMMISSIONED</option>
+                </select>
+                <textarea aria-label="Asset activity" value={activity} onChange={e => setActivity(e.target.value)} placeholder="Describe the inspection, repair, measurement, or state change" rows={3} style={{ width: "100%", marginTop: 8, padding: "9px 10px", background: "#08131d", color: "#d9eef5", border: "1px solid #28465f", borderRadius: 9, resize: "vertical" }} />
+                <button className="action" type="button" onClick={saveActivity} style={{ marginTop: 8, width: "100%" }}>Save field update</button>
+                {activityMessage && <div className="muted" style={{ marginTop: 8 }}>{activityMessage}</div>}
+                {activities.length > 0 && <div style={{ display: "grid", gap: 7, marginTop: 10 }}>{activities.slice(0, 4).map(item => <div key={item.id} style={{ padding: "8px 10px", border: "1px solid #23465c", borderRadius: 9 }}><strong>{item.state}</strong><div className="muted">{item.activity}</div><small>{new Date(item.occurredAt).toLocaleString()} · {item.status}</small></div>)}</div>}
               </div>
             </>
           ) : (
