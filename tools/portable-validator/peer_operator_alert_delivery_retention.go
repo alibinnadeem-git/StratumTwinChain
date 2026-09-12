@@ -95,11 +95,11 @@ func peerOperatorAlertDeliveryPruneCommand(args []string) error {
 		return err
 	}
 	out, err := json.MarshalIndent(map[string]any{
-		"profileVersion":     pruned.ProfileVersion,
-		"retainedReceipts":   len(pruned.Receipts),
-		"removedReceipts":    removed,
-		"maxReceipts":        *maxReceipts,
-		"consensusAuthority": false,
+		"profileVersion":      pruned.ProfileVersion,
+		"retainedReceipts":    len(pruned.Receipts),
+		"removedReceipts":     removed,
+		"maxReceipts":         *maxReceipts,
+		"consensusAuthority":  false,
 		"safetyStateMutation": false,
 	}, "", "  ")
 	if err != nil {
