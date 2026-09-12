@@ -112,14 +112,14 @@ func TestPeerProofCacheDeduplicatesVerifiedBundle(t *testing.T) {
 	cfg := testPeerSyncConfig()
 	cacheDir := t.TempDir()
 	bundle := PeerSyncGovernedProofBundle{
-		ProfileVersion:      peerSyncProfile,
-		ResponseType:        "SYNC_PROOF",
-		ChainID:             cfg.ChainID,
-		GenesisDIRHash:      cfg.GenesisDIRHash,
-		ProtocolVersion:     cfg.ProtocolVersion,
-		ValidatorSet:        SnapshotValidatorSet{ChainID: cfg.ChainID},
-		FinalityProofs:      []DIRFinalityProof{{Header: DIRHeader{Height: 1}}},
-		GeneratedAt:         time.Unix(10, 0).UTC().Format(time.RFC3339Nano),
+		ProfileVersion:  peerSyncProfile,
+		ResponseType:    "SYNC_PROOF",
+		ChainID:         cfg.ChainID,
+		GenesisDIRHash:  cfg.GenesisDIRHash,
+		ProtocolVersion: cfg.ProtocolVersion,
+		ValidatorSet:    SnapshotValidatorSet{ChainID: cfg.ChainID},
+		FinalityProofs:  []DIRFinalityProof{{Header: DIRHeader{Height: 1}}},
+		GeneratedAt:     time.Unix(10, 0).UTC().Format(time.RFC3339Nano),
 	}
 	verified := PeerSyncTrustedHead{Height: 1, DIRHash: strings.Repeat("a", 64)}
 	policy := strings.Repeat("b", 64)
