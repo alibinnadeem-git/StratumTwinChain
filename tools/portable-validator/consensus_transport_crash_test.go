@@ -7,6 +7,8 @@ import (
 	"testing"
 )
 
+// This test intentionally fails after durable intent persistence but before the
+// Ed25519 signature can be produced. Recovery must preserve that safety intent.
 func TestConsensusIntentPersistsBeforePrivateKeyFailure(t *testing.T) {
 	f := makeConsensusTransportFixture(t, true)
 	proposal := strings.Repeat("b", 64)
