@@ -128,6 +128,7 @@ func renderPeerFollowerLaunchdPlist(cfg BootstrapConfig, binaryPath, validatorDi
 </dict>
 </plist>
 `, peerFollowerLaunchdLabel, argXML.String(), workingDir, userName, stdoutPath, stderrPath)
+	plist = strings.ReplaceAll(plist, `\"`, `"`)
 	return plist, nil
 }
 
