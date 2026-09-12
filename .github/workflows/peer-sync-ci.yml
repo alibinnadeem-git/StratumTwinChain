@@ -8,6 +8,7 @@ on:
       - 'tools/portable-validator/peer_reliability*.go'
       - 'tools/portable-validator/peer_operator_alerts*.go'
       - 'tools/portable-validator/peer_proof_cache*.go'
+      - 'tools/portable-validator/peer_service*.go'
       - 'tools/portable-validator/peer_session.go'
       - 'tools/portable-validator/peer_transport.go'
       - 'tools/portable-validator/finality.go'
@@ -25,6 +26,7 @@ on:
       - 'tools/portable-validator/peer_reliability*.go'
       - 'tools/portable-validator/peer_operator_alerts*.go'
       - 'tools/portable-validator/peer_proof_cache*.go'
+      - 'tools/portable-validator/peer_service*.go'
       - 'tools/portable-validator/peer_session.go'
       - 'tools/portable-validator/peer_transport.go'
       - 'tools/portable-validator/finality.go'
@@ -73,6 +75,7 @@ jobs:
           const operatorAlerts=fs.readFileSync('tools/portable-validator/peer_operator_alerts.go','utf8');
           const alertAckCommand=fs.readFileSync('tools/portable-validator/peer_operator_alerts_ack_command.go','utf8');
           const proofCache=fs.readFileSync('tools/portable-validator/peer_proof_cache.go','utf8');
+          const systemd=fs.readFileSync('tools/portable-validator/peer_service_systemd.go','utf8');
           const resolveContext=fs.readFileSync('tools/portable-validator/peer_sync_resolve_context.go','utf8');
           const httpContext=fs.readFileSync('tools/portable-validator/peer_sync_http_context.go','utf8');
           const main=fs.readFileSync('tools/portable-validator/main.go','utf8');
@@ -81,16 +84,9 @@ jobs:
           const schema=fs.readFileSync('lib/redbook/schema/peer-sync.ts','utf8');
 
           for (const required of [
-            'STRATUM-PEER-SYNC/1',
-            'PeerSyncTrustedHead',
-            'savePeerSyncTrustedHeadAtomic',
-            'verifySnapshotCertificate',
-            'verifyDIRFinalityProof',
-            'validator-set root transition requires separately verified governance continuity',
-            'consensusParticipation',
-            'voteAuthority'
+            'STRATUM-PEER-SYNC/1','PeerSyncTrustedHead','savePeerSyncTrustedHeadAtomic','verifySnapshotCertificate','verifyDIRFinalityProof',
+            'validator-set root transition requires separately verified governance continuity','consensusParticipation','voteAuthority'
           ]) if (!sync.includes(required)) throw new Error(`Missing peer-sync runtime invariant: ${required}`);
-
           if (!sync.includes('f.Sync()')) throw new Error('Trusted-head persistence must fsync before replacement');
           for (const required of ['SYNC_HEAD','SYNC_PROOF','serve-readonly-peer-sync','peer-sync']) {
             if (!main.includes(required) && !server.includes(required) && !sync.includes(required)) throw new Error(`Missing peer-sync command/protocol surface: ${required}`);
@@ -103,81 +99,50 @@ jobs:
           if (!schema.includes('STRATUM-PEER-SYNC/1') || !schema.includes('SYNC_HEAD') || !schema.includes('SYNC_PROOF')) throw new Error('Peer-sync schema profile is incomplete');
           if (!reliability.includes('ConsensusWeighting') || !reliability.includes('consensus weighting')) throw new Error('Peer reliability must explicitly reject consensus weighting');
 
-          for (const required of [
-            'STRATUM-PEER-FOLLOWER/1',
-            'candidateState',
-            'VoteAuthority',
-            'ConsensusParticipation',
-            'applyGovernedProofBundle',
-            'persistAuthenticatedPeerHeads',
-            'filterQuarantinedPeerHeads',
-            'resolvePeerSurvey',
-            'followerSafetyHalt'
-          ]) if (!follower.includes(required)) throw new Error(`Missing follower safety invariant: ${required}`);
+          for (const required of ['STRATUM-PEER-FOLLOWER/1','candidateState','VoteAuthority','ConsensusParticipation','applyGovernedProofBundle','persistAuthenticatedPeerHeads','filterQuarantinedPeerHeads','resolvePeerSurvey','followerSafetyHalt']) {
+            if (!follower.includes(required)) throw new Error(`Missing follower safety invariant: ${required}`);
+          }
           if (!main.includes('peer-sync-follow')) throw new Error('Read-only follower command must remain explicitly registered');
           if (!follower.includes('session.cfg.State != candidateState') || !follower.includes('session.cfg.VoteAuthority')) throw new Error('Follower must fail closed outside CANDIDATE/voteAuthority=false state');
           if (!follower.includes('FINALIZED_HEAD_CONFLICT') || !follower.includes('HISTORICAL_DIVERGENCE')) throw new Error('Follower must halt on finalized-history safety conflicts');
-
           if (!managedFollower.includes('runPeerFollowerCycleContext(ctx, config)')) throw new Error('Managed follower must execute the context-aware cycle');
           if (!managedFollower.includes('signal.NotifyContext')) throw new Error('Managed follower must retain signal-aware cancellation');
           if (!httpContext.includes('http.NewRequestWithContext')) throw new Error('Peer sync HTTP requests must be bound to the follower context');
-          for (const required of ['surveyPeerTargetsContext','resolvePeerSurveyContext','requestGovernedProofBundleContext']) {
-            if (!resolveContext.includes(required)) throw new Error(`Missing context-aware resolver path: ${required}`);
-          }
-          for (const required of ['syncGovernedFollowerToObservedHeadContext','runPeerFollowerCycleContext','postGovernedPeerEnvelopeContext']) {
-            if (!followerContext.includes(required)) throw new Error(`Missing context-aware follower path: ${required}`);
-          }
+          for (const required of ['surveyPeerTargetsContext','resolvePeerSurveyContext','requestGovernedProofBundleContext']) if (!resolveContext.includes(required)) throw new Error(`Missing context-aware resolver path: ${required}`);
+          for (const required of ['syncGovernedFollowerToObservedHeadContext','runPeerFollowerCycleContext','postGovernedPeerEnvelopeContext']) if (!followerContext.includes(required)) throw new Error(`Missing context-aware follower path: ${required}`);
 
-          for (const required of [
-            'followerEligiblePeers',
-            'orderFollowerPeersByReliability',
-            'selectFollowerPeerWithReliability',
-            'AutoAdvanceAllowed',
-            'EXACT_HEAD_AGREEMENT',
-            'PROVEN_LAG',
-            'ConsensusWeighting',
-            'refusing follower reliability ordering with consensus weighting enabled'
-          ]) if (!followerReliability.includes(required)) throw new Error(`Missing advisory reliability-ordering invariant: ${required}`);
+          for (const required of ['followerEligiblePeers','orderFollowerPeersByReliability','selectFollowerPeerWithReliability','AutoAdvanceAllowed','EXACT_HEAD_AGREEMENT','PROVEN_LAG','ConsensusWeighting','refusing follower reliability ordering with consensus weighting enabled']) {
+            if (!followerReliability.includes(required)) throw new Error(`Missing advisory reliability-ordering invariant: ${required}`);
+          }
           if (!followerReliability.includes('ancestry.Classification == "PROVEN_LAG"')) throw new Error('PROVEN_LAG follower candidates must remain ancestry-proven');
           if (!followerContext.includes('selectFollowerPeerWithReliability')) throw new Error('Managed follower must use advisory reliability ordering only after resolver eligibility');
           if (!followerContext.includes('if !resolution.AutoAdvanceAllowed')) throw new Error('Reliability ordering must not bypass resolver AutoAdvanceAllowed');
 
-          for (const required of [
-            'STRATUM-PEER-OPERATOR-ALERTS/1',
-            'ConsensusAuthority',
-            'peer operator alerts must never carry consensus authority',
-            'refusing peer operator alert journal with consensus authority enabled',
-            'HEAD_EQUIVOCATION',
-            'PROOF_HEAD_MISMATCH',
-            'FOLLOWER_SAFETY_HALT',
-            'PEER_QUARANTINED',
-            'PeerOperatorAlertAcknowledgement',
-            'Acknowledgements',
-            'acknowledgePeerOperatorAlert',
-            'operator alert acknowledgement references unknown alert'
-          ]) if (!operatorAlerts.includes(required)) throw new Error(`Missing local operator-alert invariant: ${required}`);
+          for (const required of ['STRATUM-PEER-OPERATOR-ALERTS/1','ConsensusAuthority','peer operator alerts must never carry consensus authority','refusing peer operator alert journal with consensus authority enabled','HEAD_EQUIVOCATION','PROOF_HEAD_MISMATCH','FOLLOWER_SAFETY_HALT','PEER_QUARANTINED','PeerOperatorAlertAcknowledgement','Acknowledgements','acknowledgePeerOperatorAlert','operator alert acknowledgement references unknown alert']) {
+            if (!operatorAlerts.includes(required)) throw new Error(`Missing local operator-alert invariant: ${required}`);
+          }
           if (!followerContext.includes('persistFollowerOperatorAlerts')) throw new Error('Managed follower must persist local alerts from already-derived safety evidence');
-          if (!main.includes('peer-alert-status')) throw new Error('Read-only peer alert status command must remain registered');
-          if (!main.includes('peer-alert-ack')) throw new Error('Peer alert acknowledgement command must remain registered');
+          if (!main.includes('peer-alert-status') || !main.includes('peer-alert-ack')) throw new Error('Peer alert commands must remain registered');
           if (!alertAckCommand.includes('acknowledgePeerOperatorAlert')) throw new Error('Alert acknowledgement command must only append acknowledgement metadata through the alert journal');
           if (alertAckCommand.includes('quarantinePeer') || alertAckCommand.includes('peerQuarantineRelease')) throw new Error('Alert acknowledgement must never release or mutate quarantine state');
 
-          for (const required of [
-            'STRATUM-PEER-PROOF-CACHE/1',
-            'ConsensusAuthority',
-            'CanonicalHistorySelection',
-            'peer proof cache must never carry consensus authority',
-            'peer proof cache must never select canonical history',
-            'verified-bundle-',
-            'peerProofCacheMaxEntries',
-            'peerProofCacheMaxBytes',
-            'cacheVerifiedGovernedProofBundle'
-          ]) if (!proofCache.includes(required)) throw new Error(`Missing non-authoritative proof-cache invariant: ${required}`);
+          for (const required of ['STRATUM-PEER-PROOF-CACHE/1','ConsensusAuthority','CanonicalHistorySelection','peer proof cache must never carry consensus authority','peer proof cache must never select canonical history','verified-bundle-','peerProofCacheMaxEntries','peerProofCacheMaxBytes','cacheVerifiedGovernedProofBundle']) {
+            if (!proofCache.includes(required)) throw new Error(`Missing non-authoritative proof-cache invariant: ${required}`);
+          }
           if (!main.includes('peer-proof-cache-status') || !main.includes('peer-proof-cache-prune')) throw new Error('Proof-cache status/prune commands must remain registered');
           const applyIndex=followerContext.indexOf('applyGovernedProofBundle');
           const cacheIndex=followerContext.indexOf('cacheVerifiedGovernedProofBundle');
           if (applyIndex < 0 || cacheIndex <= applyIndex) throw new Error('Verified proof cache may only be written after governed proof verification');
           if (!followerContext.includes('_ = cacheVerifiedGovernedProofBundle')) throw new Error('Proof-cache persistence must remain best-effort and non-authoritative');
 
-          console.log('Peer-sync proof-verification, cancellation, advisory ordering, local alerts/acknowledgements, bounded non-authoritative proof cache, follower, and non-participation invariants passed');
+          for (const required of ['STRATUM-PEER-FOLLOWER-SYSTEMD/1','peer-sync-follow','candidateState','VoteAuthority','ConsensusParticipation','NoNewPrivileges=true','ProtectSystem=strict','systemctl enable --now stratum-validator-follower.service']) {
+            if (!systemd.includes(required)) throw new Error(`Missing systemd candidate-service invariant: ${required}`);
+          }
+          if (!main.includes('peer-service-package-systemd')) throw new Error('Systemd service package command must remain registered');
+          if (!systemd.includes('cfg.State != candidateState || cfg.VoteAuthority')) throw new Error('Systemd package generation must fail closed outside CANDIDATE/voteAuthority=false');
+          for (const forbidden of ['peer-sync-governed','serve-readonly-peer-sync-governed','activate','force-active']) {
+            if (systemd.includes('ExecStart='+forbidden) || systemd.includes('ExecStart="'+forbidden)) throw new Error(`Systemd service must not expose consensus/activation command ${forbidden}`);
+          }
+
+          console.log('Peer-sync proof-verification, cancellation, advisory ordering, local alerts/acknowledgements, bounded proof cache, candidate-only systemd packaging, follower, and non-participation invariants passed');
           NODE
