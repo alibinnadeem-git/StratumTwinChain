@@ -1,0 +1,124 @@
+name: STRATUM Peer Sync CI
+on:
+  pull_request:
+    paths:
+      - 'tools/portable-validator/peer_sync*.go'
+      - 'tools/portable-validator/peer_head*.go'
+      - 'tools/portable-validator/peer_quarantine*.go'
+      - 'tools/portable-validator/peer_reliability*.go'
+      - 'tools/portable-validator/peer_session.go'
+      - 'tools/portable-validator/peer_transport.go'
+      - 'tools/portable-validator/finality.go'
+      - 'tools/portable-validator/snapshot.go'
+      - 'tools/portable-validator/main.go'
+      - 'lib/redbook/schema/peer-sync.ts'
+      - 'lib/redbook/schema/peer-transport.ts'
+      - '.github/workflows/peer-sync-ci.yml'
+  push:
+    branches-ignore: [main]
+    paths:
+      - 'tools/portable-validator/peer_sync*.go'
+      - 'tools/portable-validator/peer_head*.go'
+      - 'tools/portable-validator/peer_quarantine*.go'
+      - 'tools/portable-validator/peer_reliability*.go'
+      - 'tools/portable-validator/peer_session.go'
+      - 'tools/portable-validator/peer_transport.go'
+      - 'tools/portable-validator/finality.go'
+      - 'tools/portable-validator/snapshot.go'
+      - 'tools/portable-validator/main.go'
+      - 'lib/redbook/schema/peer-sync.ts'
+      - 'lib/redbook/schema/peer-transport.ts'
+      - '.github/workflows/peer-sync-ci.yml'
+
+jobs:
+  proof-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.24.x'
+          cache-dependency-path: tools/portable-validator/go.mod
+      - name: Go formatting check
+        working-directory: tools/portable-validator
+        run: |
+          gofmt -w *.go
+          git diff --exit-code -- '*.go'
+      - name: Go vet
+        working-directory: tools/portable-validator
+        run: go vet ./...
+      - name: Unit and race tests
+        working-directory: tools/portable-validator
+        run: go test -race ./...
+      - name: Build portable validator
+        working-directory: tools/portable-validator
+        run: go build -trimpath -o /tmp/stratum-validator-bootstrap .
+      - name: Cross-compile Raspberry Pi ARM64
+        working-directory: tools/portable-validator
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -o /tmp/stratum-validator-bootstrap-linux-arm64 .
+      - name: Peer-sync trust-boundary invariants
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const sync=fs.readFileSync('tools/portable-validator/peer_sync.go','utf8');
+          const server=fs.readFileSync('tools/portable-validator/peer_sync_server.go','utf8');
+          const follower=fs.readFileSync('tools/portable-validator/peer_sync_follower.go','utf8');
+          const managedFollower=fs.readFileSync('tools/portable-validator/peer_sync_follower_managed.go','utf8');
+          const followerContext=fs.readFileSync('tools/portable-validator/peer_sync_follower_context.go','utf8');
+          const resolveContext=fs.readFileSync('tools/portable-validator/peer_sync_resolve_context.go','utf8');
+          const httpContext=fs.readFileSync('tools/portable-validator/peer_sync_http_context.go','utf8');
+          const main=fs.readFileSync('tools/portable-validator/main.go','utf8');
+          const transport=fs.readFileSync('tools/portable-validator/peer_transport.go','utf8');
+          const reliability=fs.readFileSync('tools/portable-validator/peer_reliability.go','utf8');
+          const schema=fs.readFileSync('lib/redbook/schema/peer-sync.ts','utf8');
+
+          for (const required of [
+            'STRATUM-PEER-SYNC/1',
+            'PeerSyncTrustedHead',
+            'savePeerSyncTrustedHeadAtomic',
+            'verifySnapshotCertificate',
+            'verifyDIRFinalityProof',
+            'validator-set root transition requires separately verified governance continuity',
+            'consensusParticipation',
+            'voteAuthority'
+          ]) if (!sync.includes(required)) throw new Error(`Missing peer-sync runtime invariant: ${required}`);
+
+          if (!sync.includes('f.Sync()')) throw new Error('Trusted-head persistence must fsync before replacement');
+          for (const required of ['SYNC_HEAD','SYNC_PROOF','serve-readonly-peer-sync','peer-sync']) {
+            if (!main.includes(required) && !server.includes(required) && !sync.includes(required)) throw new Error(`Missing peer-sync command/protocol surface: ${required}`);
+          }
+          for (const forbidden of ['PROPOSE','VERIFY','COMMIT','ROUND_CHANGE']) {
+            if (!server.includes(`\"${forbidden}\"`) && !server.includes(forbidden)) throw new Error(`Server must explicitly preserve disabled consensus boundary for ${forbidden}`);
+          }
+          if (!server.includes('consensusParticipation') || !server.includes('voteAuthority')) throw new Error('Sync health must expose non-participation state');
+          if (!transport.includes('SYNC_HEAD') || !transport.includes('SYNC_PROOF')) throw new Error('Peer transport allow-list must recognize read-only sync traffic');
+          if (!schema.includes('STRATUM-PEER-SYNC/1') || !schema.includes('SYNC_HEAD') || !schema.includes('SYNC_PROOF')) throw new Error('Peer-sync schema profile is incomplete');
+          if (!reliability.includes('ConsensusWeighting') || !reliability.includes('consensus weighting')) throw new Error('Peer reliability must explicitly reject consensus weighting');
+
+          for (const required of [
+            'STRATUM-PEER-FOLLOWER/1',
+            'candidateState',
+            'VoteAuthority',
+            'ConsensusParticipation',
+            'applyGovernedProofBundle',
+            'persistAuthenticatedPeerHeads',
+            'filterQuarantinedPeerHeads',
+            'resolvePeerSurvey',
+            'followerSafetyHalt'
+          ]) if (!follower.includes(required)) throw new Error(`Missing follower safety invariant: ${required}`);
+          if (!main.includes('peer-sync-follow')) throw new Error('Read-only follower command must remain explicitly registered');
+          if (!follower.includes('session.cfg.State != candidateState') || !follower.includes('session.cfg.VoteAuthority')) throw new Error('Follower must fail closed outside CANDIDATE/voteAuthority=false state');
+          if (!follower.includes('FINALIZED_HEAD_CONFLICT') || !follower.includes('HISTORICAL_DIVERGENCE')) throw new Error('Follower must halt on finalized-history safety conflicts');
+
+          if (!managedFollower.includes('runPeerFollowerCycleContext(ctx, config)')) throw new Error('Managed follower must execute the context-aware cycle');
+          if (!managedFollower.includes('signal.NotifyContext')) throw new Error('Managed follower must retain signal-aware cancellation');
+          if (!httpContext.includes('http.NewRequestWithContext')) throw new Error('Peer sync HTTP requests must be bound to the follower context');
+          for (const required of ['surveyPeerTargetsContext','resolvePeerSurveyContext','requestGovernedProofBundleContext']) {
+            if (!resolveContext.includes(required)) throw new Error(`Missing context-aware resolver path: ${required}`);
+          }
+          for (const required of ['syncGovernedFollowerToObservedHeadContext','runPeerFollowerCycleContext','postGovernedPeerEnvelopeContext']) {
+            if (!followerContext.includes(required)) throw new Error(`Missing context-aware follower path: ${required}`);
+          }
+
+          console.log('Peer-sync proof-verification, cancellation, follower, and non-participation invariants passed');
+          NODE

@@ -103,8 +103,8 @@ func commitMessageHashForProof(header DIRCandidateHeader, proposalHash string) (
 
 func finalizedDIRHashForProof(header DIRCandidateHeader, proposalHash string, signerIDs []string) (string, error) {
 	return canonicalHashValue(map[string]any{
-		"domain": dirHashDomain,
-		"header": header,
+		"domain":   dirHashDomain,
+		"header":   header,
 		"finality": map[string]any{"proposalHash": proposalHash, "stateRoot": header.StateRoot, "validatorSetRoot": header.ValidatorSetRoot, "protocolVersion": header.ProtocolVersion, "signerIds": signerIDs},
 	})
 }
