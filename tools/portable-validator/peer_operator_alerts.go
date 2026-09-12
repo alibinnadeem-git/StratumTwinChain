@@ -25,13 +25,22 @@ type PeerOperatorAlert struct {
 	CreatedAt       string `json:"createdAt"`
 }
 
+type PeerOperatorAlertAcknowledgement struct {
+	AcknowledgementID string `json:"acknowledgementId"`
+	AlertID           string `json:"alertId"`
+	Operator          string `json:"operator"`
+	Note              string `json:"note,omitempty"`
+	AcknowledgedAt    string `json:"acknowledgedAt"`
+}
+
 type PeerOperatorAlertJournal struct {
-	ProfileVersion     string              `json:"profileVersion"`
-	ChainID            string              `json:"chainId"`
-	GenesisDIRHash     string              `json:"GenesisDIRHash"`
-	ProtocolVersion    string              `json:"protocolVersion"`
-	ConsensusAuthority bool                `json:"consensusAuthority"`
-	Entries            []PeerOperatorAlert `json:"entries"`
+	ProfileVersion     string                             `json:"profileVersion"`
+	ChainID            string                             `json:"chainId"`
+	GenesisDIRHash     string                             `json:"GenesisDIRHash"`
+	ProtocolVersion    string                             `json:"protocolVersion"`
+	ConsensusAuthority bool                               `json:"consensusAuthority"`
+	Entries            []PeerOperatorAlert                `json:"entries"`
+	Acknowledgements   []PeerOperatorAlertAcknowledgement `json:"acknowledgements,omitempty"`
 }
 
 type peerOperatorAlertIDPayload struct {
@@ -46,6 +55,15 @@ type peerOperatorAlertIDPayload struct {
 	SourceKey       string `json:"sourceKey"`
 }
 
+type peerOperatorAcknowledgementIDPayload struct {
+	ProfileVersion  string `json:"profileVersion"`
+	ChainID         string `json:"chainId"`
+	GenesisDIRHash  string `json:"GenesisDIRHash"`
+	ProtocolVersion string `json:"protocolVersion"`
+	AlertID         string `json:"alertId"`
+	Operator        string `json:"operator"`
+}
+
 func defaultPeerOperatorAlertJournal(cfg BootstrapConfig) PeerOperatorAlertJournal {
 	return PeerOperatorAlertJournal{
 		ProfileVersion:     peerOperatorAlertsProfile,
@@ -54,6 +72,7 @@ func defaultPeerOperatorAlertJournal(cfg BootstrapConfig) PeerOperatorAlertJourn
 		ProtocolVersion:    cfg.ProtocolVersion,
 		ConsensusAuthority: false,
 		Entries:            []PeerOperatorAlert{},
+		Acknowledgements:   []PeerOperatorAlertAcknowledgement{},
 	}
 }
 
@@ -78,6 +97,9 @@ func loadPeerOperatorAlertJournal(path string, cfg BootstrapConfig) (PeerOperato
 	}
 	if journal.Entries == nil {
 		journal.Entries = []PeerOperatorAlert{}
+	}
+	if journal.Acknowledgements == nil {
+		journal.Acknowledgements = []PeerOperatorAlertAcknowledgement{}
 	}
 	return journal, nil
 }
@@ -166,6 +188,61 @@ func appendPeerOperatorAlert(path string, cfg BootstrapConfig, alert PeerOperato
 		}
 	}
 	journal.Entries = append(journal.Entries, alert)
+	if err := savePeerOperatorAlertJournalAtomic(path, journal, cfg); err != nil {
+		return PeerOperatorAlertJournal{}, err
+	}
+	return journal, nil
+}
+
+func acknowledgePeerOperatorAlert(path string, cfg BootstrapConfig, alertID, operator, note string, now time.Time) (PeerOperatorAlertJournal, error) {
+	alertID = strings.ToLower(strings.TrimSpace(alertID))
+	operator = strings.TrimSpace(operator)
+	note = strings.TrimSpace(note)
+	if !isSHA256(alertID) {
+		return PeerOperatorAlertJournal{}, errors.New("operator alert acknowledgement requires a valid alert SHA-256 ID")
+	}
+	if operator == "" {
+		return PeerOperatorAlertJournal{}, errors.New("operator alert acknowledgement requires operator identity")
+	}
+	journal, err := loadPeerOperatorAlertJournal(path, cfg)
+	if err != nil {
+		return PeerOperatorAlertJournal{}, err
+	}
+	found := false
+	for _, alert := range journal.Entries {
+		if strings.EqualFold(alert.AlertID, alertID) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return PeerOperatorAlertJournal{}, errors.New("operator alert acknowledgement references unknown alert")
+	}
+	for _, acknowledgement := range journal.Acknowledgements {
+		if strings.EqualFold(acknowledgement.AlertID, alertID) {
+			return journal, nil
+		}
+	}
+	payload := peerOperatorAcknowledgementIDPayload{
+		ProfileVersion:  peerOperatorAlertsProfile,
+		ChainID:         cfg.ChainID,
+		GenesisDIRHash:  strings.ToLower(cfg.GenesisDIRHash),
+		ProtocolVersion: cfg.ProtocolVersion,
+		AlertID:         alertID,
+		Operator:        operator,
+	}
+	b, err := json.Marshal(payload)
+	if err != nil {
+		return PeerOperatorAlertJournal{}, err
+	}
+	digest := sha256.Sum256(b)
+	journal.Acknowledgements = append(journal.Acknowledgements, PeerOperatorAlertAcknowledgement{
+		AcknowledgementID: hex.EncodeToString(digest[:]),
+		AlertID:           alertID,
+		Operator:          operator,
+		Note:              note,
+		AcknowledgedAt:    now.UTC().Format(time.RFC3339Nano),
+	})
 	if err := savePeerOperatorAlertJournalAtomic(path, journal, cfg); err != nil {
 		return PeerOperatorAlertJournal{}, err
 	}
