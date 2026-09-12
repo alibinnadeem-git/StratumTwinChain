@@ -1,6 +1,6 @@
 # STRATUM Proof-Verifying Peer Sync Implementation Profile
 
-Status: **PARTIAL overall — read-only proof-verifying catch-up, governance-aware ancestry, peer safety controls, bounded evidence retention, operational reliability metadata, advisory peer ordering, continuous candidate follower, request-level cancellation, durable follower status, and local operator alert journaling are implemented; live PoVI participation remains intentionally unimplemented**
+Status: **PARTIAL overall — read-only proof-verifying catch-up, governance-aware ancestry, peer safety controls, bounded evidence retention, operational reliability metadata, advisory peer ordering, continuous candidate follower, request-level cancellation, durable follower status, local operator alert journaling, and append-only alert acknowledgements are implemented; live PoVI participation remains intentionally unimplemented**
 
 This profile records the current engineering implementation for read-only STRATUM Chain catch-up. The STRATUM Redbook remains the architectural authority. This profile does not grant consensus authority and does not redefine PoVI finality, validator governance, or activation rules.
 
@@ -15,7 +15,7 @@ The implementation keeps these trust domains separate:
 5. **Local peer-safety state** — records authenticated head observations, evidence, and local read-only quarantine without changing PoVI membership.
 6. **Operational peer reliability** — records sync-service observations only; it is never consensus weighting.
 7. **Follower runtime status** — records local operational lifecycle/heartbeat state only; it has no consensus authority.
-8. **Local operator alerts** — surface already-derived follower safety events and objective quarantine evidence; they carry no consensus authority.
+8. **Local operator alerts and acknowledgements** — surface already-derived safety events and record operator review metadata; they carry no consensus authority and cannot release quarantine or resume advancement.
 9. **Validator activation** — remains a separate governed process; synchronization never grants vote authority.
 
 A downloaded peer proof may provide evidence, but it cannot nominate its own trust root.
@@ -161,7 +161,7 @@ Follower status is bound to chain ID, Genesis DIR hash, and protocol version. A 
 
 Operators may inspect the current local follower state with `peer-follower-status`. This command is read-only and cannot alter PoVI membership, governance, finality, validator activation, or consensus weight.
 
-## Local operator alert journal
+## Local operator alert journal and acknowledgements
 
 `STRATUM-PEER-OPERATOR-ALERTS/1` persists trust-context-bound local alerts in `peer-operator-alerts.json`.
 
@@ -173,6 +173,8 @@ Alerts are derived from existing safety evidence rather than from a parallel fau
 - `FINALIZED_HEAD_CONFLICT` and `HISTORICAL_DIVERGENCE` produce `FOLLOWER_SAFETY_HALT` alerts.
 
 Alert IDs are deterministic SHA-256 identifiers bound to chain/Genesis/protocol context and the underlying evidence/source key, so repeated observation of the same event does not append duplicate alerts. Operators may inspect the journal with the read-only `peer-alert-status` command.
+
+`peer-alert-ack` appends a separate `PeerOperatorAlertAcknowledgement` record bound to an existing alert ID, operator identity, note, and acknowledgement timestamp. The original alert remains present and unchanged. Acknowledgement is idempotent for an already-acknowledged alert and cannot release a quarantined peer, clear a follower safety halt, resume automatic advancement, change reliability scoring, or affect consensus state. Quarantine release remains a separate explicit operator action.
 
 External email, webhook, paging, or third-party alert delivery is not implemented by this profile.
 
@@ -230,6 +232,8 @@ Synchronization can make a candidate cryptographically informed about finalized 
 - deterministic alert deduplication from objective safety evidence;
 - local `PEER_QUARANTINED` and `FOLLOWER_SAFETY_HALT` alert generation;
 - read-only `peer-alert-status` command;
+- append-only/idempotent `peer-alert-ack` operator acknowledgement workflow;
+- permanent tests/CI guard that alert acknowledgement does not release quarantine or gain consensus authority;
 - candidate-only/non-voting safety tests;
 - dedicated peer-sync CI covering formatting, vet, race tests, host build, Raspberry Pi ARM64 build, alert/reliability/cancellation boundaries, and trust-boundary invariants;
 - full portable-validator CI covering trust vectors, host build, Linux ARM64/AMD64, macOS ARM64, Windows AMD64, and safety invariants.
@@ -244,7 +248,6 @@ Synchronization can make a candidate cryptographically informed about finalized 
 ### Planned
 
 - optional external alert integrations for local safety-halt/quarantine alerts;
-- local operator acknowledgement/resolution workflow for alert records;
 - bounded non-authoritative proof-cache lifecycle management where appropriate, without pruning trust-critical DIR/PFC history;
 - service lifecycle packaging/auto-start for supported operating systems;
 - separately governed validator activation and live PoVI participation.
