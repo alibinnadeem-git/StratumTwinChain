@@ -133,8 +133,15 @@ func peerSyncFollowerManagedCommand(args []string) error {
 			return fmt.Errorf("persist follower running status: %w", err)
 		}
 
-		result, err := runPeerFollowerCycle(config)
+		result, err := runPeerFollowerCycleContext(ctx, config)
 		lastResult = result
+		if ctx.Err() != nil {
+			stopped := followerStatusFromCycle(bootstrap, lastResult, "STOPPED", failures, nil, time.Time{}, time.Now().UTC())
+			if saveErr := savePeerFollowerStatusAtomic(*statusPath, stopped, bootstrap); saveErr != nil {
+				return fmt.Errorf("persist follower stopped status after request cancellation: %w", saveErr)
+			}
+			return nil
+		}
 		out, _ := json.MarshalIndent(result, "", "  ")
 		fmt.Println(string(out))
 		now := time.Now().UTC()
