@@ -6,7 +6,7 @@ The Redbook portable-validator flow is:
 
 install → verify Genesis → local purpose-separated keys → enrollment → peer discovery → proof-verifying sync → `CANDIDATE` → governed future-height `ACTIVE`.
 
-The repository now implements substantial trust-verification, crash-safety, read-only peer synchronization, multi-peer disagreement handling, bounded verified-proof caching, continuous follower operation, and reviewable candidate-only auto-start packaging while deliberately keeping portable nodes non-voting.
+The repository now implements substantial trust-verification, crash-safety, read-only peer synchronization, multi-peer disagreement handling, bounded verified-proof caching, continuous follower operation, explicit one-way operator webhook alert delivery, and reviewable candidate-only auto-start packaging while deliberately keeping portable nodes non-voting.
 
 ## Implemented foundation
 
@@ -35,6 +35,9 @@ The portable validator currently provides:
 - durable read-only follower status/heartbeat state;
 - durable local operator-alert journaling from objective follower safety evidence;
 - append-only operator alert acknowledgements that do not clear quarantine or safety state;
+- explicit one-way HTTPS webhook delivery of an existing operator alert;
+- trust-context-bound, non-authoritative alert-delivery receipts with read-only status inspection;
+- bounded alert-delivery receipt retention at 4,096 receipts;
 - bounded non-authoritative caching of already verified governed proof bundles;
 - reviewable Linux/Raspberry Pi `systemd` candidate-follower auto-start packaging;
 - reviewable macOS `launchd` candidate-follower auto-start packaging;
@@ -194,6 +197,12 @@ Such self-inconsistency may trigger **local read-only quarantine**. By contrast,
 
 `peer-alert-ack` appends operator review metadata to the same journal as a separate acknowledgement record. It requires an existing alert ID and operator identity. The original alert remains unchanged. Acknowledging an alert does **not** release quarantine, clear `SAFETY_HALT`, resume follower advancement, change reliability scoring, or affect PoVI state. Quarantine release remains a separate explicit command.
 
+`STRATUM-PEER-ALERT-DELIVERY/1` provides explicit one-way webhook delivery of an existing local operator alert. Remote delivery requires HTTPS; plaintext HTTP is accepted only for loopback testing. Embedded URL credentials are rejected. Optional bearer authentication is supplied through an owner-only token file rather than a command-line token.
+
+Webhook responses are deliberately non-authoritative: the response body is discarded and never interpreted as an acknowledgement, quarantine release, follower-resume instruction, canonical-history choice, or PoVI/governance action. Redirect following is disabled. Delivery attempts are written to the separate trust-context-bound `peer-operator-alert-deliveries.json` journal with `consensusAuthority=false` and `safetyStateMutation=false`.
+
+Delivery receipts are bounded to **4,096 records**. `peer-alert-delivery-prune` removes only the oldest non-authoritative delivery receipts. It does not prune or alter operator alerts, alert acknowledgements, quarantine/evidence, follower safety state, trusted heads, snapshots, DIR/PFC history, validator governance, or proof cache content.
+
 Operator commands include:
 
 ```bash
@@ -203,13 +212,16 @@ Operator commands include:
 ./stratum-validator-bootstrap peer-follower-status --dir ~/.stratum/validator
 ./stratum-validator-bootstrap peer-alert-status --dir ~/.stratum/validator
 ./stratum-validator-bootstrap peer-alert-ack --dir ~/.stratum/validator --alert-id <sha256> --operator <operator-id> --note "reviewed"
+./stratum-validator-bootstrap peer-alert-deliver-webhook --dir ~/.stratum/validator --alert-id <sha256> --webhook https://alerts.example/stratum --bearer-token-file /secure/path/alert-token
+./stratum-validator-bootstrap peer-alert-delivery-status --dir ~/.stratum/validator
+./stratum-validator-bootstrap peer-alert-delivery-prune --dir ~/.stratum/validator
 ```
 
-Quarantine, reliability, follower status, alerts, and alert acknowledgements are local synchronization/operational metadata only. They do not alter validator membership, PoVI quorum weight, governance authority, vote authority, or activation state. Peer reliability state carries an explicit `consensusWeighting=false` invariant and refuses persisted state that enables consensus weighting.
+Quarantine, reliability, follower status, alerts, alert acknowledgements, and alert-delivery receipts are local synchronization/operational metadata only. They do not alter validator membership, PoVI quorum weight, governance authority, vote authority, canonical history, or activation state. Peer reliability state carries an explicit `consensusWeighting=false` invariant and refuses persisted state that enables consensus weighting.
 
 Local peer-operational evidence retention is bounded to 4,096 unpinned records. Any evidence hash referenced by quarantine state remains pinned, including evidence retained after an operator release. Pinned evidence may exceed the unpinned cap; the retention path will not delete it to satisfy the cap. This mechanism does not prune trust-critical DIR/PFC history.
 
-External email/webhook/paging delivery of local alerts is not implemented yet.
+Automatic follower-triggered webhook delivery, email delivery, SMS/paging, and third-party incident-management integrations are not implemented. They remain separate optional notification-layer work and must not become consensus or safety authority.
 
 ## Verified proof cache
 
@@ -237,7 +249,7 @@ go vet ./...
 go build -trimpath -o stratum-validator-bootstrap .
 ```
 
-CI cross-compiles Linux ARM64 for Raspberry Pi, Linux AMD64, macOS ARM64, and Windows AMD64. The dedicated peer-sync CI additionally guards the candidate-only follower, request-context cancellation, advisory reliability-ordering boundary, local alert/acknowledgement non-authority, post-verification-only proof caching, proof-cache non-authority/non-canonicality, proof-verification, transport allow-list, and non-consensus reliability invariants. A dedicated Windows startup-task CI also checks formatting, vet, package tests, Windows AMD64 cross-build, credential-at-install behavior, and the non-SCM/non-consensus boundary.
+CI cross-compiles Linux ARM64 for Raspberry Pi, Linux AMD64, macOS ARM64, and Windows AMD64. The dedicated peer-sync CI additionally guards the candidate-only follower, request-context cancellation, advisory reliability-ordering boundary, local alert/acknowledgement non-authority, post-verification-only proof caching, proof-cache non-authority/non-canonicality, proof-verification, transport allow-list, and non-consensus reliability invariants. A dedicated operator-alert-delivery CI guards one-way webhook delivery, read-only receipt status, bounded receipt retention, secret-file bearer authentication, redirect refusal, and the prohibition on safety/trust-state mutation. A dedicated Windows startup-task CI checks formatting, vet, package tests, Windows AMD64 cross-build, credential-at-install behavior, and the non-SCM/non-consensus boundary.
 
 ## Candidate initialization
 
@@ -276,6 +288,7 @@ The bootstrap and peer-sync runtime use state approximately like:
     peer-reliability.json
     peer-follower-status.json
     peer-operator-alerts.json
+    peer-operator-alert-deliveries.json
     peer-proof-cache/
       manifest.json
       verified-bundle-*.json
@@ -352,9 +365,9 @@ The following remain incomplete and must not be represented as implemented:
 - complete peer discovery/service-discovery strategy across cloud, PC, and Raspberry Pi deployments;
 - native production transport hardening as selected for the deployment model, including certificate/key lifecycle where applicable;
 - optional native Windows SCM service integration if required operationally; current Windows auto-start packaging uses Task Scheduler instead;
-- external operator alert delivery/integration for safety halts and quarantine events;
+- automatic follower-triggered external notifications, email/SMS/paging, and third-party incident-management integrations;
 - signed release pipeline, SBOM generation, and production installers/packages;
 - wider Byzantine, network-partition, clock-skew, storage-failure, and power-loss qualification;
 - resource benchmarking before publishing final minimum hardware claims.
 
-Until those activation gates are completed and distributed UAT passes, the portable validator remains **PARTIAL overall / candidate-only**, even though proof verification, multi-peer resolution, local peer-safety controls, bounded peer-evidence retention, operational reliability state, advisory sync-peer ordering, request-cancelable continuous read-only following, durable follower status, local operator alert journaling, append-only alert acknowledgement, bounded non-authoritative verified-proof caching, and reviewable Linux/Raspberry Pi, macOS, and Windows candidate-follower auto-start packaging are implemented on this feature branch.
+Until those activation gates are completed and distributed UAT passes, the portable validator remains **PARTIAL overall / candidate-only**, even though proof verification, multi-peer resolution, local peer-safety controls, bounded peer-evidence retention, operational reliability state, advisory sync-peer ordering, request-cancelable continuous read-only following, durable follower status, local operator alert journaling, append-only alert acknowledgement, explicit one-way webhook delivery, read-only/bounded delivery-receipt operations, bounded non-authoritative verified-proof caching, and reviewable Linux/Raspberry Pi, macOS, and Windows candidate-follower auto-start packaging are implemented on this feature branch.
