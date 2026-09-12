@@ -63,6 +63,10 @@ jobs:
           const sync=fs.readFileSync('tools/portable-validator/peer_sync.go','utf8');
           const server=fs.readFileSync('tools/portable-validator/peer_sync_server.go','utf8');
           const follower=fs.readFileSync('tools/portable-validator/peer_sync_follower.go','utf8');
+          const managedFollower=fs.readFileSync('tools/portable-validator/peer_sync_follower_managed.go','utf8');
+          const followerContext=fs.readFileSync('tools/portable-validator/peer_sync_follower_context.go','utf8');
+          const resolveContext=fs.readFileSync('tools/portable-validator/peer_sync_resolve_context.go','utf8');
+          const httpContext=fs.readFileSync('tools/portable-validator/peer_sync_http_context.go','utf8');
           const main=fs.readFileSync('tools/portable-validator/main.go','utf8');
           const transport=fs.readFileSync('tools/portable-validator/peer_transport.go','utf8');
           const reliability=fs.readFileSync('tools/portable-validator/peer_reliability.go','utf8');
@@ -106,5 +110,15 @@ jobs:
           if (!follower.includes('session.cfg.State != candidateState') || !follower.includes('session.cfg.VoteAuthority')) throw new Error('Follower must fail closed outside CANDIDATE/voteAuthority=false state');
           if (!follower.includes('FINALIZED_HEAD_CONFLICT') || !follower.includes('HISTORICAL_DIVERGENCE')) throw new Error('Follower must halt on finalized-history safety conflicts');
 
-          console.log('Peer-sync proof-verification, follower, and non-participation invariants passed');
+          if (!managedFollower.includes('runPeerFollowerCycleContext(ctx, config)')) throw new Error('Managed follower must execute the context-aware cycle');
+          if (!managedFollower.includes('signal.NotifyContext')) throw new Error('Managed follower must retain signal-aware cancellation');
+          if (!httpContext.includes('http.NewRequestWithContext')) throw new Error('Peer sync HTTP requests must be bound to the follower context');
+          for (const required of ['surveyPeerTargetsContext','resolvePeerSurveyContext','requestGovernedProofBundleContext']) {
+            if (!resolveContext.includes(required)) throw new Error(`Missing context-aware resolver path: ${required}`);
+          }
+          for (const required of ['syncGovernedFollowerToObservedHeadContext','runPeerFollowerCycleContext','postGovernedPeerEnvelopeContext']) {
+            if (!followerContext.includes(required)) throw new Error(`Missing context-aware follower path: ${required}`);
+          }
+
+          console.log('Peer-sync proof-verification, cancellation, follower, and non-participation invariants passed');
           NODE
