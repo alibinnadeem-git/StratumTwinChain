@@ -76,6 +76,7 @@ jobs:
           const alertAckCommand=fs.readFileSync('tools/portable-validator/peer_operator_alerts_ack_command.go','utf8');
           const proofCache=fs.readFileSync('tools/portable-validator/peer_proof_cache.go','utf8');
           const systemd=fs.readFileSync('tools/portable-validator/peer_service_systemd.go','utf8');
+          const launchd=fs.readFileSync('tools/portable-validator/peer_service_launchd.go','utf8');
           const resolveContext=fs.readFileSync('tools/portable-validator/peer_sync_resolve_context.go','utf8');
           const httpContext=fs.readFileSync('tools/portable-validator/peer_sync_http_context.go','utf8');
           const main=fs.readFileSync('tools/portable-validator/main.go','utf8');
@@ -144,5 +145,14 @@ jobs:
             if (systemd.includes('ExecStart='+forbidden) || systemd.includes('ExecStart="'+forbidden)) throw new Error(`Systemd service must not expose consensus/activation command ${forbidden}`);
           }
 
-          console.log('Peer-sync proof-verification, cancellation, advisory ordering, local alerts/acknowledgements, bounded proof cache, candidate-only systemd packaging, follower, and non-participation invariants passed');
+          for (const required of ['STRATUM-PEER-FOLLOWER-LAUNCHD/1','peer-sync-follow','candidateState','VoteAuthority','ConsensusParticipation','RunAtLoad','KeepAlive','launchctl bootstrap system','launchctl enable system/com.stratum.validator-follower']) {
+            if (!launchd.includes(required)) throw new Error(`Missing launchd candidate-service invariant: ${required}`);
+          }
+          if (!main.includes('peer-service-package-launchd')) throw new Error('Launchd service package command must remain registered');
+          if (!launchd.includes('cfg.State != candidateState || cfg.VoteAuthority')) throw new Error('Launchd package generation must fail closed outside CANDIDATE/voteAuthority=false');
+          for (const forbidden of ['peer-sync-governed','serve-readonly-peer-sync-governed','force-active']) {
+            if (launchd.includes(`<string>${forbidden}</string>`)) throw new Error(`Launchd service must not expose consensus/activation command ${forbidden}`);
+          }
+
+          console.log('Peer-sync proof-verification, cancellation, advisory ordering, local alerts/acknowledgements, bounded proof cache, candidate-only systemd/launchd packaging, follower, and non-participation invariants passed');
           NODE
