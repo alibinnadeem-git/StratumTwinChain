@@ -38,6 +38,8 @@ func main() {
 		err = verifyProposerCommand(os.Args[2:])
 	case "verify-peer-envelope":
 		err = verifyPeerEnvelopeCommand(os.Args[2:])
+	case "verify-consensus-wire":
+		err = verifyConsensusWireCommand(os.Args[2:])
 	case "serve-readonly-peer":
 		err = peerSessionServerCommand(os.Args[2:])
 	case "serve-readonly-peer-sync":
@@ -83,9 +85,10 @@ func main() {
 
 func usage() {
 	fmt.Fprintln(os.Stderr, "STRATUM portable validator bootstrap")
-	fmt.Fprintln(os.Stderr, "commands: init, doctor, init-consensus-safety, verify-consensus-safety, verify-genesis, verify-genesis-trust, verify-snapshot, verify-finality, verify-validator-governance, verify-round-change, verify-plc, verify-proposer, verify-peer-envelope, serve-readonly-peer, serve-readonly-peer-sync, serve-readonly-peer-sync-governed, peer-probe, peer-sync, peer-sync-governed, peer-sync-survey, peer-sync-resolve, peer-sync-follow, peer-follower-status, peer-quarantine-status, peer-quarantine-release, peer-reliability-status, verify-peer-ancestry, verify-package, version")
+	fmt.Fprintln(os.Stderr, "commands: init, doctor, init-consensus-safety, verify-consensus-safety, verify-genesis, verify-genesis-trust, verify-snapshot, verify-finality, verify-validator-governance, verify-round-change, verify-plc, verify-proposer, verify-peer-envelope, verify-consensus-wire, serve-readonly-peer, serve-readonly-peer-sync, serve-readonly-peer-sync-governed, peer-probe, peer-sync, peer-sync-governed, peer-sync-survey, peer-sync-resolve, peer-sync-follow, peer-follower-status, peer-quarantine-status, peer-quarantine-release, peer-reliability-status, verify-peer-ancestry, verify-package, version")
 	fmt.Fprintln(os.Stderr, "This bootstrap creates CANDIDATE nodes only. It never grants vote authority.")
 	fmt.Fprintln(os.Stderr, "Peer sync is read-only. Height skew becomes PROVEN_LAG only after governance-aware PFC/DIR ancestry verification; otherwise advancement remains blocked.")
 	fmt.Fprintln(os.Stderr, "peer-sync-follow is a signal-aware read-only CANDIDATE proof follower. It never proposes, votes, commits, round-changes, creates PLC/PFC votes, or activates a validator.")
+	fmt.Fprintln(os.Stderr, "verify-consensus-wire validates staged VERIFY/COMMIT/ROUND_CHANGE messages only; it does not sign, send, activate, or grant vote authority.")
 	fmt.Fprintln(os.Stderr, "Peer follower status, quarantine, and reliability are local operational metadata only; they do not alter PoVI membership, governance, consensus weighting, or vote authority.")
 }
