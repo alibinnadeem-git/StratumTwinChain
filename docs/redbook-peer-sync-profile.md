@@ -1,6 +1,6 @@
 # STRATUM Proof-Verifying Peer Sync Implementation Profile
 
-Status: **PARTIAL overall — read-only proof-verifying catch-up, governance-aware ancestry, peer safety controls, operational reliability metadata, and continuous candidate follower are implemented; live PoVI participation remains intentionally unimplemented**
+Status: **PARTIAL overall — read-only proof-verifying catch-up, governance-aware ancestry, peer safety controls, operational reliability metadata, continuous candidate follower, and durable follower status are implemented; live PoVI participation remains intentionally unimplemented**
 
 This profile records the current engineering implementation for read-only STRATUM Chain catch-up. The STRATUM Redbook remains the architectural authority. This profile does not grant consensus authority and does not redefine PoVI finality, validator governance, or activation rules.
 
@@ -14,7 +14,8 @@ The implementation keeps these trust domains separate:
 4. **Local trusted head** — advances only after independent cryptographic verification succeeds.
 5. **Local peer-safety state** — records authenticated head observations, evidence, and local read-only quarantine without changing PoVI membership.
 6. **Operational peer reliability** — records sync-service observations only; it is never consensus weighting.
-7. **Validator activation** — remains a separate governed process; synchronization never grants vote authority.
+7. **Follower runtime status** — records local operational lifecycle/heartbeat state only; it has no consensus authority.
+8. **Validator activation** — remains a separate governed process; synchronization never grants vote authority.
 
 A downloaded peer proof may provide evidence, but it cannot nominate its own trust root.
 
@@ -141,6 +142,16 @@ Each cycle:
 
 The follower has no path to PROPOSE, VERIFY, COMMIT, ROUND_CHANGE, create PLC/PFC votes, or alter validator governance.
 
+## Managed follower lifecycle and status
+
+`STRATUM-PEER-FOLLOWER-STATUS/1` persists trust-context-bound local follower lifecycle state in `peer-follower-status.json`.
+
+The public `peer-sync-follow` command is signal-aware for `SIGINT` and `SIGTERM`. During polling or backoff waits, cancellation interrupts the wait promptly and records a clean `STOPPED` state. The managed wrapper records operational states such as `RUNNING`, `IDLE`, `BACKOFF`, `SAFETY_HALT`, and `STOPPED`, plus the last resolution classification, locally proof-verified trusted height/hash, selected peer identity, failure count, last error, and next retry time where applicable.
+
+Follower status is bound to chain ID, Genesis DIR hash, and protocol version. A foreign trust context is rejected. The persisted status profile hard-codes `voteAuthority=false` and `consensusParticipation=false`; loading or saving a status that claims consensus participation is rejected.
+
+Operators may inspect the current local follower state with `peer-follower-status`. This command is read-only and cannot alter PoVI membership, governance, finality, validator activation, or consensus weight.
+
 ## Candidate-only boundary
 
 The proof-sync runtime requires:
@@ -185,11 +196,16 @@ Synchronization can make a candidate cryptographically informed about finalized 
 - continuous `peer-sync-follow` candidate follower with bounded polling/backoff;
 - follower re-authentication/head-stability check before proof download;
 - governed proof-only durable advancement;
+- signal-aware follower shutdown during polling/backoff waits;
+- durable `STRATUM-PEER-FOLLOWER-STATUS/1` heartbeat/status state;
+- read-only `peer-follower-status` command;
 - candidate-only/non-voting safety tests;
-- dedicated peer-sync CI covering formatting, vet, race tests, host build, Raspberry Pi ARM64 build, and trust-boundary invariants.
+- dedicated peer-sync CI covering formatting, vet, race tests, host build, Raspberry Pi ARM64 build, and trust-boundary invariants;
+- full portable-validator CI covering trust vectors, host build, Linux ARM64/AMD64, macOS ARM64, Windows AMD64, and safety invariants.
 
 ### Partial
 
+- an in-flight network request is allowed to finish before the managed loop observes shutdown; request-level context cancellation is not yet wired through peer HTTP helpers;
 - operator alert delivery for safety halts and quarantines is not yet implemented;
 - bounded evidence/proof-cache retention and pruning is not yet implemented;
 - service lifecycle packaging/auto-start for supported operating systems is not yet implemented;
@@ -197,7 +213,7 @@ Synchronization can make a candidate cryptographically informed about finalized 
 
 ### Planned
 
-- graceful signal-aware follower shutdown and durable follower heartbeat/status;
+- request-level cancellation/deadlines propagated through peer HTTP calls;
 - advisory-only reliability-based peer ordering, without consensus weighting;
 - operator alert integrations for safety halts and quarantines;
 - bounded evidence/proof-cache retention and pruning;
