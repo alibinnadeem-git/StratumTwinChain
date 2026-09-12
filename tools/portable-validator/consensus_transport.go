@@ -5,7 +5,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 )
@@ -166,9 +165,15 @@ func verifyConsensusWireMessage(set SnapshotValidatorSet, wire ConsensusWireMess
 		return errors.New("unsupported consensus transport profile")
 	}
 	payloadCount := 0
-	if wire.Verify != nil { payloadCount++ }
-	if wire.Commit != nil { payloadCount++ }
-	if wire.RoundChange != nil { payloadCount++ }
+	if wire.Verify != nil {
+		payloadCount++
+	}
+	if wire.Commit != nil {
+		payloadCount++
+	}
+	if wire.RoundChange != nil {
+		payloadCount++
+	}
 	if payloadCount != 1 {
 		return errors.New("consensus wire message must carry exactly one signed payload")
 	}
@@ -238,63 +243,142 @@ func signVerifyWireMessage(dir string, set SnapshotValidatorSet, height, round i
 		return ConsensusWireMessage{}, errors.New("VERIFY height/round invalid")
 	}
 	var cfg BootstrapConfig
-	if err := readJSON(filepath.Join(dir, "config.json"), &cfg); err != nil { return ConsensusWireMessage{}, err }
-	if expectedProtocol != "" && cfg.ProtocolVersion != expectedProtocol { return ConsensusWireMessage{}, errors.New("local protocolVersion mismatch") }
-	key, err := localConsensusKeyForHeight(cfg, set, height, expectedRoot); if err != nil { return ConsensusWireMessage{}, err }
-	vote := VerifyVoteProof{Domain:poviVerifyDomain,ChainID:cfg.ChainID,Height:height,Round:round,Step:"VERIFY",ProposalHash:proposalHash,ValidatorID:cfg.ValidatorID,ValidatorSetRoot:expectedRoot,ProtocolVersion:cfg.ProtocolVersion,KeyID:key.KeyID,Algorithm:"Ed25519"}
-	hash, err := verifyVoteMessageHashPortable(vote); if err != nil { return ConsensusWireMessage{}, err }; vote.MessageHash=hash
-	decision:=ConsensusSafetyDecision{Height:uint64(height),Round:uint64(round),Step:"VERIFY",ProposalHash:proposalHash,MessageHash:hash,UnlockProofHash:unlockProofHash,UnlockProofRound:unlockProofRound}
-	_,sig,err:=prepareConsensusTransportSignature(dir,decision); if err!=nil{return ConsensusWireMessage{},err}; vote.SignatureB64=sig
-	return ConsensusWireMessage{ProfileVersion:consensusTransportProfile,MessageType:"VERIFY",Verify:&vote},nil
+	if err := readJSON(filepath.Join(dir, "config.json"), &cfg); err != nil {
+		return ConsensusWireMessage{}, err
+	}
+	if expectedProtocol != "" && cfg.ProtocolVersion != expectedProtocol {
+		return ConsensusWireMessage{}, errors.New("local protocolVersion mismatch")
+	}
+	key, err := localConsensusKeyForHeight(cfg, set, height, expectedRoot)
+	if err != nil {
+		return ConsensusWireMessage{}, err
+	}
+	vote := VerifyVoteProof{Domain: poviVerifyDomain, ChainID: cfg.ChainID, Height: height, Round: round, Step: "VERIFY", ProposalHash: proposalHash, ValidatorID: cfg.ValidatorID, ValidatorSetRoot: expectedRoot, ProtocolVersion: cfg.ProtocolVersion, KeyID: key.KeyID, Algorithm: "Ed25519"}
+	hash, err := verifyVoteMessageHashPortable(vote)
+	if err != nil {
+		return ConsensusWireMessage{}, err
+	}
+	vote.MessageHash = hash
+	decision := ConsensusSafetyDecision{Height: uint64(height), Round: uint64(round), Step: "VERIFY", ProposalHash: proposalHash, MessageHash: hash, UnlockProofHash: unlockProofHash, UnlockProofRound: unlockProofRound}
+	_, sig, err := prepareConsensusTransportSignature(dir, decision)
+	if err != nil {
+		return ConsensusWireMessage{}, err
+	}
+	vote.SignatureB64 = sig
+	return ConsensusWireMessage{ProfileVersion: consensusTransportProfile, MessageType: "VERIFY", Verify: &vote}, nil
 }
 
 func signCommitWireMessage(dir string, set SnapshotValidatorSet, height, round int64, proposalHash, stateRoot, expectedRoot, expectedProtocol string) (ConsensusWireMessage, error) {
-	if height < 1 || round < 0 { return ConsensusWireMessage{}, errors.New("COMMIT height/round invalid") }
+	if height < 1 || round < 0 {
+		return ConsensusWireMessage{}, errors.New("COMMIT height/round invalid")
+	}
 	var cfg BootstrapConfig
-	if err:=readJSON(filepath.Join(dir,"config.json"),&cfg);err!=nil{return ConsensusWireMessage{},err}
-	if expectedProtocol!=""&&cfg.ProtocolVersion!=expectedProtocol{return ConsensusWireMessage{},errors.New("local protocolVersion mismatch")}
-	key,err:=localConsensusKeyForHeight(cfg,set,height,expectedRoot);if err!=nil{return ConsensusWireMessage{},err}
-	vote:=ConsensusCommitVoteProof{Domain:poviCommitDomain,ChainID:cfg.ChainID,Height:height,Round:round,Step:"COMMIT",ProposalHash:proposalHash,StateRoot:stateRoot,ValidatorID:cfg.ValidatorID,ValidatorSetRoot:expectedRoot,ProtocolVersion:cfg.ProtocolVersion,KeyID:key.KeyID,Algorithm:"Ed25519"}
-	hash,err:=commitWireMessageHash(vote);if err!=nil{return ConsensusWireMessage{},err};vote.MessageHash=hash
-	decision:=ConsensusSafetyDecision{Height:uint64(height),Round:uint64(round),Step:"COMMIT",ProposalHash:proposalHash,StateRoot:stateRoot,MessageHash:hash}
-	_,sig,err:=prepareConsensusTransportSignature(dir,decision);if err!=nil{return ConsensusWireMessage{},err};vote.SignatureB64=sig
-	return ConsensusWireMessage{ProfileVersion:consensusTransportProfile,MessageType:"COMMIT",Commit:&vote},nil
+	if err := readJSON(filepath.Join(dir, "config.json"), &cfg); err != nil {
+		return ConsensusWireMessage{}, err
+	}
+	if expectedProtocol != "" && cfg.ProtocolVersion != expectedProtocol {
+		return ConsensusWireMessage{}, errors.New("local protocolVersion mismatch")
+	}
+	key, err := localConsensusKeyForHeight(cfg, set, height, expectedRoot)
+	if err != nil {
+		return ConsensusWireMessage{}, err
+	}
+	vote := ConsensusCommitVoteProof{Domain: poviCommitDomain, ChainID: cfg.ChainID, Height: height, Round: round, Step: "COMMIT", ProposalHash: proposalHash, StateRoot: stateRoot, ValidatorID: cfg.ValidatorID, ValidatorSetRoot: expectedRoot, ProtocolVersion: cfg.ProtocolVersion, KeyID: key.KeyID, Algorithm: "Ed25519"}
+	hash, err := commitWireMessageHash(vote)
+	if err != nil {
+		return ConsensusWireMessage{}, err
+	}
+	vote.MessageHash = hash
+	decision := ConsensusSafetyDecision{Height: uint64(height), Round: uint64(round), Step: "COMMIT", ProposalHash: proposalHash, StateRoot: stateRoot, MessageHash: hash}
+	_, sig, err := prepareConsensusTransportSignature(dir, decision)
+	if err != nil {
+		return ConsensusWireMessage{}, err
+	}
+	vote.SignatureB64 = sig
+	return ConsensusWireMessage{ProfileVersion: consensusTransportProfile, MessageType: "COMMIT", Commit: &vote}, nil
 }
 
 func signRoundChangeWireMessage(dir string, set SnapshotValidatorSet, height, triggerRound, newRound int64, expectedRoot, expectedProtocol string, evidenceRefs []string) (ConsensusWireMessage, error) {
-	if height<1||triggerRound<0||newRound<=triggerRound{return ConsensusWireMessage{},errors.New("ROUND_CHANGE height/round progression invalid")}
+	if height < 1 || triggerRound < 0 || newRound <= triggerRound {
+		return ConsensusWireMessage{}, errors.New("ROUND_CHANGE height/round progression invalid")
+	}
 	var cfg BootstrapConfig
-	if err:=readJSON(filepath.Join(dir,"config.json"),&cfg);err!=nil{return ConsensusWireMessage{},err}
-	if expectedProtocol!=""&&cfg.ProtocolVersion!=expectedProtocol{return ConsensusWireMessage{},errors.New("local protocolVersion mismatch")}
-	key,err:=localConsensusKeyForHeight(cfg,set,height,expectedRoot);if err!=nil{return ConsensusWireMessage{},err}
-	_,latest,_,err:=latestConsensusSafetyRecord(dir);if err!=nil{return ConsensusWireMessage{},err}
-	if latest.Height!=uint64(height)||recoveredConsensusRound(latest)!=uint64(triggerRound){return ConsensusWireMessage{},errors.New("ROUND_CHANGE trigger does not match recovered consensus safety state")}
-	var lockedDIR,validDIR *string;var lockedRound,validRound *int64
-	if latest.LockedDIR!=""{v:=latest.LockedDIR;lockedDIR=&v;r:=int64(valueOrZero(latest.LockedRound));lockedRound=&r}
-	if latest.ValidDIR!=""{v:=latest.ValidDIR;validDIR=&v;r:=int64(valueOrZero(latest.ValidRound));validRound=&r}
-	vote:=RoundChangeVoteProof{Domain:poviRoundChangeDomain,ChainID:cfg.ChainID,Height:height,NewRound:newRound,ValidatorID:cfg.ValidatorID,ValidatorSetRoot:expectedRoot,ProtocolVersion:cfg.ProtocolVersion,LockedDIR:lockedDIR,LockedRound:lockedRound,ValidDIR:validDIR,ValidRound:validRound,EvidenceRefs:append([]string(nil),evidenceRefs...),KeyID:key.KeyID,Algorithm:"Ed25519"}
-	if err:=validateRoundChangeVoteShape(vote);err!=nil{return ConsensusWireMessage{},err}
-	hash,err:=roundChangeMessageHashPortable(vote);if err!=nil{return ConsensusWireMessage{},err};vote.MessageHash=hash
-	nr:=uint64(newRound);decision:=ConsensusSafetyDecision{Height:uint64(height),Round:uint64(triggerRound),NewRound:&nr,Step:"ROUND_CHANGE",MessageHash:hash}
-	_,sig,err:=prepareConsensusTransportSignature(dir,decision);if err!=nil{return ConsensusWireMessage{},err};vote.SignatureB64=sig
-	tr:=triggerRound
-	return ConsensusWireMessage{ProfileVersion:consensusTransportProfile,MessageType:"ROUND_CHANGE",TriggerRound:&tr,RoundChange:&vote},nil
+	if err := readJSON(filepath.Join(dir, "config.json"), &cfg); err != nil {
+		return ConsensusWireMessage{}, err
+	}
+	if expectedProtocol != "" && cfg.ProtocolVersion != expectedProtocol {
+		return ConsensusWireMessage{}, errors.New("local protocolVersion mismatch")
+	}
+	key, err := localConsensusKeyForHeight(cfg, set, height, expectedRoot)
+	if err != nil {
+		return ConsensusWireMessage{}, err
+	}
+	_, latest, _, err := latestConsensusSafetyRecord(dir)
+	if err != nil {
+		return ConsensusWireMessage{}, err
+	}
+	if latest.Height != uint64(height) || recoveredConsensusRound(latest) != uint64(triggerRound) {
+		return ConsensusWireMessage{}, errors.New("ROUND_CHANGE trigger does not match recovered consensus safety state")
+	}
+	var lockedDIR, validDIR *string
+	var lockedRound, validRound *int64
+	if latest.LockedDIR != "" {
+		v := latest.LockedDIR
+		lockedDIR = &v
+		r := int64(valueOrZero(latest.LockedRound))
+		lockedRound = &r
+	}
+	if latest.ValidDIR != "" {
+		v := latest.ValidDIR
+		validDIR = &v
+		r := int64(valueOrZero(latest.ValidRound))
+		validRound = &r
+	}
+	vote := RoundChangeVoteProof{Domain: poviRoundChangeDomain, ChainID: cfg.ChainID, Height: height, NewRound: newRound, ValidatorID: cfg.ValidatorID, ValidatorSetRoot: expectedRoot, ProtocolVersion: cfg.ProtocolVersion, LockedDIR: lockedDIR, LockedRound: lockedRound, ValidDIR: validDIR, ValidRound: validRound, EvidenceRefs: append([]string(nil), evidenceRefs...), KeyID: key.KeyID, Algorithm: "Ed25519"}
+	if err := validateRoundChangeVoteShape(vote); err != nil {
+		return ConsensusWireMessage{}, err
+	}
+	hash, err := roundChangeMessageHashPortable(vote)
+	if err != nil {
+		return ConsensusWireMessage{}, err
+	}
+	vote.MessageHash = hash
+	nr := uint64(newRound)
+	decision := ConsensusSafetyDecision{Height: uint64(height), Round: uint64(triggerRound), NewRound: &nr, Step: "ROUND_CHANGE", MessageHash: hash}
+	_, sig, err := prepareConsensusTransportSignature(dir, decision)
+	if err != nil {
+		return ConsensusWireMessage{}, err
+	}
+	vote.SignatureB64 = sig
+	tr := triggerRound
+	return ConsensusWireMessage{ProfileVersion: consensusTransportProfile, MessageType: "ROUND_CHANGE", TriggerRound: &tr, RoundChange: &vote}, nil
 }
 
 func verifyConsensusWireCommand(args []string) error {
-	fs:=flag.NewFlagSet("verify-consensus-wire",flag.ContinueOnError)
-	messagePath:=fs.String("message","","consensus wire message JSON")
-	setPath:=fs.String("validator-set","","trusted validator set JSON")
-	chainID:=fs.String("chain-id","","expected chain ID")
-	root:=fs.String("validator-set-root","","trusted validator-set root")
-	protocol:=fs.String("protocol-version","POVI/1","expected protocol version")
-	if err:=fs.Parse(args);err!=nil{return err}
-	if *messagePath==""||*setPath==""||*chainID==""||!isSHA256(*root){return errors.New("--message, --validator-set, --chain-id and a SHA-256 --validator-set-root are required")}
-	set,err:=readSnapshotValidatorSet(*setPath);if err!=nil{return err}
-	var wire ConsensusWireMessage;if err:=readJSON(*messagePath,&wire);err!=nil{return err}
-	if err:=verifyConsensusWireMessage(set,wire,*chainID,*root,*protocol);err!=nil{return err}
-	out,_:=json.MarshalIndent(map[string]any{"valid":true,"profileVersion":wire.ProfileVersion,"messageType":wire.MessageType,"consensusBearing":true,"voteAuthorityGranted":false},"","  ")
-	fmt.Println(string(out));return nil
+	fs := flag.NewFlagSet("verify-consensus-wire", flag.ContinueOnError)
+	messagePath := fs.String("message", "", "consensus wire message JSON")
+	setPath := fs.String("validator-set", "", "trusted validator set JSON")
+	chainID := fs.String("chain-id", "", "expected chain ID")
+	root := fs.String("validator-set-root", "", "trusted validator-set root")
+	protocol := fs.String("protocol-version", "POVI/1", "expected protocol version")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *messagePath == "" || *setPath == "" || *chainID == "" || !isSHA256(*root) {
+		return errors.New("--message, --validator-set, --chain-id and a SHA-256 --validator-set-root are required")
+	}
+	set, err := readSnapshotValidatorSet(*setPath)
+	if err != nil {
+		return err
+	}
+	var wire ConsensusWireMessage
+	if err := readJSON(*messagePath, &wire); err != nil {
+		return err
+	}
+	if err := verifyConsensusWireMessage(set, wire, *chainID, *root, *protocol); err != nil {
+		return err
+	}
+	out, _ := json.MarshalIndent(map[string]any{"valid": true, "profileVersion": wire.ProfileVersion, "messageType": wire.MessageType, "consensusBearing": true, "voteAuthorityGranted": false}, "", "  ")
+	fmt.Println(string(out))
+	return nil
 }
-
-var _ = os.ErrNotExist
