@@ -23,11 +23,11 @@ func TestWindowsAbsolutePathRecognition(t *testing.T) {
 
 func TestQuoteWindowsCommandArg(t *testing.T) {
 	cases := map[string]string{
-		`plain`:                        `plain`,
+		`plain`:                       `plain`,
 		`C:\STRATUM\state`:            `C:\STRATUM\state`,
 		`C:\Program Files\STRATUM`:    `"C:\Program Files\STRATUM"`,
 		`value with "quoted" section`: `"value with \"quoted\" section"`,
-		``:                             `""`,
+		``:                            `""`,
 	}
 	for input, expected := range cases {
 		if got := quoteWindowsCommandArg(input); got != expected {
