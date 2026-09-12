@@ -1,6 +1,6 @@
 # STRATUM Proof-Verifying Peer Sync Implementation Profile
 
-Status: **PARTIAL — read-only proof-verifying catch-up with governance-aware ancestry and local peer safety controls**
+Status: **PARTIAL overall — read-only proof-verifying catch-up, governance-aware ancestry, peer safety controls, operational reliability metadata, and continuous candidate follower are implemented; live PoVI participation remains intentionally unimplemented**
 
 This profile records the current engineering implementation for read-only STRATUM Chain catch-up. The STRATUM Redbook remains the architectural authority. This profile does not grant consensus authority and does not redefine PoVI finality, validator governance, or activation rules.
 
@@ -13,7 +13,8 @@ The implementation keeps these trust domains separate:
 3. **Validator governance** — independently trusted governance authority proves validator membership and CONSENSUS-key transitions.
 4. **Local trusted head** — advances only after independent cryptographic verification succeeds.
 5. **Local peer-safety state** — records authenticated head observations, evidence, and local read-only quarantine without changing PoVI membership.
-6. **Validator activation** — remains a separate governed process; synchronization never grants vote authority.
+6. **Operational peer reliability** — records sync-service observations only; it is never consensus weighting.
+7. **Validator activation** — remains a separate governed process; synchronization never grants vote authority.
 
 A downloaded peer proof may provide evidence, but it cannot nominate its own trust root.
 
@@ -103,13 +104,42 @@ Peer safety evidence is persisted under `STRATUM-PEER-EVIDENCE-JOURNAL/1`. Local
 The implementation distinguishes network disagreement from peer self-inconsistency:
 
 - `FINALIZED_HEAD_CONFLICT` between different authenticated validators => evidence + safety halt; no automatic punishment of either validator;
-- separately observed divergent history => evidence + safety halt/operator review;
+- separately verified divergent history => evidence + safety halt/operator review;
 - a peer's proof-verified terminal DIR contradicting that same peer's authenticated `SYNC_HEAD` => `PROOF_HEAD_MISMATCH` and local quarantine;
 - the same authenticated peer issuing contradictory finalized heads at the same height => `HEAD_EQUIVOCATION` and local quarantine.
 
 Local quarantine affects only read-only sync peer selection. It does **not** remove a validator from the PoVI validator set, change consensus weight, revoke vote authority, alter validator governance, or activate/deactivate a validator.
 
-Operators may inspect quarantine state and explicitly release a peer after review. Release preserves the historical evidence hashes.
+Operators may inspect quarantine state and explicitly release a peer after review. Release preserves historical evidence hashes.
+
+## Operational peer reliability
+
+`STRATUM-PEER-RELIABILITY/1` persists operational sync metadata such as authenticated-head observations, successful proof ancestry, unresolved ancestry, and objective peer-safety faults.
+
+The profile carries an explicit `consensusWeighting=false` invariant. Loading or saving reliability state with consensus weighting enabled is rejected.
+
+Reliability may support operational peer ordering or diagnostics. It may not select canonical history, change PoVI quorum weight, change validator membership, or grant vote authority. Ordinary disagreement between different authenticated validators is not counted as a peer fault.
+
+## Continuous read-only follower
+
+`STRATUM-PEER-FOLLOWER/1` is implemented as the `peer-sync-follow` command for candidate nodes.
+
+Each cycle:
+
+1. loads independently trusted peer-registry state;
+2. requires local state = `CANDIDATE` and `voteAuthority=false`;
+3. surveys authenticated `SYNC_HEAD` responses;
+4. persists cross-run authenticated head observations and objective evidence;
+5. excludes locally quarantined peer identities from sync selection;
+6. resolves exact agreement or proof-backed height skew;
+7. selects only an authenticated proof-eligible peer;
+8. re-authenticates that peer and requires its finalized head to remain unchanged since the survey;
+9. downloads bounded governed `SYNC_PROOF` batches;
+10. advances only through the existing governance-aware proof verifier and durable trusted-head transaction boundary.
+
+`FINALIZED_HEAD_CONFLICT` and `HISTORICAL_DIVERGENCE` cause a safety halt. Transient/unresolved conditions use bounded retry/backoff. A follower cycle never converts a candidate into an ACTIVE validator.
+
+The follower has no path to PROPOSE, VERIFY, COMMIT, ROUND_CHANGE, create PLC/PFC votes, or alter validator governance.
 
 ## Candidate-only boundary
 
@@ -150,18 +180,25 @@ Synchronization can make a candidate cryptographically informed about finalized 
 - proof/head self-inconsistency quarantine policy;
 - durable cross-run authenticated peer-head state;
 - cross-run `HEAD_EQUIVOCATION` detection;
-- candidate-only/non-voting safety tests.
+- operational peer reliability state with explicit `consensusWeighting=false`;
+- reliability status command and objective-fault accounting;
+- continuous `peer-sync-follow` candidate follower with bounded polling/backoff;
+- follower re-authentication/head-stability check before proof download;
+- governed proof-only durable advancement;
+- candidate-only/non-voting safety tests;
+- dedicated peer-sync CI covering formatting, vet, race tests, host build, Raspberry Pi ARM64 build, and trust-boundary invariants.
 
 ### Partial
 
-- cross-run authenticated head state and quarantine are wired into live survey/resolver flows, with current CI validation still in progress on the feature branch;
-- peer operational reliability/reputation metadata is not yet implemented;
-- continuous follower mode is not yet implemented.
+- operator alert delivery for safety halts and quarantines is not yet implemented;
+- bounded evidence/proof-cache retention and pruning is not yet implemented;
+- service lifecycle packaging/auto-start for supported operating systems is not yet implemented;
+- wider Byzantine/network/storage/power-loss qualification remains incomplete.
 
 ### Planned
 
-- operational peer reliability metadata for peer selection only, never consensus weighting;
-- operator alerts for safety halts and quarantines;
+- graceful signal-aware follower shutdown and durable follower heartbeat/status;
+- advisory-only reliability-based peer ordering, without consensus weighting;
+- operator alert integrations for safety halts and quarantines;
 - bounded evidence/proof-cache retention and pruning;
-- continuous follower mode;
 - separately governed validator activation and live PoVI participation.
