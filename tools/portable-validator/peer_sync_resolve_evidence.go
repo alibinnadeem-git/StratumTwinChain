@@ -17,9 +17,6 @@ func persistResolverEvidence(evidencePath, quarantinePath string, cfg BootstrapC
 		return nil
 	}
 	persistReliability := func() error {
-		if len(persisted) == 0 {
-			return nil
-		}
 		reliabilityPath := filepath.Join(filepath.Dir(evidencePath), "peer-reliability.json")
 		_, err := updatePeerReliability(reliabilityPath, cfg, nil, result.AncestryResults, persisted, now)
 		return err
