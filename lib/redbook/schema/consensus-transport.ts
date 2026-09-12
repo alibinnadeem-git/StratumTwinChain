@@ -51,8 +51,11 @@ export const roundChangeConsensusWireSchema=z.object({
  * Staged consensus-bearing wire profile. PROPOSAL is intentionally excluded
  * until a durable proposer-intent journal profile is implemented. These
  * schemas do not grant vote authority and do not activate a validator.
+ *
+ * z.union is intentional here: ROUND_CHANGE carries refined evidence and is
+ * therefore a ZodEffects surface rather than a raw ZodObject.
  */
-export const consensusWireMessageSchema=z.discriminatedUnion('messageType',[
+export const consensusWireMessageSchema=z.union([
  verifyConsensusWireSchema,
  commitConsensusWireSchema,
  roundChangeConsensusWireSchema,
