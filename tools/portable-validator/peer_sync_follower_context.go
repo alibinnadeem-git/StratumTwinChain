@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -167,6 +168,10 @@ func runPeerFollowerCycleContext(ctx context.Context, cfg PeerFollowerConfig) (P
 		State:                  session.cfg.State,
 		VoteAuthority:          false,
 		ConsensusParticipation: false,
+	}
+	alertPath := filepath.Join(filepath.Dir(cfg.EvidenceJournalPath), "peer-operator-alerts.json")
+	if err := persistFollowerOperatorAlerts(alertPath, session.cfg, result, time.Now().UTC()); err != nil {
+		return result, fmt.Errorf("persist follower operator alerts: %w", err)
 	}
 	if !resolution.AutoAdvanceAllowed {
 		return result, fmt.Errorf("follower advancement blocked: %s", resolution.Classification)
