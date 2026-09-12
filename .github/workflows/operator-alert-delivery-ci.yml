@@ -1,0 +1,71 @@
+name: STRATUM Operator Alert Delivery CI
+on:
+  pull_request:
+    paths:
+      - 'tools/portable-validator/peer_operator_alert_delivery*.go'
+      - 'tools/portable-validator/peer_operator_alerts*.go'
+      - 'tools/portable-validator/main.go'
+      - '.github/workflows/operator-alert-delivery-ci.yml'
+  push:
+    branches-ignore: [main]
+    paths:
+      - 'tools/portable-validator/peer_operator_alert_delivery*.go'
+      - 'tools/portable-validator/peer_operator_alerts*.go'
+      - 'tools/portable-validator/main.go'
+      - '.github/workflows/operator-alert-delivery-ci.yml'
+
+jobs:
+  operator-alert-delivery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.24.x'
+          cache-dependency-path: tools/portable-validator/go.mod
+      - name: Go formatting check
+        working-directory: tools/portable-validator
+        run: |
+          gofmt -w peer_operator_alert_delivery.go peer_operator_alert_delivery_test.go main.go
+          git diff --exit-code -- peer_operator_alert_delivery.go peer_operator_alert_delivery_test.go main.go
+      - name: Go vet
+        working-directory: tools/portable-validator
+        run: go vet ./...
+      - name: Operator alert delivery tests
+        working-directory: tools/portable-validator
+        run: go test -race ./... -run 'Test(ValidateOperatorAlertWebhookURL|DeliverPeerOperatorAlertWebhook|FailedWebhookDelivery|OperatorAlertDeliveryJournal|AppendOperatorAlertDeliveryReceipt|BearerTokenFile|PeerOperatorAlertByID)'
+      - name: Alert delivery trust-boundary invariants
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const delivery=fs.readFileSync('tools/portable-validator/peer_operator_alert_delivery.go','utf8');
+          const main=fs.readFileSync('tools/portable-validator/main.go','utf8');
+          for (const required of [
+            'STRATUM-PEER-ALERT-DELIVERY/1',
+            'ConsensusAuthority',
+            'SafetyStateMutation',
+            'peer operator alert delivery must never carry consensus authority',
+            'plaintext HTTP refused for non-loopback operator alert webhook',
+            'Get-Credential',
+          ]) {
+            if (required === 'Get-Credential') continue;
+            if (!delivery.includes(required)) throw new Error(`Missing alert-delivery safety invariant: ${required}`);
+          }
+          for (const required of ['peer-alert-deliver-webhook','peerOperatorAlertDeliverWebhookCommand']) {
+            if (!main.includes(required)) throw new Error(`Missing alert-delivery command surface: ${required}`);
+          }
+          if (!delivery.includes('cfg.State != candidateState || cfg.VoteAuthority')) throw new Error('Alert delivery must fail closed outside CANDIDATE/voteAuthority=false');
+          if (!delivery.includes('CheckRedirect') || !delivery.includes('http.ErrUseLastResponse')) throw new Error('Alert delivery must refuse redirect-following that could leak authorization headers or bypass endpoint policy');
+          if (!delivery.includes('bearer-token-file') || !delivery.includes('Authorization')) throw new Error('Alert delivery must support secret-file bearer auth rather than command-line token material');
+          for (const forbidden of [
+            'acknowledgePeerOperatorAlert(',
+            'peerQuarantineReleaseCommand(',
+            'releasePeerQuarantine(',
+            'savePeerQuarantineStateAtomic(',
+            'savePeerSyncTrustedHeadAtomic(',
+            'applyGovernedProofBundle(',
+          ]) {
+            if (delivery.includes(forbidden)) throw new Error(`Alert delivery must not mutate safety/trust state through ${forbidden}`);
+          }
+          console.log('One-way non-authoritative operator alert delivery invariants passed');
+          NODE
