@@ -67,7 +67,7 @@ func TestPersistFollowerOperatorAlertsUsesObjectiveEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 	result := PeerFollowerCycleResult{
-		Resolution: PeerResolveResult{Classification: "FINALIZED_HEAD_CONFLICT", AutoAdvanceAllowed: false},
+		Resolution:             PeerResolveResult{Classification: "FINALIZED_HEAD_CONFLICT", AutoAdvanceAllowed: false},
 		CrossRunSafetyEvidence: []PeerEvidence{evidence},
 	}
 	if err := persistFollowerOperatorAlerts(path, cfg, result, time.Unix(101, 0).UTC()); err != nil {
