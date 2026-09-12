@@ -6,7 +6,7 @@ The Redbook portable-validator flow is:
 
 install → verify Genesis → local purpose-separated keys → enrollment → peer discovery → proof-verifying sync → `CANDIDATE` → governed future-height `ACTIVE`.
 
-The repository now implements substantial trust-verification, crash-safety, read-only peer synchronization, multi-peer disagreement handling, and continuous follower portions of that flow while deliberately keeping portable nodes non-voting.
+The repository now implements substantial trust-verification, crash-safety, read-only peer synchronization, multi-peer disagreement handling, bounded verified-proof caching, and continuous follower portions of that flow while deliberately keeping portable nodes non-voting.
 
 ## Implemented foundation
 
@@ -35,6 +35,7 @@ The portable validator currently provides:
 - durable read-only follower status/heartbeat state;
 - durable local operator-alert journaling from objective follower safety evidence;
 - append-only operator alert acknowledgements that do not clear quarantine or safety state;
+- bounded non-authoritative caching of already verified governed proof bundles;
 - crash/restart consensus-safety journal verification;
 - signed package-manifest verification;
 - cross-build gates for Raspberry Pi/Linux ARM64, Linux AMD64, macOS ARM64, and Windows AMD64.
@@ -88,6 +89,7 @@ The synchronization model separates peer claims from locally verified trust:
 3. `SYNC_HEAD` alone never moves the durable trusted head.
 4. `SYNC_PROOF` evidence is verified locally using snapshot, PFC/DIR continuity, and validator-governance verification.
 5. The durable local trusted head advances transactionally only after all required checks succeed.
+6. Only after successful governed verification and durable advancement may the follower persist a redundant copy of that verified proof bundle in the local bounded cache.
 
 Important classifications include:
 
@@ -115,6 +117,8 @@ The follower:
 - requires that peer's finalized head to remain unchanged since the survey;
 - requests bounded `SYNC_PROOF` batches;
 - advances only through the existing governance-aware proof verifier;
+- caches a proof bundle only after it has successfully advanced the verified trusted head;
+- treats proof-cache writes/pruning as best-effort redundant storage, so cache failure does not block verified advancement;
 - retries transient/unresolved conditions with bounded backoff;
 - halts on finalized-history safety conflicts;
 - propagates SIGINT/SIGTERM cancellation into in-flight survey, ancestry, head-refresh, and governed proof HTTP requests;
@@ -164,9 +168,26 @@ Operator commands include:
 
 Quarantine, reliability, follower status, alerts, and alert acknowledgements are local synchronization/operational metadata only. They do not alter validator membership, PoVI quorum weight, governance authority, vote authority, or activation state. Peer reliability state carries an explicit `consensusWeighting=false` invariant and refuses persisted state that enables consensus weighting.
 
-Local peer-operational evidence retention is bounded to 4,096 unpinned records. Any evidence hash referenced by quarantine state remains pinned, including evidence retained after an operator release. Pinned evidence may exceed the unpinned cap; the retention path will not delete it to satisfy the cap. This mechanism does not prune trust-critical DIR/PFC history. Non-authoritative proof-cache lifecycle management remains separate work.
+Local peer-operational evidence retention is bounded to 4,096 unpinned records. Any evidence hash referenced by quarantine state remains pinned, including evidence retained after an operator release. Pinned evidence may exceed the unpinned cap; the retention path will not delete it to satisfy the cap. This mechanism does not prune trust-critical DIR/PFC history.
 
 External email/webhook/paging delivery of local alerts is not implemented yet.
+
+## Verified proof cache
+
+`STRATUM-PEER-PROOF-CACHE/1` is a local redundant cache for governed proof bundles that have already passed the normal independent verification path. It is not a source of trust.
+
+The cache manifest is trust-context-bound and refuses `consensusAuthority=true` or `canonicalHistorySelection=true`. It therefore cannot choose chain history, change consensus weighting, alter validator membership, grant vote authority, or bypass governance/PFC/DIR verification.
+
+Retention is bounded to **64 bundles / 64 MiB**. The pruning path deletes only manifest-listed `verified-bundle-*.json` files in the proof-cache directory, oldest first. It never prunes the durable trusted head, snapshots, source DIR/PFC trust history, quarantine/evidence state, or unrelated files.
+
+Cache writes happen only after the follower's governed proof verifier succeeds and the durable trusted head advances. Cache write/prune errors are best-effort and cannot roll back or block that verified advancement.
+
+Operator commands:
+
+```bash
+./stratum-validator-bootstrap peer-proof-cache-status --dir ~/.stratum/validator
+./stratum-validator-bootstrap peer-proof-cache-prune --dir ~/.stratum/validator
+```
 
 ## Build and test
 
@@ -177,7 +198,7 @@ go vet ./...
 go build -trimpath -o stratum-validator-bootstrap .
 ```
 
-CI also cross-compiles Linux ARM64 for Raspberry Pi, Linux AMD64, macOS ARM64, and Windows AMD64. The dedicated peer-sync CI additionally guards the candidate-only follower, request-context cancellation, advisory reliability-ordering boundary, local alert/acknowledgement non-authority, proof-verification, transport allow-list, and non-consensus reliability invariants.
+CI also cross-compiles Linux ARM64 for Raspberry Pi, Linux AMD64, macOS ARM64, and Windows AMD64. The dedicated peer-sync CI additionally guards the candidate-only follower, request-context cancellation, advisory reliability-ordering boundary, local alert/acknowledgement non-authority, post-verification-only proof caching, proof-cache non-authority/non-canonicality, proof-verification, transport allow-list, and non-consensus reliability invariants.
 
 ## Candidate initialization
 
@@ -216,6 +237,9 @@ The bootstrap and peer-sync runtime use state approximately like:
     peer-reliability.json
     peer-follower-status.json
     peer-operator-alerts.json
+    peer-proof-cache/
+      manifest.json
+      verified-bundle-*.json
   logs/
   snapshots/
 ```
@@ -290,9 +314,8 @@ The following remain incomplete and must not be represented as implemented:
 - native production transport hardening as selected for the deployment model, including certificate/key lifecycle where applicable;
 - service installation and auto-start for supported operating systems;
 - external operator alert delivery/integration for safety halts and quarantine events;
-- non-authoritative proof-cache lifecycle/pruning where appropriate;
 - signed release pipeline, SBOM generation, and production installers/packages;
 - wider Byzantine, network-partition, clock-skew, storage-failure, and power-loss qualification;
 - resource benchmarking before publishing final minimum hardware claims.
 
-Until those activation gates are completed and distributed UAT passes, the portable validator remains **PARTIAL overall / candidate-only**, even though proof verification, multi-peer resolution, local peer-safety controls, bounded peer-evidence retention, operational reliability state, advisory sync-peer ordering, request-cancelable continuous read-only following, durable follower status, local operator alert journaling, and append-only alert acknowledgement are implemented on this feature branch.
+Until those activation gates are completed and distributed UAT passes, the portable validator remains **PARTIAL overall / candidate-only**, even though proof verification, multi-peer resolution, local peer-safety controls, bounded peer-evidence retention, operational reliability state, advisory sync-peer ordering, request-cancelable continuous read-only following, durable follower status, local operator alert journaling, append-only alert acknowledgement, and bounded non-authoritative verified-proof caching are implemented on this feature branch.
