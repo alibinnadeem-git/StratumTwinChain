@@ -69,6 +69,7 @@ jobs:
           const followerContext=fs.readFileSync('tools/portable-validator/peer_sync_follower_context.go','utf8');
           const followerReliability=fs.readFileSync('tools/portable-validator/peer_sync_follower_reliability.go','utf8');
           const operatorAlerts=fs.readFileSync('tools/portable-validator/peer_operator_alerts.go','utf8');
+          const alertAckCommand=fs.readFileSync('tools/portable-validator/peer_operator_alerts_ack_command.go','utf8');
           const resolveContext=fs.readFileSync('tools/portable-validator/peer_sync_resolve_context.go','utf8');
           const httpContext=fs.readFileSync('tools/portable-validator/peer_sync_http_context.go','utf8');
           const main=fs.readFileSync('tools/portable-validator/main.go','utf8');
@@ -146,10 +147,17 @@ jobs:
             'HEAD_EQUIVOCATION',
             'PROOF_HEAD_MISMATCH',
             'FOLLOWER_SAFETY_HALT',
-            'PEER_QUARANTINED'
+            'PEER_QUARANTINED',
+            'PeerOperatorAlertAcknowledgement',
+            'Acknowledgements',
+            'acknowledgePeerOperatorAlert',
+            'operator alert acknowledgement references unknown alert'
           ]) if (!operatorAlerts.includes(required)) throw new Error(`Missing local operator-alert invariant: ${required}`);
           if (!followerContext.includes('persistFollowerOperatorAlerts')) throw new Error('Managed follower must persist local alerts from already-derived safety evidence');
           if (!main.includes('peer-alert-status')) throw new Error('Read-only peer alert status command must remain registered');
+          if (!main.includes('peer-alert-ack')) throw new Error('Peer alert acknowledgement command must remain registered');
+          if (!alertAckCommand.includes('acknowledgePeerOperatorAlert')) throw new Error('Alert acknowledgement command must only append acknowledgement metadata through the alert journal');
+          if (alertAckCommand.includes('quarantinePeer') || alertAckCommand.includes('peerQuarantineRelease')) throw new Error('Alert acknowledgement must never release or mutate quarantine state');
 
-          console.log('Peer-sync proof-verification, cancellation, advisory ordering, local alerts, follower, and non-participation invariants passed');
+          console.log('Peer-sync proof-verification, cancellation, advisory ordering, local alerts/acknowledgements, follower, and non-participation invariants passed');
           NODE
