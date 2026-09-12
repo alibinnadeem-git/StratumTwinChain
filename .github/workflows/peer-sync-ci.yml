@@ -8,11 +8,14 @@ on:
       - 'tools/portable-validator/peer_reliability*.go'
       - 'tools/portable-validator/peer_session.go'
       - 'tools/portable-validator/peer_transport.go'
+      - 'tools/portable-validator/consensus_transport*.go'
+      - 'tools/portable-validator/consensus_safety.go'
       - 'tools/portable-validator/finality.go'
       - 'tools/portable-validator/snapshot.go'
       - 'tools/portable-validator/main.go'
       - 'lib/redbook/schema/peer-sync.ts'
       - 'lib/redbook/schema/peer-transport.ts'
+      - 'lib/redbook/schema/consensus-transport.ts'
       - '.github/workflows/peer-sync-ci.yml'
   push:
     branches-ignore: [main]
@@ -23,11 +26,14 @@ on:
       - 'tools/portable-validator/peer_reliability*.go'
       - 'tools/portable-validator/peer_session.go'
       - 'tools/portable-validator/peer_transport.go'
+      - 'tools/portable-validator/consensus_transport*.go'
+      - 'tools/portable-validator/consensus_safety.go'
       - 'tools/portable-validator/finality.go'
       - 'tools/portable-validator/snapshot.go'
       - 'tools/portable-validator/main.go'
       - 'lib/redbook/schema/peer-sync.ts'
       - 'lib/redbook/schema/peer-transport.ts'
+      - 'lib/redbook/schema/consensus-transport.ts'
       - '.github/workflows/peer-sync-ci.yml'
 
 jobs:
@@ -71,6 +77,7 @@ jobs:
           const transport=fs.readFileSync('tools/portable-validator/peer_transport.go','utf8');
           const reliability=fs.readFileSync('tools/portable-validator/peer_reliability.go','utf8');
           const schema=fs.readFileSync('lib/redbook/schema/peer-sync.ts','utf8');
+          const consensus=fs.readFileSync('tools/portable-validator/consensus_transport.go','utf8');
 
           for (const required of [
             'STRATUM-PEER-SYNC/1',
@@ -120,5 +127,12 @@ jobs:
             if (!followerContext.includes(required)) throw new Error(`Missing context-aware follower path: ${required}`);
           }
 
-          console.log('Peer-sync proof-verification, cancellation, follower, and non-participation invariants passed');
+          if (!consensus.includes('STRATUM-CONSENSUS-TRANSPORT/1')) throw new Error('Consensus staging profile missing while peer-sync cross-gate is active');
+          if (!consensus.includes('consensusSigningRuntimeReady')) throw new Error('Consensus staging must preserve governed ACTIVE/vote-authority gate');
+          if (!main.includes('verify-consensus-wire')) throw new Error('Consensus wire surface must remain verification-only at CLI boundary');
+          for (const forbidden of ['case "vote"','case "activate"','case "force-active"','case "send-consensus"','case "serve-consensus"']) {
+            if (main.includes(forbidden)) throw new Error(`Peer-sync branch must not expose live consensus authority: ${forbidden}`);
+          }
+
+          console.log('Peer-sync proof-verification, cancellation, follower, consensus-staging, and non-participation invariants passed');
           NODE
