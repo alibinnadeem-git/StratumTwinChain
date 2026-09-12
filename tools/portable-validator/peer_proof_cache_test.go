@@ -118,7 +118,7 @@ func TestPeerProofCacheDeduplicatesVerifiedBundle(t *testing.T) {
 		GenesisDIRHash:  cfg.GenesisDIRHash,
 		ProtocolVersion: cfg.ProtocolVersion,
 		ValidatorSet:    SnapshotValidatorSet{ChainID: cfg.ChainID},
-		FinalityProofs:  []DIRFinalityProof{{Header: DIRHeader{Height: 1}}},
+		FinalityProofs:  []DIRFinalityProof{{Header: DIRCandidateHeader{Height: 1}}},
 		GeneratedAt:     time.Unix(10, 0).UTC().Format(time.RFC3339Nano),
 	}
 	verified := PeerSyncTrustedHead{Height: 1, DIRHash: strings.Repeat("a", 64)}
