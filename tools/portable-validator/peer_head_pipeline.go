@@ -23,6 +23,9 @@ func persistAuthenticatedPeerHeads(headStatePath, evidencePath, quarantinePath s
 	if _, err := updatePeerReliability(peerReliabilityPathFromStatePath(headStatePath), cfg, observations, nil, evidence, peerObservationTime(latestPeerObservationTime(observations))); err != nil {
 		return evidence, err
 	}
+	if _, err := enforcePeerEvidenceRetention(evidencePath, quarantinePath, cfg, defaultMaxUnpinnedPeerEvidence); err != nil {
+		return evidence, err
+	}
 	return evidence, nil
 }
 
