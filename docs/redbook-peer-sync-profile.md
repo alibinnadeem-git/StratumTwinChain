@@ -1,6 +1,6 @@
 # STRATUM Proof-Verifying Peer Sync Implementation Profile
 
-Status: **PARTIAL overall — read-only proof-verifying catch-up, governance-aware ancestry, peer safety controls, bounded evidence retention, operational reliability metadata, advisory peer ordering, continuous candidate follower, request-level cancellation, and durable follower status are implemented; live PoVI participation remains intentionally unimplemented**
+Status: **PARTIAL overall — read-only proof-verifying catch-up, governance-aware ancestry, peer safety controls, bounded evidence retention, operational reliability metadata, advisory peer ordering, continuous candidate follower, request-level cancellation, durable follower status, and local operator alert journaling are implemented; live PoVI participation remains intentionally unimplemented**
 
 This profile records the current engineering implementation for read-only STRATUM Chain catch-up. The STRATUM Redbook remains the architectural authority. This profile does not grant consensus authority and does not redefine PoVI finality, validator governance, or activation rules.
 
@@ -15,7 +15,8 @@ The implementation keeps these trust domains separate:
 5. **Local peer-safety state** — records authenticated head observations, evidence, and local read-only quarantine without changing PoVI membership.
 6. **Operational peer reliability** — records sync-service observations only; it is never consensus weighting.
 7. **Follower runtime status** — records local operational lifecycle/heartbeat state only; it has no consensus authority.
-8. **Validator activation** — remains a separate governed process; synchronization never grants vote authority.
+8. **Local operator alerts** — surface already-derived follower safety events and objective quarantine evidence; they carry no consensus authority.
+9. **Validator activation** — remains a separate governed process; synchronization never grants vote authority.
 
 A downloaded peer proof may provide evidence, but it cannot nominate its own trust root.
 
@@ -121,7 +122,7 @@ Local peer-operational evidence retention is bounded. The implementation retains
 
 The profile carries an explicit `consensusWeighting=false` invariant. Loading or saving reliability state with consensus weighting enabled is rejected.
 
-Reliability is now used only for advisory query ordering among peers that are already authenticated and cryptographically eligible for follower advancement. `EXACT_HEAD_AGREEMENT` peers may be ordered operationally after agreement is established. For `PROVEN_LAG`, a peer may enter the candidate set only when its ancestry classification is itself `PROVEN_LAG`. Reliability cannot make an unproven peer eligible, cannot turn `AutoAdvanceAllowed=false` into true, and cannot resolve a finalized-history conflict.
+Reliability is used only for advisory query ordering among peers that are already authenticated and cryptographically eligible for follower advancement. `EXACT_HEAD_AGREEMENT` peers may be ordered operationally after agreement is established. For `PROVEN_LAG`, a peer may enter the candidate set only when its ancestry classification is itself `PROVEN_LAG`. Reliability cannot make an unproven peer eligible, cannot turn `AutoAdvanceAllowed=false` into true, and cannot resolve a finalized-history conflict.
 
 Reliability may not select canonical history, change PoVI quorum weight, change validator membership, alter PFC/DIR verification, or grant vote authority. Ordinary disagreement between different authenticated validators is not counted as a peer fault.
 
@@ -137,11 +138,12 @@ Each cycle:
 4. persists cross-run authenticated head observations and objective evidence;
 5. excludes locally quarantined peer identities from sync selection;
 6. resolves exact agreement or proof-backed height skew;
-7. requires `AutoAdvanceAllowed=true` before any reliability ordering is considered;
-8. selects only an authenticated proof-eligible peer, with reliability used only as an advisory ordering signal among that eligible set;
-9. re-authenticates that peer and requires its finalized head to remain unchanged since the survey;
-10. downloads bounded governed `SYNC_PROOF` batches;
-11. advances only through the existing governance-aware proof verifier and durable trusted-head transaction boundary.
+7. persists local operator alerts from already-derived objective evidence and safety-halt classification;
+8. requires `AutoAdvanceAllowed=true` before any reliability ordering is considered;
+9. selects only an authenticated proof-eligible peer, with reliability used only as an advisory ordering signal among that eligible set;
+10. re-authenticates that peer and requires its finalized head to remain unchanged since the survey;
+11. downloads bounded governed `SYNC_PROOF` batches;
+12. advances only through the existing governance-aware proof verifier and durable trusted-head transaction boundary.
 
 `FINALIZED_HEAD_CONFLICT` and `HISTORICAL_DIVERGENCE` cause a safety halt. Transient/unresolved conditions use bounded retry/backoff. A follower cycle never converts a candidate into an ACTIVE validator.
 
@@ -158,6 +160,21 @@ The managed wrapper records operational states such as `RUNNING`, `IDLE`, `BACKO
 Follower status is bound to chain ID, Genesis DIR hash, and protocol version. A foreign trust context is rejected. The persisted status profile hard-codes `voteAuthority=false` and `consensusParticipation=false`; loading or saving a status that claims consensus participation is rejected.
 
 Operators may inspect the current local follower state with `peer-follower-status`. This command is read-only and cannot alter PoVI membership, governance, finality, validator activation, or consensus weight.
+
+## Local operator alert journal
+
+`STRATUM-PEER-OPERATOR-ALERTS/1` persists trust-context-bound local alerts in `peer-operator-alerts.json`.
+
+The journal is operational metadata only and hard-fails if `consensusAuthority=true`. It does not select chain history, change quorum weight, modify validator membership, or grant vote authority.
+
+Alerts are derived from existing safety evidence rather than from a parallel fault detector:
+
+- `HEAD_EQUIVOCATION` and `PROOF_HEAD_MISMATCH` may produce `PEER_QUARANTINED` alerts;
+- `FINALIZED_HEAD_CONFLICT` and `HISTORICAL_DIVERGENCE` produce `FOLLOWER_SAFETY_HALT` alerts.
+
+Alert IDs are deterministic SHA-256 identifiers bound to chain/Genesis/protocol context and the underlying evidence/source key, so repeated observation of the same event does not append duplicate alerts. Operators may inspect the journal with the read-only `peer-alert-status` command.
+
+External email, webhook, paging, or third-party alert delivery is not implemented by this profile.
 
 ## Candidate-only boundary
 
@@ -209,20 +226,25 @@ Synchronization can make a candidate cryptographically informed about finalized 
 - request-level cancellation propagated through managed follower peer HTTP calls;
 - durable `STRATUM-PEER-FOLLOWER-STATUS/1` heartbeat/status state;
 - read-only `peer-follower-status` command;
+- durable trust-context-bound `STRATUM-PEER-OPERATOR-ALERTS/1` journal;
+- deterministic alert deduplication from objective safety evidence;
+- local `PEER_QUARANTINED` and `FOLLOWER_SAFETY_HALT` alert generation;
+- read-only `peer-alert-status` command;
 - candidate-only/non-voting safety tests;
-- dedicated peer-sync CI covering formatting, vet, race tests, host build, Raspberry Pi ARM64 build, and trust-boundary invariants;
+- dedicated peer-sync CI covering formatting, vet, race tests, host build, Raspberry Pi ARM64 build, alert/reliability/cancellation boundaries, and trust-boundary invariants;
 - full portable-validator CI covering trust vectors, host build, Linux ARM64/AMD64, macOS ARM64, Windows AMD64, and safety invariants.
 
 ### Partial
 
-- operator alert delivery for safety halts and quarantines is not yet implemented;
+- external operator alert delivery/integration for safety halts and quarantines is not yet implemented;
 - proof-cache retention/pruning remains incomplete; the implemented evidence-retention mechanism covers local peer-operational evidence, not trust-critical chain history;
 - service lifecycle packaging/auto-start for supported operating systems is not yet implemented;
 - wider Byzantine/network/storage/power-loss qualification remains incomplete.
 
 ### Planned
 
-- local operator alert journal/status surface, followed by optional external alert integrations for safety halts and quarantines;
+- optional external alert integrations for local safety-halt/quarantine alerts;
+- local operator acknowledgement/resolution workflow for alert records;
 - bounded non-authoritative proof-cache lifecycle management where appropriate, without pruning trust-critical DIR/PFC history;
 - service lifecycle packaging/auto-start for supported operating systems;
 - separately governed validator activation and live PoVI participation.
