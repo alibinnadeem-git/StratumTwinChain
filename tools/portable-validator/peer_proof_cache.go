@@ -21,15 +21,15 @@ const peerProofCacheManifestName = "manifest.json"
 const peerProofCacheFilePrefix = "verified-bundle-"
 
 type PeerProofCacheEntry struct {
-	CacheKey             string `json:"cacheKey"`
-	FileName             string `json:"fileName"`
-	FromHeight           int64  `json:"fromHeight"`
-	ToHeight             int64  `json:"toHeight"`
-	VerifiedDIRHash      string `json:"verifiedDIRHash"`
+	CacheKey              string `json:"cacheKey"`
+	FileName              string `json:"fileName"`
+	FromHeight            int64  `json:"fromHeight"`
+	ToHeight              int64  `json:"toHeight"`
+	VerifiedDIRHash       string `json:"verifiedDIRHash"`
 	SourcePeerValidatorID string `json:"sourcePeerValidatorId"`
-	GovernancePolicyHash string `json:"governancePolicyHash"`
-	CachedAt             string `json:"cachedAt"`
-	SizeBytes            int64  `json:"sizeBytes"`
+	GovernancePolicyHash  string `json:"governancePolicyHash"`
+	CachedAt              string `json:"cachedAt"`
+	SizeBytes             int64  `json:"sizeBytes"`
 }
 
 type PeerProofCacheManifest struct {
