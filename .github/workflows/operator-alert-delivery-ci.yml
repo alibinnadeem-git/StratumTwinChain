@@ -26,19 +26,20 @@ jobs:
       - name: Go formatting check
         working-directory: tools/portable-validator
         run: |
-          gofmt -w peer_operator_alert_delivery.go peer_operator_alert_delivery_test.go main.go
-          git diff --exit-code -- peer_operator_alert_delivery.go peer_operator_alert_delivery_test.go main.go
+          gofmt -w peer_operator_alert_delivery*.go main.go
+          git diff --exit-code -- peer_operator_alert_delivery*.go main.go
       - name: Go vet
         working-directory: tools/portable-validator
         run: go vet ./...
       - name: Operator alert delivery tests
         working-directory: tools/portable-validator
-        run: go test -race ./... -run 'Test(ValidateOperatorAlertWebhookURL|DeliverPeerOperatorAlertWebhook|FailedWebhookDelivery|OperatorAlertDeliveryJournal|AppendOperatorAlertDeliveryReceipt|BearerTokenFile|PeerOperatorAlertByID)'
+        run: go test -race ./... -run 'Test(ValidateOperatorAlertWebhookURL|DeliverPeerOperatorAlertWebhook|FailedWebhookDelivery|OperatorAlertDeliveryJournal|AppendOperatorAlertDeliveryReceipt|BearerTokenFile|PeerOperatorAlertByID|PeerOperatorAlertDeliveryStatus|DeliveryStatusFilter)'
       - name: Alert delivery trust-boundary invariants
         run: |
           node - <<'NODE'
           const fs=require('fs');
           const delivery=fs.readFileSync('tools/portable-validator/peer_operator_alert_delivery.go','utf8');
+          const status=fs.readFileSync('tools/portable-validator/peer_operator_alert_delivery_command.go','utf8');
           const main=fs.readFileSync('tools/portable-validator/main.go','utf8');
           for (const required of [
             'STRATUM-PEER-ALERT-DELIVERY/1',
@@ -46,15 +47,19 @@ jobs:
             'SafetyStateMutation',
             'peer operator alert delivery must never carry consensus authority',
             'plaintext HTTP refused for non-loopback operator alert webhook',
-            'Get-Credential',
           ]) {
-            if (required === 'Get-Credential') continue;
             if (!delivery.includes(required)) throw new Error(`Missing alert-delivery safety invariant: ${required}`);
           }
-          for (const required of ['peer-alert-deliver-webhook','peerOperatorAlertDeliverWebhookCommand']) {
+          for (const required of [
+            'peer-alert-deliver-webhook',
+            'peerOperatorAlertDeliverWebhookCommand',
+            'peer-alert-delivery-status',
+            'peerOperatorAlertDeliveryStatusCommand',
+          ]) {
             if (!main.includes(required)) throw new Error(`Missing alert-delivery command surface: ${required}`);
           }
           if (!delivery.includes('cfg.State != candidateState || cfg.VoteAuthority')) throw new Error('Alert delivery must fail closed outside CANDIDATE/voteAuthority=false');
+          if (!status.includes('cfg.State != candidateState || cfg.VoteAuthority')) throw new Error('Alert delivery status must fail closed outside CANDIDATE/voteAuthority=false');
           if (!delivery.includes('CheckRedirect') || !delivery.includes('http.ErrUseLastResponse')) throw new Error('Alert delivery must refuse redirect-following that could leak authorization headers or bypass endpoint policy');
           if (!delivery.includes('bearer-token-file') || !delivery.includes('Authorization')) throw new Error('Alert delivery must support secret-file bearer auth rather than command-line token material');
           for (const forbidden of [
@@ -66,6 +71,10 @@ jobs:
             'applyGovernedProofBundle(',
           ]) {
             if (delivery.includes(forbidden)) throw new Error(`Alert delivery must not mutate safety/trust state through ${forbidden}`);
+            if (status.includes(forbidden)) throw new Error(`Alert delivery status must remain read-only and not call ${forbidden}`);
           }
-          console.log('One-way non-authoritative operator alert delivery invariants passed');
+          for (const forbidden of ['os.WriteFile(', 'os.Rename(', 'savePeerOperatorAlertDeliveryJournalAtomic(', 'appendPeerOperatorAlertDeliveryReceipt(']) {
+            if (status.includes(forbidden)) throw new Error(`Alert delivery status must not persist or mutate delivery state through ${forbidden}`);
+          }
+          console.log('One-way non-authoritative alert delivery and read-only delivery-status invariants passed');
           NODE
