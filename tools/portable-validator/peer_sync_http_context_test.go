@@ -30,9 +30,10 @@ func TestPostPeerEnvelopeContextHonorsPreCanceledContext(t *testing.T) {
 
 func TestPostPeerEnvelopeContextCancelsBlockedHTTPRequest(t *testing.T) {
 	requestStarted := make(chan struct{})
+	releaseServer := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		close(requestStarted)
-		<-r.Context().Done()
+		<-releaseServer
 	}))
 	defer server.Close()
 
@@ -46,16 +47,19 @@ func TestPostPeerEnvelopeContextCancelsBlockedHTTPRequest(t *testing.T) {
 	select {
 	case <-requestStarted:
 	case <-time.After(2 * time.Second):
+		close(releaseServer)
 		t.Fatal("test server did not receive peer request")
 	}
 	cancel()
 
 	select {
 	case err := <-result:
+		close(releaseServer)
 		if !errors.Is(err, context.Canceled) {
 			t.Fatalf("expected context cancellation from blocked request, got %v", err)
 		}
 	case <-time.After(2 * time.Second):
+		close(releaseServer)
 		t.Fatal("blocked peer HTTP request was not canceled promptly")
 	}
 }
