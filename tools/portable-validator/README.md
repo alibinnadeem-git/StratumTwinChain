@@ -27,9 +27,12 @@ The portable validator currently provides:
 - multi-peer finalized-head survey and conflict detection;
 - governance-aware proof-backed ancestry verification;
 - durable authenticated peer-head observations across restarts;
-- evidence journaling and local read-only peer quarantine;
+- evidence journaling, bounded unpinned peer-evidence retention, and local read-only peer quarantine;
 - operational peer reliability metadata with `consensusWeighting=false`;
+- advisory reliability ordering only among already proof-eligible sync peers;
 - continuous read-only candidate follower sync with bounded polling/backoff;
+- signal-aware follower lifecycle and in-flight peer-request cancellation;
+- durable read-only follower status/heartbeat state;
 - crash/restart consensus-safety journal verification;
 - signed package-manifest verification;
 - cross-build gates for Raspberry Pi/Linux ARM64, Linux AMD64, macOS ARM64, and Windows AMD64.
@@ -102,13 +105,19 @@ The follower:
 
 - persists authenticated head observations across process restarts;
 - excludes locally quarantined identities from sync selection;
+- requires the resolver to set `AutoAdvanceAllowed=true` before peer selection;
+- limits selection to authenticated peers already eligible through exact agreement or proof-backed ancestry;
+- uses reliability only to order that already eligible set operationally;
 - re-authenticates the selected peer before proof download;
 - requires that peer's finalized head to remain unchanged since the survey;
 - requests bounded `SYNC_PROOF` batches;
 - advances only through the existing governance-aware proof verifier;
 - retries transient/unresolved conditions with bounded backoff;
 - halts on finalized-history safety conflicts;
+- propagates SIGINT/SIGTERM cancellation into in-flight survey, ancestry, head-refresh, and governed proof HTTP requests;
 - never PROPOSEs, VERIFY-votes, COMMIT-votes, ROUND_CHANGE-votes, creates PLC/PFC votes, or activates the validator.
+
+Reliability ordering cannot add an unproven peer to a `PROVEN_LAG` candidate set, cannot make `AutoAdvanceAllowed=false` become true, and cannot choose canonical history. Persisted reliability state with `consensusWeighting=true` is rejected.
 
 Single-cycle example:
 
@@ -124,7 +133,9 @@ Single-cycle example:
 
 For continuous operation, omit `--once`. The default successful polling interval is 15 seconds and retry backoff is bounded; both can be configured with `--poll-interval` and `--max-backoff`.
 
-## Peer evidence, quarantine, and reliability
+`peer-follower-status` exposes the local trust-context-bound follower heartbeat/status without changing chain state, validator membership, or consensus authority.
+
+## Peer evidence, quarantine, reliability, and retention
 
 Authenticated peer-head observations are persisted and compared across runs. Objective self-inconsistency can produce evidence such as:
 
@@ -139,9 +150,12 @@ Operator commands include:
 ./stratum-validator-bootstrap peer-quarantine-status --dir ~/.stratum/validator
 ./stratum-validator-bootstrap peer-quarantine-release --dir ~/.stratum/validator --peer-validator-id <validator-id>
 ./stratum-validator-bootstrap peer-reliability-status --dir ~/.stratum/validator
+./stratum-validator-bootstrap peer-follower-status --dir ~/.stratum/validator
 ```
 
 Quarantine and reliability are local synchronization metadata only. They do not alter validator membership, PoVI quorum weight, governance authority, vote authority, or activation state. Peer reliability state carries an explicit `consensusWeighting=false` invariant and refuses persisted state that enables consensus weighting.
+
+Local peer-operational evidence retention is bounded to 4,096 unpinned records. Any evidence hash referenced by quarantine state remains pinned, including evidence retained after an operator release. Pinned evidence may exceed the unpinned cap; the retention path will not delete it to satisfy the cap. This mechanism does not prune trust-critical DIR/PFC history. Non-authoritative proof-cache lifecycle management remains separate work.
 
 ## Build and test
 
@@ -152,7 +166,7 @@ go vet ./...
 go build -trimpath -o stratum-validator-bootstrap .
 ```
 
-CI also cross-compiles Linux ARM64 for Raspberry Pi, Linux AMD64, macOS ARM64, and Windows AMD64. The dedicated peer-sync CI additionally guards the candidate-only follower, proof-verification, transport allow-list, and non-consensus reliability boundaries.
+CI also cross-compiles Linux ARM64 for Raspberry Pi, Linux AMD64, macOS ARM64, and Windows AMD64. The dedicated peer-sync CI additionally guards the candidate-only follower, request-context cancellation, advisory reliability-ordering boundary, proof-verification, transport allow-list, and non-consensus reliability invariants.
 
 ## Candidate initialization
 
@@ -189,6 +203,7 @@ The bootstrap and peer-sync runtime use state approximately like:
     peer-evidence.json
     peer-quarantine.json
     peer-reliability.json
+    peer-follower-status.json
   logs/
   snapshots/
 ```
@@ -262,8 +277,10 @@ The following remain incomplete and must not be represented as implemented:
 - complete peer discovery/service-discovery strategy across cloud, PC, and Raspberry Pi deployments;
 - native production transport hardening as selected for the deployment model, including certificate/key lifecycle where applicable;
 - service installation and auto-start for supported operating systems;
+- operator alert delivery/integration for safety halts and quarantine events;
+- non-authoritative proof-cache lifecycle/pruning where appropriate;
 - signed release pipeline, SBOM generation, and production installers/packages;
 - wider Byzantine, network-partition, clock-skew, storage-failure, and power-loss qualification;
 - resource benchmarking before publishing final minimum hardware claims.
 
-Until those activation gates are completed and distributed UAT passes, the portable validator remains **PARTIAL overall / candidate-only**, even though proof verification, multi-peer resolution, local peer-safety controls, operational reliability state, and the continuous read-only follower are implemented on this feature branch.
+Until those activation gates are completed and distributed UAT passes, the portable validator remains **PARTIAL overall / candidate-only**, even though proof verification, multi-peer resolution, local peer-safety controls, bounded peer-evidence retention, operational reliability state, advisory sync-peer ordering, request-cancelable continuous read-only following, and durable follower status are implemented on this feature branch.
