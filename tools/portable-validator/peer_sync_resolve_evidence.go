@@ -21,6 +21,13 @@ func persistResolverEvidence(evidencePath, quarantinePath string, cfg BootstrapC
 		_, err := updatePeerReliability(reliabilityPath, cfg, nil, result.AncestryResults, persisted, now)
 		return err
 	}
+	finalizePersistence := func() error {
+		if err := persistReliability(); err != nil {
+			return err
+		}
+		_, err := enforcePeerEvidenceRetention(evidencePath, quarantinePath, cfg, defaultMaxUnpinnedPeerEvidence)
+		return err
+	}
 
 	if result.Classification == "FINALIZED_HEAD_CONFLICT" {
 		for _, observation := range result.Survey.Observations {
@@ -32,7 +39,7 @@ func persistResolverEvidence(evidencePath, quarantinePath string, cfg BootstrapC
 				return persisted, err
 			}
 		}
-		if err := persistReliability(); err != nil {
+		if err := finalizePersistence(); err != nil {
 			return persisted, err
 		}
 		return persisted, nil
@@ -80,7 +87,7 @@ func persistResolverEvidence(evidencePath, quarantinePath string, cfg BootstrapC
 			}
 		}
 	}
-	if err := persistReliability(); err != nil {
+	if err := finalizePersistence(); err != nil {
 		return persisted, err
 	}
 	return persisted, nil
