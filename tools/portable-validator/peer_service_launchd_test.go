@@ -99,7 +99,7 @@ func TestLaunchdXMLStringEscapesSpecialCharacters(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != `a&amp;b&lt;c&gt;d"e` {
+	if got != `a&amp;b&lt;c&gt;d&#34;e` {
 		t.Fatalf("unexpected launchd XML escaping: %s", got)
 	}
 }
