@@ -5,6 +5,12 @@ import (
 	"time"
 )
 
+func TestFollowerProfileIsReadOnlyCandidateProfile(t *testing.T) {
+	if peerFollowerProfile != "STRATUM-PEER-FOLLOWER/1" {
+		t.Fatalf("unexpected follower profile %q", peerFollowerProfile)
+	}
+}
+
 func TestFollowerBackoffIsBounded(t *testing.T) {
 	base := 5 * time.Second
 	max := 40 * time.Second
