@@ -171,7 +171,11 @@ func runPeerFollowerCycleContext(ctx context.Context, cfg PeerFollowerConfig) (P
 	if !resolution.AutoAdvanceAllowed {
 		return result, fmt.Errorf("follower advancement blocked: %s", resolution.Classification)
 	}
-	selected, err := selectFollowerPeer(resolution)
+	reliabilityState, err := loadPeerReliabilityState(peerReliabilityPathFromStatePath(cfg.PeerHeadStatePath), session.cfg)
+	if err != nil {
+		return result, fmt.Errorf("load advisory peer reliability: %w", err)
+	}
+	selected, err := selectFollowerPeerWithReliability(resolution, reliabilityState)
 	if err != nil {
 		return result, err
 	}
