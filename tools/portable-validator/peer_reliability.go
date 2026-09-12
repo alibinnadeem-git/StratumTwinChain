@@ -13,13 +13,13 @@ import (
 const peerReliabilityProfile = "STRATUM-PEER-RELIABILITY/1"
 
 type PeerReliabilityEntry struct {
-	PeerValidatorID             string `json:"peerValidatorId"`
+	PeerValidatorID               string `json:"peerValidatorId"`
 	AuthenticatedHeadObservations uint64 `json:"authenticatedHeadObservations"`
-	ProvenAncestryCount          uint64 `json:"provenAncestryCount"`
-	AncestryUnverifiedCount      uint64 `json:"ancestryUnverifiedCount"`
-	ObjectiveSafetyFaultCount    uint64 `json:"objectiveSafetyFaultCount"`
-	LastObservedAt               string `json:"lastObservedAt,omitempty"`
-	LastOutcome                  string `json:"lastOutcome,omitempty"`
+	ProvenAncestryCount           uint64 `json:"provenAncestryCount"`
+	AncestryUnverifiedCount       uint64 `json:"ancestryUnverifiedCount"`
+	ObjectiveSafetyFaultCount     uint64 `json:"objectiveSafetyFaultCount"`
+	LastObservedAt                string `json:"lastObservedAt,omitempty"`
+	LastOutcome                   string `json:"lastOutcome,omitempty"`
 }
 
 type PeerReliabilityState struct {

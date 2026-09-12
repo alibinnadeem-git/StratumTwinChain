@@ -218,11 +218,11 @@ func peerMultiSurveyCommand(args []string) error {
 	}
 	survey := classifyPeerHeads(observations)
 	out, _ := json.MarshalIndent(map[string]any{
-		"survey":                  failuresAwareSurvey(survey, failures),
+		"survey":                 failuresAwareSurvey(survey, failures),
 		"crossRunSafetyEvidence": crossRunEvidence,
-		"state":                   session.cfg.State,
-		"voteAuthority":           false,
-		"consensusParticipation":  false,
+		"state":                  session.cfg.State,
+		"voteAuthority":          false,
+		"consensusParticipation": false,
 	}, "", "  ")
 	fmt.Println(string(out))
 	if survey.Classification == "FINALIZED_HEAD_CONFLICT" {

@@ -15,12 +15,12 @@ import (
 const peerResolveProfile = "STRATUM-PEER-RESOLVE/1"
 
 type PeerAncestryPeerResult struct {
-	PeerValidatorID  string `json:"peerValidatorId"`
-	TargetURL        string `json:"targetUrl"`
+	PeerValidatorID string `json:"peerValidatorId"`
+	TargetURL       string `json:"targetUrl"`
 	Classification  string `json:"classification"`
 	VerifiedHeight  int64  `json:"verifiedHeight"`
 	VerifiedDIRHash string `json:"verifiedDIRHash"`
-	Reason           string `json:"reason"`
+	Reason          string `json:"reason"`
 }
 
 type PeerResolveResult struct {

@@ -42,9 +42,9 @@ func TestResolverProofHeadMismatchQuarantinesOnlySelfInconsistentPeer(t *testing
 	surveyed := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	verified := "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 	result := PeerResolveResult{
-		Classification: "HISTORICAL_DIVERGENCE",
+		Classification:   "HISTORICAL_DIVERGENCE",
 		HighestHeadPeers: []PeerHeadObservation{{PeerValidatorID: "validator-b", Head: PeerSyncHeadResponse{LatestHeight: 42, LatestDIRHash: surveyed}}},
-		AncestryResults: []PeerAncestryPeerResult{{PeerValidatorID: "validator-b", Classification: "HISTORICAL_DIVERGENCE", VerifiedHeight: 42, VerifiedDIRHash: verified, Reason: "proof-verified terminal head does not match the surveyed higher peer head"}},
+		AncestryResults:  []PeerAncestryPeerResult{{PeerValidatorID: "validator-b", Classification: "HISTORICAL_DIVERGENCE", VerifiedHeight: 42, VerifiedDIRHash: verified, Reason: "proof-verified terminal head does not match the surveyed higher peer head"}},
 	}
 	entries, err := persistResolverEvidence(evidencePath, quarantinePath, cfg, result, time.Unix(100, 0).UTC())
 	if err != nil {

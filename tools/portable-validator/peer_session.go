@@ -205,21 +205,21 @@ func signReadOnlyPeerEnvelope(cfg BootstrapConfig, keyID string, priv ed25519.Pr
 	}
 	now = now.UTC()
 	e := PeerEnvelope{
-		ProfileVersion:     peerTransportProfile,
-		Domain:             peerTransportEnvelopeDomain,
-		ChainID:            cfg.ChainID,
-		NetworkName:        cfg.NetworkName,
-		GenesisDIRHash:     strings.ToLower(cfg.GenesisDIRHash),
-		ProtocolVersion:    cfg.ProtocolVersion,
-		SenderValidatorID:  cfg.ValidatorID,
-		SenderKeyID:        keyID,
-		Sequence:           sequence,
-		Nonce:              nonce,
-		IssuedAt:           now.Format(time.RFC3339Nano),
-		ExpiresAt:          now.Add(ttl).Format(time.RFC3339Nano),
-		MessageType:        messageType,
-		Payload:            payloadBytes,
-		PayloadHash:        payloadHash,
+		ProfileVersion:    peerTransportProfile,
+		Domain:            peerTransportEnvelopeDomain,
+		ChainID:           cfg.ChainID,
+		NetworkName:       cfg.NetworkName,
+		GenesisDIRHash:    strings.ToLower(cfg.GenesisDIRHash),
+		ProtocolVersion:   cfg.ProtocolVersion,
+		SenderValidatorID: cfg.ValidatorID,
+		SenderKeyID:       keyID,
+		Sequence:          sequence,
+		Nonce:             nonce,
+		IssuedAt:          now.Format(time.RFC3339Nano),
+		ExpiresAt:         now.Add(ttl).Format(time.RFC3339Nano),
+		MessageType:       messageType,
+		Payload:           payloadBytes,
+		PayloadHash:       payloadHash,
 	}
 	msgHash, err := peerEnvelopeMessageHash(e)
 	if err != nil {

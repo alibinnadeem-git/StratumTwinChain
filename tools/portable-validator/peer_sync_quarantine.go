@@ -17,18 +17,18 @@ const peerQuarantineProfile = "STRATUM-PEER-QUARANTINE/1"
 const peerEvidenceProfile = "STRATUM-PEER-EVIDENCE/1"
 
 type PeerEvidence struct {
-	ProfileVersion   string `json:"profileVersion"`
-	ChainID          string `json:"chainId"`
-	GenesisDIRHash   string `json:"GenesisDIRHash"`
-	ProtocolVersion  string `json:"protocolVersion"`
-	PeerValidatorID  string `json:"peerValidatorId"`
-	EvidenceType     string `json:"evidenceType"`
-	Height           int64  `json:"height,omitempty"`
-	ExpectedDIRHash  string `json:"expectedDIRHash,omitempty"`
-	ObservedDIRHash  string `json:"observedDIRHash,omitempty"`
-	Detail           string `json:"detail"`
-	ObservedAt       string `json:"observedAt"`
-	EvidenceHash     string `json:"evidenceHash"`
+	ProfileVersion  string `json:"profileVersion"`
+	ChainID         string `json:"chainId"`
+	GenesisDIRHash  string `json:"GenesisDIRHash"`
+	ProtocolVersion string `json:"protocolVersion"`
+	PeerValidatorID string `json:"peerValidatorId"`
+	EvidenceType    string `json:"evidenceType"`
+	Height          int64  `json:"height,omitempty"`
+	ExpectedDIRHash string `json:"expectedDIRHash,omitempty"`
+	ObservedDIRHash string `json:"observedDIRHash,omitempty"`
+	Detail          string `json:"detail"`
+	ObservedAt      string `json:"observedAt"`
+	EvidenceHash    string `json:"evidenceHash"`
 }
 
 type PeerQuarantineEntry struct {
@@ -41,11 +41,11 @@ type PeerQuarantineEntry struct {
 }
 
 type PeerQuarantineState struct {
-	ProfileVersion string                         `json:"profileVersion"`
-	ChainID        string                         `json:"chainId"`
-	GenesisDIRHash string                         `json:"GenesisDIRHash"`
-	ProtocolVersion string                        `json:"protocolVersion"`
-	Entries        map[string]PeerQuarantineEntry `json:"entries"`
+	ProfileVersion  string                         `json:"profileVersion"`
+	ChainID         string                         `json:"chainId"`
+	GenesisDIRHash  string                         `json:"GenesisDIRHash"`
+	ProtocolVersion string                         `json:"protocolVersion"`
+	Entries         map[string]PeerQuarantineEntry `json:"entries"`
 }
 
 type peerEvidenceHashPayload struct {
@@ -79,17 +79,17 @@ func newPeerEvidence(cfg BootstrapConfig, peerValidatorID, evidenceType string, 
 	}
 	observedAt := now.UTC().Format(time.RFC3339Nano)
 	payload := peerEvidenceHashPayload{
-		ProfileVersion: peerEvidenceProfile,
-		ChainID: cfg.ChainID,
-		GenesisDIRHash: strings.ToLower(cfg.GenesisDIRHash),
+		ProfileVersion:  peerEvidenceProfile,
+		ChainID:         cfg.ChainID,
+		GenesisDIRHash:  strings.ToLower(cfg.GenesisDIRHash),
 		ProtocolVersion: cfg.ProtocolVersion,
 		PeerValidatorID: peerValidatorID,
-		EvidenceType: evidenceType,
-		Height: height,
+		EvidenceType:    evidenceType,
+		Height:          height,
 		ExpectedDIRHash: strings.ToLower(expectedDIRHash),
 		ObservedDIRHash: strings.ToLower(observedDIRHash),
-		Detail: strings.TrimSpace(detail),
-		ObservedAt: observedAt,
+		Detail:          strings.TrimSpace(detail),
+		ObservedAt:      observedAt,
 	}
 	b, err := json.Marshal(payload)
 	if err != nil {
@@ -97,28 +97,28 @@ func newPeerEvidence(cfg BootstrapConfig, peerValidatorID, evidenceType string, 
 	}
 	digest := sha256.Sum256(b)
 	return PeerEvidence{
-		ProfileVersion: payload.ProfileVersion,
-		ChainID: payload.ChainID,
-		GenesisDIRHash: payload.GenesisDIRHash,
+		ProfileVersion:  payload.ProfileVersion,
+		ChainID:         payload.ChainID,
+		GenesisDIRHash:  payload.GenesisDIRHash,
 		ProtocolVersion: payload.ProtocolVersion,
 		PeerValidatorID: payload.PeerValidatorID,
-		EvidenceType: payload.EvidenceType,
-		Height: payload.Height,
+		EvidenceType:    payload.EvidenceType,
+		Height:          payload.Height,
 		ExpectedDIRHash: payload.ExpectedDIRHash,
 		ObservedDIRHash: payload.ObservedDIRHash,
-		Detail: payload.Detail,
-		ObservedAt: payload.ObservedAt,
-		EvidenceHash: hex.EncodeToString(digest[:]),
+		Detail:          payload.Detail,
+		ObservedAt:      payload.ObservedAt,
+		EvidenceHash:    hex.EncodeToString(digest[:]),
 	}, nil
 }
 
 func defaultPeerQuarantineState(cfg BootstrapConfig) PeerQuarantineState {
 	return PeerQuarantineState{
-		ProfileVersion: peerQuarantineProfile,
-		ChainID: cfg.ChainID,
-		GenesisDIRHash: strings.ToLower(cfg.GenesisDIRHash),
+		ProfileVersion:  peerQuarantineProfile,
+		ChainID:         cfg.ChainID,
+		GenesisDIRHash:  strings.ToLower(cfg.GenesisDIRHash),
 		ProtocolVersion: cfg.ProtocolVersion,
-		Entries: map[string]PeerQuarantineEntry{},
+		Entries:         map[string]PeerQuarantineEntry{},
 	}
 }
 
@@ -180,9 +180,9 @@ func quarantinePeer(state *PeerQuarantineState, evidence PeerEvidence) error {
 	if !exists {
 		entry = PeerQuarantineEntry{
 			PeerValidatorID: evidence.PeerValidatorID,
-			Status: "QUARANTINED",
-			Reason: evidence.EvidenceType,
-			FirstSeenAt: evidence.ObservedAt,
+			Status:          "QUARANTINED",
+			Reason:          evidence.EvidenceType,
+			FirstSeenAt:     evidence.ObservedAt,
 		}
 	}
 	entry.Status = "QUARANTINED"
