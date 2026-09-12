@@ -1,0 +1,63 @@
+name: STRATUM Windows Candidate Follower Task CI
+on:
+  pull_request:
+    paths:
+      - 'tools/portable-validator/peer_service_windows_task*.go'
+      - 'tools/portable-validator/main.go'
+      - '.github/workflows/windows-follower-task-ci.yml'
+  push:
+    branches-ignore: [main]
+    paths:
+      - 'tools/portable-validator/peer_service_windows_task*.go'
+      - 'tools/portable-validator/main.go'
+      - '.github/workflows/windows-follower-task-ci.yml'
+
+jobs:
+  windows-task-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.24.x'
+          cache-dependency-path: tools/portable-validator/go.mod
+      - name: Go formatting check
+        working-directory: tools/portable-validator
+        run: |
+          gofmt -w peer_service_windows_task.go peer_service_windows_task_test.go main.go
+          git diff --exit-code -- peer_service_windows_task.go peer_service_windows_task_test.go main.go
+      - name: Go vet
+        working-directory: tools/portable-validator
+        run: go vet ./...
+      - name: Windows package tests
+        working-directory: tools/portable-validator
+        run: go test -race ./... -run 'Test(WindowsAbsolutePathRecognition|QuoteWindowsCommandArg|RenderPeerFollowerWindowsTaskScripts|WritePeerFollowerWindowsTaskPackage|PowerShellSingleQuoted)'
+      - name: Cross-compile Windows AMD64
+        working-directory: tools/portable-validator
+        run: CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -o /tmp/stratum-validator-bootstrap.exe .
+      - name: Candidate-only startup-task invariants
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const win = fs.readFileSync('tools/portable-validator/peer_service_windows_task.go', 'utf8');
+          const main = fs.readFileSync('tools/portable-validator/main.go', 'utf8');
+          for (const required of [
+            'STRATUM-PEER-FOLLOWER-WINDOWS-TASK/1',
+            'peer-sync-follow',
+            'candidateState',
+            'VoteAuthority',
+            'ConsensusParticipation',
+            'New-ScheduledTaskTrigger -AtStartup',
+            'Register-ScheduledTask',
+            '-RunLevel Limited',
+            'Get-Credential',
+            'Credential user must match configured service user',
+            'not a Windows SCM service'
+          ]) if (!win.includes(required)) throw new Error(`Missing Windows startup-task invariant: ${required}`);
+          if (!win.includes('cfg.State != candidateState || cfg.VoteAuthority')) throw new Error('Windows startup-task package must fail closed outside CANDIDATE/voteAuthority=false');
+          if (!main.includes('peer-service-package-windows-task')) throw new Error('Windows startup-task package command must remain registered');
+          for (const forbidden of ['sc.exe create', 'New-Service', 'peer-sync-governed', 'serve-readonly-peer-sync-governed', 'force-active']) {
+            if (win.includes(forbidden)) throw new Error(`Windows startup-task package must not expose fake-service/consensus surface: ${forbidden}`);
+          }
+          console.log('Windows Task Scheduler CANDIDATE follower packaging invariants passed');
+          NODE
