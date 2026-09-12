@@ -1,6 +1,6 @@
 # STRATUM Proof-Verifying Peer Sync Implementation Profile
 
-Status: **PARTIAL overall — read-only proof-verifying catch-up, governance-aware ancestry, peer safety controls, bounded evidence retention, operational reliability metadata, advisory peer ordering, continuous candidate follower, request-level cancellation, durable follower status, local operator alert journaling, append-only alert acknowledgements, bounded non-authoritative verified-proof caching, and reviewable candidate-only auto-start packaging for Linux/Raspberry Pi, macOS, and Windows are implemented; live PoVI participation remains intentionally unimplemented**
+Status: **PARTIAL overall — read-only proof-verifying catch-up, governance-aware ancestry, peer safety controls, bounded evidence retention, operational reliability metadata, advisory peer ordering, continuous candidate follower, request-level cancellation, durable follower status, local operator alert journaling, append-only alert acknowledgements, explicit one-way webhook alert delivery with bounded delivery receipts, bounded non-authoritative verified-proof caching, and reviewable candidate-only auto-start packaging for Linux/Raspberry Pi, macOS, and Windows are implemented; live PoVI participation remains intentionally unimplemented**
 
 This profile records the current engineering implementation for read-only STRATUM Chain catch-up. The STRATUM Redbook remains the architectural authority. This profile does not grant consensus authority and does not redefine PoVI finality, validator governance, or activation rules.
 
@@ -16,9 +16,10 @@ The implementation keeps these trust domains separate:
 6. **Operational peer reliability** — records sync-service observations only; it is never consensus weighting.
 7. **Follower runtime status** — records local operational lifecycle/heartbeat state only; it has no consensus authority.
 8. **Local operator alerts and acknowledgements** — surface already-derived safety events and record operator review metadata; they carry no consensus authority and cannot release quarantine or resume advancement.
-9. **Verified proof cache** — stores only redundant copies of proof bundles after successful governed verification; it cannot select canonical history or carry consensus authority.
-10. **Service lifecycle packaging** — emits reviewable auto-start artifacts only for the already non-voting follower; package generation cannot activate a validator or grant vote authority.
-11. **Validator activation** — remains a separate governed process; synchronization never grants vote authority.
+9. **Operator alert delivery** — transmits an already-existing local alert outward and records non-authoritative delivery receipts; webhook responses cannot mutate local safety, trust, canonical history, governance, or consensus state.
+10. **Verified proof cache** — stores only redundant copies of proof bundles after successful governed verification; it cannot select canonical history or carry consensus authority.
+11. **Service lifecycle packaging** — emits reviewable auto-start artifacts only for the already non-voting follower; package generation cannot activate a validator or grant vote authority.
+12. **Validator activation** — remains a separate governed process; synchronization never grants vote authority.
 
 A downloaded peer proof may provide evidence, but it cannot nominate its own trust root.
 
@@ -164,7 +165,7 @@ Follower status is bound to chain ID, Genesis DIR hash, and protocol version. A 
 
 Operators may inspect the current local follower state with `peer-follower-status`. This command is read-only and cannot alter PoVI membership, governance, finality, validator activation, or consensus weight.
 
-## Local operator alert journal and acknowledgements
+## Local operator alert journal, acknowledgements, and external delivery
 
 `STRATUM-PEER-OPERATOR-ALERTS/1` persists trust-context-bound local alerts in `peer-operator-alerts.json`.
 
@@ -179,7 +180,23 @@ Alert IDs are deterministic SHA-256 identifiers bound to chain/Genesis/protocol 
 
 `peer-alert-ack` appends a separate `PeerOperatorAlertAcknowledgement` record bound to an existing alert ID, operator identity, note, and acknowledgement timestamp. The original alert remains present and unchanged. Acknowledgement is idempotent for an already-acknowledged alert and cannot release a quarantined peer, clear a follower safety halt, resume automatic advancement, change reliability scoring, or affect consensus state. Quarantine release remains a separate explicit operator action.
 
-External email, webhook, paging, or third-party alert delivery is not implemented by this profile.
+`STRATUM-PEER-ALERT-DELIVERY/1` implements explicit one-way webhook delivery of an already-existing local operator alert through `peer-alert-deliver-webhook`.
+
+Delivery preserves these boundaries:
+
+- the validator must still be `CANDIDATE` with `voteAuthority=false`;
+- remote webhook endpoints must use HTTPS; plaintext HTTP is allowed only for loopback testing;
+- embedded URL credentials are rejected;
+- optional bearer authentication is read from an owner-only token file rather than accepted as command-line secret material;
+- HTTP redirects are not followed;
+- the response body is bounded and discarded rather than interpreted;
+- webhook responses cannot acknowledge alerts, release quarantine, clear `SAFETY_HALT`, resume automatic advancement, select canonical history, mutate trusted heads, alter validator governance, or affect PoVI state.
+
+Delivery attempts are recorded separately in the trust-context-bound `peer-operator-alert-deliveries.json` journal. Every receipt carries `consensusAuthority=false` and `safetyStateMutation=false`. The read-only `peer-alert-delivery-status` command reports attempt history and may filter by exact alert ID without replaying or mutating an alert.
+
+Delivery receipt retention is bounded to **4,096 receipts**. `peer-alert-delivery-prune` removes only the oldest non-authoritative delivery receipts. It does not prune or alter alerts, acknowledgement records, quarantine/evidence, follower safety state, trusted heads, snapshots, DIR/PFC history, validator governance, or proof-cache material. Malformed receipt timestamps fail closed rather than being silently discarded.
+
+Automatic follower-triggered webhook delivery, email, SMS/paging, and third-party incident-management integrations remain unimplemented optional notification-layer work. They are not consensus, governance, or safety authority.
 
 ## Bounded non-authoritative verified-proof cache
 
@@ -268,6 +285,13 @@ Synchronization can make a candidate cryptographically informed about finalized 
 - read-only `peer-alert-status` command;
 - append-only/idempotent `peer-alert-ack` operator acknowledgement workflow;
 - permanent tests/CI guard that alert acknowledgement does not release quarantine or gain consensus authority;
+- explicit one-way `STRATUM-PEER-ALERT-DELIVERY/1` webhook delivery of an existing local alert;
+- remote HTTPS requirement with loopback-only HTTP testing exception;
+- owner-only bearer-token-file authentication and redirect refusal;
+- non-authoritative delivery receipt journal with webhook response bodies ignored;
+- read-only `peer-alert-delivery-status` command;
+- bounded delivery receipt retention at 4,096 records through `peer-alert-delivery-prune`;
+- permanent alert-delivery CI guards preventing acknowledgement, quarantine release, trusted-head changes, governed-proof application, or other safety/consensus mutation;
 - trust-context-bound `STRATUM-PEER-PROOF-CACHE/1` manifest;
 - post-verification-only caching of governed proof bundles;
 - bounded retention at 64 bundles / 64 MiB with deterministic oldest-first pruning;
@@ -285,12 +309,12 @@ Synchronization can make a candidate cryptographically informed about finalized 
 
 ### Partial
 
-- external operator alert delivery/integration for safety halts and quarantines is not yet implemented;
+- automatic follower-triggered external notification delivery, email/SMS/paging, and third-party incident-management integration are not implemented;
 - native Windows SCM service integration is not implemented; Windows auto-start currently uses reviewable Task Scheduler packaging instead;
 - wider Byzantine/network/storage/power-loss qualification remains incomplete.
 
 ### Planned
 
-- optional external alert integrations for local safety-halt/quarantine alerts;
+- optional automatic notification/email/SMS/paging/incident-management integrations that remain strictly non-authoritative;
 - optional native Windows SCM service wrapper/integration if an operational requirement justifies it;
 - separately governed validator activation and live PoVI participation.
