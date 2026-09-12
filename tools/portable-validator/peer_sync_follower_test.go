@@ -51,8 +51,8 @@ func TestSelectFollowerPeerUsesExactAgreementDeterministically(t *testing.T) {
 		Classification:     "EXACT_HEAD_AGREEMENT",
 		AutoAdvanceAllowed: true,
 		Survey: PeerHeadSurvey{Observations: []PeerHeadObservation{
-			{PeerValidatorID: "validator-c", TargetURL: "https://c.example", Head: multiHead(42, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")},
-			{PeerValidatorID: "validator-a", TargetURL: "https://a.example", Head: multiHead(42, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")},
+			{PeerValidatorID: "validator-c", TargetURL: "https://c.example", Head: multiHead("validator-c", 42, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")},
+			{PeerValidatorID: "validator-a", TargetURL: "https://a.example", Head: multiHead("validator-a", 42, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")},
 		}},
 	}
 	selected, err := selectFollowerPeer(result)
@@ -65,9 +65,9 @@ func TestSelectFollowerPeerUsesExactAgreementDeterministically(t *testing.T) {
 }
 
 func TestSelectFollowerPeerForProvenLagOnlyUsesProvenHighestPeer(t *testing.T) {
-	low := PeerHeadObservation{PeerValidatorID: "validator-a", TargetURL: "https://a.example", Head: multiHead(41, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")}
-	highB := PeerHeadObservation{PeerValidatorID: "validator-b", TargetURL: "https://b.example", Head: multiHead(42, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")}
-	highC := PeerHeadObservation{PeerValidatorID: "validator-c", TargetURL: "https://c.example", Head: multiHead(42, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")}
+	low := PeerHeadObservation{PeerValidatorID: "validator-a", TargetURL: "https://a.example", Head: multiHead("validator-a", 41, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")}
+	highB := PeerHeadObservation{PeerValidatorID: "validator-b", TargetURL: "https://b.example", Head: multiHead("validator-b", 42, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")}
+	highC := PeerHeadObservation{PeerValidatorID: "validator-c", TargetURL: "https://c.example", Head: multiHead("validator-c", 42, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")}
 	result := PeerResolveResult{
 		Classification:     "PROVEN_LAG",
 		AutoAdvanceAllowed: true,
