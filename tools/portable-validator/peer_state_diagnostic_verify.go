@@ -15,14 +15,16 @@ import (
 const peerStateDiagnosticVerifyProfile = "STRATUM-PEER-STATE-DIAGNOSTIC-VERIFY/1"
 
 type PeerStateDiagnosticVerification struct {
-	ProfileVersion          string `json:"profileVersion"`
-	BundleProfileVersion    string `json:"bundleProfileVersion"`
-	ChainID                 string `json:"chainId"`
-	ValidatorID             string `json:"validatorId"`
-	IntegrityVerified       bool   `json:"integrityVerified"`
-	AuthenticityEstablished bool   `json:"authenticityEstablished"`
-	ConsensusAuthority      bool   `json:"consensusAuthority"`
-	FileCount               int    `json:"fileCount"`
+	ProfileVersion           string `json:"profileVersion"`
+	BundleProfileVersion     string `json:"bundleProfileVersion"`
+	ChainID                  string `json:"chainId"`
+	ValidatorID              string `json:"validatorId"`
+	ConfigFingerprintSHA256  string `json:"configFingerprintSha256"`
+	TransportPublicKeyHash   string `json:"transportPublicKeyHash,omitempty"`
+	IntegrityVerified        bool   `json:"integrityVerified"`
+	AuthenticityEstablished  bool   `json:"authenticityEstablished"`
+	ConsensusAuthority       bool   `json:"consensusAuthority"`
+	FileCount                int    `json:"fileCount"`
 }
 
 func diagnosticPathHasForbiddenSegment(path string) bool {
@@ -45,6 +47,12 @@ func verifyPeerStateDiagnosticBundle(bundleDir string) (PeerStateDiagnosticVerif
 	}
 	if manifest.ProfileVersion != peerStateDiagnosticExportProfile {
 		return PeerStateDiagnosticVerification{}, errors.New("unsupported diagnostic export profile")
+	}
+	if !isSHA256(manifest.ConfigFingerprintSHA256) {
+		return PeerStateDiagnosticVerification{}, errors.New("diagnostic config fingerprint must be a SHA-256 digest")
+	}
+	if manifest.TransportPublicKeyHash != "" && !isSHA256(manifest.TransportPublicKeyHash) {
+		return PeerStateDiagnosticVerification{}, errors.New("diagnostic transport public-key hash must be empty or a SHA-256 digest")
 	}
 	if manifest.ConsensusAuthority || manifest.ConsensusParticipation || manifest.VoteAuthority || manifest.SourceMutation || manifest.PrivateKeysIncluded {
 		return PeerStateDiagnosticVerification{}, errors.New("diagnostic manifest violates non-authority/private-key boundary")
@@ -136,6 +144,8 @@ func verifyPeerStateDiagnosticBundle(bundleDir string) (PeerStateDiagnosticVerif
 		BundleProfileVersion:    manifest.ProfileVersion,
 		ChainID:                 manifest.ChainID,
 		ValidatorID:             manifest.ValidatorID,
+		ConfigFingerprintSHA256: strings.ToLower(manifest.ConfigFingerprintSHA256),
+		TransportPublicKeyHash:  strings.ToLower(manifest.TransportPublicKeyHash),
 		IntegrityVerified:       true,
 		AuthenticityEstablished: false,
 		ConsensusAuthority:      false,
