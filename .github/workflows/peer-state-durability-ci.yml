@@ -5,6 +5,7 @@ on:
       - 'tools/portable-validator/atomic_persistence.go'
       - 'tools/portable-validator/peer_sync.go'
       - 'tools/portable-validator/peer_session.go'
+      - 'tools/portable-validator/peer_state_corruption_test.go'
       - 'tools/portable-validator/peer_sync_evidence_journal.go'
       - 'tools/portable-validator/peer_head_state.go'
       - 'tools/portable-validator/peer_sync_follower_status.go'
@@ -18,6 +19,7 @@ on:
       - 'tools/portable-validator/atomic_persistence.go'
       - 'tools/portable-validator/peer_sync.go'
       - 'tools/portable-validator/peer_session.go'
+      - 'tools/portable-validator/peer_state_corruption_test.go'
       - 'tools/portable-validator/peer_sync_evidence_journal.go'
       - 'tools/portable-validator/peer_head_state.go'
       - 'tools/portable-validator/peer_sync_follower_status.go'
@@ -38,14 +40,14 @@ jobs:
       - name: Go formatting check
         working-directory: tools/portable-validator
         run: |
-          gofmt -w atomic_persistence.go peer_sync.go peer_session.go peer_sync_evidence_journal.go peer_head_state.go peer_sync_follower_status.go peer_sync_quarantine.go peer_reliability.go peer_proof_cache.go
-          git diff --exit-code -- atomic_persistence.go peer_sync.go peer_session.go peer_sync_evidence_journal.go peer_head_state.go peer_sync_follower_status.go peer_sync_quarantine.go peer_reliability.go peer_proof_cache.go
+          gofmt -w atomic_persistence.go peer_sync.go peer_session.go peer_state_corruption_test.go peer_sync_evidence_journal.go peer_head_state.go peer_sync_follower_status.go peer_sync_quarantine.go peer_reliability.go peer_proof_cache.go
+          git diff --exit-code -- atomic_persistence.go peer_sync.go peer_session.go peer_state_corruption_test.go peer_sync_evidence_journal.go peer_head_state.go peer_sync_follower_status.go peer_sync_quarantine.go peer_reliability.go peer_proof_cache.go
       - name: Go vet
         working-directory: tools/portable-validator
         run: go vet ./...
       - name: Peer state race tests
         working-directory: tools/portable-validator
-        run: go test -race ./... -run 'Test(PeerSync|PeerEvidenceJournal|PeerHeadState|RecordAuthenticatedPeerHead|PeerFollowerStatus|PeerQuarantine|RecordPeerSafetyFailure|PeerReliability|ProofCache)'
+        run: go test -race ./... -run 'Test(PeerSync|PeerSession|PeerEvidenceJournal|PeerHeadState|RecordAuthenticatedPeerHead|PeerFollowerStatus|PeerQuarantine|RecordPeerSafetyFailure|PeerReliability|ProofCache)'
       - name: Crash-durability and non-authority invariants
         run: |
           node - <<'NODE'
@@ -83,6 +85,7 @@ jobs:
           }
           const sync=fs.readFileSync('tools/portable-validator/peer_sync.go','utf8');
           const session=fs.readFileSync('tools/portable-validator/peer_session.go','utf8');
+          const corruptionTests=fs.readFileSync('tools/portable-validator/peer_state_corruption_test.go','utf8');
           const head=fs.readFileSync('tools/portable-validator/peer_head_state.go','utf8');
           const evidence=fs.readFileSync('tools/portable-validator/peer_sync_evidence_journal.go','utf8');
           const follower=fs.readFileSync('tools/portable-validator/peer_sync_follower_status.go','utf8');
@@ -94,6 +97,9 @@ jobs:
             if (!session.includes(invariant)) throw new Error(`Peer session/replay durability boundary missing invariant: ${invariant}`);
           }
           if (!session.includes('syncParentDirectoryAfterRename(path)')) throw new Error('Peer session/replay state must sync its parent directory after rename');
+          for (const required of ['TestPeerSessionStateCorruptionFailsClosed','TestPeerSessionReplayTrustContextCorruptionFailsClosed','TestPeerSyncTrustedHeadCorruptionFailsClosed','TestPeerSyncTrustedHeadInvalidRecordFailsClosed']) {
+            if (!corruptionTests.includes(required)) throw new Error(`Missing fail-closed corruption regression: ${required}`);
+          }
           if (!head.includes('detectPeerHeadEquivocation') || !head.includes('appendPeerEvidence') || !head.includes('savePeerQuarantineStateAtomic')) throw new Error('Cross-run head state must preserve equivocation evidence/quarantine path');
           if (!evidence.includes('peer evidence does not match local trust context')) throw new Error('Evidence journal must remain trust-context bound');
           if (!follower.includes('follower status must remain non-voting and non-participating')) throw new Error('Follower status must remain non-voting and non-participating');
@@ -106,5 +112,5 @@ jobs:
           if (!cache.includes('syncParentDirectoryAfterRename(path)')) throw new Error('Proof cache atomic writer must sync its parent directory after rename');
           if (!cache.includes('peer proof cache must never carry consensus authority')) throw new Error('Proof cache must reject consensus authority');
           if (!cache.includes('peer proof cache must never select canonical history')) throw new Error('Proof cache must reject canonical-history selection');
-          console.log('Trusted-head, peer session/replay, and local peer state crash durability, POSIX parent-directory sync, and non-authority invariants passed');
+          console.log('Trusted-head, peer session/replay, fail-closed corruption, and local peer state durability/non-authority invariants passed');
           NODE
