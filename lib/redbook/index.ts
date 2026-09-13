@@ -14,6 +14,7 @@ export * from './schema/consensus-peer';
 export * from './schema/activation-readiness';
 export * from './schema/validator-governance';
 export * from './validator-governance';
+export * from './snapshot-trust';
 export * from './finality-proof';
 export * from './peer-transport-trust';
 export * from './registry/events';
