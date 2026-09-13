@@ -1,0 +1,73 @@
+name: STRATUM Peer State Durability CI
+on:
+  pull_request:
+    paths:
+      - 'tools/portable-validator/peer_sync_evidence_journal.go'
+      - 'tools/portable-validator/peer_head_state.go'
+      - 'tools/portable-validator/peer_sync_follower_status.go'
+      - 'tools/portable-validator/peer_sync_quarantine.go'
+      - '.github/workflows/peer-state-durability-ci.yml'
+  push:
+    branches-ignore: [main]
+    paths:
+      - 'tools/portable-validator/peer_sync_evidence_journal.go'
+      - 'tools/portable-validator/peer_head_state.go'
+      - 'tools/portable-validator/peer_sync_follower_status.go'
+      - 'tools/portable-validator/peer_sync_quarantine.go'
+      - '.github/workflows/peer-state-durability-ci.yml'
+
+jobs:
+  peer-state-durability:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.24.x'
+          cache-dependency-path: tools/portable-validator/go.mod
+      - name: Go formatting check
+        working-directory: tools/portable-validator
+        run: |
+          gofmt -w peer_sync_evidence_journal.go peer_head_state.go peer_sync_follower_status.go peer_sync_quarantine.go
+          git diff --exit-code -- peer_sync_evidence_journal.go peer_head_state.go peer_sync_follower_status.go peer_sync_quarantine.go
+      - name: Go vet
+        working-directory: tools/portable-validator
+        run: go vet ./...
+      - name: Peer state race tests
+        working-directory: tools/portable-validator
+        run: go test -race ./... -run 'Test(PeerEvidenceJournal|PeerHeadState|RecordAuthenticatedPeerHead|PeerFollowerStatus|PeerQuarantine|RecordPeerSafetyFailure)'
+      - name: Crash-durability invariants
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const paths=[
+            'tools/portable-validator/peer_sync_evidence_journal.go',
+            'tools/portable-validator/peer_head_state.go',
+            'tools/portable-validator/peer_sync_follower_status.go',
+            'tools/portable-validator/peer_sync_quarantine.go',
+          ];
+          const required=[
+            'os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)',
+            'f.Sync()',
+            'f.Close()',
+            'runtime.GOOS == "windows"',
+            'os.Rename(tmp, path)',
+          ];
+          for (const path of paths) {
+            const source=fs.readFileSync(path,'utf8');
+            for (const invariant of required) {
+              if (!source.includes(invariant)) throw new Error(`${path} missing crash-durability invariant: ${invariant}`);
+            }
+          }
+          const head=fs.readFileSync('tools/portable-validator/peer_head_state.go','utf8');
+          const evidence=fs.readFileSync('tools/portable-validator/peer_sync_evidence_journal.go','utf8');
+          const follower=fs.readFileSync('tools/portable-validator/peer_sync_follower_status.go','utf8');
+          const quarantine=fs.readFileSync('tools/portable-validator/peer_sync_quarantine.go','utf8');
+          if (!head.includes('detectPeerHeadEquivocation') || !head.includes('appendPeerEvidence') || !head.includes('savePeerQuarantineStateAtomic')) throw new Error('Cross-run head state must preserve equivocation evidence/quarantine path');
+          if (!evidence.includes('peer evidence does not match local trust context')) throw new Error('Evidence journal must remain trust-context bound');
+          if (!follower.includes('follower status must remain non-voting and non-participating')) throw new Error('Follower status must remain non-voting and non-participating');
+          if (!quarantine.includes('Local quarantine affects only read-only sync peer selection') && !quarantine.includes('peerQuarantineProfile')) {
+            throw new Error('Quarantine state profile missing');
+          }
+          console.log('Crash-durable peer safety state persistence invariants passed');
+          NODE
