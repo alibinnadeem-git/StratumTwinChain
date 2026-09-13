@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -76,22 +77,26 @@ func savePeerFollowerStatusAtomic(path string, status PeerFollowerStatus, cfg Bo
 	if err != nil {
 		return err
 	}
+	cleanup := func() { _ = os.Remove(tmp) }
 	if _, err := f.Write(append(payload, '\n')); err != nil {
 		_ = f.Close()
-		_ = os.Remove(tmp)
+		cleanup()
 		return err
 	}
 	if err := f.Sync(); err != nil {
 		_ = f.Close()
-		_ = os.Remove(tmp)
+		cleanup()
 		return err
 	}
 	if err := f.Close(); err != nil {
-		_ = os.Remove(tmp)
+		cleanup()
 		return err
 	}
+	if runtime.GOOS == "windows" {
+		_ = os.Remove(path)
+	}
 	if err := os.Rename(tmp, path); err != nil {
-		_ = os.Remove(tmp)
+		cleanup()
 		return err
 	}
 	return nil
