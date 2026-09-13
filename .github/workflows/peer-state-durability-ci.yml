@@ -145,7 +145,7 @@ jobs:
           if (!main.includes('case "peer-state-diagnostic-export"') || !main.includes('peerStateDiagnosticExportCommand')) throw new Error('peer-state-diagnostic-export command must remain registered');
 
           for (const required of [
-            'STRATUM-PEER-STATE-DIAGNOSTIC-VERIFY/1','IntegrityVerified','AuthenticityEstablished','AuthenticityEstablished:  false','ConsensusAuthority',
+            'STRATUM-PEER-STATE-DIAGNOSTIC-VERIFY/1','IntegrityVerified','AuthenticityEstablished','AuthenticityEstablished: false','ConsensusAuthority',
             'diagnosticPathHasForbiddenSegment','unsupported diagnostic export profile','diagnostic manifest violates non-authority/private-key boundary',
             'embedded state-health trust context mismatch','duplicate diagnostic file name','diagnostic file is not in the allowlist','unsafe diagnostic export path',
             'diagnostic file integrity mismatch','diagnostic bundle contains unexpected file','os.Lstat','filepath.Walk'
