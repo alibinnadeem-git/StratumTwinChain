@@ -89,9 +89,9 @@ func TestPruneAcknowledgedPeerOperatorAlertDeliveryStateIsSafeBecauseAckSuppress
 	endpointHash := strings.Repeat("d", 64)
 	deliveries := defaultPeerOperatorAlertDeliveryJournal(cfg)
 	deliveries.State[operatorAlertDeliveryStateKey(alert.AlertID, endpointHash)] = PeerOperatorAlertDeliveryState{
-		AlertID:      alert.AlertID,
-		EndpointHash: endpointHash,
-		Delivered:    true,
+		AlertID:       alert.AlertID,
+		EndpointHash:  endpointHash,
+		Delivered:     true,
 		LastSuccessAt: now.Format(time.RFC3339Nano),
 	}
 	pruned, removed, err := pruneAcknowledgedPeerOperatorAlertDeliveryState(deliveries, alerts)
