@@ -141,6 +141,9 @@ func writePeerProofCacheFileAtomic(path string, data []byte) error {
 		cleanup()
 		return err
 	}
+	if err := syncParentDirectoryAfterRename(path); err != nil {
+		return err
+	}
 	return nil
 }
 
