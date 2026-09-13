@@ -98,6 +98,26 @@ The health command itself has no repair, delete, rename, trusted-head rewrite, u
 
 The proof-verified trusted head is marked `authoritative=true` in the local health report because it is the candidate's authority-bearing local synchronization checkpoint. Session/replay, evidence, quarantine, authenticated-head observations, follower status, reliability, and proof-cache state remain non-consensus operational/safety metadata; their preservation can still be important for replay defense, evidence continuity, quarantine policy, and incident review.
 
+## Non-mutating diagnostic export
+
+`peer-state-diagnostic-export --dir <validator-dir> --output <new-external-directory>` creates a review package without changing the validator's source state.
+
+The export uses an explicit allowlist rather than recursively walking the validator directory. It may copy only the peer-state files covered by the state-health surface: trusted head, session/replay, evidence, quarantine, authenticated peer-head observations, follower status, reliability, and the proof-cache manifest. It does not export proof-cache payload bundles by default.
+
+Security and integrity properties:
+
+- the destination must be outside the validator data directory;
+- the destination must not already exist and is never overwritten;
+- `keys/`, `keys/private/`, private PKCS#8 material, and other non-allowlisted files are never traversed or copied;
+- each exported state file preserves the source bytes exactly, including malformed/truncated bytes needed for incident review;
+- every exported file receives a SHA-256 digest and size in `manifest.json`;
+- the manifest embeds the read-only state-health report that was observed at export time;
+- the manifest states `consensusAuthority=false`, `consensusParticipation=false`, `voteAuthority=false`, `sourceMutation=false`, and `privateKeysIncluded=false`;
+- individual output files are file-synced, output directory entries are synchronized where the host supports it, and the completed temporary package is renamed into its new destination;
+- the export is diagnostic/tamper-evident evidence only. It does not establish canonical history, PoVI finality, physical truth, governance authority, or recovery authority.
+
+Regression tests plant private-key sentinel material under `keys/private/` and verify it does not appear in the output, preserve and hash an intentionally corrupt trusted-head file byte-for-byte, confirm the source bytes remain unchanged, and require refusal of destinations inside the validator directory or over an existing destination.
+
 ## Dedicated durability CI
 
 `STRATUM Peer State Durability CI` permanently checks the persistence and non-authority boundaries for:
@@ -111,9 +131,10 @@ The proof-verified trusted head is marked `authoritative=true` in the local heal
 - advisory peer reliability;
 - verified proof cache;
 - fail-closed corruption and authority-escalation regressions;
-- read-only state-health inspection and non-mutation regressions.
+- read-only state-health inspection and non-mutation regressions;
+- non-mutating, private-key-excluding diagnostic export and hash-manifest regressions.
 
-The gate includes Go formatting, `go vet`, targeted race tests, and source-level assertions for file `fsync`, atomic rename, POSIX parent-directory sync, Windows replacement behavior, fail-closed corruption behavior, state-health non-mutation, and non-authority invariants. Separate Peer Sync, Operator Alert Delivery, and full Portable Validator CI remain additional gates.
+The gate includes Go formatting, `go vet`, targeted race tests, and source-level assertions for file `fsync`, atomic rename, POSIX parent-directory sync, Windows replacement behavior, fail-closed corruption behavior, state-health non-mutation, diagnostic-export allowlisting/private-key exclusion, and non-authority invariants. Separate Peer Sync, Operator Alert Delivery, and full Portable Validator CI remain additional gates.
 
 Operator Alert Delivery CI separately guards the same file-plus-parent-directory durability boundary for operator alerts/acknowledgements and the delivery receipt/compact-state journal.
 
