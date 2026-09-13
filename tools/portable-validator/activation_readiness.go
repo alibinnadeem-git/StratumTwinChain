@@ -9,16 +9,16 @@ import (
 )
 
 type ActivationReadiness struct {
-	GovernanceProofValid       bool     `json:"governanceProofValid"`
-	ValidatorID                string   `json:"validatorId"`
-	EffectiveHeight            int64    `json:"effectiveHeight"`
-	CurrentHeight              int64    `json:"currentHeight"`
-	LocalIdentityMatch         bool     `json:"localIdentityMatch"`
-	LocalConsensusKeyMatch     bool     `json:"localConsensusKeyMatch"`
-	GovernanceActivationDue    bool     `json:"governanceActivationDue"`
-	VoteAuthority              bool     `json:"voteAuthority"`
+	GovernanceProofValid        bool     `json:"governanceProofValid"`
+	ValidatorID                 string   `json:"validatorId"`
+	EffectiveHeight             int64    `json:"effectiveHeight"`
+	CurrentHeight               int64    `json:"currentHeight"`
+	LocalIdentityMatch          bool     `json:"localIdentityMatch"`
+	LocalConsensusKeyMatch      bool     `json:"localConsensusKeyMatch"`
+	GovernanceActivationDue     bool     `json:"governanceActivationDue"`
+	VoteAuthority               bool     `json:"voteAuthority"`
 	RemainingActivationBlockers []string `json:"remainingActivationBlockers"`
-	ReadyForVoteAuthority      bool     `json:"readyForVoteAuthority"`
+	ReadyForVoteAuthority       bool     `json:"readyForVoteAuthority"`
 }
 
 func evaluateActivationReadiness(cfg BootstrapConfig, proof ValidatorSetChangeProof, verified ValidatorSetChangeVerification, currentHeight int64) (ActivationReadiness, error) {
@@ -64,16 +64,16 @@ func evaluateActivationReadiness(cfg BootstrapConfig, proof ValidatorSetChangePr
 	}
 	due := currentHeight >= verified.EffectiveHeight
 	return ActivationReadiness{
-		GovernanceProofValid: true,
-		ValidatorID: cfg.ValidatorID,
-		EffectiveHeight: verified.EffectiveHeight,
-		CurrentHeight: currentHeight,
-		LocalIdentityMatch: true,
-		LocalConsensusKeyMatch: true,
-		GovernanceActivationDue: due,
-		VoteAuthority: false,
+		GovernanceProofValid:        true,
+		ValidatorID:                 cfg.ValidatorID,
+		EffectiveHeight:             verified.EffectiveHeight,
+		CurrentHeight:               currentHeight,
+		LocalIdentityMatch:          true,
+		LocalConsensusKeyMatch:      true,
+		GovernanceActivationDue:     due,
+		VoteAuthority:               false,
 		RemainingActivationBlockers: remaining,
-		ReadyForVoteAuthority: due && len(remaining) == 0,
+		ReadyForVoteAuthority:       due && len(remaining) == 0,
 	}, nil
 }
 
@@ -84,18 +84,34 @@ func verifyActivationReadinessCommand(args []string) error {
 	policyHash := fs.String("governance-policy-hash", "", "independently trusted VALIDATOR governance policy hash")
 	previousRoot := fs.String("previous-validator-set-root", "", "independently trusted prior validator-set root")
 	currentHeight := fs.Int64("current-height", -1, "locally verified current finalized height")
-	if err := fs.Parse(args); err != nil { return err }
-	if *proofPath == "" || *currentHeight < 0 { return errors.New("--proof and --current-height are required") }
-	if !isSHA256(strings.ToLower(*policyHash)) { return errors.New("--governance-policy-hash must be an independently trusted SHA-256 digest") }
-	if !isSHA256(strings.ToLower(*previousRoot)) { return errors.New("--previous-validator-set-root must be an independently trusted SHA-256 digest") }
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *proofPath == "" || *currentHeight < 0 {
+		return errors.New("--proof and --current-height are required")
+	}
+	if !isSHA256(strings.ToLower(*policyHash)) {
+		return errors.New("--governance-policy-hash must be an independently trusted SHA-256 digest")
+	}
+	if !isSHA256(strings.ToLower(*previousRoot)) {
+		return errors.New("--previous-validator-set-root must be an independently trusted SHA-256 digest")
+	}
 	var cfg BootstrapConfig
-	if err := readJSON(filepath.Join(*dir, "config.json"), &cfg); err != nil { return err }
+	if err := readJSON(filepath.Join(*dir, "config.json"), &cfg); err != nil {
+		return err
+	}
 	var proof ValidatorSetChangeProof
-	if err := readJSON(*proofPath, &proof); err != nil { return err }
+	if err := readJSON(*proofPath, &proof); err != nil {
+		return err
+	}
 	verified, err := verifyValidatorSetChangeProof(proof, cfg.ChainID, strings.ToLower(*policyHash), strings.ToLower(*previousRoot))
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	readiness, err := evaluateActivationReadiness(cfg, proof, verified, *currentHeight)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	fmt.Printf("OK: governed ACTIVATE proof matches local validator %s and CONSENSUS key\n", readiness.ValidatorID)
 	fmt.Printf("OK: activation effective height %d; locally verified current height %d\n", readiness.EffectiveHeight, readiness.CurrentHeight)
 	if !readiness.GovernanceActivationDue {
