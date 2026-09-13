@@ -149,6 +149,9 @@ func savePeerOperatorAlertJournalAtomic(path string, journal PeerOperatorAlertJo
 		cleanup()
 		return err
 	}
+	if err := syncParentDirectoryAfterRename(path); err != nil {
+		return err
+	}
 	return nil
 }
 
