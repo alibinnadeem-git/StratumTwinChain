@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-// peerStateDiagnosticVerifyProfile identifies integrity-only diagnostic verification.
+// peerStateDiagnosticVerifyProfile identifies integrity-only, non-authoritative diagnostic verification.
 const peerStateDiagnosticVerifyProfile = "STRATUM-PEER-STATE-DIAGNOSTIC-VERIFY/1"
 
 type PeerStateDiagnosticVerification struct {
