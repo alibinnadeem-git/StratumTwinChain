@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -121,7 +122,7 @@ func peerSyncFollowerManagedCommand(args []string) error {
 		return errors.New("managed peer follower requires CANDIDATE state with voteAuthority=false")
 	}
 	var alertWebhookEnabled bool
-	var alertWebhookURL = (*url.URL)(nil)
+	var alertWebhookURL *url.URL
 	if strings.TrimSpace(*alertWebhookRaw) != "" {
 		validated, err := validateOperatorAlertWebhookURL(*alertWebhookRaw)
 		if err != nil {
