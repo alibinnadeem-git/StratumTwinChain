@@ -16,6 +16,7 @@ const helpers = await readFile(new URL('lib/compiler-source.ts', root), 'utf8');
 source = helpers + '\n' + source;
 source = source.replace("new URL('pdfjs-dist/build/pdf.worker.min.mjs',import.meta.url).toString()",
   JSON.stringify(pathToFileURL(require.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs')).href));
+source = source.replace("wasmUrl:'/pdfjs/wasm/'", `wasmUrl:${JSON.stringify(new URL('../node_modules/pdfjs-dist/wasm/',import.meta.url).pathname)}`);
 source += '\nexport {assignZones,withAssetCandidates,parsePdf,buildLinks,classify};';
 await writeFile(moduleUrl, ts.transpileModule(source, {compilerOptions: {
   target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext,

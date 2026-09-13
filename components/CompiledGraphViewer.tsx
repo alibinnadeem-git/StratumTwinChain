@@ -150,6 +150,8 @@ export default function CompiledGraphViewer() {
     } catch {}
     const refresh = () => {
       try {
+        const raw=localStorage.getItem("stratum_compiled_graph");
+        setGraph(raw?JSON.parse(raw):null);
         const reg = localStorage.getItem(ELECTRICAL_MODEL_REGISTRY_STORAGE_KEY);
         setRegistry(
           reg
@@ -159,9 +161,11 @@ export default function CompiledGraphViewer() {
         setRenderRevision((v) => v + 1);
       } catch {}
     };
+    window.addEventListener("stratum:graph-updated", refresh);
     window.addEventListener(registryEvent, refresh);
     window.addEventListener("storage", refresh);
     return () => {
+      window.removeEventListener("stratum:graph-updated", refresh);
       window.removeEventListener(registryEvent, refresh);
       window.removeEventListener("storage", refresh);
     };

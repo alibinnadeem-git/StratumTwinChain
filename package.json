@@ -17,7 +17,9 @@
     "qa:round-change": "node scripts/round-change-conformance.mjs",
     "qa:plc": "node scripts/plc-conformance.mjs",
     "qa:vrf": "node scripts/vrf-proposer-conformance.mjs",
-    "qa:e2e": "playwright test"
+    "qa:e2e": "playwright test",
+    "prebuild": "node scripts/prepare-pdf-assets.mjs",
+    "predev": "node scripts/prepare-pdf-assets.mjs"
   },
   "dependencies": {
     "jose": "^6.0.11",

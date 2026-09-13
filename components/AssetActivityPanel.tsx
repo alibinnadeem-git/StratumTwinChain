@@ -7,7 +7,7 @@ export default function AssetActivityPanel({assetId,projectId}:{assetId:string;p
  const [events,setEvents]=useState<ActivityEvent[]>([]),[message,setMessage]=useState(''),[busy,setBusy]=useState(false);
  const pending=useRef<{key:string;requestId:string;occurredAt:string}|null>(null);
  useEffect(()=>{let cancelled=false;setEvents([]);setNotes('');setMessage('');pending.current=null;
-  fetch(`/api/lifecycle?assetId=${encodeURIComponent(assetId)}`,{cache:'no-store'}).then(async response=>{const body=await response.json();if(!response.ok)throw new Error(body.error||'History unavailable');if(!cancelled)setEvents(body.events);}).catch(error=>{if(!cancelled)setMessage(`Server history unavailable: ${error.message}`);});
+  fetch(`/api/lifecycle?assetId=${encodeURIComponent(assetId)}`,{cache:'no-store'}).then(async response=>{const body=await response.json();if(!response.ok)throw new Error(body.error||'History unavailable');if(!cancelled)setEvents(current=>{const merged=new Map<string,ActivityEvent>((body.events as ActivityEvent[]).map(event=>[event.id,event]));for(const event of current)merged.set(event.id,event);return [...merged.values()].sort((a,b)=>b.occurred_at.localeCompare(a.occurred_at));});}).catch(error=>{if(!cancelled)setMessage(`Server history unavailable: ${error.message}`);});
   return()=>{cancelled=true;};
  },[assetId]);
  async function submit(){

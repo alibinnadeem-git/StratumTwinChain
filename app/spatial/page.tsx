@@ -21,7 +21,7 @@ export default async function SpatialPage(){
 
   <div className="card redbook-strip"><div><div className="eyebrow">Redbook trust vocabulary</div><div className="trust-row"><TrustBadge state={backendOnline?'LIVE':'STALE'}/><TrustBadge state={assets.some(a=>a.ledger_block_height)?'POVI_VERIFIED':'UNVERIFIED'}/><span className="muted">Cryptographic finality, engineering approval, live state and physical truth remain distinct.</span></div></div></div>
 
-  {!backendOnline&&<div className="card" style={{marginBottom:16,borderColor:'#75592e'}}><div className="eyebrow">Spatial workspace online · operational data reconnecting</div><p className="subtitle" style={{marginTop:6}}>Spatial navigation and model inspection remain available while live operational projections reconnect. No stale projection is promoted to canonical truth.</p></div>}
+  {!backendOnline&&<div className="card" style={{marginBottom:16,borderColor:'#75592e'}}><div className="eyebrow">Spatial workspace online · registered data unavailable</div><p className="subtitle" style={{marginTop:6}}>Sign in to load your organization’s registered assets. If sign-in is unavailable, database and authentication setup must be completed. Imported drawing inspection remains available.</p></div>}
 
   <div className="card spatial-breadcrumb-card"><div className="eyebrow">Spatial-first navigation</div><div className="spatial-breadcrumb">{spatialNavigation.map((step,i)=><span key={step}>{step}{i<spatialNavigation.length-1&&<em>→</em>}</span>)}</div></div>
 
