@@ -38,6 +38,7 @@ The POSIX parent-directory sync is intentionally a no-op on Windows; Windows rep
 This pattern is implemented for:
 
 - proof-verified trusted-head state;
+- peer session state, including outbound sequence and replay-protection watermarks;
 - authenticated cross-run peer-head observations;
 - peer evidence journal;
 - local peer quarantine state;
@@ -49,25 +50,44 @@ This pattern is implemented for:
 
 These durability improvements do not increase the authority of the stored data. In particular:
 
+- peer session/replay state remains transport-security state only and cannot grant consensus authority;
 - peer reliability still hard-fails if `consensusWeighting=true`;
 - follower status still hard-fails if it claims vote authority or consensus participation;
 - alert delivery state still carries `consensusAuthority=false` and `safetyStateMutation=false`;
 - proof cache still hard-fails if `consensusAuthority=true` or `canonicalHistorySelection=true`;
 - quarantine remains local read-only peer-selection policy, not validator governance.
 
+## Fail-closed corruption semantics
+
+A missing state file and an existing invalid state file are intentionally different conditions.
+
+- Where a state type defines safe first-run initialization, a file that does not exist may initialize the documented empty/Genesis-bound default.
+- If the file exists but contains malformed or truncated JSON, loading fails with an error. The runtime does not silently replace it with an empty/default state.
+- If a persisted record parses but violates its profile or trust context, loading fails with an error.
+- A trusted-head record with invalid hash/state metadata is rejected rather than falling back to Genesis.
+- Peer session state with an invalid embedded replay trust context is rejected rather than resetting replay watermarks or outbound sequence.
+- Follower status that claims vote authority or consensus participation is rejected.
+- Reliability state that claims consensus weighting is rejected.
+- Proof-cache manifests that claim consensus authority or canonical-history-selection authority are rejected even though the cache itself is non-authoritative.
+- Corrupt evidence, quarantine, authenticated-head, follower-status, reliability, and proof-cache manifest files are not auto-deleted by their loaders.
+
+The fail-closed regression suite covers malformed/truncated session state, trusted-head state, evidence journal, quarantine state, authenticated peer-head state, follower status, advisory reliability state, and proof-cache manifests, plus explicit authority-escalation cases.
+
 ## Dedicated durability CI
 
 `STRATUM Peer State Durability CI` permanently checks the persistence and non-authority boundaries for:
 
 - proof-verified trusted-head state;
+- peer session/replay state;
 - authenticated peer-head state;
 - peer evidence journal;
 - follower status;
 - peer quarantine;
 - advisory peer reliability;
-- verified proof cache.
+- verified proof cache;
+- fail-closed corruption and authority-escalation regressions.
 
-The gate includes Go formatting, `go vet`, targeted race tests, and source-level assertions for file `fsync`, atomic rename, POSIX parent-directory sync, Windows replacement behavior, and non-authority invariants. Separate Peer Sync, Operator Alert Delivery, and full Portable Validator CI remain additional gates.
+The gate includes Go formatting, `go vet`, targeted race tests, and source-level assertions for file `fsync`, atomic rename, POSIX parent-directory sync, Windows replacement behavior, fail-closed corruption behavior, and non-authority invariants. Separate Peer Sync, Operator Alert Delivery, and full Portable Validator CI remain additional gates.
 
 Operator Alert Delivery CI separately guards the same file-plus-parent-directory durability boundary for operator alerts/acknowledgements and the delivery receipt/compact-state journal.
 
