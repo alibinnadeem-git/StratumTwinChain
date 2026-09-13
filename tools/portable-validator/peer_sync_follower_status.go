@@ -99,6 +99,9 @@ func savePeerFollowerStatusAtomic(path string, status PeerFollowerStatus, cfg Bo
 		cleanup()
 		return err
 	}
+	if err := syncParentDirectoryAfterRename(path); err != nil {
+		return err
+	}
 	return nil
 }
 
