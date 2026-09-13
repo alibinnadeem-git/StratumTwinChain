@@ -2,6 +2,7 @@ name: STRATUM Operator Alert Delivery CI
 on:
   pull_request:
     paths:
+      - 'tools/portable-validator/atomic_persistence.go'
       - 'tools/portable-validator/peer_operator_alert_delivery*.go'
       - 'tools/portable-validator/peer_operator_alerts*.go'
       - 'tools/portable-validator/peer_sync_follower_managed.go'
@@ -10,6 +11,7 @@ on:
   push:
     branches-ignore: [main]
     paths:
+      - 'tools/portable-validator/atomic_persistence.go'
       - 'tools/portable-validator/peer_operator_alert_delivery*.go'
       - 'tools/portable-validator/peer_operator_alerts*.go'
       - 'tools/portable-validator/peer_sync_follower_managed.go'
@@ -28,8 +30,8 @@ jobs:
       - name: Go formatting check
         working-directory: tools/portable-validator
         run: |
-          gofmt -w peer_operator_alert_delivery*.go peer_operator_alerts*.go peer_sync_follower_managed.go main.go
-          git diff --exit-code -- peer_operator_alert_delivery*.go peer_operator_alerts*.go peer_sync_follower_managed.go main.go
+          gofmt -w atomic_persistence.go peer_operator_alert_delivery*.go peer_operator_alerts*.go peer_sync_follower_managed.go main.go
+          git diff --exit-code -- atomic_persistence.go peer_operator_alert_delivery*.go peer_operator_alerts*.go peer_sync_follower_managed.go main.go
       - name: Go vet
         working-directory: tools/portable-validator
         run: go vet ./...
@@ -40,6 +42,7 @@ jobs:
         run: |
           node - <<'NODE'
           const fs=require('fs');
+          const atomic=fs.readFileSync('tools/portable-validator/atomic_persistence.go','utf8');
           const delivery=fs.readFileSync('tools/portable-validator/peer_operator_alert_delivery.go','utf8');
           const alerts=fs.readFileSync('tools/portable-validator/peer_operator_alerts.go','utf8');
           const autoDelivery=fs.readFileSync('tools/portable-validator/peer_operator_alert_auto_delivery.go','utf8');
@@ -71,6 +74,11 @@ jobs:
             if (!alerts.includes(required)) throw new Error(`Missing crash-durable operator alert journal persistence invariant: ${required}`);
             if (!delivery.includes(required)) throw new Error(`Missing crash-durable alert delivery journal persistence invariant: ${required}`);
           }
+          for (const required of ['syncParentDirectoryAfterRename','runtime.GOOS == "windows"','os.Open(filepath.Dir(path))','dir.Sync()']) {
+            if (!atomic.includes(required)) throw new Error(`Missing parent-directory durability helper invariant: ${required}`);
+          }
+          if (!alerts.includes('syncParentDirectoryAfterRename(path)')) throw new Error('Operator alert journal must sync its parent directory after rename');
+          if (!delivery.includes('syncParentDirectoryAfterRename(path)')) throw new Error('Alert delivery journal must sync its parent directory after rename');
           for (const required of [
             'peer-alert-deliver-webhook',
             'peerOperatorAlertDeliverWebhookCommand',
@@ -148,5 +156,5 @@ jobs:
             if (status.includes(forbidden)) throw new Error(`Alert delivery status must not persist or mutate delivery state through ${forbidden}`);
           }
           if (follower.includes('err = autoDeliverPendingPeerOperatorAlertsContext')) throw new Error('Automatic delivery failure must never replace the follower cycle result');
-          console.log('One-way non-authoritative alert delivery, crash-durable alert and delivery journal persistence, legacy migration, compact durable dedup/retry state, acknowledged-only compact-state cleanup, bounded retry scheduling, read-only status, and bounded receipt-retention invariants passed');
+          console.log('One-way non-authoritative alert delivery, file and parent-directory crash durability, legacy migration, compact durable dedup/retry state, acknowledged-only compact-state cleanup, bounded retry scheduling, read-only status, and bounded receipt-retention invariants passed');
           NODE
