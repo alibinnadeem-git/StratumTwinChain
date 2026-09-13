@@ -1,0 +1,29 @@
+import fs from 'node:fs';
+import crypto from 'node:crypto';
+
+const vector=JSON.parse(fs.readFileSync('lib/redbook/test-vectors/consensus-peer-v1.json','utf8'));
+function canonicalize(value){if(value===null||typeof value!=='object')return JSON.stringify(value);if(Array.isArray(value))return `[${value.map(canonicalize).join(',')}]`;return `{${Object.keys(value).sort().map(k=>`${JSON.stringify(k)}:${canonicalize(value[k])}`).join(',')}}`;}
+const hash=value=>crypto.createHash('sha256').update(canonicalize(value)).digest('hex');
+const activeAt=(m,h)=>m.activationHeight<=h&&(m.retirementHeight===null||m.retirementHeight>h);
+const keyActive=(k,h)=>k.activeFromHeight<=h&&(k.retiredAtHeight===null||k.retiredAtHeight>h);
+function consensusKey(member,height){const keys=member.keys.filter(k=>k.purpose==='CONSENSUS'&&k.algorithm==='Ed25519'&&keyActive(k,height));if(keys.length!==1)throw new Error(`CONSENSUS key count ${keys.length}`);return keys[0];}
+function transportKey(member,height){const keys=member.keys.filter(k=>k.purpose==='TRANSPORT'&&k.algorithm==='ED25519_TRANSPORT_IDENTITY'&&keyActive(k,height));if(keys.length!==1)throw new Error(`TRANSPORT key count ${keys.length}`);return keys[0];}
+function validatorRoot(set,height){const validators=set.members.filter(m=>activeAt(m,height)).map(m=>{const k=consensusKey(m,height);return{validatorId:m.validatorId,identityUuid:m.identityUuid,operatorOrg:m.operatorOrg,consensusKeyId:k.keyId,consensusPublicKeyDerB64:k.publicKeyDerB64};}).sort((a,b)=>a.validatorId.localeCompare(b.validatorId));return hash({domain:'STRATUM/VALIDATOR_SET/1',profile:'STRATUM-VALIDATOR-SET/1',chainId:set.chainId,height,validators});}
+function peerRoot(registry,height){const members=registry.members.map(m=>{const k=transportKey(m,height);return{validatorId:m.validatorId,keyId:k.keyId,algorithm:k.algorithm,publicKeyDerB64:k.publicKeyDerB64};}).sort((a,b)=>a.validatorId.localeCompare(b.validatorId));return hash({domain:'STRATUM/PEER_REGISTRY/1',profile:'STRATUM-PEER-REGISTRY/1',chainId:registry.chainId,GenesisDIRHash:registry.GenesisDIRHash.toLowerCase(),protocolVersion:registry.protocolVersion,height,members});}
+function verifyEd25519(publicKeyDerB64,messageHash,signatureB64){const key=crypto.createPublicKey({key:Buffer.from(publicKeyDerB64,'base64'),format:'der',type:'spki'});return key.asymmetricKeyType==='ed25519'&&crypto.verify(null,Buffer.from(messageHash,'hex'),key,Buffer.from(signatureB64,'base64'));}
+
+const {validatorSet,peerRegistry,packet,expected}=vector;
+const vroot=validatorRoot(validatorSet,packet.height);if(vroot!==expected.validatorSetRoot||packet.validatorSetRoot!==vroot)throw new Error(`validator root mismatch ${vroot}`);
+const proot=peerRoot(peerRegistry,packet.height);if(proot!==expected.peerRegistryRoot||packet.peerRegistryRoot!==proot)throw new Error(`peer registry root mismatch ${proot}`);
+const payloadHash=hash(packet.payload);if(payloadHash!==packet.payloadHash)throw new Error('payload hash mismatch');
+const vote=packet.payload;
+const verifyHash=hash({domain:'STRATUM/POVI/VERIFY/1',chainId:vote.chainId,height:vote.height,round:vote.round,step:'VERIFY',proposalHash:vote.proposalHash,validatorId:vote.validatorId,validatorSetRoot:vote.validatorSetRoot,protocolVersion:vote.protocolVersion});
+if(verifyHash!==vote.messageHash||verifyHash!==packet.consensusMessageHash||verifyHash!==expected.consensusMessageHash)throw new Error('VERIFY message hash mismatch');
+const validator=validatorSet.members.find(m=>m.validatorId===packet.senderValidatorId);const ckey=consensusKey(validator,packet.height);if(ckey.keyId!==packet.senderConsensusKeyId||!verifyEd25519(ckey.publicKeyDerB64,verifyHash,packet.consensusSignatureB64))throw new Error('CONSENSUS signature failed');
+const packetHash=hash({domain:packet.domain,profileVersion:packet.profileVersion,chainId:packet.chainId,networkName:packet.networkName,GenesisDIRHash:packet.GenesisDIRHash.toLowerCase(),protocolVersion:packet.protocolVersion,senderValidatorId:packet.senderValidatorId,senderConsensusKeyId:packet.senderConsensusKeyId,senderTransportKeyId:packet.senderTransportKeyId,height:packet.height,round:packet.round,step:packet.step,validatorSetRoot:packet.validatorSetRoot,peerRegistryRoot:packet.peerRegistryRoot,issuedAt:packet.issuedAt,expiresAt:packet.expiresAt,sequence:packet.sequence,nonce:packet.nonce,payloadHash:packet.payloadHash,consensusMessageHash:packet.consensusMessageHash,safetyRecordHash:packet.safetyRecordHash,safetySequence:packet.safetySequence});
+if(packetHash!==packet.packetHash||packetHash!==expected.packetHash)throw new Error('packet hash mismatch');
+const peer=peerRegistry.members.find(m=>m.validatorId===packet.senderValidatorId);const tkey=transportKey(peer,packet.height);if(tkey.keyId!==packet.senderTransportKeyId||!verifyEd25519(tkey.publicKeyDerB64,packetHash,packet.transportSignatureB64))throw new Error('TRANSPORT signature failed');
+const tampered=structuredClone(packet.payload);tampered.proposalHash='4'.repeat(64);if(hash(tampered)===packet.payloadHash)throw new Error('payload tampering did not change hash');
+const schema=fs.readFileSync('lib/redbook/schema/consensus-peer.ts','utf8');for(const token of ['STRATUM-CONSENSUS-PEER/1','STRATUM/POVI/PEER_MESSAGE/1','safetyReferencePresent','persistBeforeSignVerified'])if(!schema.includes(token))throw new Error(`Missing consensus-peer schema invariant: ${token}`);
+const verifier=fs.readFileSync('lib/redbook/povi/consensus-peer.ts','utf8');for(const token of ['Consensus peer CONSENSUS signature verification failed','Consensus peer TRANSPORT signature verification failed','Consensus peer replay/rollback','persistBeforeSignVerified:false'])if(!verifier.includes(token))throw new Error(`Missing consensus-peer verifier invariant: ${token}`);
+console.log(`PoVI consensus peer conformance passed: validatorRoot=${vroot}, peerRoot=${proot}, packet=${packetHash}, persistBeforeSignVerified=false`);
