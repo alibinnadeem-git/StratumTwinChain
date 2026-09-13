@@ -73,6 +73,31 @@ A missing state file and an existing invalid state file are intentionally differ
 
 The fail-closed regression suite covers malformed/truncated session state, trusted-head state, evidence journal, quarantine state, authenticated peer-head state, follower status, advisory reliability state, and proof-cache manifests, plus explicit authority-escalation cases.
 
+## Operator inspection and recovery workflow
+
+`peer-state-health --dir <validator-dir>` is the read-only first step whenever local peer state may have been damaged or partially written.
+
+The command classifies each inspected state path as:
+
+- `VALID` — the existing file passes its normal loader and trust-context checks;
+- `MISSING_SAFE_DEFAULT` — the file is absent and that state type has a documented safe first-run default;
+- `MISSING_OPTIONAL` — the file is absent and is optional observability state rather than a required checkpoint;
+- `INVALID` — the file exists but cannot be accepted by its normal loader or violates a non-authority/trust invariant.
+
+If any persisted state is invalid, the report returns `overallStatus=INVALID_PERSISTED_STATE`, exits nonzero, and reports `mutationPerformed=false`.
+
+Operator recovery rules are deliberately conservative:
+
+1. do not delete or overwrite an invalid file merely to make the health check pass;
+2. preserve the suspect bytes for forensic/operator review;
+3. identify whether the affected state is the authority-bearing proof-verified trusted head or non-authoritative transport/safety/operational metadata;
+4. recover only from independently verified evidence or a separately governed/operator-approved recovery procedure appropriate to that state type;
+5. rerun `peer-state-health` before restarting automated follower operation.
+
+The health command itself has no repair, delete, rename, trusted-head rewrite, unquarantine, replay reset, safety-halt clearing, governance, activation, or PoVI-authority capability. CI contains negative source assertions preventing those mutation surfaces from entering this command.
+
+The proof-verified trusted head is marked `authoritative=true` in the local health report because it is the candidate's authority-bearing local synchronization checkpoint. Session/replay, evidence, quarantine, authenticated-head observations, follower status, reliability, and proof-cache state remain non-consensus operational/safety metadata; their preservation can still be important for replay defense, evidence continuity, quarantine policy, and incident review.
+
 ## Dedicated durability CI
 
 `STRATUM Peer State Durability CI` permanently checks the persistence and non-authority boundaries for:
@@ -85,9 +110,10 @@ The fail-closed regression suite covers malformed/truncated session state, trust
 - peer quarantine;
 - advisory peer reliability;
 - verified proof cache;
-- fail-closed corruption and authority-escalation regressions.
+- fail-closed corruption and authority-escalation regressions;
+- read-only state-health inspection and non-mutation regressions.
 
-The gate includes Go formatting, `go vet`, targeted race tests, and source-level assertions for file `fsync`, atomic rename, POSIX parent-directory sync, Windows replacement behavior, fail-closed corruption behavior, and non-authority invariants. Separate Peer Sync, Operator Alert Delivery, and full Portable Validator CI remain additional gates.
+The gate includes Go formatting, `go vet`, targeted race tests, and source-level assertions for file `fsync`, atomic rename, POSIX parent-directory sync, Windows replacement behavior, fail-closed corruption behavior, state-health non-mutation, and non-authority invariants. Separate Peer Sync, Operator Alert Delivery, and full Portable Validator CI remain additional gates.
 
 Operator Alert Delivery CI separately guards the same file-plus-parent-directory durability boundary for operator alerts/acknowledgements and the delivery receipt/compact-state journal.
 
