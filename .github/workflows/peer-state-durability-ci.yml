@@ -2,6 +2,7 @@ name: STRATUM Peer State Durability CI
 on:
   pull_request:
     paths:
+      - 'tools/portable-validator/atomic_persistence.go'
       - 'tools/portable-validator/peer_sync_evidence_journal.go'
       - 'tools/portable-validator/peer_head_state.go'
       - 'tools/portable-validator/peer_sync_follower_status.go'
@@ -12,6 +13,7 @@ on:
   push:
     branches-ignore: [main]
     paths:
+      - 'tools/portable-validator/atomic_persistence.go'
       - 'tools/portable-validator/peer_sync_evidence_journal.go'
       - 'tools/portable-validator/peer_head_state.go'
       - 'tools/portable-validator/peer_sync_follower_status.go'
@@ -32,8 +34,8 @@ jobs:
       - name: Go formatting check
         working-directory: tools/portable-validator
         run: |
-          gofmt -w peer_sync_evidence_journal.go peer_head_state.go peer_sync_follower_status.go peer_sync_quarantine.go peer_reliability.go peer_proof_cache.go
-          git diff --exit-code -- peer_sync_evidence_journal.go peer_head_state.go peer_sync_follower_status.go peer_sync_quarantine.go peer_reliability.go peer_proof_cache.go
+          gofmt -w atomic_persistence.go peer_sync_evidence_journal.go peer_head_state.go peer_sync_follower_status.go peer_sync_quarantine.go peer_reliability.go peer_proof_cache.go
+          git diff --exit-code -- atomic_persistence.go peer_sync_evidence_journal.go peer_head_state.go peer_sync_follower_status.go peer_sync_quarantine.go peer_reliability.go peer_proof_cache.go
       - name: Go vet
         working-directory: tools/portable-validator
         run: go vet ./...
@@ -51,6 +53,12 @@ jobs:
             'tools/portable-validator/peer_sync_quarantine.go',
             'tools/portable-validator/peer_reliability.go',
           ];
+          const parentDurablePaths=[
+            'tools/portable-validator/peer_sync_evidence_journal.go',
+            'tools/portable-validator/peer_head_state.go',
+            'tools/portable-validator/peer_sync_follower_status.go',
+            'tools/portable-validator/peer_sync_quarantine.go',
+          ];
           const required=[
             'os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)',
             'f.Sync()',
@@ -63,6 +71,14 @@ jobs:
             for (const invariant of required) {
               if (!source.includes(invariant)) throw new Error(`${path} missing crash-durability invariant: ${invariant}`);
             }
+          }
+          const atomic=fs.readFileSync('tools/portable-validator/atomic_persistence.go','utf8');
+          for (const required of ['syncParentDirectoryAfterRename','runtime.GOOS == "windows"','os.Open(filepath.Dir(path))','dir.Sync()']) {
+            if (!atomic.includes(required)) throw new Error(`Missing parent-directory durability helper invariant: ${required}`);
+          }
+          for (const path of parentDurablePaths) {
+            const source=fs.readFileSync(path,'utf8');
+            if (!source.includes('syncParentDirectoryAfterRename(path)')) throw new Error(`${path} must sync its parent directory after atomic rename`);
           }
           const head=fs.readFileSync('tools/portable-validator/peer_head_state.go','utf8');
           const evidence=fs.readFileSync('tools/portable-validator/peer_sync_evidence_journal.go','utf8');
@@ -81,5 +97,5 @@ jobs:
           if (!cache.includes('writePeerProofCacheFileAtomic')) throw new Error('Proof cache must share one crash-durable atomic file writer for manifests and verified bundles');
           if (!cache.includes('peer proof cache must never carry consensus authority')) throw new Error('Proof cache must reject consensus authority');
           if (!cache.includes('peer proof cache must never select canonical history')) throw new Error('Proof cache must reject canonical-history selection');
-          console.log('Crash-durable peer state persistence and non-authority invariants passed');
+          console.log('Crash-durable peer state persistence, POSIX parent-directory sync, and non-authority invariants passed');
           NODE
