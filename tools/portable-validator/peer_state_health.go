@@ -9,6 +9,7 @@ import (
 	"strings"
 )
 
+// peerStateHealthProfile identifies the read-only persisted-state inspection report.
 const peerStateHealthProfile = "STRATUM-PEER-STATE-HEALTH/1"
 
 type PeerStateHealthEntry struct {
