@@ -11,6 +11,20 @@ import (
 	"time"
 )
 
+func applyDeliveryReceiptForTest(t *testing.T, journal *PeerOperatorAlertDeliveryJournal, receipt PeerOperatorAlertDeliveryReceipt) {
+	t.Helper()
+	if receipt.ReceiptID == "" {
+		receipt.ReceiptID = strings.Repeat("1", 64)
+	}
+	if receipt.AttemptedAt == "" {
+		receipt.AttemptedAt = time.Unix(1, 0).UTC().Format(time.RFC3339Nano)
+	}
+	if err := applyPeerOperatorAlertDeliveryReceiptState(journal, receipt); err != nil {
+		t.Fatal(err)
+	}
+	journal.Receipts = append(journal.Receipts, receipt)
+}
+
 func TestPendingPeerOperatorAlertsForWebhookSkipsAcknowledgedAndSuccessful(t *testing.T) {
 	cfg := testPeerSyncConfig()
 	endpointHash := strings.Repeat("e", 64)
@@ -32,11 +46,9 @@ func TestPendingPeerOperatorAlertsForWebhookSkipsAcknowledgedAndSuccessful(t *te
 	alerts.Entries = []PeerOperatorAlert{first, second, third}
 	alerts.Acknowledgements = []PeerOperatorAlertAcknowledgement{{AlertID: second.AlertID}}
 	deliveries := defaultPeerOperatorAlertDeliveryJournal(cfg)
-	deliveries.Receipts = []PeerOperatorAlertDeliveryReceipt{
-		{AlertID: first.AlertID, EndpointHash: endpointHash, Succeeded: true},
-		{AlertID: third.AlertID, EndpointHash: endpointHash, Succeeded: false},
-		{AlertID: third.AlertID, EndpointHash: otherEndpointHash, Succeeded: true},
-	}
+	applyDeliveryReceiptForTest(t, &deliveries, PeerOperatorAlertDeliveryReceipt{ReceiptID: strings.Repeat("1", 64), AlertID: first.AlertID, EndpointHash: endpointHash, Succeeded: true, AttemptedAt: now.Format(time.RFC3339Nano)})
+	applyDeliveryReceiptForTest(t, &deliveries, PeerOperatorAlertDeliveryReceipt{ReceiptID: strings.Repeat("2", 64), AlertID: third.AlertID, EndpointHash: endpointHash, Succeeded: false, AttemptedAt: now.Add(time.Second).Format(time.RFC3339Nano)})
+	applyDeliveryReceiptForTest(t, &deliveries, PeerOperatorAlertDeliveryReceipt{ReceiptID: strings.Repeat("3", 64), AlertID: third.AlertID, EndpointHash: otherEndpointHash, Succeeded: true, AttemptedAt: now.Add(2 * time.Second).Format(time.RFC3339Nano)})
 	pending := pendingPeerOperatorAlertsForWebhook(alerts, deliveries, endpointHash)
 	if len(pending) != 1 || pending[0].AlertID != third.AlertID {
 		t.Fatalf("expected only failed current-endpoint alert to remain pending, got %+v", pending)
@@ -55,13 +67,7 @@ func TestEligiblePeerOperatorAlertsForWebhookAppliesBoundedBackoffWithoutDroppin
 	alerts.Entries = []PeerOperatorAlert{alert}
 	deliveries := defaultPeerOperatorAlertDeliveryJournal(cfg)
 	lastFailure := now.Add(-30 * time.Second)
-	deliveries.Receipts = []PeerOperatorAlertDeliveryReceipt{{
-		ReceiptID:    strings.Repeat("1", 64),
-		AlertID:      alert.AlertID,
-		EndpointHash: endpointHash,
-		Succeeded:    false,
-		AttemptedAt:  lastFailure.Format(time.RFC3339Nano),
-	}}
+	applyDeliveryReceiptForTest(t, &deliveries, PeerOperatorAlertDeliveryReceipt{ReceiptID: strings.Repeat("1", 64), AlertID: alert.AlertID, EndpointHash: endpointHash, Succeeded: false, AttemptedAt: lastFailure.Format(time.RFC3339Nano)})
 
 	eligible, err := eligiblePeerOperatorAlertsForWebhookAt(alerts, deliveries, endpointHash, now)
 	if err != nil {
@@ -80,7 +86,7 @@ func TestEligiblePeerOperatorAlertsForWebhookAppliesBoundedBackoffWithoutDroppin
 
 	for i := 0; i < 16; i++ {
 		failureAt := now.Add(-peerOperatorAlertRetryMaxDelay).Add(-time.Duration(i) * time.Second)
-		deliveries.Receipts = append(deliveries.Receipts, PeerOperatorAlertDeliveryReceipt{
+		applyDeliveryReceiptForTest(t, &deliveries, PeerOperatorAlertDeliveryReceipt{
 			ReceiptID:    strings.Repeat(string(rune('a'+i%6)), 64),
 			AlertID:      alert.AlertID,
 			EndpointHash: endpointHash,
@@ -100,7 +106,7 @@ func TestEligiblePeerOperatorAlertsForWebhookAppliesBoundedBackoffWithoutDroppin
 	}
 }
 
-func TestEligiblePeerOperatorAlertsForWebhookRejectsMalformedFailureTimestamp(t *testing.T) {
+func TestEligiblePeerOperatorAlertsForWebhookRejectsMalformedCompactFailureTimestamp(t *testing.T) {
 	cfg := testPeerSyncConfig()
 	endpointHash := strings.Repeat("e", 64)
 	now := time.Unix(20_000, 0).UTC()
@@ -111,15 +117,78 @@ func TestEligiblePeerOperatorAlertsForWebhookRejectsMalformedFailureTimestamp(t 
 	alerts := defaultPeerOperatorAlertJournal(cfg)
 	alerts.Entries = []PeerOperatorAlert{alert}
 	deliveries := defaultPeerOperatorAlertDeliveryJournal(cfg)
-	deliveries.Receipts = []PeerOperatorAlertDeliveryReceipt{{
-		ReceiptID:    strings.Repeat("1", 64),
-		AlertID:      alert.AlertID,
-		EndpointHash: endpointHash,
-		Succeeded:    false,
-		AttemptedAt:  "not-a-time",
-	}}
+	deliveries.State[operatorAlertDeliveryStateKey(alert.AlertID, endpointHash)] = PeerOperatorAlertDeliveryState{
+		AlertID:         alert.AlertID,
+		EndpointHash:    endpointHash,
+		FailureCount:    1,
+		LatestFailureAt: "not-a-time",
+	}
 	if _, err := eligiblePeerOperatorAlertsForWebhookAt(alerts, deliveries, endpointHash, now); err == nil {
-		t.Fatal("malformed failed-receipt timestamp must fail closed")
+		t.Fatal("malformed compact retry timestamp must fail closed")
+	}
+}
+
+func TestDeliveryStateSurvivesReceiptPruningForSuccessAndRetryDepth(t *testing.T) {
+	cfg := testPeerSyncConfig()
+	endpointHash := strings.Repeat("e", 64)
+	now := time.Unix(25_000, 0).UTC()
+	deliveredAlert, err := newPeerOperatorAlert(cfg, "FOLLOWER_SAFETY_HALT", "CRITICAL", "FINALIZED_HEAD_CONFLICT", "", "", "delivered", "delivered", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	retryAlert, err := newPeerOperatorAlert(cfg, "PEER_QUARANTINED", "HIGH", "HEAD_EQUIVOCATION", "validator-b", strings.Repeat("a", 64), "retry", "retry", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	alerts := defaultPeerOperatorAlertJournal(cfg)
+	alerts.Entries = []PeerOperatorAlert{deliveredAlert, retryAlert}
+	journal := defaultPeerOperatorAlertDeliveryJournal(cfg)
+	applyDeliveryReceiptForTest(t, &journal, PeerOperatorAlertDeliveryReceipt{ReceiptID: strings.Repeat("1", 64), AlertID: deliveredAlert.AlertID, EndpointHash: endpointHash, Succeeded: true, AttemptedAt: now.Add(-10 * time.Minute).Format(time.RFC3339Nano)})
+	for i := 0; i < 3; i++ {
+		applyDeliveryReceiptForTest(t, &journal, PeerOperatorAlertDeliveryReceipt{
+			ReceiptID:    strings.Repeat(string(rune('2'+i)), 64),
+			AlertID:      retryAlert.AlertID,
+			EndpointHash: endpointHash,
+			Succeeded:    false,
+			AttemptedAt:  now.Add(time.Duration(-3+i) * time.Minute).Format(time.RFC3339Nano),
+		})
+	}
+	pruned, removed, err := prunePeerOperatorAlertDeliveryReceipts(journal, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if removed != 3 || len(pruned.Receipts) != 1 {
+		t.Fatalf("expected audit receipts to prune independently, removed=%d retained=%d", removed, len(pruned.Receipts))
+	}
+	deliveredState := pruned.State[operatorAlertDeliveryStateKey(deliveredAlert.AlertID, endpointHash)]
+	if !deliveredState.Delivered {
+		t.Fatal("successful delivery state must survive pruning of its receipt")
+	}
+	retryState := pruned.State[operatorAlertDeliveryStateKey(retryAlert.AlertID, endpointHash)]
+	if retryState.FailureCount != 3 {
+		t.Fatalf("retry depth must survive receipt pruning, got %d", retryState.FailureCount)
+	}
+	pending := pendingPeerOperatorAlertsForWebhook(alerts, pruned, endpointHash)
+	if len(pending) != 1 || pending[0].AlertID != retryAlert.AlertID {
+		t.Fatalf("pruning must not resurrect already-delivered alert: %+v", pending)
+	}
+	latestFailure, err := time.Parse(time.RFC3339Nano, retryState.LatestFailureAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	eligible, err := eligiblePeerOperatorAlertsForWebhookAt(alerts, pruned, endpointHash, latestFailure.Add(2*time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(eligible) != 0 {
+		t.Fatal("three-failure retry state should still enforce four-minute backoff after receipts are pruned")
+	}
+	eligible, err = eligiblePeerOperatorAlertsForWebhookAt(alerts, pruned, endpointHash, latestFailure.Add(4*time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(eligible) != 1 || eligible[0].AlertID != retryAlert.AlertID {
+		t.Fatal("retry must become eligible at preserved four-minute backoff boundary")
 	}
 }
 
@@ -180,7 +249,7 @@ func TestAutoDeliverPendingPeerOperatorAlertsRetriesFailuresWithoutMutatingSafet
 	}
 }
 
-func TestAppendOperatorAlertDeliveryReceiptEnforcesHardCap(t *testing.T) {
+func TestAppendOperatorAlertDeliveryReceiptEnforcesHardCapAndPreservesState(t *testing.T) {
 	cfg := testPeerSyncConfig()
 	path := filepath.Join(t.TempDir(), "deliveries.json")
 	alertID := strings.Repeat("a", 64)
@@ -188,14 +257,15 @@ func TestAppendOperatorAlertDeliveryReceiptEnforcesHardCap(t *testing.T) {
 	journal := defaultPeerOperatorAlertDeliveryJournal(cfg)
 	for i := 0; i < peerOperatorAlertDeliveryMaxReceipts; i++ {
 		attemptedAt := time.Unix(int64(i+1), 0).UTC()
-		journal.Receipts = append(journal.Receipts, PeerOperatorAlertDeliveryReceipt{
+		receipt := PeerOperatorAlertDeliveryReceipt{
 			ReceiptID:    operatorAlertDeliveryReceiptID(cfg, alertID, endpointHash, attemptedAt),
 			AlertID:      alertID,
 			EndpointHash: endpointHash,
 			HTTPStatus:   http.StatusOK,
 			Succeeded:    true,
 			AttemptedAt:  attemptedAt.Format(time.RFC3339Nano),
-		})
+		}
+		applyDeliveryReceiptForTest(t, &journal, receipt)
 	}
 	if err := savePeerOperatorAlertDeliveryJournalAtomic(path, journal, cfg); err != nil {
 		t.Fatal(err)
@@ -220,9 +290,13 @@ func TestAppendOperatorAlertDeliveryReceiptEnforcesHardCap(t *testing.T) {
 		t.Fatalf("expected hard cap %d, got %d", peerOperatorAlertDeliveryMaxReceipts, len(bounded.Receipts))
 	}
 	if bounded.Receipts[0].AttemptedAt != time.Unix(2, 0).UTC().Format(time.RFC3339Nano) {
-		t.Fatalf("expected oldest receipt to be pruned, got first timestamp %s", bounded.Receipts[0].AttemptedAt)
+		t.Fatalf("expected oldest retained receipt to be second attempt, got %s", bounded.Receipts[0].AttemptedAt)
 	}
 	if bounded.Receipts[len(bounded.Receipts)-1].ReceiptID != latest.ReceiptID {
 		t.Fatal("newest appended receipt must be retained")
+	}
+	state := bounded.State[operatorAlertDeliveryStateKey(alertID, endpointHash)]
+	if !state.Delivered || state.LastSuccessAt != latestAt.Format(time.RFC3339Nano) {
+		t.Fatalf("compact successful-delivery state must survive receipt cap: %+v", state)
 	}
 }
