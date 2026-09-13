@@ -34,7 +34,7 @@ func TestPeerSessionStateCorruptionFailsClosed(t *testing.T) {
 			if err == nil {
 				t.Fatalf("existing corrupt peer session state must fail closed, got state: %+v", state)
 			}
-		}
+		})
 	}
 }
 
@@ -82,7 +82,7 @@ func TestPeerSyncTrustedHeadCorruptionFailsClosed(t *testing.T) {
 			if err == nil {
 				t.Fatalf("existing corrupt trusted head must fail closed rather than fall back to Genesis: %+v", head)
 			}
-		}
+		})
 	}
 }
 
