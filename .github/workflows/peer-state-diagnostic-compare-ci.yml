@@ -51,11 +51,20 @@ jobs:
             'verifyPeerStateDiagnosticBundle(bundleDir)',
             'LeftIntegrityVerified',
             'RightIntegrityVerified',
-            'AuthenticityEstablished:   false',
-            'ConsensusAuthority:        false',
-            'CanonicalHistorySelection: false',
-            'RecoveryAuthority:         false',
-            'MutationPerformed:         false',
+            'AuthenticityEstablished:',
+            'ConsensusAuthority:',
+            'CanonicalHistorySelection:',
+            'RecoveryAuthority:',
+            'MutationPerformed:',
+            'ConfigFingerprintMatch',
+            'LeftConfigFingerprintSHA256',
+            'RightConfigFingerprintSHA256',
+            'TransportPublicKeyHashComparable',
+            'TransportPublicKeyHashMatch',
+            'LeftTransportPublicKeyHash',
+            'RightTransportPublicKeyHash',
+            'transportComparable := leftTransportHash != "" && rightTransportHash != ""',
+            'transportComparable && leftTransportHash == rightTransportHash',
             'ChainIDMatch',
             'ValidatorIDMatch',
             'HealthChanges',
@@ -69,14 +78,25 @@ jobs:
           ]) if (compare.includes(forbidden)) throw new Error(`Diagnostic comparison must remain read-only; forbidden mutation surface: ${forbidden}`);
 
           for (const required of [
+            'AuthenticityEstablished:          false',
+            'ConsensusAuthority:               false',
+            'CanonicalHistorySelection:        false',
+            'RecoveryAuthority:                false',
+            'MutationPerformed:                false'
+          ]) if (!compare.includes(required)) throw new Error(`Diagnostic comparison authority flag must remain false: ${required}`);
+
+          for (const required of [
             'TestPeerStateDiagnosticCompareRequiresVerifiedBundles',
             'TestPeerStateDiagnosticCompareReportsMetadataWithoutAuthority',
+            'TestPeerStateDiagnosticCompareReportsConfigFingerprintMismatchWithoutAuthority',
+            'TestPeerStateDiagnosticCompareTransportFingerprintRequiresBothHashes',
             'TestPeerStateDiagnosticCompareReportsFileHashChangeOnly',
             'TestPeerStateDiagnosticCompareReportsValidatorContextMismatch',
             'TestPeerStateDiagnosticCompareDoesNotMutateBundles'
           ]) if (!tests.includes(required)) throw new Error(`Missing diagnostic-compare regression: ${required}`);
 
+          if (!tests.includes('matching transport public-key fingerprints do not establish bundle authenticity or consensus authority')) throw new Error('Transport fingerprint match must remain correlation metadata only');
           if (!main.includes('case "peer-state-diagnostic-compare"') || !main.includes('peerStateDiagnosticCompareCommand')) throw new Error('peer-state-diagnostic-compare command must remain registered');
           if (!main.includes('cannot select canonical history, authorize recovery, mutate state, or establish authenticity')) throw new Error('CLI must preserve diagnostic comparison non-authority boundary');
-          console.log('Diagnostic comparison verification-first/read-only/non-authority invariants passed');
+          console.log('Diagnostic comparison verification-first/read-only/provenance-correlation/non-authority invariants passed');
           NODE
