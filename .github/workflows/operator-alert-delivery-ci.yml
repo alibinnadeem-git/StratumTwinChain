@@ -28,8 +28,8 @@ jobs:
       - name: Go formatting check
         working-directory: tools/portable-validator
         run: |
-          gofmt -w peer_operator_alert_delivery*.go peer_sync_follower_managed.go main.go
-          git diff --exit-code -- peer_operator_alert_delivery*.go peer_sync_follower_managed.go main.go
+          gofmt -w peer_operator_alert_delivery*.go peer_operator_alerts*.go peer_sync_follower_managed.go main.go
+          git diff --exit-code -- peer_operator_alert_delivery*.go peer_operator_alerts*.go peer_sync_follower_managed.go main.go
       - name: Go vet
         working-directory: tools/portable-validator
         run: go vet ./...
@@ -41,6 +41,7 @@ jobs:
           node - <<'NODE'
           const fs=require('fs');
           const delivery=fs.readFileSync('tools/portable-validator/peer_operator_alert_delivery.go','utf8');
+          const alerts=fs.readFileSync('tools/portable-validator/peer_operator_alerts.go','utf8');
           const autoDelivery=fs.readFileSync('tools/portable-validator/peer_operator_alert_auto_delivery.go','utf8');
           const follower=fs.readFileSync('tools/portable-validator/peer_sync_follower_managed.go','utf8');
           const status=fs.readFileSync('tools/portable-validator/peer_operator_alert_delivery_command.go','utf8');
@@ -59,6 +60,15 @@ jobs:
             'reconstruct operator alert delivery state from retained receipts',
           ]) {
             if (!delivery.includes(required)) throw new Error(`Missing alert-delivery safety/durability/migration invariant: ${required}`);
+          }
+          for (const required of [
+            'os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)',
+            'f.Sync()',
+            'f.Close()',
+            'runtime.GOOS == "windows"',
+            'os.Rename(tmp, path)',
+          ]) {
+            if (!alerts.includes(required)) throw new Error(`Missing crash-durable operator alert journal persistence invariant: ${required}`);
           }
           for (const required of [
             'peer-alert-deliver-webhook',
@@ -137,5 +147,5 @@ jobs:
             if (status.includes(forbidden)) throw new Error(`Alert delivery status must not persist or mutate delivery state through ${forbidden}`);
           }
           if (follower.includes('err = autoDeliverPendingPeerOperatorAlertsContext')) throw new Error('Automatic delivery failure must never replace the follower cycle result');
-          console.log('One-way non-authoritative alert delivery, legacy migration, compact durable dedup/retry state, acknowledged-only compact-state cleanup, bounded retry scheduling, read-only status, and bounded receipt-retention invariants passed');
+          console.log('One-way non-authoritative alert delivery, crash-durable alert journal persistence, legacy migration, compact durable dedup/retry state, acknowledged-only compact-state cleanup, bounded retry scheduling, read-only status, and bounded receipt-retention invariants passed');
           NODE
