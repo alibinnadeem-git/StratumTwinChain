@@ -38,6 +38,8 @@ jobs:
         run: npm run qa:plc
       - name: PoVI proposer entropy profile conformance
         run: npm run qa:vrf
+      - name: PoVI inbound consensus peer conformance
+        run: npm run qa:consensus-peer
       - run: npm run qa:ui
       - run: npm run typecheck
       - run: npm run build
