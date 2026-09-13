@@ -10,7 +10,11 @@ import (
 	"time"
 )
 
-const peerOperatorAlertAutoDeliveryMaxPerCycle = 16
+const (
+	peerOperatorAlertAutoDeliveryMaxPerCycle = 16
+	peerOperatorAlertRetryBaseDelay          = time.Minute
+	peerOperatorAlertRetryMaxDelay           = time.Hour
+)
 
 func pendingPeerOperatorAlertsForWebhook(alerts PeerOperatorAlertJournal, deliveries PeerOperatorAlertDeliveryJournal, endpointHash string) []PeerOperatorAlert {
 	endpointHash = strings.ToLower(strings.TrimSpace(endpointHash))
@@ -33,6 +37,67 @@ func pendingPeerOperatorAlertsForWebhook(alerts PeerOperatorAlertJournal, delive
 		pending = append(pending, alert)
 	}
 	return pending
+}
+
+func peerOperatorAlertRetryDelay(failureCount int) time.Duration {
+	if failureCount <= 0 {
+		return 0
+	}
+	delay := peerOperatorAlertRetryBaseDelay
+	for i := 1; i < failureCount && delay < peerOperatorAlertRetryMaxDelay; i++ {
+		if delay >= peerOperatorAlertRetryMaxDelay/2 {
+			return peerOperatorAlertRetryMaxDelay
+		}
+		delay *= 2
+	}
+	if delay > peerOperatorAlertRetryMaxDelay {
+		return peerOperatorAlertRetryMaxDelay
+	}
+	return delay
+}
+
+func eligiblePeerOperatorAlertsForWebhookAt(alerts PeerOperatorAlertJournal, deliveries PeerOperatorAlertDeliveryJournal, endpointHash string, now time.Time) ([]PeerOperatorAlert, error) {
+	endpointHash = strings.ToLower(strings.TrimSpace(endpointHash))
+	pending := pendingPeerOperatorAlertsForWebhook(alerts, deliveries, endpointHash)
+	if len(pending) == 0 {
+		return pending, nil
+	}
+
+	type retryState struct {
+		failureCount int
+		latestFailure time.Time
+	}
+	retries := map[string]retryState{}
+	for _, receipt := range deliveries.Receipts {
+		if receipt.Succeeded || !strings.EqualFold(receipt.EndpointHash, endpointHash) {
+			continue
+		}
+		attemptedAt, err := time.Parse(time.RFC3339Nano, receipt.AttemptedAt)
+		if err != nil {
+			return nil, fmt.Errorf("invalid failed delivery receipt timestamp for alert %s: %w", receipt.AlertID, err)
+		}
+		id := strings.ToLower(receipt.AlertID)
+		state := retries[id]
+		state.failureCount++
+		if state.latestFailure.IsZero() || attemptedAt.After(state.latestFailure) {
+			state.latestFailure = attemptedAt
+		}
+		retries[id] = state
+	}
+
+	eligible := make([]PeerOperatorAlert, 0, len(pending))
+	for _, alert := range pending {
+		state := retries[strings.ToLower(alert.AlertID)]
+		if state.failureCount == 0 {
+			eligible = append(eligible, alert)
+			continue
+		}
+		nextAttempt := state.latestFailure.Add(peerOperatorAlertRetryDelay(state.failureCount))
+		if !now.UTC().Before(nextAttempt) {
+			eligible = append(eligible, alert)
+		}
+	}
+	return eligible, nil
 }
 
 func newOperatorAlertWebhookHTTPClient(timeout time.Duration) *http.Client {
@@ -62,7 +127,10 @@ func autoDeliverPendingPeerOperatorAlertsContext(ctx context.Context, client *ht
 	if err != nil {
 		return nil, err
 	}
-	pending := pendingPeerOperatorAlertsForWebhook(alerts, deliveries, operatorAlertEndpointHash(webhook))
+	pending, err := eligiblePeerOperatorAlertsForWebhookAt(alerts, deliveries, operatorAlertEndpointHash(webhook), now)
+	if err != nil {
+		return nil, err
+	}
 	if len(pending) > peerOperatorAlertAutoDeliveryMaxPerCycle {
 		pending = pending[:peerOperatorAlertAutoDeliveryMaxPerCycle]
 	}
