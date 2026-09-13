@@ -69,6 +69,7 @@ jobs:
             'os.Rename(tmp, path)',
           ]) {
             if (!alerts.includes(required)) throw new Error(`Missing crash-durable operator alert journal persistence invariant: ${required}`);
+            if (!delivery.includes(required)) throw new Error(`Missing crash-durable alert delivery journal persistence invariant: ${required}`);
           }
           for (const required of [
             'peer-alert-deliver-webhook',
@@ -147,5 +148,5 @@ jobs:
             if (status.includes(forbidden)) throw new Error(`Alert delivery status must not persist or mutate delivery state through ${forbidden}`);
           }
           if (follower.includes('err = autoDeliverPendingPeerOperatorAlertsContext')) throw new Error('Automatic delivery failure must never replace the follower cycle result');
-          console.log('One-way non-authoritative alert delivery, crash-durable alert journal persistence, legacy migration, compact durable dedup/retry state, acknowledged-only compact-state cleanup, bounded retry scheduling, read-only status, and bounded receipt-retention invariants passed');
+          console.log('One-way non-authoritative alert delivery, crash-durable alert and delivery journal persistence, legacy migration, compact durable dedup/retry state, acknowledged-only compact-state cleanup, bounded retry scheduling, read-only status, and bounded receipt-retention invariants passed');
           NODE
