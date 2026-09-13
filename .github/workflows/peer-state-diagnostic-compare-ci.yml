@@ -1,0 +1,82 @@
+name: STRATUM Peer State Diagnostic Compare CI
+on:
+  pull_request:
+    paths:
+      - 'tools/portable-validator/peer_state_diagnostic_compare.go'
+      - 'tools/portable-validator/peer_state_diagnostic_compare_test.go'
+      - 'tools/portable-validator/peer_state_diagnostic_verify.go'
+      - 'tools/portable-validator/peer_state_diagnostic_export.go'
+      - 'tools/portable-validator/main.go'
+      - '.github/workflows/peer-state-diagnostic-compare-ci.yml'
+  push:
+    branches-ignore: [main]
+    paths:
+      - 'tools/portable-validator/peer_state_diagnostic_compare.go'
+      - 'tools/portable-validator/peer_state_diagnostic_compare_test.go'
+      - 'tools/portable-validator/peer_state_diagnostic_verify.go'
+      - 'tools/portable-validator/peer_state_diagnostic_export.go'
+      - 'tools/portable-validator/main.go'
+      - '.github/workflows/peer-state-diagnostic-compare-ci.yml'
+
+jobs:
+  diagnostic-compare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.24.x'
+          cache-dependency-path: tools/portable-validator/go.mod
+      - name: Go formatting check
+        working-directory: tools/portable-validator
+        run: |
+          gofmt -w peer_state_diagnostic_compare.go peer_state_diagnostic_compare_test.go main.go
+          git diff --exit-code -- peer_state_diagnostic_compare.go peer_state_diagnostic_compare_test.go main.go
+      - name: Go vet
+        working-directory: tools/portable-validator
+        run: go vet ./...
+      - name: Diagnostic compare race tests
+        working-directory: tools/portable-validator
+        run: go test -race ./... -run 'TestPeerStateDiagnosticCompare'
+      - name: Read-only non-authority invariants
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const compare=fs.readFileSync('tools/portable-validator/peer_state_diagnostic_compare.go','utf8');
+          const tests=fs.readFileSync('tools/portable-validator/peer_state_diagnostic_compare_test.go','utf8');
+          const main=fs.readFileSync('tools/portable-validator/main.go','utf8');
+
+          for (const required of [
+            'STRATUM-PEER-STATE-DIAGNOSTIC-COMPARE/1',
+            'verifyPeerStateDiagnosticBundle(bundleDir)',
+            'LeftIntegrityVerified',
+            'RightIntegrityVerified',
+            'AuthenticityEstablished:   false',
+            'ConsensusAuthority:        false',
+            'CanonicalHistorySelection: false',
+            'RecoveryAuthority:         false',
+            'MutationPerformed:         false',
+            'ChainIDMatch',
+            'ValidatorIDMatch',
+            'HealthChanges',
+            'FileChanges'
+          ]) if (!compare.includes(required)) throw new Error(`Missing diagnostic-compare invariant: ${required}`);
+
+          for (const forbidden of [
+            'os.WriteFile(', 'os.Remove(', 'os.RemoveAll(', 'os.Rename(',
+            'savePeerSyncTrustedHeadAtomic(', 'savePeerQuarantineStateAtomic(',
+            'quarantinePeer(', 'releasePeerQuarantine(', 'applyGovernedProofBundle('
+          ]) if (compare.includes(forbidden)) throw new Error(`Diagnostic comparison must remain read-only; forbidden mutation surface: ${forbidden}`);
+
+          for (const required of [
+            'TestPeerStateDiagnosticCompareRequiresVerifiedBundles',
+            'TestPeerStateDiagnosticCompareReportsMetadataWithoutAuthority',
+            'TestPeerStateDiagnosticCompareReportsFileHashChangeOnly',
+            'TestPeerStateDiagnosticCompareReportsValidatorContextMismatch',
+            'TestPeerStateDiagnosticCompareDoesNotMutateBundles'
+          ]) if (!tests.includes(required)) throw new Error(`Missing diagnostic-compare regression: ${required}`);
+
+          if (!main.includes('case "peer-state-diagnostic-compare"') || !main.includes('peerStateDiagnosticCompareCommand')) throw new Error('peer-state-diagnostic-compare command must remain registered');
+          if (!main.includes('cannot select canonical history, authorize recovery, mutate state, or establish authenticity')) throw new Error('CLI must preserve diagnostic comparison non-authority boundary');
+          console.log('Diagnostic comparison verification-first/read-only/non-authority invariants passed');
+          NODE
