@@ -73,23 +73,56 @@ The verifier checks:
 - absence of unexpected/unlisted files;
 - non-authority manifest flags.
 
-## 4. Understand what verification does not prove
+## 4. Compare verified bundles when useful
 
-Diagnostic verification is an **integrity check**, not a provenance or consensus proof.
+If two preserved packages need to be reviewed side-by-side, compare them only through the verification-first comparison command:
 
-A valid unsigned diagnostic bundle does not establish:
+```bash
+./stratum-validator-bootstrap peer-state-diagnostic-compare \
+  --left ~/stratum-diagnostics/validator-d-before \
+  --right ~/stratum-diagnostics/validator-d-after
+```
 
-- who created the package;
-- that a particular validator actually produced it;
+The command independently verifies both bundles before comparing them. It reports only diagnostic differences such as:
+
+- chain-ID and validator-ID match/mismatch;
+- bundle timestamps;
+- embedded state-health classifications;
+- file presence;
+- file byte lengths;
+- file SHA-256 digests.
+
+Its output explicitly remains non-authoritative:
+
+```text
+authenticityEstablished=false
+consensusAuthority=false
+canonicalHistorySelection=false
+recoveryAuthority=false
+mutationPerformed=false
+```
+
+A trusted-head file difference is evidence for review only. It does not tell the operator which trusted head is correct and must never be used as automatic fork choice or automatic recovery authorization.
+
+## 5. Understand what verification and comparison do not prove
+
+Diagnostic verification is an **integrity check**, and diagnostic comparison is an **observational difference report**. Neither is a provenance or consensus proof.
+
+A valid unsigned diagnostic bundle, or a comparison between two valid bundles, does not establish:
+
+- who created either package;
+- that a particular validator actually produced either package;
 - PoVI finality;
 - canonical chain history;
+- which differing trusted head is correct;
 - validator governance authority;
 - permission to recover/replace a trusted head;
+- permission to clear a safety halt or release quarantine;
 - physical truth about infrastructure.
 
-Do not treat `integrityVerified=true` as authorization to restore state automatically.
+Do not treat `integrityVerified=true` or any comparison result as authorization to restore state automatically.
 
-## 5. Review and recover deliberately
+## 6. Review and recover deliberately
 
 Recovery depends on the state type.
 
@@ -116,6 +149,8 @@ None of the commands in this guide can:
 - create PLC/PFC votes;
 - grant vote authority;
 - modify validator governance;
+- select canonical history;
+- authorize recovery;
 - transition `CANDIDATE` to `ACTIVE`.
 
 The incident-response workflow is intentionally separate from future activation and live PoVI participation.
