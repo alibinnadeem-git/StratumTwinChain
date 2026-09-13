@@ -141,7 +141,30 @@ That distinction is normative for this runtime slice: an unsigned hash manifest 
 
 Regression coverage requires successful integrity-only verification of an untouched package and rejection of changed file bytes, injected `keys/private` content, manifest authority escalation, and unexpected unlisted files.
 
-## Dedicated durability CI
+## Independent diagnostic bundle comparison
+
+`peer-state-diagnostic-compare --left <diagnostic-directory> --right <diagnostic-directory>` compares two diagnostic packages only after independently verifying both packages through the existing diagnostic verifier.
+
+The comparison is observational and read-only. It reports only:
+
+- whether chain IDs match;
+- whether validator IDs match;
+- each bundle's creation timestamp and whether those timestamps differ;
+- each embedded state-health overall status;
+- per-state health differences in status, safe-default classification, and authoritative-local-checkpoint marking;
+- per-file presence differences;
+- per-file byte-length differences;
+- per-file SHA-256 differences.
+
+The comparison result explicitly carries `authenticityEstablished=false`, `consensusAuthority=false`, `canonicalHistorySelection=false`, `recoveryAuthority=false`, and `mutationPerformed=false`.
+
+A difference in the exported trusted-head file is therefore evidence for operator review only. It does **not** determine which trusted head is correct, choose a fork, authorize replacement of local state, clear a safety halt, release quarantine, alter reliability state, modify validator governance, change PoVI quorum weight, grant vote authority, activate a validator, or establish physical truth.
+
+The command does not write to either bundle or to validator state. If either bundle fails independent diagnostic verification, comparison fails rather than comparing unverified bytes.
+
+Regression coverage requires verification-first failure on tampered bundles, timestamp/context-only comparison without authority escalation, isolated SHA-256/size change reporting, validator-context mismatch reporting, and byte-for-byte non-mutation of both source bundles.
+
+## Dedicated durability and diagnostic CI
 
 `STRATUM Peer State Durability CI` permanently checks the persistence and non-authority boundaries for:
 
@@ -158,7 +181,9 @@ Regression coverage requires successful integrity-only verification of an untouc
 - non-mutating, private-key-excluding diagnostic export and hash-manifest regressions;
 - independent diagnostic bundle verification, integrity-versus-authenticity semantics, path safety, and unexpected-file rejection.
 
-The gate includes Go formatting, `go vet`, targeted race tests, and source-level assertions for file `fsync`, atomic rename, POSIX parent-directory sync, Windows replacement behavior, fail-closed corruption behavior, state-health non-mutation, diagnostic-export allowlisting/private-key exclusion, diagnostic-verifier non-mutation/integrity-only semantics, and non-authority invariants. Separate Peer Sync, Operator Alert Delivery, and full Portable Validator CI remain additional gates.
+The durability gate includes Go formatting, `go vet`, targeted race tests, and source-level assertions for file `fsync`, atomic rename, POSIX parent-directory sync, Windows replacement behavior, fail-closed corruption behavior, state-health non-mutation, diagnostic-export allowlisting/private-key exclusion, diagnostic-verifier non-mutation/integrity-only semantics, and non-authority invariants. Separate Peer Sync, Operator Alert Delivery, and full Portable Validator CI remain additional gates.
+
+`STRATUM Peer State Diagnostic Compare CI` separately guards the diagnostic comparison surface. It requires formatting, `go vet`, race-tested comparison regressions, verification-first behavior, explicit non-authority flags, command registration, and negative source assertions preventing trusted-head writes, quarantine mutation, proof application, file deletion/rename, or other recovery/state-mutation surfaces from entering the comparison command.
 
 Operator Alert Delivery CI separately guards the same file-plus-parent-directory durability boundary for operator alerts/acknowledgements and the delivery receipt/compact-state journal.
 
