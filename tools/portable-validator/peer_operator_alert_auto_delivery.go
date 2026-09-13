@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+const peerOperatorAlertAutoDeliveryMaxPerCycle = 16
+
 func pendingPeerOperatorAlertsForWebhook(alerts PeerOperatorAlertJournal, deliveries PeerOperatorAlertDeliveryJournal, endpointHash string) []PeerOperatorAlert {
 	endpointHash = strings.ToLower(strings.TrimSpace(endpointHash))
 	acknowledged := map[string]bool{}
@@ -61,6 +63,9 @@ func autoDeliverPendingPeerOperatorAlertsContext(ctx context.Context, client *ht
 		return nil, err
 	}
 	pending := pendingPeerOperatorAlertsForWebhook(alerts, deliveries, operatorAlertEndpointHash(webhook))
+	if len(pending) > peerOperatorAlertAutoDeliveryMaxPerCycle {
+		pending = pending[:peerOperatorAlertAutoDeliveryMaxPerCycle]
+	}
 	receipts := make([]PeerOperatorAlertDeliveryReceipt, 0, len(pending))
 	var deliveryErrors []error
 	for i, alert := range pending {
