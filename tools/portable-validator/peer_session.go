@@ -170,6 +170,9 @@ func savePeerSessionStateAtomic(path string, state PeerSessionState) error {
 		cleanup()
 		return err
 	}
+	if err := syncParentDirectoryAfterRename(path); err != nil {
+		return err
+	}
 	return nil
 }
 
