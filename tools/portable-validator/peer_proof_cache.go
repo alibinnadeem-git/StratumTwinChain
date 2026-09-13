@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -112,6 +113,37 @@ func loadPeerProofCacheManifest(cacheDir string, cfg BootstrapConfig) (PeerProof
 	return manifest, nil
 }
 
+func writePeerProofCacheFileAtomic(path string, data []byte) error {
+	tmp := path + ".tmp"
+	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	if err != nil {
+		return err
+	}
+	cleanup := func() { _ = os.Remove(tmp) }
+	if _, err := f.Write(append(data, '\n')); err != nil {
+		_ = f.Close()
+		cleanup()
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		cleanup()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		cleanup()
+		return err
+	}
+	if runtime.GOOS == "windows" {
+		_ = os.Remove(path)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		cleanup()
+		return err
+	}
+	return nil
+}
+
 func savePeerProofCacheManifestAtomic(cacheDir string, manifest PeerProofCacheManifest, cfg BootstrapConfig) error {
 	if strings.TrimSpace(cacheDir) == "" {
 		return nil
@@ -126,16 +158,7 @@ func savePeerProofCacheManifestAtomic(cacheDir string, manifest PeerProofCacheMa
 	if err != nil {
 		return err
 	}
-	path := filepath.Join(cacheDir, peerProofCacheManifestName)
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, append(b, '\n'), 0o600); err != nil {
-		return err
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		_ = os.Remove(tmp)
-		return err
-	}
-	return nil
+	return writePeerProofCacheFileAtomic(filepath.Join(cacheDir, peerProofCacheManifestName), b)
 }
 
 func safePeerProofCacheFileName(name string) bool {
@@ -149,16 +172,7 @@ func writePeerProofCacheBundleAtomic(cacheDir, fileName string, data []byte) err
 	if err := os.MkdirAll(cacheDir, 0o700); err != nil {
 		return err
 	}
-	path := filepath.Join(cacheDir, fileName)
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, append(data, '\n'), 0o600); err != nil {
-		return err
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		_ = os.Remove(tmp)
-		return err
-	}
-	return nil
+	return writePeerProofCacheFileAtomic(filepath.Join(cacheDir, fileName), data)
 }
 
 func peerProofCachePrunePlan(manifest PeerProofCacheManifest) (PeerProofCacheManifest, []string) {
