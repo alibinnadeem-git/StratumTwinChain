@@ -49,6 +49,7 @@ try {
   const fixture=await c.parsePdf(new File([pdf],'transform-fixture.pdf'),{floor:'L1',elevation:0});
   const bounds=fixture.entities.filter(e=>e.kind==='vector-boundary-candidate');
   assert.equal(bounds.length,2);
+  assert.ok(bounds.every(e=>e.floor==='UNRESOLVED' && e.meta.elevationKnown===false),'no floor or elevation invented for an untitled sheet');
   assert.ok(Math.abs(Math.min(...bounds[0].vertices.map(v=>v.x))+7)<.001,'nested scale/translation applied');
   assert.ok(Math.abs(Math.min(...bounds[1].vertices.map(v=>v.x))+9)<.001,'restore returns to original frame');
   assert.ok(bounds.every(e=>e.meta.reviewRequired && e.meta.geometryValidated===false));
