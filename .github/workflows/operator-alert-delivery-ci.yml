@@ -4,6 +4,7 @@ on:
     paths:
       - 'tools/portable-validator/peer_operator_alert_delivery*.go'
       - 'tools/portable-validator/peer_operator_alerts*.go'
+      - 'tools/portable-validator/peer_sync_follower_managed.go'
       - 'tools/portable-validator/main.go'
       - '.github/workflows/operator-alert-delivery-ci.yml'
   push:
@@ -11,6 +12,7 @@ on:
     paths:
       - 'tools/portable-validator/peer_operator_alert_delivery*.go'
       - 'tools/portable-validator/peer_operator_alerts*.go'
+      - 'tools/portable-validator/peer_sync_follower_managed.go'
       - 'tools/portable-validator/main.go'
       - '.github/workflows/operator-alert-delivery-ci.yml'
 
@@ -26,19 +28,21 @@ jobs:
       - name: Go formatting check
         working-directory: tools/portable-validator
         run: |
-          gofmt -w peer_operator_alert_delivery*.go main.go
-          git diff --exit-code -- peer_operator_alert_delivery*.go main.go
+          gofmt -w peer_operator_alert_delivery*.go peer_sync_follower_managed.go main.go
+          git diff --exit-code -- peer_operator_alert_delivery*.go peer_sync_follower_managed.go main.go
       - name: Go vet
         working-directory: tools/portable-validator
         run: go vet ./...
       - name: Operator alert delivery tests
         working-directory: tools/portable-validator
-        run: go test -race ./... -run 'Test(ValidateOperatorAlertWebhookURL|DeliverPeerOperatorAlertWebhook|FailedWebhookDelivery|OperatorAlertDeliveryJournal|AppendOperatorAlertDeliveryReceipt|BearerTokenFile|PeerOperatorAlertByID|PeerOperatorAlertDeliveryStatus|DeliveryStatusFilter|PrunePeerOperatorAlertDeliveryReceipts)'
+        run: go test -race ./... -run 'Test(ValidateOperatorAlertWebhookURL|DeliverPeerOperatorAlertWebhook|FailedWebhookDelivery|OperatorAlertDeliveryJournal|AppendOperatorAlertDeliveryReceipt|BearerTokenFile|PeerOperatorAlertByID|PeerOperatorAlertDeliveryStatus|DeliveryStatusFilter|PrunePeerOperatorAlertDeliveryReceipts|PendingPeerOperatorAlertsForWebhook|AutoDeliverPendingPeerOperatorAlerts)'
       - name: Alert delivery trust-boundary invariants
         run: |
           node - <<'NODE'
           const fs=require('fs');
           const delivery=fs.readFileSync('tools/portable-validator/peer_operator_alert_delivery.go','utf8');
+          const autoDelivery=fs.readFileSync('tools/portable-validator/peer_operator_alert_auto_delivery.go','utf8');
+          const follower=fs.readFileSync('tools/portable-validator/peer_sync_follower_managed.go','utf8');
           const status=fs.readFileSync('tools/portable-validator/peer_operator_alert_delivery_command.go','utf8');
           const retention=fs.readFileSync('tools/portable-validator/peer_operator_alert_delivery_retention.go','utf8');
           const main=fs.readFileSync('tools/portable-validator/main.go','utf8');
@@ -61,13 +65,27 @@ jobs:
           ]) {
             if (!main.includes(required)) throw new Error(`Missing alert-delivery command surface: ${required}`);
           }
+          for (const required of [
+            'alert-webhook',
+            'alert-bearer-token-file',
+            'alert-delivery-state',
+            'alert-delivery-timeout',
+            'autoDeliverPendingPeerOperatorAlertsContext',
+            'best-effort failure; follower safety state unchanged',
+          ]) {
+            if (!follower.includes(required)) throw new Error(`Missing automatic follower alert-delivery boundary: ${required}`);
+          }
           if (!delivery.includes('cfg.State != candidateState || cfg.VoteAuthority')) throw new Error('Alert delivery must fail closed outside CANDIDATE/voteAuthority=false');
+          if (!autoDelivery.includes('cfg.State != candidateState || cfg.VoteAuthority')) throw new Error('Automatic alert delivery must fail closed outside CANDIDATE/voteAuthority=false');
           if (!status.includes('cfg.State != candidateState || cfg.VoteAuthority')) throw new Error('Alert delivery status must fail closed outside CANDIDATE/voteAuthority=false');
           if (!retention.includes('cfg.State != candidateState || cfg.VoteAuthority')) throw new Error('Alert delivery retention must fail closed outside CANDIDATE/voteAuthority=false');
           if (!delivery.includes('CheckRedirect') || !delivery.includes('http.ErrUseLastResponse')) throw new Error('Alert delivery must refuse redirect-following that could leak authorization headers or bypass endpoint policy');
           if (!delivery.includes('bearer-token-file') || !delivery.includes('Authorization')) throw new Error('Alert delivery must support secret-file bearer auth rather than command-line token material');
+          if (!delivery.includes('http.NewRequestWithContext')) throw new Error('Follower-triggered alert delivery must support cancellation');
+          if (!delivery.includes('prunePeerOperatorAlertDeliveryReceipts(journal, peerOperatorAlertDeliveryMaxReceipts)')) throw new Error('Every normal receipt append must enforce the hard retention cap');
           if (!retention.includes('peerOperatorAlertDeliveryMaxReceipts = 4096')) throw new Error('Alert delivery receipts must have a hard upper retention bound');
           if (!retention.includes('savePeerOperatorAlertDeliveryJournalAtomic')) throw new Error('Retention may persist only the delivery receipt journal');
+          if (!autoDelivery.includes('receipt.Succeeded') || !autoDelivery.includes('acknowledged')) throw new Error('Automatic delivery must deduplicate successful endpoint delivery and skip locally acknowledged alerts');
           for (const forbidden of [
             'acknowledgePeerOperatorAlert(',
             'peerQuarantineReleaseCommand(',
@@ -77,11 +95,13 @@ jobs:
             'applyGovernedProofBundle(',
           ]) {
             if (delivery.includes(forbidden)) throw new Error(`Alert delivery must not mutate safety/trust state through ${forbidden}`);
+            if (autoDelivery.includes(forbidden)) throw new Error(`Automatic alert delivery must not mutate safety/trust state through ${forbidden}`);
             if (status.includes(forbidden)) throw new Error(`Alert delivery status must remain read-only and not call ${forbidden}`);
             if (retention.includes(forbidden)) throw new Error(`Alert delivery retention must not touch safety/trust state through ${forbidden}`);
           }
           for (const forbidden of ['os.WriteFile(', 'os.Rename(', 'savePeerOperatorAlertDeliveryJournalAtomic(', 'appendPeerOperatorAlertDeliveryReceipt(']) {
             if (status.includes(forbidden)) throw new Error(`Alert delivery status must not persist or mutate delivery state through ${forbidden}`);
           }
-          console.log('One-way non-authoritative alert delivery, read-only status, and bounded receipt-retention invariants passed');
+          if (follower.includes('err = autoDeliverPendingPeerOperatorAlertsContext')) throw new Error('Automatic delivery failure must never replace the follower cycle result');
+          console.log('One-way non-authoritative explicit/automatic alert delivery, cancellation, deduplication, read-only status, and bounded receipt-retention invariants passed');
           NODE
