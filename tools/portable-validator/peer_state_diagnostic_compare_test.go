@@ -28,6 +28,30 @@ func createDiagnosticBundleAt(t *testing.T, root, name string, when time.Time) (
 	return output, manifest
 }
 
+func cloneDiagnosticBundle(t *testing.T, source, dest string, manifest PeerStateDiagnosticManifest) PeerStateDiagnosticManifest {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Join(dest, "state"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range manifest.Files {
+		data, err := os.ReadFile(filepath.Join(source, entry.ExportPath))
+		if err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(dest, entry.ExportPath)
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := writeJSON(filepath.Join(dest, "manifest.json"), manifest, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return manifest
+}
+
 func rewriteDiagnosticFileAndManifest(t *testing.T, bundle string, manifest PeerStateDiagnosticManifest, name string, data []byte) PeerStateDiagnosticManifest {
 	t.Helper()
 	for i := range manifest.Files {
@@ -52,8 +76,9 @@ func rewriteDiagnosticFileAndManifest(t *testing.T, bundle string, manifest Peer
 
 func TestPeerStateDiagnosticCompareRequiresVerifiedBundles(t *testing.T) {
 	root := t.TempDir()
-	left, _ := createDiagnosticBundleAt(t, root, "left", time.Unix(1_800_000_000, 0))
-	right, manifest := createDiagnosticBundleAt(t, root, "right", time.Unix(1_800_000_001, 0))
+	left, manifest := createDiagnosticBundleAt(t, root, "left", time.Unix(1_800_000_000, 0))
+	right := filepath.Join(root, "right-diagnostic")
+	cloneDiagnosticBundle(t, left, right, manifest)
 	entry := diagnosticFileByName(t, manifest, "trusted-head")
 	if err := os.WriteFile(filepath.Join(right, entry.ExportPath), []byte("unmanifested change"), 0o600); err != nil {
 		t.Fatal(err)
@@ -65,8 +90,13 @@ func TestPeerStateDiagnosticCompareRequiresVerifiedBundles(t *testing.T) {
 
 func TestPeerStateDiagnosticCompareReportsMetadataWithoutAuthority(t *testing.T) {
 	root := t.TempDir()
-	left, _ := createDiagnosticBundleAt(t, root, "left", time.Unix(1_800_000_000, 0))
-	right, _ := createDiagnosticBundleAt(t, root, "right", time.Unix(1_800_000_100, 0))
+	left, manifest := createDiagnosticBundleAt(t, root, "left", time.Unix(1_800_000_000, 0))
+	right := filepath.Join(root, "right-diagnostic")
+	rightManifest := cloneDiagnosticBundle(t, left, right, manifest)
+	rightManifest.CreatedAt = time.Unix(1_800_000_100, 0).UTC().Format(time.RFC3339Nano)
+	if err := writeJSON(filepath.Join(right, "manifest.json"), rightManifest, 0o600); err != nil {
+		t.Fatal(err)
+	}
 	comparison, err := comparePeerStateDiagnosticBundles(left, right)
 	if err != nil {
 		t.Fatal(err)
@@ -87,8 +117,9 @@ func TestPeerStateDiagnosticCompareReportsMetadataWithoutAuthority(t *testing.T)
 
 func TestPeerStateDiagnosticCompareReportsFileHashChangeOnly(t *testing.T) {
 	root := t.TempDir()
-	left, _ := createDiagnosticBundleAt(t, root, "left", time.Unix(1_800_000_000, 0))
-	right, rightManifest := createDiagnosticBundleAt(t, root, "right", time.Unix(1_800_000_001, 0))
+	left, manifest := createDiagnosticBundleAt(t, root, "left", time.Unix(1_800_000_000, 0))
+	right := filepath.Join(root, "right-diagnostic")
+	rightManifest := cloneDiagnosticBundle(t, left, right, manifest)
 	rewriteDiagnosticFileAndManifest(t, right, rightManifest, "trusted-head", []byte("internally consistent but different diagnostic bytes\n"))
 
 	comparison, err := comparePeerStateDiagnosticBundles(left, right)
@@ -109,8 +140,9 @@ func TestPeerStateDiagnosticCompareReportsFileHashChangeOnly(t *testing.T) {
 
 func TestPeerStateDiagnosticCompareReportsValidatorContextMismatch(t *testing.T) {
 	root := t.TempDir()
-	left, _ := createDiagnosticBundleAt(t, root, "left", time.Unix(1_800_000_000, 0))
-	right, rightManifest := createDiagnosticBundleAt(t, root, "right", time.Unix(1_800_000_001, 0))
+	left, manifest := createDiagnosticBundleAt(t, root, "left", time.Unix(1_800_000_000, 0))
+	right := filepath.Join(root, "right-diagnostic")
+	rightManifest := cloneDiagnosticBundle(t, left, right, manifest)
 	rightManifest.ValidatorID = "different-validator-for-diagnostic-comparison"
 	if err := writeJSON(filepath.Join(right, "manifest.json"), rightManifest, 0o600); err != nil {
 		t.Fatal(err)
@@ -126,8 +158,9 @@ func TestPeerStateDiagnosticCompareReportsValidatorContextMismatch(t *testing.T)
 
 func TestPeerStateDiagnosticCompareDoesNotMutateBundles(t *testing.T) {
 	root := t.TempDir()
-	left, _ := createDiagnosticBundleAt(t, root, "left", time.Unix(1_800_000_000, 0))
-	right, _ := createDiagnosticBundleAt(t, root, "right", time.Unix(1_800_000_001, 0))
+	left, manifest := createDiagnosticBundleAt(t, root, "left", time.Unix(1_800_000_000, 0))
+	right := filepath.Join(root, "right-diagnostic")
+	cloneDiagnosticBundle(t, left, right, manifest)
 	leftBefore, err := os.ReadFile(filepath.Join(left, "manifest.json"))
 	if err != nil {
 		t.Fatal(err)
