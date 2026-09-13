@@ -207,9 +207,9 @@ export default function CompiledGraphViewer() {
       graph
         ? [
             ...new Map(
-              graph.sources.map((s) => [
-                s.floor || "L1",
-                Number(s.elevation || 0),
+              graph.entities.map((s) => [
+                s.floor || "UNRESOLVED",
+                Number(s.z || 0),
               ]),
             ).entries(),
           ].sort((a, b) => a[1] - b[1])
@@ -1258,7 +1258,7 @@ export default function CompiledGraphViewer() {
                   <strong>{selected.floor || "L1"}</strong>
                 </div>
                 <div>
-                  <span>Elevation Z</span>
+                  <span>Elevation Z (unverified unless recorded)</span>
                   <strong>{Number(selected.z || 0).toFixed(2)} m</strong>
                 </div>
                 <div>
