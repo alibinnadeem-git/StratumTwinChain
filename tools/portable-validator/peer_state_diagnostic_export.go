@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -71,6 +70,25 @@ func pathWithin(parent, child string) (bool, error) {
 		return false, err
 	}
 	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))), nil
+}
+
+func writePeerStateDiagnosticFile(path string, data []byte) error {
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(data); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	return syncParentDirectoryAfterRename(path)
 }
 
 func exportPeerStateDiagnostics(dir, outputDir string, cfg BootstrapConfig, now time.Time) (PeerStateDiagnosticManifest, error) {
@@ -146,7 +164,7 @@ func exportPeerStateDiagnostics(dir, outputDir string, cfg BootstrapConfig, now 
 			cleanup()
 			return PeerStateDiagnosticManifest{}, err
 		}
-		if err := os.WriteFile(fullExportPath, data, 0o600); err != nil {
+		if err := writePeerStateDiagnosticFile(fullExportPath, data); err != nil {
 			cleanup()
 			return PeerStateDiagnosticManifest{}, err
 		}
@@ -166,12 +184,9 @@ func exportPeerStateDiagnostics(dir, outputDir string, cfg BootstrapConfig, now 
 		return PeerStateDiagnosticManifest{}, err
 	}
 	manifestPath := filepath.Join(tmpDir, "manifest.json")
-	if err := os.WriteFile(manifestPath, append(manifestBytes, '\n'), 0o600); err != nil {
+	if err := writePeerStateDiagnosticFile(manifestPath, append(manifestBytes, '\n')); err != nil {
 		cleanup()
 		return PeerStateDiagnosticManifest{}, err
-	}
-	if runtime.GOOS == "windows" {
-		_ = os.RemoveAll(outputDir)
 	}
 	if err := os.Rename(tmpDir, outputDir); err != nil {
 		cleanup()
