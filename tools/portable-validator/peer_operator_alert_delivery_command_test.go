@@ -120,32 +120,30 @@ func TestPeerOperatorAlertDeliveryRetryStatusIsEndpointScopedAndReadOnly(t *test
 	alerts.Entries = []PeerOperatorAlert{first, second, third}
 	alerts.Acknowledgements = []PeerOperatorAlertAcknowledgement{{AlertID: third.AlertID}}
 	deliveries := defaultPeerOperatorAlertDeliveryJournal(cfg)
-	deliveries.Receipts = []PeerOperatorAlertDeliveryReceipt{
-		{
-			ReceiptID:    strings.Repeat("1", 64),
-			AlertID:      first.AlertID,
-			EndpointHash: endpointHash,
-			HTTPStatus:   503,
-			Succeeded:    false,
-			AttemptedAt:  now.Add(-30 * time.Second).Format(time.RFC3339Nano),
-		},
-		{
-			ReceiptID:    strings.Repeat("2", 64),
-			AlertID:      second.AlertID,
-			EndpointHash: endpointHash,
-			HTTPStatus:   204,
-			Succeeded:    true,
-			AttemptedAt:  now.Add(-time.Minute).Format(time.RFC3339Nano),
-		},
-		{
-			ReceiptID:    strings.Repeat("3", 64),
-			AlertID:      first.AlertID,
-			EndpointHash: otherEndpointHash,
-			HTTPStatus:   204,
-			Succeeded:    true,
-			AttemptedAt:  now.Add(-time.Minute).Format(time.RFC3339Nano),
-		},
-	}
+	applyDeliveryReceiptForTest(t, &deliveries, PeerOperatorAlertDeliveryReceipt{
+		ReceiptID:    strings.Repeat("1", 64),
+		AlertID:      first.AlertID,
+		EndpointHash: endpointHash,
+		HTTPStatus:   503,
+		Succeeded:    false,
+		AttemptedAt:  now.Add(-30 * time.Second).Format(time.RFC3339Nano),
+	})
+	applyDeliveryReceiptForTest(t, &deliveries, PeerOperatorAlertDeliveryReceipt{
+		ReceiptID:    strings.Repeat("2", 64),
+		AlertID:      second.AlertID,
+		EndpointHash: endpointHash,
+		HTTPStatus:   204,
+		Succeeded:    true,
+		AttemptedAt:  now.Add(-time.Minute).Format(time.RFC3339Nano),
+	})
+	applyDeliveryReceiptForTest(t, &deliveries, PeerOperatorAlertDeliveryReceipt{
+		ReceiptID:    strings.Repeat("3", 64),
+		AlertID:      first.AlertID,
+		EndpointHash: otherEndpointHash,
+		HTTPStatus:   204,
+		Succeeded:    true,
+		AttemptedAt:  now.Add(-time.Minute).Format(time.RFC3339Nano),
+	})
 
 	status, err := peerOperatorAlertDeliveryRetryStatus(alerts, deliveries, endpointHash, "", now)
 	if err != nil {
