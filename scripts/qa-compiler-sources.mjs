@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {readFile, writeFile, unlink} from 'node:fs/promises';
-import {createHash} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
 import {createRequire} from 'node:module';
 import {basename} from 'node:path';
 import {pathToFileURL} from 'node:url';
@@ -8,7 +8,7 @@ import ts from 'typescript';
 
 // Exercise the actual compiler functions without React or a network service.
 const root = new URL('../', import.meta.url);
-const moduleUrl = new URL(`.compiler-qa-${process.pid}.mjs`, root);
+const moduleUrl = new URL(`.compiler-qa-${randomUUID()}.mjs`, root);
 const require = createRequire(import.meta.url);
 let source = await readFile(new URL('components/CompilerWorkspace.tsx', root), 'utf8');
 source = source.slice(source.indexOf('type Layer='), source.indexOf('export default function'));
