@@ -172,6 +172,9 @@ func savePeerSyncTrustedHeadAtomic(path string, head PeerSyncTrustedHead) error 
 		cleanup()
 		return err
 	}
+	if err := syncParentDirectoryAfterRename(path); err != nil {
+		return err
+	}
 	return nil
 }
 
