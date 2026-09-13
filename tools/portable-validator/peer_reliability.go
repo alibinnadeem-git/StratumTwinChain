@@ -110,6 +110,9 @@ func savePeerReliabilityStateAtomic(path string, state PeerReliabilityState) err
 		cleanup()
 		return err
 	}
+	if err := syncParentDirectoryAfterRename(path); err != nil {
+		return err
+	}
 	return nil
 }
 
