@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { MeshDetail, createMeshInspection } from "@/lib/mesh-inspection";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { resolveElectricalComponent } from "@/lib/electrical-component-library";
 import {
@@ -64,6 +65,7 @@ type Graph = {
   links?: GraphLink[];
   stats: Record<Layer, number>;
 };
+type AssetActivity = { id: string; occurredAt: string; activity: string; state: string; actor: string; status: "PENDING" | "SUBMITTED" };
 const layerNames: Record<Layer, string> = {
   L0: "Source",
   L1: "Architectural",
@@ -106,9 +108,24 @@ function entitySystem(e: Entity): SystemMode {
 export default function CompiledGraphViewer() {
   const mount = useRef<HTMLDivElement | null>(null),
     runtime = useRef<any>(null);
+  const [webglError,setWebglError]=useState(false);
+  const [search, setSearch] = useState("");
+  const [isolatedObject, setIsolatedObject] = useState<string | null>(null);
+  const [pieceExplosion, setPieceExplosion] = useState(0);
+  const pendingMeshPick = useRef({ entityId: "", meshId: "" });
+  const [meshDetails, setMeshDetails] = useState<MeshDetail[]>([]);
+  const [selectedMesh, setSelectedMesh] = useState("");
+  const [isolateMesh, setIsolateMesh] = useState(false);
+  const [canExplodeMesh, setCanExplodeMesh] = useState(false);
+  const inspections = useRef(new Map<string, ReturnType<typeof createMeshInspection>>());
+  const inspection = useRef({ id: "", amount: 0, mesh: "", isolate: false });
   const [graph, setGraph] = useState<Graph | null>(null),
     [active, setActive] = useState<Layer[]>(["L0", "L1", "L2", "L3", "L4"]),
     [selected, setSelected] = useState<Entity | null>(null),
+    [activities, setActivities] = useState<AssetActivity[]>([]),
+    [activity, setActivity] = useState(""),
+    [nextState, setNextState] = useState("IN_SERVICE"),
+    [activityMessage, setActivityMessage] = useState(""),
     [registry, setRegistry] = useState<ElectricalModelConfig[]>(
       DEFAULT_ELECTRICAL_MODEL_REGISTRY,
     ),
@@ -121,6 +138,9 @@ export default function CompiledGraphViewer() {
     [ghostOthers, setGhostOthers] = useState(true),
     [labels, setLabels] = useState(true),
     [focusRevision, setFocusRevision] = useState(0);
+  const matchingEntities = useMemo(() => graph?.entities.filter(e =>
+    `${e.name} ${e.id} ${e.source} ${e.floor || ""} ${e.zone || ""}`.toLowerCase().includes(search.toLowerCase())
+  ) || [], [graph, search]);
   useEffect(() => {
     try {
       const raw = localStorage.getItem("stratum_compiled_graph");
@@ -146,6 +166,26 @@ export default function CompiledGraphViewer() {
       window.removeEventListener("storage", refresh);
     };
   }, []);
+  useEffect(() => { inspection.current = { id: selected?.id || "", amount: pieceExplosion / 100, mesh: selectedMesh, isolate: isolateMesh }; }, [selected?.id, pieceExplosion, selectedMesh, isolateMesh]);
+  useEffect(() => {
+    setPieceExplosion(0); setSelectedMesh(pendingMeshPick.current.entityId === selected?.id ? pendingMeshPick.current.meshId : ""); setIsolateMesh(false);
+    pendingMeshPick.current = { entityId: "", meshId: "" };
+    const model = inspections.current.get(selected?.id || "");
+    setMeshDetails(model?.details || []); setCanExplodeMesh(model?.canExplode || false);
+  }, [selected?.id]);
+  useEffect(() => {
+    if (!selected) { setActivities([]); return; }
+    try { setActivities(JSON.parse(localStorage.getItem(`stratum_asset_activity:${selected.id}`) || "[]")); } catch { setActivities([]); }
+    setActivity(""); setActivityMessage(""); setNextState("IN_SERVICE");
+  }, [selected]);
+  function saveActivity() {
+    if (!selected || !activity.trim()) { setActivityMessage("Enter an activity before saving."); return; }
+    const item: AssetActivity = { id: crypto.randomUUID(), occurredAt: new Date().toISOString(), activity: activity.trim(), state: nextState, actor: "Current operator", status: "PENDING" };
+    const next = [item, ...activities];
+    try { localStorage.setItem(`stratum_asset_activity:${selected.id}`, JSON.stringify(next)); } catch { setActivityMessage("Save failed: browser storage is full or unavailable. Your note has been preserved below."); return; }
+    setActivities(next); setActivity("");
+    setActivityMessage("Draft saved in this browser only. It has not been submitted for approval or synchronized to another device.");
+  }
   const counts = useMemo(
     () =>
       graph
@@ -189,9 +229,9 @@ export default function CompiledGraphViewer() {
       graph
         ? [
             ...new Map(
-              graph.sources.map((s) => [
-                s.floor || "L1",
-                Number(s.elevation || 0),
+              graph.entities.map((s) => [
+                s.floor || "UNRESOLVED",
+                Number(s.z || 0),
               ]),
             ).entries(),
           ].sort((a, b) => a[1] - b[1])
@@ -245,6 +285,7 @@ export default function CompiledGraphViewer() {
     let cleanup = () => {};
     (async () => {
       const THREE = await import("three");
+      const { createMeshInspection } = await import("@/lib/mesh-inspection");
       const { OrbitControls } = await import(
         "three/examples/jsm/controls/OrbitControls.js"
       );
@@ -277,10 +318,12 @@ export default function CompiledGraphViewer() {
         600,
       );
       camera.position.set(22, 19, 25);
-      const renderer = new THREE.WebGLRenderer({
+      let renderer;
+      try { renderer = new THREE.WebGLRenderer({
         antialias: true,
         powerPreference: "high-performance",
-      });
+      }); } catch { setWebglError(true); return; }
+      setWebglError(false);
       renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
       renderer.setSize(host.clientWidth, host.clientHeight);
       renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -432,7 +475,7 @@ export default function CompiledGraphViewer() {
         sprite.position.set(e.x, displayY(e) + 2.45, e.y);
         groups.L2.add(sprite);
       }
-      for (const s of graph.sources) {
+      for (const s of isolatedObject ? [] : graph.sources) {
         if (!floorVisible(s.floor) && !ghostOthers) continue;
         const y = Number(s.elevation || 0) + floorExtra(s.floor) - 0.05,
           plane = new THREE.Mesh(
@@ -452,6 +495,8 @@ export default function CompiledGraphViewer() {
         plane.receiveShadow = true;
         groups.L0.add(plane);
       }
+      inspections.current.clear();
+      setMeshDetails([]); setCanExplodeMesh(false);
       function tag(root: any, e: Entity) {
         root.userData.entity = e;
         root.traverse((node: any) => {
@@ -462,6 +507,12 @@ export default function CompiledGraphViewer() {
             clickable.push(node);
           }
         });
+        const model = createMeshInspection(root);
+        inspections.current.set(e.id, model);
+        model.details.forEach(detail => { const mesh = model.mesh(detail.id); if (mesh) mesh.userData.inspectionMeshId = detail.id; });
+        if (inspection.current.id === e.id) {
+          setMeshDetails(model.details); setCanExplodeMesh(model.canExplode);
+        }
       }
       function wallBetween(
         a: XY,
@@ -711,6 +762,8 @@ export default function CompiledGraphViewer() {
         );
         ring.rotation.x = Math.PI / 2;
         ring.position.set(e.x, displayY(e) + 0.04, e.y);
+        ring.userData.entity = e;
+        clickable.push(ring);
         groups.L4.add(ring);
       }
       function loadEquipment(e: Entity) {
@@ -762,6 +815,7 @@ export default function CompiledGraphViewer() {
         );
       }
       for (const e of graph.entities) {
+        if (isolatedObject && e.id !== isolatedObject) continue;
         if (e.kind === "room-boundary" || e.kind === "floor-boundary") {
           roomSurface(e);
           continue;
@@ -849,7 +903,7 @@ export default function CompiledGraphViewer() {
           clickable.push(marker);
         }
       }
-      for (const link of graph.links || []) {
+      for (const link of isolatedObject ? [] : graph.links || []) {
         if (link.type !== "SAME_TAG") continue;
         const a = entityById.get(link.from),
           b = entityById.get(link.to);
@@ -918,12 +972,28 @@ export default function CompiledGraphViewer() {
         pointer.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
         pointer.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
         ray.setFromCamera(pointer, camera);
-        const hit = ray.intersectObjects(clickable, true)[0];
+        const hit = ray.intersectObjects(clickable, true).find(candidate => {
+          for (let ancestor: any = candidate.object; ancestor; ancestor = ancestor.parent) {
+            if (!ancestor.visible) return false;
+          }
+          return true;
+        });
         let node: any = hit?.object;
         while (node && !node.userData?.entity) node = node.parent;
-        if (node?.userData?.entity) setSelected(node.userData.entity);
+        if (node?.userData?.entity) {
+          pendingMeshPick.current = { entityId: node.userData.entity.id, meshId: hit?.object.userData.inspectionMeshId || "" };
+          setSelected(node.userData.entity);
+          setSelectedMesh(hit?.object.userData.inspectionMeshId || "");
+        }
       };
-      renderer.domElement.addEventListener("pointerup", pick);
+      let pointerStart: { x: number; y: number; id: number } | null = null;
+      const down = (ev: PointerEvent) => { pointerStart = { x: ev.clientX, y: ev.clientY, id: ev.pointerId }; };
+      const up = (ev: PointerEvent) => {
+        if (pointerStart?.id === ev.pointerId && Math.hypot(ev.clientX - pointerStart.x, ev.clientY - pointerStart.y) < 6) pick(ev);
+        pointerStart = null;
+      };
+      renderer.domElement.addEventListener("pointerdown", down);
+      renderer.domElement.addEventListener("pointerup", up);
       renderer.domElement.addEventListener("dblclick", pick);
       const resize = () => {
         if (!host.clientWidth || !host.clientHeight) return;
@@ -944,6 +1014,11 @@ export default function CompiledGraphViewer() {
         if (emergency) {
           rim.intensity = 25 + Math.sin(t * 5) * 15;
         }
+        for (const [id, model] of inspections.current) {
+          const current = inspection.current;
+          model.apply(id === current.id ? current.amount : 0,
+            id === current.id && current.isolate ? current.mesh : "");
+        }
         controls.update();
         renderer.render(scene, camera);
         f = requestAnimationFrame(animate);
@@ -951,9 +1026,11 @@ export default function CompiledGraphViewer() {
       animate();
       cleanup = () => {
         runtime.current = null;
+        inspections.current.forEach(model => model.restore()); inspections.current.clear();
         cancelAnimationFrame(f);
         ro.disconnect();
-        renderer.domElement.removeEventListener("pointerup", pick);
+        renderer.domElement.removeEventListener("pointerdown", down);
+        renderer.domElement.removeEventListener("pointerup", up);
         renderer.domElement.removeEventListener("dblclick", pick);
         controls.dispose();
         renderer.dispose();
@@ -975,6 +1052,7 @@ export default function CompiledGraphViewer() {
     xray,
     isolatedFloor,
     ghostOthers,
+    isolatedObject,
     labels,
   ]);
   if (!graph) return null;
@@ -1008,7 +1086,7 @@ export default function CompiledGraphViewer() {
       >
         <div>
           <div className="eyebrow">
-            STRATUM TWIN · INFRASTRUCTURE OPERATING VIEW
+            STRATUM SPATIAL VERIFIED · INFRASTRUCTURE VIEW
           </div>
           <strong>{graph.sources.map((s) => s.name).join(" · ")}</strong>
           <div className="muted">
@@ -1158,9 +1236,10 @@ export default function CompiledGraphViewer() {
         className="compiled-twin-grid"
       >
         <div style={{ position: "relative" }}>
+          {webglError && <p role="status">3D rendering is unavailable. Select an imported object from the inventory below.</p>}
           <div
             ref={mount}
-            style={{ height: "min(74vh,780px)", minHeight: 500 }}
+            style={{ height: webglError ? 0 : "min(74vh,780px)", minHeight: webglError ? 0 : 500 }}
           />
           <div
             style={{
@@ -1208,6 +1287,16 @@ export default function CompiledGraphViewer() {
             overflow: "auto",
           }}
         >
+          <label>Search objects
+            <input aria-label="Search objects" value={search} onChange={e => setSearch(e.target.value)} placeholder="Name, source, floor or identifier" style={{width:"100%"}} />
+          </label>
+          <p role="status">{matchingEntities.length} matching objects</p>
+          <label>Imported object
+            <select aria-label="Imported object" value={selected?.id||""} style={{width:"100%"}} onChange={e=>setSelected(graph.entities.find(x=>x.id===e.target.value)||null)}>
+              <option value="">Select an object</option>
+              {matchingEntities.map(e=><option key={e.id} value={e.id}>{e.name} · {e.source} · page {String(e.meta?.page||"—")}</option>)}
+            </select>
+          </label>
           <div className="eyebrow">SOURCE-GROUNDED OBJECT</div>
           {selected ? (
             <>
@@ -1222,7 +1311,40 @@ export default function CompiledGraphViewer() {
                 >
                   Focus equipment
                 </button>
+                <span className="muted">Unregistered candidate · QR verification requires a registered asset.</span>
               </div>
+              <div className="button-row">
+                <button className="ghost" aria-pressed={isolatedObject === selected.id} onClick={() => setIsolatedObject(isolatedObject === selected.id ? null : selected.id)}>Isolate object</button>
+                <button className="ghost" onClick={() => { setIsolatedObject(null); setPieceExplosion(0); setIsolateMesh(false); setSelectedMesh(""); setSearch(""); setActive(["L0","L1","L2","L3","L4"]); setSystemMode("ALL"); setIsolatedFloor("ALL"); }}>Restore view</button>
+              </div>
+              {selected.layer === "L2" && <label style={{display:"block",marginTop:12}}>Equipment mesh separation · {pieceExplosion}%
+                <input aria-label="Equipment mesh separation" type="range" min="0" max="100" disabled={!canExplodeMesh || webglError} value={pieceExplosion} onChange={e => setPieceExplosion(Number(e.target.value))} style={{width:"100%"}} />
+                <small>Illustrative mesh separation. Pieces are not verified OEM parts; recorded placement stays unchanged.</small>
+              </label>}
+              {selected.layer === "L2" && <div style={{marginTop:12}}>
+                <label>Internal model pieces · {meshDetails.length}
+                  <select aria-label="Internal model piece" value={selectedMesh} onChange={e => setSelectedMesh(e.target.value)} style={{width:"100%"}}>
+                    <option value="">Select a mesh</option>
+                    {meshDetails.map(mesh => <option key={mesh.id} value={mesh.id}>{mesh.name} · {mesh.id}</option>)}
+                  </select>
+                </label>
+                <button className="ghost" disabled={!selectedMesh} aria-pressed={isolateMesh} onClick={() => setIsolateMesh(v => !v)}>Isolate internal piece</button>
+                <button className="ghost" disabled={webglError || !meshDetails.length} onClick={() => {
+                  const r = runtime.current, model = inspections.current.get(selected.id);
+                  if (!r || !model) return;
+                  const box = model.bounds(selectedMesh); if (box.isEmpty()) return;
+                  const center = box.getCenter(new r.THREE.Vector3());
+                  const span = Math.max(box.getSize(new r.THREE.Vector3()).length(), 0.2);
+                  const vertical = r.camera.fov * Math.PI / 180;
+                  const horizontal = 2 * Math.atan(Math.tan(vertical / 2) * r.camera.aspect);
+                  const distance = span / (2 * Math.sin(Math.min(vertical, horizontal) / 2)) * 1.2;
+                  r.controls.target.copy(center); r.camera.position.copy(center).add(new r.THREE.Vector3(1,0.7,1).normalize().multiplyScalar(distance));
+                  r.camera.far = Math.max(600, distance * 4); r.camera.updateProjectionMatrix(); r.controls.update();
+                }}>Fit inspected geometry</button>
+                {meshDetails.filter(mesh => mesh.id === selectedMesh).map(mesh => <p key={mesh.id}>{mesh.triangles.toLocaleString()} triangles · Materials: {mesh.materials.join(", ")} · Model mesh identifier, not an OEM part number.</p>)}
+                {!meshDetails.length && <p className="muted">Mesh inventory requires a successfully rendered equipment model.</p>}
+                {!!meshDetails.length && !canExplodeMesh && <p className="muted">This model hierarchy supports inspection but not rigid mesh separation.</p>}
+              </div>}
               <div className="passport-facts">
                 <div>
                   <span>Source</span>
@@ -1237,7 +1359,7 @@ export default function CompiledGraphViewer() {
                   <strong>{selected.floor || "L1"}</strong>
                 </div>
                 <div>
-                  <span>Elevation Z</span>
+                  <span>Elevation Z (unverified unless recorded)</span>
                   <strong>{Number(selected.z || 0).toFixed(2)} m</strong>
                 </div>
                 <div>
@@ -1276,6 +1398,23 @@ export default function CompiledGraphViewer() {
                     </div>
                   </>
                 )}
+              </div>
+              <details style={{marginTop:14}}><summary>All source parameters</summary>
+                <dl style={{overflowWrap:"anywhere"}}>{Object.entries(selected.meta || {}).map(([key,value]) => <div key={key}><dt>{key}</dt><dd>{typeof value === "object" ? JSON.stringify(value) : String(value)}</dd></div>)}</dl>
+              </details>
+              <div className="notice" style={{ marginTop: 14 }}>
+                <strong>ASSET DESCRIPTION</strong>
+                <span>{String(selected.meta?.description || selected.meta?.text || `${selected.kind} placed from ${selected.source}`)}</span>
+              </div>
+              <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #17334a" }}>
+                <div className="eyebrow">FIELD ACTIVITY / NEW STATE</div>
+                <select aria-label="New asset state" value={nextState} onChange={e => setNextState(e.target.value)} style={{ width: "100%", marginTop: 8, padding: "9px 10px", background: "#08131d", color: "#d9eef5", border: "1px solid #28465f", borderRadius: 9 }}>
+                  <option>IN_SERVICE</option><option>INSPECTION_DUE</option><option>OUT_OF_SERVICE</option><option>MAINTENANCE</option><option>DECOMMISSIONED</option>
+                </select>
+                <textarea aria-label="Asset activity" value={activity} onChange={e => setActivity(e.target.value)} placeholder="Describe the inspection, repair, measurement, or state change" rows={3} style={{ width: "100%", marginTop: 8, padding: "9px 10px", background: "#08131d", color: "#d9eef5", border: "1px solid #28465f", borderRadius: 9, resize: "vertical" }} />
+                <button className="action" type="button" onClick={saveActivity} style={{ marginTop: 8, width: "100%" }}>Save field update</button>
+                {activityMessage && <div className="muted" style={{ marginTop: 8 }}>{activityMessage}</div>}
+                {activities.length > 0 && <div style={{ display: "grid", gap: 7, marginTop: 10 }}>{activities.slice(0, 4).map(item => <div key={item.id} style={{ padding: "8px 10px", border: "1px solid #23465c", borderRadius: 9 }}><strong>{item.state}</strong><div className="muted">{item.activity}</div><small>{new Date(item.occurredAt).toLocaleString()} · {item.status}</small></div>)}</div>}
               </div>
             </>
           ) : (

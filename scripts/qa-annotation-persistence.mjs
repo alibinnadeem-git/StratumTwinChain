@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import ts from 'typescript';
+const source=await readFile(new URL('../components/PlanAnnotations.tsx',import.meta.url),'utf8');
+const publish=source.slice(source.indexOf(' function publish()'),source.indexOf(' return <section'));
+const compiled=ts.transpileModule(publish,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.None}}).outputText;
+const run=new Function('localStorage','marks','digest','source','url','setMessage','window','refreshPlans',compiled+'\npublish();');
+const initial={version:'1.1',sources:[{name:'plan.jpg',sha256:'a'}],entities:[{id:'a:annotation:old',layer:'L2'},{id:'b:annotation:keep',layer:'L2'},{id:'pdf-1',layer:'L1'}],links:[{from:'a:annotation:old',to:'pdf-1'},{from:'b:annotation:keep',to:'pdf-1'}],stats:{},annotationSources:{b:{source:'other.jpg',marks:[]}}};
+let stored=JSON.stringify(initial),message='',writes=0;
+const storage={getItem:()=>stored,setItem:(_key,value)=>{stored=value;writes++;}};
+const call=marks=>run(storage,marks,'a','plan.jpg','data:image/jpeg;base64,test',m=>message=m,{dispatchEvent(){}},()=>{});
+call([{id:'new',x:.2,y:.4,label:'Transformer',reference:'S-501'}]);
+let graph=JSON.parse(stored);
+assert.deepEqual(graph.entities.map(e=>e.id),['b:annotation:keep','pdf-1','a:annotation:new']);
+assert.equal(graph.links.length,1);assert.equal(graph.annotationSources.a.marks[0].id,'new');assert.ok(graph.annotationSources.b);assert.equal(writes,1);
+call([]);graph=JSON.parse(stored);assert.equal(graph.entities.some(e=>e.id.startsWith('a:annotation:')),false);assert.deepEqual(graph.annotationSources.a.marks,[]);
+const before=stored;storage.setItem=()=>{throw new Error('QuotaExceededError');};call([{id:'unsaved',x:.5,y:.5,label:'Unsaved',reference:''}]);assert.equal(stored,before);assert.match(message,/Save failed/);
+console.log('PASS: replacement, deletion of final annotation, unrelated source preservation, dangling link cleanup, atomic snapshot save and quota failure.');
