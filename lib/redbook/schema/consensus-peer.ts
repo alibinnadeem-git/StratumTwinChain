@@ -50,8 +50,15 @@ export const consensusPeerVerificationSchema=z.object({
  peerRegistryRoot:canonicalHashSchema,
  consensusMessageHash:canonicalHashSchema,
  packetHash:canonicalHashSchema,
- persistBeforeSign:z.literal(true),
-}).strict();
+ safetyRecordHash:canonicalHashSchema,
+ safetySequence:z.number().int().nonnegative(),
+ safetyReferencePresent:z.literal(true),
+ persistBeforeSignVerified:z.boolean(),
+}).strict().superRefine((value,ctx)=>{
+ if(value.persistBeforeSignVerified){
+  ctx.addIssue({code:z.ZodIssueCode.custom,path:['persistBeforeSignVerified'],message:'STRATUM-CONSENSUS-PEER/1 packet verification alone cannot prove remote persist-before-sign; a separately verified signed safety-record proof is required'});
+ }
+});
 
 export type ConsensusPeerPacket=z.infer<typeof consensusPeerPacketSchema>;
 export type ConsensusPeerVerification=z.infer<typeof consensusPeerVerificationSchema>;
