@@ -43,6 +43,86 @@ func TestPendingPeerOperatorAlertsForWebhookSkipsAcknowledgedAndSuccessful(t *te
 	}
 }
 
+func TestEligiblePeerOperatorAlertsForWebhookAppliesBoundedBackoffWithoutDropping(t *testing.T) {
+	cfg := testPeerSyncConfig()
+	endpointHash := strings.Repeat("e", 64)
+	now := time.Unix(10_000, 0).UTC()
+	alert, err := newPeerOperatorAlert(cfg, "FOLLOWER_SAFETY_HALT", "CRITICAL", "FINALIZED_HEAD_CONFLICT", "", "", "retry-alert", "retry-alert", now.Add(-2*time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	alerts := defaultPeerOperatorAlertJournal(cfg)
+	alerts.Entries = []PeerOperatorAlert{alert}
+	deliveries := defaultPeerOperatorAlertDeliveryJournal(cfg)
+	lastFailure := now.Add(-30 * time.Second)
+	deliveries.Receipts = []PeerOperatorAlertDeliveryReceipt{{
+		ReceiptID:    strings.Repeat("1", 64),
+		AlertID:      alert.AlertID,
+		EndpointHash: endpointHash,
+		Succeeded:    false,
+		AttemptedAt:  lastFailure.Format(time.RFC3339Nano),
+	}}
+
+	eligible, err := eligiblePeerOperatorAlertsForWebhookAt(alerts, deliveries, endpointHash, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(eligible) != 0 {
+		t.Fatalf("first failure should defer retry for %s", peerOperatorAlertRetryBaseDelay)
+	}
+	eligible, err = eligiblePeerOperatorAlertsForWebhookAt(alerts, deliveries, endpointHash, lastFailure.Add(peerOperatorAlertRetryBaseDelay))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(eligible) != 1 || eligible[0].AlertID != alert.AlertID {
+		t.Fatalf("alert must become retryable after bounded delay, got %+v", eligible)
+	}
+
+	for i := 0; i < 16; i++ {
+		failureAt := now.Add(-peerOperatorAlertRetryMaxDelay).Add(-time.Duration(i) * time.Second)
+		deliveries.Receipts = append(deliveries.Receipts, PeerOperatorAlertDeliveryReceipt{
+			ReceiptID:    strings.Repeat(string(rune('a'+i%6)), 64),
+			AlertID:      alert.AlertID,
+			EndpointHash: endpointHash,
+			Succeeded:    false,
+			AttemptedAt:  failureAt.Format(time.RFC3339Nano),
+		})
+	}
+	if delay := peerOperatorAlertRetryDelay(100); delay != peerOperatorAlertRetryMaxDelay {
+		t.Fatalf("retry delay must cap at %s, got %s", peerOperatorAlertRetryMaxDelay, delay)
+	}
+	eligible, err = eligiblePeerOperatorAlertsForWebhookAt(alerts, deliveries, endpointHash, now.Add(peerOperatorAlertRetryMaxDelay))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(eligible) != 1 {
+		t.Fatal("repeated failures must never dead-letter or permanently drop the alert")
+	}
+}
+
+func TestEligiblePeerOperatorAlertsForWebhookRejectsMalformedFailureTimestamp(t *testing.T) {
+	cfg := testPeerSyncConfig()
+	endpointHash := strings.Repeat("e", 64)
+	now := time.Unix(20_000, 0).UTC()
+	alert, err := newPeerOperatorAlert(cfg, "FOLLOWER_SAFETY_HALT", "CRITICAL", "FINALIZED_HEAD_CONFLICT", "", "", "bad-time", "bad-time", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	alerts := defaultPeerOperatorAlertJournal(cfg)
+	alerts.Entries = []PeerOperatorAlert{alert}
+	deliveries := defaultPeerOperatorAlertDeliveryJournal(cfg)
+	deliveries.Receipts = []PeerOperatorAlertDeliveryReceipt{{
+		ReceiptID:    strings.Repeat("1", 64),
+		AlertID:      alert.AlertID,
+		EndpointHash: endpointHash,
+		Succeeded:    false,
+		AttemptedAt:  "not-a-time",
+	}}
+	if _, err := eligiblePeerOperatorAlertsForWebhookAt(alerts, deliveries, endpointHash, now); err == nil {
+		t.Fatal("malformed failed-receipt timestamp must fail closed")
+	}
+}
+
 func TestAutoDeliverPendingPeerOperatorAlertsRetriesFailuresWithoutMutatingSafetyState(t *testing.T) {
 	cfg := testPeerSyncConfig()
 	cfg.State = candidateState
