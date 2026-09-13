@@ -72,6 +72,7 @@ jobs:
           const managedFollower=fs.readFileSync('tools/portable-validator/peer_sync_follower_managed.go','utf8');
           const followerContext=fs.readFileSync('tools/portable-validator/peer_sync_follower_context.go','utf8');
           const followerReliability=fs.readFileSync('tools/portable-validator/peer_sync_follower_reliability.go','utf8');
+          const quarantine=fs.readFileSync('tools/portable-validator/peer_sync_quarantine.go','utf8');
           const operatorAlerts=fs.readFileSync('tools/portable-validator/peer_operator_alerts.go','utf8');
           const alertAckCommand=fs.readFileSync('tools/portable-validator/peer_operator_alerts_ack_command.go','utf8');
           const proofCache=fs.readFileSync('tools/portable-validator/peer_proof_cache.go','utf8');
@@ -89,6 +90,9 @@ jobs:
             'validator-set root transition requires separately verified governance continuity','consensusParticipation','voteAuthority'
           ]) if (!sync.includes(required)) throw new Error(`Missing peer-sync runtime invariant: ${required}`);
           if (!sync.includes('f.Sync()')) throw new Error('Trusted-head persistence must fsync before replacement');
+          for (const required of ['os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)','f.Sync()','f.Close()','runtime.GOOS == "windows"','os.Rename(tmp, path)']) {
+            if (!quarantine.includes(required)) throw new Error(`Missing crash-durable quarantine persistence invariant: ${required}`);
+          }
           for (const required of ['SYNC_HEAD','SYNC_PROOF','serve-readonly-peer-sync','peer-sync']) {
             if (!main.includes(required) && !server.includes(required) && !sync.includes(required)) throw new Error(`Missing peer-sync command/protocol surface: ${required}`);
           }
@@ -154,5 +158,5 @@ jobs:
             if (launchd.includes(`<string>${forbidden}</string>`)) throw new Error(`Launchd service must not expose consensus/activation command ${forbidden}`);
           }
 
-          console.log('Peer-sync proof-verification, cancellation, advisory ordering, local alerts/acknowledgements, bounded proof cache, candidate-only systemd/launchd packaging, follower, and non-participation invariants passed');
+          console.log('Peer-sync proof-verification, cancellation, advisory ordering, crash-durable quarantine persistence, local alerts/acknowledgements, bounded proof cache, candidate-only systemd/launchd packaging, follower, and non-participation invariants passed');
           NODE
