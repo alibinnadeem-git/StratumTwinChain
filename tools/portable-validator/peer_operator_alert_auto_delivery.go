@@ -22,16 +22,11 @@ func pendingPeerOperatorAlertsForWebhook(alerts PeerOperatorAlertJournal, delive
 	for _, acknowledgement := range alerts.Acknowledgements {
 		acknowledged[strings.ToLower(acknowledgement.AlertID)] = true
 	}
-	delivered := map[string]bool{}
-	for _, receipt := range deliveries.Receipts {
-		if receipt.Succeeded && strings.EqualFold(receipt.EndpointHash, endpointHash) {
-			delivered[strings.ToLower(receipt.AlertID)] = true
-		}
-	}
 	pending := make([]PeerOperatorAlert, 0, len(alerts.Entries))
 	for _, alert := range alerts.Entries {
 		id := strings.ToLower(alert.AlertID)
-		if acknowledged[id] || delivered[id] {
+		state := deliveries.State[operatorAlertDeliveryStateKey(id, endpointHash)]
+		if acknowledged[id] || state.Delivered {
 			continue
 		}
 		pending = append(pending, alert)
@@ -63,36 +58,21 @@ func eligiblePeerOperatorAlertsForWebhookAt(alerts PeerOperatorAlertJournal, del
 		return pending, nil
 	}
 
-	type retryState struct {
-		failureCount int
-		latestFailure time.Time
-	}
-	retries := map[string]retryState{}
-	for _, receipt := range deliveries.Receipts {
-		if receipt.Succeeded || !strings.EqualFold(receipt.EndpointHash, endpointHash) {
-			continue
-		}
-		attemptedAt, err := time.Parse(time.RFC3339Nano, receipt.AttemptedAt)
-		if err != nil {
-			return nil, fmt.Errorf("invalid failed delivery receipt timestamp for alert %s: %w", receipt.AlertID, err)
-		}
-		id := strings.ToLower(receipt.AlertID)
-		state := retries[id]
-		state.failureCount++
-		if state.latestFailure.IsZero() || attemptedAt.After(state.latestFailure) {
-			state.latestFailure = attemptedAt
-		}
-		retries[id] = state
-	}
-
 	eligible := make([]PeerOperatorAlert, 0, len(pending))
 	for _, alert := range pending {
-		state := retries[strings.ToLower(alert.AlertID)]
-		if state.failureCount == 0 {
+		state := deliveries.State[operatorAlertDeliveryStateKey(alert.AlertID, endpointHash)]
+		if state.FailureCount == 0 {
 			eligible = append(eligible, alert)
 			continue
 		}
-		nextAttempt := state.latestFailure.Add(peerOperatorAlertRetryDelay(state.failureCount))
+		if state.LatestFailureAt == "" {
+			return nil, fmt.Errorf("operator alert %s has retry failures without latest failure timestamp", alert.AlertID)
+		}
+		latestFailure, err := time.Parse(time.RFC3339Nano, state.LatestFailureAt)
+		if err != nil {
+			return nil, fmt.Errorf("invalid compact delivery retry timestamp for alert %s: %w", alert.AlertID, err)
+		}
+		nextAttempt := latestFailure.Add(peerOperatorAlertRetryDelay(state.FailureCount))
 		if !now.UTC().Before(nextAttempt) {
 			eligible = append(eligible, alert)
 		}
