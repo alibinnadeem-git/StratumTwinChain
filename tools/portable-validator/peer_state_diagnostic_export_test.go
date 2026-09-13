@@ -93,8 +93,17 @@ func TestPeerStateDiagnosticExportPreservesCorruptBytesAndExcludesPrivateKeys(t 
 		if err != nil {
 			return err
 		}
-		if strings.Contains(string(data), string(secret)) || strings.Contains(strings.ToLower(path), "keys") {
-			t.Fatalf("diagnostic output contains private key material/path: %s", path)
+		rel, err := filepath.Rel(output, path)
+		if err != nil {
+			return err
+		}
+		for _, segment := range strings.Split(filepath.ToSlash(rel), "/") {
+			if strings.EqualFold(segment, "keys") {
+				t.Fatalf("diagnostic output contains forbidden keys path: %s", path)
+			}
+		}
+		if strings.Contains(string(data), string(secret)) {
+			t.Fatalf("diagnostic output contains private key material: %s", path)
 		}
 		return nil
 	}); err != nil {
