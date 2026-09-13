@@ -10,6 +10,7 @@ export * from './schema/vrf';
 export * from './schema/peer-transport';
 export * from './schema/peer-session';
 export * from './schema/peer-sync';
+export * from './schema/consensus-peer';
 export * from './schema/validator-governance';
 export * from './validator-governance';
 export * from './finality-proof';
