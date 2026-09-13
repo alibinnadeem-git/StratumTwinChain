@@ -6,6 +6,16 @@ import (
 	"testing"
 )
 
+func writeCorruptStateFile(t *testing.T, path string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(`{"truncated":`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPeerSessionStateCorruptionFailsClosed(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
@@ -87,5 +97,102 @@ func TestPeerSyncTrustedHeadInvalidRecordFailsClosed(t *testing.T) {
 	loaded, err := loadPeerSyncTrustedHead(path, cfg)
 	if err == nil {
 		t.Fatalf("invalid existing trusted-head record must fail closed instead of returning %+v", loaded)
+	}
+}
+
+func TestPeerEvidenceJournalCorruptionFailsClosed(t *testing.T) {
+	cfg := testPeerSyncConfig()
+	path := filepath.Join(t.TempDir(), "peer-evidence.json")
+	writeCorruptStateFile(t, path)
+	if journal, err := loadPeerEvidenceJournal(path, cfg); err == nil {
+		t.Fatalf("existing corrupt evidence journal must fail closed, got %+v", journal)
+	}
+}
+
+func TestPeerQuarantineStateCorruptionFailsClosed(t *testing.T) {
+	cfg := testPeerSyncConfig()
+	path := filepath.Join(t.TempDir(), "peer-quarantine.json")
+	writeCorruptStateFile(t, path)
+	if state, err := loadPeerQuarantineState(path, cfg); err == nil {
+		t.Fatalf("existing corrupt quarantine state must fail closed, got %+v", state)
+	}
+}
+
+func TestPeerHeadStateCorruptionFailsClosed(t *testing.T) {
+	cfg := testPeerSyncConfig()
+	path := filepath.Join(t.TempDir(), "peer-heads.json")
+	writeCorruptStateFile(t, path)
+	if state, err := loadPeerHeadState(path, cfg); err == nil {
+		t.Fatalf("existing corrupt authenticated peer-head state must fail closed, got %+v", state)
+	}
+}
+
+func TestPeerFollowerStatusCorruptionFailsClosed(t *testing.T) {
+	cfg := testPeerSyncConfig()
+	path := filepath.Join(t.TempDir(), "peer-follower-status.json")
+	writeCorruptStateFile(t, path)
+	if status, err := loadPeerFollowerStatus(path, cfg); err == nil {
+		t.Fatalf("existing corrupt follower status must fail closed, got %+v", status)
+	}
+}
+
+func TestPeerFollowerStatusAuthorityEscalationFailsClosed(t *testing.T) {
+	cfg := testPeerSyncConfig()
+	path := filepath.Join(t.TempDir(), "peer-follower-status.json")
+	status := newPeerFollowerStatus(cfg, "RUNNING", testTime())
+	status.VoteAuthority = true
+	if err := writeJSON(path, status, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadPeerFollowerStatus(path, cfg); err == nil {
+		t.Fatal("persisted follower status claiming vote authority must fail closed")
+	}
+}
+
+func TestPeerReliabilityCorruptionFailsClosed(t *testing.T) {
+	cfg := testPeerSyncConfig()
+	path := filepath.Join(t.TempDir(), "peer-reliability.json")
+	writeCorruptStateFile(t, path)
+	if state, err := loadPeerReliabilityState(path, cfg); err == nil {
+		t.Fatalf("existing corrupt reliability state must fail closed, got %+v", state)
+	}
+}
+
+func TestPeerReliabilityConsensusWeightingEscalationFailsClosed(t *testing.T) {
+	cfg := testPeerSyncConfig()
+	path := filepath.Join(t.TempDir(), "peer-reliability.json")
+	state := defaultPeerReliabilityState(cfg)
+	state.ConsensusWeighting = true
+	if err := writeJSON(path, state, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadPeerReliabilityState(path, cfg); err == nil {
+		t.Fatal("persisted reliability state claiming consensus weighting must fail closed")
+	}
+}
+
+func TestProofCacheManifestCorruptionFailsClosed(t *testing.T) {
+	cfg := testPeerSyncConfig()
+	cacheDir := filepath.Join(t.TempDir(), "peer-proof-cache")
+	path := filepath.Join(cacheDir, peerProofCacheManifestName)
+	writeCorruptStateFile(t, path)
+	if manifest, err := loadPeerProofCacheManifest(cacheDir, cfg); err == nil {
+		t.Fatalf("existing corrupt proof-cache manifest must fail closed, got %+v", manifest)
+	}
+}
+
+func TestProofCacheAuthorityEscalationFailsClosed(t *testing.T) {
+	cfg := testPeerSyncConfig()
+	cacheDir := filepath.Join(t.TempDir(), "peer-proof-cache")
+	if err := os.MkdirAll(cacheDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	manifest := defaultPeerProofCacheManifest(cfg)
+	manifest.ConsensusAuthority = true
+	if err := writeJSON(filepath.Join(cacheDir, peerProofCacheManifestName), manifest, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadPeerProofCacheManifest(cacheDir, cfg); err == nil {
+		t.Fatal("proof-cache manifest claiming consensus authority must fail closed")
 	}
 }
