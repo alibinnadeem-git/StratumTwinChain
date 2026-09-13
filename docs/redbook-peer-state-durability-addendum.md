@@ -30,7 +30,10 @@ The read-only runtime now uses an explicit temp-file durability pattern for safe
 3. `fsync` the temporary file;
 4. close the file;
 5. use Windows-safe destination replacement when required;
-6. atomically rename the temporary file into place.
+6. atomically rename the temporary file into place;
+7. on non-Windows platforms, open and `fsync` the containing directory after the rename so the directory entry itself is forced toward stable storage.
+
+The POSIX parent-directory sync is intentionally a no-op on Windows; Windows replacement handling remains in the individual atomic writers.
 
 This pattern is implemented for:
 
@@ -56,6 +59,7 @@ These durability improvements do not increase the authority of the stored data. 
 
 `STRATUM Peer State Durability CI` permanently checks the persistence and non-authority boundaries for:
 
+- proof-verified trusted-head state;
 - authenticated peer-head state;
 - peer evidence journal;
 - follower status;
@@ -63,11 +67,15 @@ These durability improvements do not increase the authority of the stored data. 
 - advisory peer reliability;
 - verified proof cache.
 
-The gate includes Go formatting, `go vet`, targeted race tests, and source-level assertions for the crash-durable write pattern and non-authority invariants. Separate Peer Sync, Operator Alert Delivery, and full Portable Validator CI remain additional gates.
+The gate includes Go formatting, `go vet`, targeted race tests, and source-level assertions for file `fsync`, atomic rename, POSIX parent-directory sync, Windows replacement behavior, and non-authority invariants. Separate Peer Sync, Operator Alert Delivery, and full Portable Validator CI remain additional gates.
 
-## Remaining durability qualification
+Operator Alert Delivery CI separately guards the same file-plus-parent-directory durability boundary for operator alerts/acknowledgements and the delivery receipt/compact-state journal.
 
-File-content `fsync` before atomic rename is implemented. A stricter POSIX power-loss profile may additionally require syncing the parent directory after rename so the directory entry itself is forced to stable storage. That parent-directory durability step is not yet claimed by this addendum and remains a hardening item.
+## Durability scope
+
+For the persistence paths listed above, the implementation now claims both file-content durability before replacement and parent-directory durability after atomic rename on POSIX-style platforms. This is a local storage durability guarantee only; it is not a consensus, finality, governance, canonical-history, or physical-truth guarantee.
+
+Filesystem, kernel, virtual-disk, hypervisor, and underlying hardware semantics still bound the practical strength of any `fsync` guarantee. The implementation therefore describes these records as crash-durable within the guarantees exposed by the host operating system and storage stack, not as physically infallible storage.
 
 ## Boundary unchanged
 
