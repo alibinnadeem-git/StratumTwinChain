@@ -90,6 +90,9 @@ func savePeerHeadStateAtomic(path string, state PeerHeadState) error {
 		cleanup()
 		return err
 	}
+	if err := syncParentDirectoryAfterRename(path); err != nil {
+		return err
+	}
 	return nil
 }
 
