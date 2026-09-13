@@ -40,9 +40,11 @@ The bundle includes:
 - raw allowlisted state bytes, including malformed/truncated bytes where present;
 - SHA-256 digest and byte length for each copied file;
 - the state-health report observed during export;
+- a deterministic SHA-256 fingerprint of the public bootstrap configuration serialized by the implementation;
+- the configured TRANSPORT public-key hash when that metadata exists and is a valid SHA-256 digest;
 - a non-authority manifest with `voteAuthority=false`, `consensusParticipation=false`, `consensusAuthority=false`, `sourceMutation=false`, and `privateKeysIncluded=false`.
 
-The source validator state is not changed.
+The source validator state is not changed. The config and transport-key fingerprints are correlation metadata only; export does not sign the bundle and does not prove who created it.
 
 ## 3. Verify the exported bundle independently
 
@@ -64,6 +66,8 @@ consensusAuthority=false
 The verifier checks:
 
 - bundle profile and embedded state-health chain context;
+- config fingerprint is a valid SHA-256 digest;
+- transport public-key hash is either absent or a valid SHA-256 digest;
 - exact allowlist mappings;
 - duplicate names/paths;
 - path traversal and bundle escapes;
@@ -72,6 +76,8 @@ The verifier checks:
 - SHA-256 and byte-length integrity for every listed file;
 - absence of unexpected/unlisted files;
 - non-authority manifest flags.
+
+Valid fingerprint metadata still does not establish bundle authenticity. It is descriptive/correlation metadata unless a separate future signature-verification profile cryptographically proves possession of an independently trusted key.
 
 ## 4. Compare verified bundles when useful
 
@@ -83,14 +89,18 @@ If two preserved packages need to be reviewed side-by-side, compare them only th
   --right ~/stratum-diagnostics/validator-d-after
 ```
 
-The command independently verifies both bundles before comparing them. It reports only diagnostic differences such as:
+The command independently verifies both bundles before comparing them. It reports only diagnostic differences/correlation such as:
 
 - chain-ID and validator-ID match/mismatch;
+- config-fingerprint match/mismatch;
+- transport public-key hash correlation only when **both** bundles contain a non-empty valid hash;
 - bundle timestamps;
 - embedded state-health classifications;
 - file presence;
 - file byte lengths;
 - file SHA-256 digests.
+
+If either transport fingerprint is absent, the result is `transportPublicKeyHashComparable=false`; empty/empty is never treated as a positive key match.
 
 Its output explicitly remains non-authoritative:
 
@@ -102,16 +112,19 @@ recoveryAuthority=false
 mutationPerformed=false
 ```
 
+A matching config fingerprint means only that the two verified manifests report the same implementation-derived public bootstrap-config fingerprint. A matching transport public-key hash means only that the two verified manifests report the same non-empty hash value. Neither match proves that the same machine created both bundles, that the claimed validator created either bundle, or that any party possesses the corresponding private key.
+
 A trusted-head file difference is evidence for review only. It does not tell the operator which trusted head is correct and must never be used as automatic fork choice or automatic recovery authorization.
 
 ## 5. Understand what verification and comparison do not prove
 
-Diagnostic verification is an **integrity check**, and diagnostic comparison is an **observational difference report**. Neither is a provenance or consensus proof.
+Diagnostic verification is an **integrity check**, and diagnostic comparison is an **observational difference/correlation report**. Neither is an authenticated provenance or consensus proof.
 
-A valid unsigned diagnostic bundle, or a comparison between two valid bundles, does not establish:
+A valid unsigned diagnostic bundle, matching config/transport fingerprints, or a comparison between two valid bundles does not establish:
 
 - who created either package;
 - that a particular validator actually produced either package;
+- possession/control of the TRANSPORT private key;
 - PoVI finality;
 - canonical chain history;
 - which differing trusted head is correct;
@@ -120,7 +133,7 @@ A valid unsigned diagnostic bundle, or a comparison between two valid bundles, d
 - permission to clear a safety halt or release quarantine;
 - physical truth about infrastructure.
 
-Do not treat `integrityVerified=true` or any comparison result as authorization to restore state automatically.
+Do not treat `integrityVerified=true`, fingerprint correlation, or any comparison result as authorization to restore state automatically.
 
 ## 6. Review and recover deliberately
 
