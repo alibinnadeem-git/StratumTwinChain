@@ -89,6 +89,9 @@ func savePeerEvidenceJournalAtomic(path string, journal PeerEvidenceJournal) err
 		cleanup()
 		return err
 	}
+	if err := syncParentDirectoryAfterRename(path); err != nil {
+		return err
+	}
 	return nil
 }
 
