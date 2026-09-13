@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func writeCorruptStateFile(t *testing.T, path string) {
@@ -139,7 +140,7 @@ func TestPeerFollowerStatusCorruptionFailsClosed(t *testing.T) {
 func TestPeerFollowerStatusAuthorityEscalationFailsClosed(t *testing.T) {
 	cfg := testPeerSyncConfig()
 	path := filepath.Join(t.TempDir(), "peer-follower-status.json")
-	status := newPeerFollowerStatus(cfg, "RUNNING", testTime())
+	status := newPeerFollowerStatus(cfg, "RUNNING", time.Unix(1_800_000_000, 0).UTC())
 	status.VoteAuthority = true
 	if err := writeJSON(path, status, 0o600); err != nil {
 		t.Fatal(err)
