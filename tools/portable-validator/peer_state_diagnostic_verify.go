@@ -11,17 +11,18 @@ import (
 	"strings"
 )
 
+// peerStateDiagnosticVerifyProfile identifies integrity-only diagnostic verification.
 const peerStateDiagnosticVerifyProfile = "STRATUM-PEER-STATE-DIAGNOSTIC-VERIFY/1"
 
 type PeerStateDiagnosticVerification struct {
-	ProfileVersion         string `json:"profileVersion"`
-	BundleProfileVersion   string `json:"bundleProfileVersion"`
-	ChainID                string `json:"chainId"`
-	ValidatorID            string `json:"validatorId"`
-	IntegrityVerified      bool   `json:"integrityVerified"`
-	AuthenticityEstablished bool `json:"authenticityEstablished"`
-	ConsensusAuthority     bool   `json:"consensusAuthority"`
-	FileCount              int    `json:"fileCount"`
+	ProfileVersion          string `json:"profileVersion"`
+	BundleProfileVersion    string `json:"bundleProfileVersion"`
+	ChainID                 string `json:"chainId"`
+	ValidatorID             string `json:"validatorId"`
+	IntegrityVerified       bool   `json:"integrityVerified"`
+	AuthenticityEstablished bool   `json:"authenticityEstablished"`
+	ConsensusAuthority      bool   `json:"consensusAuthority"`
+	FileCount               int    `json:"fileCount"`
 }
 
 func diagnosticPathHasForbiddenSegment(path string) bool {
@@ -131,14 +132,14 @@ func verifyPeerStateDiagnosticBundle(bundleDir string) (PeerStateDiagnosticVerif
 	}
 
 	return PeerStateDiagnosticVerification{
-		ProfileVersion:           peerStateDiagnosticVerifyProfile,
-		BundleProfileVersion:     manifest.ProfileVersion,
-		ChainID:                  manifest.ChainID,
-		ValidatorID:              manifest.ValidatorID,
-		IntegrityVerified:        true,
-		AuthenticityEstablished:  false,
-		ConsensusAuthority:       false,
-		FileCount:                len(manifest.Files),
+		ProfileVersion:          peerStateDiagnosticVerifyProfile,
+		BundleProfileVersion:    manifest.ProfileVersion,
+		ChainID:                 manifest.ChainID,
+		ValidatorID:             manifest.ValidatorID,
+		IntegrityVerified:       true,
+		AuthenticityEstablished: false,
+		ConsensusAuthority:      false,
+		FileCount:               len(manifest.Files),
 	}, nil
 }
 
