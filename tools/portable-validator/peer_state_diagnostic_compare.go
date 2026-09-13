@@ -33,30 +33,37 @@ type PeerStateDiagnosticFileChange struct {
 }
 
 type PeerStateDiagnosticComparison struct {
-	ProfileVersion            string                            `json:"profileVersion"`
-	LeftBundleProfileVersion  string                            `json:"leftBundleProfileVersion"`
-	RightBundleProfileVersion string                            `json:"rightBundleProfileVersion"`
-	LeftIntegrityVerified     bool                              `json:"leftIntegrityVerified"`
-	RightIntegrityVerified    bool                              `json:"rightIntegrityVerified"`
-	AuthenticityEstablished   bool                              `json:"authenticityEstablished"`
-	ConsensusAuthority        bool                              `json:"consensusAuthority"`
-	CanonicalHistorySelection bool                              `json:"canonicalHistorySelection"`
-	RecoveryAuthority         bool                              `json:"recoveryAuthority"`
-	MutationPerformed         bool                              `json:"mutationPerformed"`
-	ChainIDMatch              bool                              `json:"chainIdMatch"`
-	ValidatorIDMatch          bool                              `json:"validatorIdMatch"`
-	LeftChainID               string                            `json:"leftChainId"`
-	RightChainID              string                            `json:"rightChainId"`
-	LeftValidatorID           string                            `json:"leftValidatorId"`
-	RightValidatorID          string                            `json:"rightValidatorId"`
-	LeftCreatedAt             string                            `json:"leftCreatedAt"`
-	RightCreatedAt            string                            `json:"rightCreatedAt"`
-	CreatedAtChanged          bool                              `json:"createdAtChanged"`
-	LeftOverallHealth         string                            `json:"leftOverallHealth"`
-	RightOverallHealth        string                            `json:"rightOverallHealth"`
-	HealthChanged             bool                              `json:"healthChanged"`
-	HealthChanges             []PeerStateDiagnosticHealthChange `json:"healthChanges"`
-	FileChanges               []PeerStateDiagnosticFileChange   `json:"fileChanges"`
+	ProfileVersion                     string                            `json:"profileVersion"`
+	LeftBundleProfileVersion           string                            `json:"leftBundleProfileVersion"`
+	RightBundleProfileVersion          string                            `json:"rightBundleProfileVersion"`
+	LeftIntegrityVerified              bool                              `json:"leftIntegrityVerified"`
+	RightIntegrityVerified             bool                              `json:"rightIntegrityVerified"`
+	AuthenticityEstablished            bool                              `json:"authenticityEstablished"`
+	ConsensusAuthority                 bool                              `json:"consensusAuthority"`
+	CanonicalHistorySelection          bool                              `json:"canonicalHistorySelection"`
+	RecoveryAuthority                  bool                              `json:"recoveryAuthority"`
+	MutationPerformed                  bool                              `json:"mutationPerformed"`
+	ChainIDMatch                       bool                              `json:"chainIdMatch"`
+	ValidatorIDMatch                   bool                              `json:"validatorIdMatch"`
+	ConfigFingerprintMatch             bool                              `json:"configFingerprintMatch"`
+	TransportPublicKeyHashComparable   bool                              `json:"transportPublicKeyHashComparable"`
+	TransportPublicKeyHashMatch        bool                              `json:"transportPublicKeyHashMatch"`
+	LeftChainID                        string                            `json:"leftChainId"`
+	RightChainID                       string                            `json:"rightChainId"`
+	LeftValidatorID                    string                            `json:"leftValidatorId"`
+	RightValidatorID                   string                            `json:"rightValidatorId"`
+	LeftConfigFingerprintSHA256        string                            `json:"leftConfigFingerprintSha256"`
+	RightConfigFingerprintSHA256       string                            `json:"rightConfigFingerprintSha256"`
+	LeftTransportPublicKeyHash         string                            `json:"leftTransportPublicKeyHash,omitempty"`
+	RightTransportPublicKeyHash        string                            `json:"rightTransportPublicKeyHash,omitempty"`
+	LeftCreatedAt                      string                            `json:"leftCreatedAt"`
+	RightCreatedAt                     string                            `json:"rightCreatedAt"`
+	CreatedAtChanged                   bool                              `json:"createdAtChanged"`
+	LeftOverallHealth                  string                            `json:"leftOverallHealth"`
+	RightOverallHealth                 string                            `json:"rightOverallHealth"`
+	HealthChanged                      bool                              `json:"healthChanged"`
+	HealthChanges                      []PeerStateDiagnosticHealthChange `json:"healthChanges"`
+	FileChanges                        []PeerStateDiagnosticFileChange   `json:"fileChanges"`
 }
 
 func readVerifiedPeerStateDiagnosticManifest(bundleDir string) (PeerStateDiagnosticManifest, PeerStateDiagnosticVerification, error) {
@@ -100,31 +107,42 @@ func comparePeerStateDiagnosticBundles(leftDir, rightDir string) (PeerStateDiagn
 		return PeerStateDiagnosticComparison{}, fmt.Errorf("verify right diagnostic bundle: %w", err)
 	}
 
+	leftTransportHash := strings.ToLower(left.TransportPublicKeyHash)
+	rightTransportHash := strings.ToLower(right.TransportPublicKeyHash)
+	transportComparable := leftTransportHash != "" && rightTransportHash != ""
+
 	comparison := PeerStateDiagnosticComparison{
-		ProfileVersion:            peerStateDiagnosticCompareProfile,
-		LeftBundleProfileVersion:  left.ProfileVersion,
-		RightBundleProfileVersion: right.ProfileVersion,
-		LeftIntegrityVerified:     leftVerification.IntegrityVerified,
-		RightIntegrityVerified:    rightVerification.IntegrityVerified,
-		AuthenticityEstablished:   false,
-		ConsensusAuthority:        false,
-		CanonicalHistorySelection: false,
-		RecoveryAuthority:         false,
-		MutationPerformed:         false,
-		ChainIDMatch:              left.ChainID == right.ChainID,
-		ValidatorIDMatch:          left.ValidatorID == right.ValidatorID,
-		LeftChainID:               left.ChainID,
-		RightChainID:              right.ChainID,
-		LeftValidatorID:           left.ValidatorID,
-		RightValidatorID:          right.ValidatorID,
-		LeftCreatedAt:             left.CreatedAt,
-		RightCreatedAt:            right.CreatedAt,
-		CreatedAtChanged:          left.CreatedAt != right.CreatedAt,
-		LeftOverallHealth:         left.Health.OverallStatus,
-		RightOverallHealth:        right.Health.OverallStatus,
-		HealthChanged:             left.Health.OverallStatus != right.Health.OverallStatus,
-		HealthChanges:             []PeerStateDiagnosticHealthChange{},
-		FileChanges:               []PeerStateDiagnosticFileChange{},
+		ProfileVersion:                   peerStateDiagnosticCompareProfile,
+		LeftBundleProfileVersion:         left.ProfileVersion,
+		RightBundleProfileVersion:        right.ProfileVersion,
+		LeftIntegrityVerified:            leftVerification.IntegrityVerified,
+		RightIntegrityVerified:           rightVerification.IntegrityVerified,
+		AuthenticityEstablished:          false,
+		ConsensusAuthority:               false,
+		CanonicalHistorySelection:        false,
+		RecoveryAuthority:                false,
+		MutationPerformed:                false,
+		ChainIDMatch:                     left.ChainID == right.ChainID,
+		ValidatorIDMatch:                 left.ValidatorID == right.ValidatorID,
+		ConfigFingerprintMatch:           strings.EqualFold(left.ConfigFingerprintSHA256, right.ConfigFingerprintSHA256),
+		TransportPublicKeyHashComparable: transportComparable,
+		TransportPublicKeyHashMatch:      transportComparable && leftTransportHash == rightTransportHash,
+		LeftChainID:                      left.ChainID,
+		RightChainID:                     right.ChainID,
+		LeftValidatorID:                  left.ValidatorID,
+		RightValidatorID:                 right.ValidatorID,
+		LeftConfigFingerprintSHA256:      strings.ToLower(left.ConfigFingerprintSHA256),
+		RightConfigFingerprintSHA256:     strings.ToLower(right.ConfigFingerprintSHA256),
+		LeftTransportPublicKeyHash:       leftTransportHash,
+		RightTransportPublicKeyHash:      rightTransportHash,
+		LeftCreatedAt:                    left.CreatedAt,
+		RightCreatedAt:                   right.CreatedAt,
+		CreatedAtChanged:                 left.CreatedAt != right.CreatedAt,
+		LeftOverallHealth:                left.Health.OverallStatus,
+		RightOverallHealth:               right.Health.OverallStatus,
+		HealthChanged:                    left.Health.OverallStatus != right.Health.OverallStatus,
+		HealthChanges:                    []PeerStateDiagnosticHealthChange{},
+		FileChanges:                      []PeerStateDiagnosticFileChange{},
 	}
 
 	leftHealth := diagnosticHealthMap(left.Health.Entries)
