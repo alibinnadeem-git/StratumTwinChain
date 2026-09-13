@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { MeshDetail, createMeshInspection } from "@/lib/mesh-inspection";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { resolveElectricalComponent } from "@/lib/electrical-component-library";
 import {
@@ -111,7 +112,13 @@ export default function CompiledGraphViewer() {
   const [search, setSearch] = useState("");
   const [isolatedObject, setIsolatedObject] = useState<string | null>(null);
   const [pieceExplosion, setPieceExplosion] = useState(0);
-  const inspection = useRef({ id: "", amount: 0 });
+  const pendingMeshPick = useRef({ entityId: "", meshId: "" });
+  const [meshDetails, setMeshDetails] = useState<MeshDetail[]>([]);
+  const [selectedMesh, setSelectedMesh] = useState("");
+  const [isolateMesh, setIsolateMesh] = useState(false);
+  const [canExplodeMesh, setCanExplodeMesh] = useState(false);
+  const inspections = useRef(new Map<string, ReturnType<typeof createMeshInspection>>());
+  const inspection = useRef({ id: "", amount: 0, mesh: "", isolate: false });
   const [graph, setGraph] = useState<Graph | null>(null),
     [active, setActive] = useState<Layer[]>(["L0", "L1", "L2", "L3", "L4"]),
     [selected, setSelected] = useState<Entity | null>(null),
@@ -159,8 +166,13 @@ export default function CompiledGraphViewer() {
       window.removeEventListener("storage", refresh);
     };
   }, []);
-  useEffect(() => { inspection.current = { id: selected?.id || "", amount: pieceExplosion / 100 }; }, [selected?.id, pieceExplosion]);
-  useEffect(() => { setPieceExplosion(0); }, [selected?.id]);
+  useEffect(() => { inspection.current = { id: selected?.id || "", amount: pieceExplosion / 100, mesh: selectedMesh, isolate: isolateMesh }; }, [selected?.id, pieceExplosion, selectedMesh, isolateMesh]);
+  useEffect(() => {
+    setPieceExplosion(0); setSelectedMesh(pendingMeshPick.current.entityId === selected?.id ? pendingMeshPick.current.meshId : ""); setIsolateMesh(false);
+    pendingMeshPick.current = { entityId: "", meshId: "" };
+    const model = inspections.current.get(selected?.id || "");
+    setMeshDetails(model?.details || []); setCanExplodeMesh(model?.canExplode || false);
+  }, [selected?.id]);
   useEffect(() => {
     if (!selected) { setActivities([]); return; }
     try { setActivities(JSON.parse(localStorage.getItem(`stratum_asset_activity:${selected.id}`) || "[]")); } catch { setActivities([]); }
@@ -273,6 +285,7 @@ export default function CompiledGraphViewer() {
     let cleanup = () => {};
     (async () => {
       const THREE = await import("three");
+      const { createMeshInspection } = await import("@/lib/mesh-inspection");
       const { OrbitControls } = await import(
         "three/examples/jsm/controls/OrbitControls.js"
       );
@@ -482,25 +495,24 @@ export default function CompiledGraphViewer() {
         plane.receiveShadow = true;
         groups.L0.add(plane);
       }
-      const inspectionPieces: { node: any; base: any; offset: any; entityId: string }[] = [];
+      inspections.current.clear();
+      setMeshDetails([]); setCanExplodeMesh(false);
       function tag(root: any, e: Entity) {
         root.userData.entity = e;
-        let pieceIndex = 0;
         root.traverse((node: any) => {
           if (node.isMesh) {
             node.userData.entity = e;
             node.castShadow = !ghostFloor(e.floor);
             node.receiveShadow = true;
             clickable.push(node);
-            // Preserve hierarchy, rotations and geometry. Spread in each mesh's parent frame.
-            node.geometry.computeBoundingBox();
-            const size = node.geometry.boundingBox?.getSize(new THREE.Vector3()).length() || 1;
-            const index = pieceIndex++;
-            const angle = index * 2.399963229728653;
-            inspectionPieces.push({ node, base: node.position.clone(), entityId: e.id,
-              offset: new THREE.Vector3(Math.cos(angle), (index % 3) - 1, Math.sin(angle)).multiplyScalar(Math.max(size, 0.5)) });
           }
         });
+        const model = createMeshInspection(root);
+        inspections.current.set(e.id, model);
+        model.details.forEach(detail => { const mesh = model.mesh(detail.id); if (mesh) mesh.userData.inspectionMeshId = detail.id; });
+        if (inspection.current.id === e.id) {
+          setMeshDetails(model.details); setCanExplodeMesh(model.canExplode);
+        }
       }
       function wallBetween(
         a: XY,
@@ -960,10 +972,19 @@ export default function CompiledGraphViewer() {
         pointer.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
         pointer.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
         ray.setFromCamera(pointer, camera);
-        const hit = ray.intersectObjects(clickable, true)[0];
+        const hit = ray.intersectObjects(clickable, true).find(candidate => {
+          for (let ancestor: any = candidate.object; ancestor; ancestor = ancestor.parent) {
+            if (!ancestor.visible) return false;
+          }
+          return true;
+        });
         let node: any = hit?.object;
         while (node && !node.userData?.entity) node = node.parent;
-        if (node?.userData?.entity) setSelected(node.userData.entity);
+        if (node?.userData?.entity) {
+          pendingMeshPick.current = { entityId: node.userData.entity.id, meshId: hit?.object.userData.inspectionMeshId || "" };
+          setSelected(node.userData.entity);
+          setSelectedMesh(hit?.object.userData.inspectionMeshId || "");
+        }
       };
       let pointerStart: { x: number; y: number; id: number } | null = null;
       const down = (ev: PointerEvent) => { pointerStart = { x: ev.clientX, y: ev.clientY, id: ev.pointerId }; };
@@ -993,9 +1014,10 @@ export default function CompiledGraphViewer() {
         if (emergency) {
           rim.intensity = 25 + Math.sin(t * 5) * 15;
         }
-        for (const piece of inspectionPieces) {
-          piece.node.position.copy(piece.base).addScaledVector(piece.offset,
-            piece.entityId === inspection.current.id ? inspection.current.amount : 0);
+        for (const [id, model] of inspections.current) {
+          const current = inspection.current;
+          model.apply(id === current.id ? current.amount : 0,
+            id === current.id && current.isolate ? current.mesh : "");
         }
         controls.update();
         renderer.render(scene, camera);
@@ -1004,6 +1026,7 @@ export default function CompiledGraphViewer() {
       animate();
       cleanup = () => {
         runtime.current = null;
+        inspections.current.forEach(model => model.restore()); inspections.current.clear();
         cancelAnimationFrame(f);
         ro.disconnect();
         renderer.domElement.removeEventListener("pointerdown", down);
@@ -1292,12 +1315,36 @@ export default function CompiledGraphViewer() {
               </div>
               <div className="button-row">
                 <button className="ghost" aria-pressed={isolatedObject === selected.id} onClick={() => setIsolatedObject(isolatedObject === selected.id ? null : selected.id)}>Isolate object</button>
-                <button className="ghost" onClick={() => { setIsolatedObject(null); setPieceExplosion(0); setSearch(""); setActive(["L0","L1","L2","L3","L4"]); setSystemMode("ALL"); setIsolatedFloor("ALL"); }}>Restore view</button>
+                <button className="ghost" onClick={() => { setIsolatedObject(null); setPieceExplosion(0); setIsolateMesh(false); setSelectedMesh(""); setSearch(""); setActive(["L0","L1","L2","L3","L4"]); setSystemMode("ALL"); setIsolatedFloor("ALL"); }}>Restore view</button>
               </div>
               {selected.layer === "L2" && <label style={{display:"block",marginTop:12}}>Equipment mesh separation · {pieceExplosion}%
-                <input aria-label="Equipment mesh separation" type="range" min="0" max="100" value={pieceExplosion} onChange={e => setPieceExplosion(Number(e.target.value))} style={{width:"100%"}} />
+                <input aria-label="Equipment mesh separation" type="range" min="0" max="100" disabled={!canExplodeMesh || webglError} value={pieceExplosion} onChange={e => setPieceExplosion(Number(e.target.value))} style={{width:"100%"}} />
                 <small>Illustrative mesh separation. Pieces are not verified OEM parts; recorded placement stays unchanged.</small>
               </label>}
+              {selected.layer === "L2" && <div style={{marginTop:12}}>
+                <label>Internal model pieces · {meshDetails.length}
+                  <select aria-label="Internal model piece" value={selectedMesh} onChange={e => setSelectedMesh(e.target.value)} style={{width:"100%"}}>
+                    <option value="">Select a mesh</option>
+                    {meshDetails.map(mesh => <option key={mesh.id} value={mesh.id}>{mesh.name} · {mesh.id}</option>)}
+                  </select>
+                </label>
+                <button className="ghost" disabled={!selectedMesh} aria-pressed={isolateMesh} onClick={() => setIsolateMesh(v => !v)}>Isolate internal piece</button>
+                <button className="ghost" disabled={webglError || !meshDetails.length} onClick={() => {
+                  const r = runtime.current, model = inspections.current.get(selected.id);
+                  if (!r || !model) return;
+                  const box = model.bounds(selectedMesh); if (box.isEmpty()) return;
+                  const center = box.getCenter(new r.THREE.Vector3());
+                  const span = Math.max(box.getSize(new r.THREE.Vector3()).length(), 0.2);
+                  const vertical = r.camera.fov * Math.PI / 180;
+                  const horizontal = 2 * Math.atan(Math.tan(vertical / 2) * r.camera.aspect);
+                  const distance = span / (2 * Math.sin(Math.min(vertical, horizontal) / 2)) * 1.2;
+                  r.controls.target.copy(center); r.camera.position.copy(center).add(new r.THREE.Vector3(1,0.7,1).normalize().multiplyScalar(distance));
+                  r.camera.far = Math.max(600, distance * 4); r.camera.updateProjectionMatrix(); r.controls.update();
+                }}>Fit inspected geometry</button>
+                {meshDetails.filter(mesh => mesh.id === selectedMesh).map(mesh => <p key={mesh.id}>{mesh.triangles.toLocaleString()} triangles · Materials: {mesh.materials.join(", ")} · Model mesh identifier, not an OEM part number.</p>)}
+                {!meshDetails.length && <p className="muted">Mesh inventory requires a successfully rendered equipment model.</p>}
+                {!!meshDetails.length && !canExplodeMesh && <p className="muted">This model hierarchy supports inspection but not rigid mesh separation.</p>}
+              </div>}
               <div className="passport-facts">
                 <div>
                   <span>Source</span>
