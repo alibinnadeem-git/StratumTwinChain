@@ -35,7 +35,7 @@ jobs:
         run: go vet ./...
       - name: Operator alert delivery tests
         working-directory: tools/portable-validator
-        run: go test -race ./... -run 'Test(ValidateOperatorAlertWebhookURL|DeliverPeerOperatorAlertWebhook|FailedWebhookDelivery|OperatorAlertDeliveryJournal|AppendOperatorAlertDeliveryReceipt|BearerTokenFile|PeerOperatorAlertByID|PeerOperatorAlertDeliveryStatus|PeerOperatorAlertDeliveryRetryStatus|DeliveryStatusFilter|PrunePeerOperatorAlertDeliveryReceipts|PendingPeerOperatorAlertsForWebhook|EligiblePeerOperatorAlertsForWebhook|DeliveryStateSurvivesReceiptPruning|AutoDeliverPendingPeerOperatorAlerts|LoadPeerOperatorAlertDeliveryJournal)'
+        run: go test -race ./... -run 'Test(ValidateOperatorAlertWebhookURL|DeliverPeerOperatorAlertWebhook|FailedWebhookDelivery|OperatorAlertDeliveryJournal|AppendOperatorAlertDeliveryReceipt|BearerTokenFile|PeerOperatorAlertByID|PeerOperatorAlertDeliveryStatus|PeerOperatorAlertDeliveryRetryStatus|DeliveryStatusFilter|PrunePeerOperatorAlertDeliveryReceipts|PruneAcknowledgedPeerOperatorAlertDeliveryState|PendingPeerOperatorAlertsForWebhook|EligiblePeerOperatorAlertsForWebhook|DeliveryStateSurvivesReceiptPruning|AutoDeliverPendingPeerOperatorAlerts|LoadPeerOperatorAlertDeliveryJournal)'
       - name: Alert delivery trust-boundary invariants
         run: |
           node - <<'NODE'
@@ -45,6 +45,7 @@ jobs:
           const follower=fs.readFileSync('tools/portable-validator/peer_sync_follower_managed.go','utf8');
           const status=fs.readFileSync('tools/portable-validator/peer_operator_alert_delivery_command.go','utf8');
           const retention=fs.readFileSync('tools/portable-validator/peer_operator_alert_delivery_retention.go','utf8');
+          const stateRetention=fs.readFileSync('tools/portable-validator/peer_operator_alert_delivery_state_retention.go','utf8');
           const main=fs.readFileSync('tools/portable-validator/main.go','utf8');
           for (const required of [
             'STRATUM-PEER-ALERT-DELIVERY/1',
@@ -66,6 +67,8 @@ jobs:
             'peerOperatorAlertDeliveryStatusCommand',
             'peer-alert-delivery-prune',
             'peerOperatorAlertDeliveryPruneCommand',
+            'peer-alert-delivery-state-prune',
+            'peerOperatorAlertDeliveryStatePruneCommand',
           ]) {
             if (!main.includes(required)) throw new Error(`Missing alert-delivery command surface: ${required}`);
           }
@@ -90,6 +93,16 @@ jobs:
           ]) {
             if (!autoDelivery.includes(required)) throw new Error(`Missing bounded durable automatic alert retry invariant: ${required}`);
           }
+          for (const required of [
+            'pruneAcknowledgedPeerOperatorAlertDeliveryState',
+            'for _, acknowledgement := range alerts.Acknowledgements',
+            'delete(deliveries.State, key)',
+            'acknowledged[strings.ToLower(state.AlertID)]',
+            'savePeerOperatorAlertDeliveryJournalAtomic',
+            'cfg.State != candidateState || cfg.VoteAuthority',
+          ]) {
+            if (!stateRetention.includes(required)) throw new Error(`Missing acknowledged-only compact-state cleanup invariant: ${required}`);
+          }
           if (!status.includes('deliveries.State[operatorAlertDeliveryStateKey')) throw new Error('Read-only retry status must use compact durable delivery state rather than prunable receipts');
           if (!delivery.includes('cfg.State != candidateState || cfg.VoteAuthority')) throw new Error('Alert delivery must fail closed outside CANDIDATE/voteAuthority=false');
           if (!autoDelivery.includes('cfg.State != candidateState || cfg.VoteAuthority')) throw new Error('Automatic alert delivery must fail closed outside CANDIDATE/voteAuthority=false');
@@ -100,12 +113,14 @@ jobs:
           if (!delivery.includes('http.NewRequestWithContext')) throw new Error('Follower-triggered alert delivery must support cancellation');
           if (!delivery.includes('prunePeerOperatorAlertDeliveryReceipts(journal, peerOperatorAlertDeliveryMaxReceipts)')) throw new Error('Every normal receipt append must enforce the hard retention cap');
           if (!retention.includes('peerOperatorAlertDeliveryMaxReceipts = 4096')) throw new Error('Alert delivery receipts must have a hard upper retention bound');
-          if (!retention.includes('savePeerOperatorAlertDeliveryJournalAtomic')) throw new Error('Retention may persist only the delivery receipt journal');
+          if (!retention.includes('savePeerOperatorAlertDeliveryJournalAtomic')) throw new Error('Receipt retention may persist only the delivery journal');
           if (autoDelivery.includes('for _, receipt := range deliveries.Receipts')) throw new Error('Automatic delivery eligibility must not derive durable dedup/retry semantics from prunable receipt history');
           if (status.includes('for _, receipt := range deliveries.Receipts')) throw new Error('Retry-status semantics must not derive from prunable receipt history');
           if (autoDelivery.includes('deadLetter') || autoDelivery.includes('permanentFailure')) throw new Error('Automatic alert delivery must not silently dead-letter or permanently drop alerts');
+          if (stateRetention.includes('delete(deliveries.Receipts') || stateRetention.includes('deliveries.Receipts =')) throw new Error('Compact-state cleanup must not prune or rewrite receipt history');
+          if (stateRetention.includes('savePeerOperatorAlertJournalAtomic(') || stateRetention.includes('acknowledgePeerOperatorAlert(')) throw new Error('Compact-state cleanup must not mutate alerts or acknowledgements');
+          if (stateRetention.includes('!state.Delivered') || stateRetention.includes('FailureCount ==')) throw new Error('Compact-state cleanup eligibility must be based only on durable acknowledgement, never delivery/retry heuristics');
           for (const forbidden of [
-            'acknowledgePeerOperatorAlert(',
             'peerQuarantineReleaseCommand(',
             'releasePeerQuarantine(',
             'savePeerQuarantineStateAtomic(',
@@ -115,11 +130,12 @@ jobs:
             if (delivery.includes(forbidden)) throw new Error(`Alert delivery must not mutate safety/trust state through ${forbidden}`);
             if (autoDelivery.includes(forbidden)) throw new Error(`Automatic alert delivery must not mutate safety/trust state through ${forbidden}`);
             if (status.includes(forbidden)) throw new Error(`Alert delivery status must remain read-only and not call ${forbidden}`);
-            if (retention.includes(forbidden)) throw new Error(`Alert delivery retention must not touch safety/trust state through ${forbidden}`);
+            if (retention.includes(forbidden)) throw new Error(`Alert receipt retention must not touch safety/trust state through ${forbidden}`);
+            if (stateRetention.includes(forbidden)) throw new Error(`Compact-state cleanup must not touch safety/trust state through ${forbidden}`);
           }
           for (const forbidden of ['os.WriteFile(', 'os.Rename(', 'savePeerOperatorAlertDeliveryJournalAtomic(', 'appendPeerOperatorAlertDeliveryReceipt(']) {
             if (status.includes(forbidden)) throw new Error(`Alert delivery status must not persist or mutate delivery state through ${forbidden}`);
           }
           if (follower.includes('err = autoDeliverPendingPeerOperatorAlertsContext')) throw new Error('Automatic delivery failure must never replace the follower cycle result');
-          console.log('One-way non-authoritative alert delivery, legacy migration, compact durable dedup/retry state, bounded retry scheduling, read-only status, and bounded receipt-retention invariants passed');
+          console.log('One-way non-authoritative alert delivery, legacy migration, compact durable dedup/retry state, acknowledged-only compact-state cleanup, bounded retry scheduling, read-only status, and bounded receipt-retention invariants passed');
           NODE
