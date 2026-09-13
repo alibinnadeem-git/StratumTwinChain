@@ -40,13 +40,103 @@ type PeerOperatorAlertDeliveryReceipt struct {
 	SafetyStateMutation bool   `json:"safetyStateMutation"`
 }
 
+type PeerOperatorAlertDeliveryState struct {
+	AlertID             string `json:"alertId"`
+	EndpointHash        string `json:"endpointHash"`
+	Delivered           bool   `json:"delivered"`
+	FailureCount        int    `json:"failureCount"`
+	LatestFailureAt     string `json:"latestFailureAt,omitempty"`
+	LastSuccessAt       string `json:"lastSuccessAt,omitempty"`
+	ConsensusAuthority  bool   `json:"consensusAuthority"`
+	SafetyStateMutation bool   `json:"safetyStateMutation"`
+}
+
 type PeerOperatorAlertDeliveryJournal struct {
-	ProfileVersion     string                             `json:"profileVersion"`
-	ChainID            string                             `json:"chainId"`
-	GenesisDIRHash     string                             `json:"GenesisDIRHash"`
-	ProtocolVersion    string                             `json:"protocolVersion"`
-	ConsensusAuthority bool                               `json:"consensusAuthority"`
-	Receipts           []PeerOperatorAlertDeliveryReceipt `json:"receipts"`
+	ProfileVersion     string                                    `json:"profileVersion"`
+	ChainID            string                                    `json:"chainId"`
+	GenesisDIRHash     string                                    `json:"GenesisDIRHash"`
+	ProtocolVersion    string                                    `json:"protocolVersion"`
+	ConsensusAuthority bool                                      `json:"consensusAuthority"`
+	Receipts           []PeerOperatorAlertDeliveryReceipt        `json:"receipts"`
+	State              map[string]PeerOperatorAlertDeliveryState `json:"state,omitempty"`
+}
+
+func operatorAlertDeliveryStateKey(alertID, endpointHash string) string {
+	return strings.ToLower(strings.TrimSpace(endpointHash)) + ":" + strings.ToLower(strings.TrimSpace(alertID))
+}
+
+func validatePeerOperatorAlertDeliveryState(state PeerOperatorAlertDeliveryState) error {
+	if !isSHA256(strings.ToLower(state.AlertID)) || !isSHA256(strings.ToLower(state.EndpointHash)) {
+		return errors.New("invalid operator alert delivery state identifiers")
+	}
+	if state.FailureCount < 0 {
+		return errors.New("operator alert delivery state failure count may not be negative")
+	}
+	if state.ConsensusAuthority || state.SafetyStateMutation {
+		return errors.New("operator alert delivery state claims forbidden authority or safety-state mutation")
+	}
+	if state.LatestFailureAt != "" {
+		if _, err := time.Parse(time.RFC3339Nano, state.LatestFailureAt); err != nil {
+			return fmt.Errorf("invalid operator alert delivery state latest failure timestamp: %w", err)
+		}
+	}
+	if state.LastSuccessAt != "" {
+		if _, err := time.Parse(time.RFC3339Nano, state.LastSuccessAt); err != nil {
+			return fmt.Errorf("invalid operator alert delivery state success timestamp: %w", err)
+		}
+	}
+	return nil
+}
+
+func applyPeerOperatorAlertDeliveryReceiptState(journal *PeerOperatorAlertDeliveryJournal, receipt PeerOperatorAlertDeliveryReceipt) error {
+	if journal == nil {
+		return errors.New("operator alert delivery journal is required")
+	}
+	if !isSHA256(receipt.AlertID) || !isSHA256(receipt.EndpointHash) {
+		return errors.New("invalid operator alert delivery receipt state identifiers")
+	}
+	if receipt.ConsensusAuthority || receipt.SafetyStateMutation {
+		return errors.New("operator alert delivery receipt may not carry authority or mutate safety state")
+	}
+	attemptedAt, err := time.Parse(time.RFC3339Nano, receipt.AttemptedAt)
+	if err != nil {
+		return fmt.Errorf("invalid operator alert delivery receipt timestamp: %w", err)
+	}
+	if journal.State == nil {
+		journal.State = map[string]PeerOperatorAlertDeliveryState{}
+	}
+	key := operatorAlertDeliveryStateKey(receipt.AlertID, receipt.EndpointHash)
+	state := journal.State[key]
+	if state.AlertID == "" {
+		state = PeerOperatorAlertDeliveryState{
+			AlertID:             strings.ToLower(receipt.AlertID),
+			EndpointHash:        strings.ToLower(receipt.EndpointHash),
+			ConsensusAuthority:  false,
+			SafetyStateMutation: false,
+		}
+	}
+	if receipt.Succeeded {
+		state.Delivered = true
+		state.LastSuccessAt = attemptedAt.UTC().Format(time.RFC3339Nano)
+	} else if !state.Delivered {
+		state.FailureCount++
+		if state.LatestFailureAt == "" {
+			state.LatestFailureAt = attemptedAt.UTC().Format(time.RFC3339Nano)
+		} else {
+			previous, parseErr := time.Parse(time.RFC3339Nano, state.LatestFailureAt)
+			if parseErr != nil {
+				return fmt.Errorf("invalid existing operator alert delivery state timestamp: %w", parseErr)
+			}
+			if attemptedAt.After(previous) {
+				state.LatestFailureAt = attemptedAt.UTC().Format(time.RFC3339Nano)
+			}
+		}
+	}
+	if err := validatePeerOperatorAlertDeliveryState(state); err != nil {
+		return err
+	}
+	journal.State[key] = state
+	return nil
 }
 
 func defaultPeerOperatorAlertDeliveryJournal(cfg BootstrapConfig) PeerOperatorAlertDeliveryJournal {
@@ -57,6 +147,7 @@ func defaultPeerOperatorAlertDeliveryJournal(cfg BootstrapConfig) PeerOperatorAl
 		ProtocolVersion:    cfg.ProtocolVersion,
 		ConsensusAuthority: false,
 		Receipts:           []PeerOperatorAlertDeliveryReceipt{},
+		State:              map[string]PeerOperatorAlertDeliveryState{},
 	}
 }
 
@@ -87,6 +178,22 @@ func loadPeerOperatorAlertDeliveryJournal(path string, cfg BootstrapConfig) (Pee
 			return PeerOperatorAlertDeliveryJournal{}, errors.New("peer operator alert delivery receipt claims forbidden authority or safety-state mutation")
 		}
 	}
+	if journal.State == nil {
+		journal.State = map[string]PeerOperatorAlertDeliveryState{}
+		for _, receipt := range journal.Receipts {
+			if err := applyPeerOperatorAlertDeliveryReceiptState(&journal, receipt); err != nil {
+				return PeerOperatorAlertDeliveryJournal{}, fmt.Errorf("reconstruct operator alert delivery state from retained receipts: %w", err)
+			}
+		}
+	}
+	for key, state := range journal.State {
+		if key != operatorAlertDeliveryStateKey(state.AlertID, state.EndpointHash) {
+			return PeerOperatorAlertDeliveryJournal{}, errors.New("operator alert delivery state key mismatch")
+		}
+		if err := validatePeerOperatorAlertDeliveryState(state); err != nil {
+			return PeerOperatorAlertDeliveryJournal{}, err
+		}
+	}
 	return journal, nil
 }
 
@@ -103,6 +210,17 @@ func savePeerOperatorAlertDeliveryJournalAtomic(path string, journal PeerOperato
 	for _, receipt := range journal.Receipts {
 		if receipt.ConsensusAuthority || receipt.SafetyStateMutation {
 			return errors.New("refusing peer operator alert delivery receipt with authority or safety-state mutation enabled")
+		}
+	}
+	if journal.State == nil {
+		journal.State = map[string]PeerOperatorAlertDeliveryState{}
+	}
+	for key, state := range journal.State {
+		if key != operatorAlertDeliveryStateKey(state.AlertID, state.EndpointHash) {
+			return errors.New("refusing operator alert delivery journal with mismatched state key")
+		}
+		if err := validatePeerOperatorAlertDeliveryState(state); err != nil {
+			return err
 		}
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
@@ -263,6 +381,9 @@ func appendPeerOperatorAlertDeliveryReceipt(path string, cfg BootstrapConfig, re
 	journal, err := loadPeerOperatorAlertDeliveryJournal(path, cfg)
 	if err != nil {
 		return err
+	}
+	if err := applyPeerOperatorAlertDeliveryReceiptState(&journal, receipt); err != nil {
+		return fmt.Errorf("update compact operator alert delivery state: %w", err)
 	}
 	journal.Receipts = append(journal.Receipts, receipt)
 	journal, _, err = prunePeerOperatorAlertDeliveryReceipts(journal, peerOperatorAlertDeliveryMaxReceipts)
