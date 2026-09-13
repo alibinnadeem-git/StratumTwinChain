@@ -35,7 +35,7 @@ jobs:
         run: go vet ./...
       - name: Operator alert delivery tests
         working-directory: tools/portable-validator
-        run: go test -race ./... -run 'Test(ValidateOperatorAlertWebhookURL|DeliverPeerOperatorAlertWebhook|FailedWebhookDelivery|OperatorAlertDeliveryJournal|AppendOperatorAlertDeliveryReceipt|BearerTokenFile|PeerOperatorAlertByID|PeerOperatorAlertDeliveryStatus|DeliveryStatusFilter|PrunePeerOperatorAlertDeliveryReceipts|PendingPeerOperatorAlertsForWebhook|AutoDeliverPendingPeerOperatorAlerts)'
+        run: go test -race ./... -run 'Test(ValidateOperatorAlertWebhookURL|DeliverPeerOperatorAlertWebhook|FailedWebhookDelivery|OperatorAlertDeliveryJournal|AppendOperatorAlertDeliveryReceipt|BearerTokenFile|PeerOperatorAlertByID|PeerOperatorAlertDeliveryStatus|DeliveryStatusFilter|PrunePeerOperatorAlertDeliveryReceipts|PendingPeerOperatorAlertsForWebhook|EligiblePeerOperatorAlertsForWebhook|AutoDeliverPendingPeerOperatorAlerts)'
       - name: Alert delivery trust-boundary invariants
         run: |
           node - <<'NODE'
@@ -75,6 +75,15 @@ jobs:
           ]) {
             if (!follower.includes(required)) throw new Error(`Missing automatic follower alert-delivery boundary: ${required}`);
           }
+          for (const required of [
+            'peerOperatorAlertRetryBaseDelay          = time.Minute',
+            'peerOperatorAlertRetryMaxDelay           = time.Hour',
+            'eligiblePeerOperatorAlertsForWebhookAt',
+            'peerOperatorAlertRetryDelay',
+            'peerOperatorAlertAutoDeliveryMaxPerCycle = 16',
+          ]) {
+            if (!autoDelivery.includes(required)) throw new Error(`Missing bounded automatic alert retry invariant: ${required}`);
+          }
           if (!delivery.includes('cfg.State != candidateState || cfg.VoteAuthority')) throw new Error('Alert delivery must fail closed outside CANDIDATE/voteAuthority=false');
           if (!autoDelivery.includes('cfg.State != candidateState || cfg.VoteAuthority')) throw new Error('Automatic alert delivery must fail closed outside CANDIDATE/voteAuthority=false');
           if (!status.includes('cfg.State != candidateState || cfg.VoteAuthority')) throw new Error('Alert delivery status must fail closed outside CANDIDATE/voteAuthority=false');
@@ -86,6 +95,8 @@ jobs:
           if (!retention.includes('peerOperatorAlertDeliveryMaxReceipts = 4096')) throw new Error('Alert delivery receipts must have a hard upper retention bound');
           if (!retention.includes('savePeerOperatorAlertDeliveryJournalAtomic')) throw new Error('Retention may persist only the delivery receipt journal');
           if (!autoDelivery.includes('receipt.Succeeded') || !autoDelivery.includes('acknowledged')) throw new Error('Automatic delivery must deduplicate successful endpoint delivery and skip locally acknowledged alerts');
+          if (!autoDelivery.includes('latestFailure.Add(peerOperatorAlertRetryDelay(state.failureCount))')) throw new Error('Failed automatic delivery must use bounded retry scheduling rather than every-poll hammering');
+          if (autoDelivery.includes('deadLetter') || autoDelivery.includes('permanentFailure')) throw new Error('Automatic alert delivery must not silently dead-letter or permanently drop alerts');
           for (const forbidden of [
             'acknowledgePeerOperatorAlert(',
             'peerQuarantineReleaseCommand(',
@@ -103,5 +114,5 @@ jobs:
             if (status.includes(forbidden)) throw new Error(`Alert delivery status must not persist or mutate delivery state through ${forbidden}`);
           }
           if (follower.includes('err = autoDeliverPendingPeerOperatorAlertsContext')) throw new Error('Automatic delivery failure must never replace the follower cycle result');
-          console.log('One-way non-authoritative explicit/automatic alert delivery, cancellation, deduplication, read-only status, and bounded receipt-retention invariants passed');
+          console.log('One-way non-authoritative alert delivery, cancellation, endpoint deduplication, bounded retry scheduling, read-only status, and bounded receipt-retention invariants passed');
           NODE
