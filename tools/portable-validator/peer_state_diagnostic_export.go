@@ -25,19 +25,19 @@ type PeerStateDiagnosticFile struct {
 }
 
 type PeerStateDiagnosticManifest struct {
-	ProfileVersion           string                    `json:"profileVersion"`
-	ChainID                  string                    `json:"chainId"`
-	ValidatorID              string                    `json:"validatorId"`
-	CreatedAt                string                    `json:"createdAt"`
-	ConfigFingerprintSHA256  string                    `json:"configFingerprintSha256"`
-	TransportPublicKeyHash   string                    `json:"transportPublicKeyHash,omitempty"`
-	ConsensusAuthority       bool                      `json:"consensusAuthority"`
-	ConsensusParticipation   bool                      `json:"consensusParticipation"`
-	VoteAuthority            bool                      `json:"voteAuthority"`
-	SourceMutation           bool                      `json:"sourceMutation"`
-	PrivateKeysIncluded      bool                      `json:"privateKeysIncluded"`
-	Health                   PeerStateHealthReport     `json:"health"`
-	Files                    []PeerStateDiagnosticFile `json:"files"`
+	ProfileVersion          string                    `json:"profileVersion"`
+	ChainID                 string                    `json:"chainId"`
+	ValidatorID             string                    `json:"validatorId"`
+	CreatedAt               string                    `json:"createdAt"`
+	ConfigFingerprintSHA256 string                    `json:"configFingerprintSha256"`
+	TransportPublicKeyHash  string                    `json:"transportPublicKeyHash,omitempty"`
+	ConsensusAuthority      bool                      `json:"consensusAuthority"`
+	ConsensusParticipation  bool                      `json:"consensusParticipation"`
+	VoteAuthority           bool                      `json:"voteAuthority"`
+	SourceMutation          bool                      `json:"sourceMutation"`
+	PrivateKeysIncluded     bool                      `json:"privateKeysIncluded"`
+	Health                  PeerStateHealthReport     `json:"health"`
+	Files                   []PeerStateDiagnosticFile `json:"files"`
 }
 
 type peerStateDiagnosticSource struct {
