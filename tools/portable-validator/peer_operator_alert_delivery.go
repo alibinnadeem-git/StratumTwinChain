@@ -180,6 +180,8 @@ func loadPeerOperatorAlertDeliveryJournal(path string, cfg BootstrapConfig) (Pee
 	}
 	if journal.State == nil {
 		journal.State = map[string]PeerOperatorAlertDeliveryState{}
+	}
+	if len(journal.State) == 0 && len(journal.Receipts) > 0 {
 		for _, receipt := range journal.Receipts {
 			if err := applyPeerOperatorAlertDeliveryReceiptState(&journal, receipt); err != nil {
 				return PeerOperatorAlertDeliveryJournal{}, fmt.Errorf("reconstruct operator alert delivery state from retained receipts: %w", err)
