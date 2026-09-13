@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -107,11 +108,76 @@ func TestPeerStateDiagnosticCompareReportsMetadataWithoutAuthority(t *testing.T)
 	if comparison.AuthenticityEstablished || comparison.ConsensusAuthority || comparison.CanonicalHistorySelection || comparison.RecoveryAuthority || comparison.MutationPerformed {
 		t.Fatalf("comparison must remain non-authoritative and read-only: %+v", comparison)
 	}
-	if !comparison.ChainIDMatch || !comparison.ValidatorIDMatch || !comparison.CreatedAtChanged {
+	if !comparison.ChainIDMatch || !comparison.ValidatorIDMatch || !comparison.ConfigFingerprintMatch || !comparison.CreatedAtChanged {
 		t.Fatalf("unexpected context/timestamp comparison: %+v", comparison)
+	}
+	if comparison.LeftConfigFingerprintSHA256 != manifest.ConfigFingerprintSHA256 || comparison.RightConfigFingerprintSHA256 != manifest.ConfigFingerprintSHA256 {
+		t.Fatalf("expected matching config fingerprint metadata: %+v", comparison)
+	}
+	if comparison.TransportPublicKeyHashComparable || comparison.TransportPublicKeyHashMatch {
+		t.Fatalf("empty transport hashes must not be represented as a positive fingerprint match: %+v", comparison)
 	}
 	if comparison.HealthChanged || len(comparison.HealthChanges) != 0 || len(comparison.FileChanges) != 0 {
 		t.Fatalf("identical state bytes should not produce health/file changes: %+v", comparison)
+	}
+}
+
+func TestPeerStateDiagnosticCompareReportsConfigFingerprintMismatchWithoutAuthority(t *testing.T) {
+	root := t.TempDir()
+	left, manifest := createDiagnosticBundleAt(t, root, "left", time.Unix(1_800_000_000, 0))
+	right := filepath.Join(root, "right-diagnostic")
+	rightManifest := cloneDiagnosticBundle(t, left, right, manifest)
+	rightManifest.ConfigFingerprintSHA256 = strings.Repeat("c", 64)
+	if err := writeJSON(filepath.Join(right, "manifest.json"), rightManifest, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	comparison, err := comparePeerStateDiagnosticBundles(left, right)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if comparison.ConfigFingerprintMatch || comparison.LeftConfigFingerprintSHA256 == comparison.RightConfigFingerprintSHA256 {
+		t.Fatalf("expected config fingerprint mismatch: %+v", comparison)
+	}
+	if comparison.AuthenticityEstablished || comparison.CanonicalHistorySelection || comparison.RecoveryAuthority {
+		t.Fatal("config fingerprint correlation must not become authenticity, fork-choice, or recovery authority")
+	}
+}
+
+func TestPeerStateDiagnosticCompareTransportFingerprintRequiresBothHashes(t *testing.T) {
+	root := t.TempDir()
+	left, manifest := createDiagnosticBundleAt(t, root, "left", time.Unix(1_800_000_000, 0))
+	leftManifest := manifest
+	leftManifest.TransportPublicKeyHash = strings.Repeat("d", 64)
+	if err := writeJSON(filepath.Join(left, "manifest.json"), leftManifest, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	right := filepath.Join(root, "right-diagnostic")
+	rightManifest := cloneDiagnosticBundle(t, left, right, leftManifest)
+	rightManifest.TransportPublicKeyHash = strings.Repeat("d", 64)
+	if err := writeJSON(filepath.Join(right, "manifest.json"), rightManifest, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	comparison, err := comparePeerStateDiagnosticBundles(left, right)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !comparison.TransportPublicKeyHashComparable || !comparison.TransportPublicKeyHashMatch {
+		t.Fatalf("expected two non-empty matching transport fingerprints to be comparable: %+v", comparison)
+	}
+	if comparison.AuthenticityEstablished || comparison.ConsensusAuthority {
+		t.Fatal("matching transport public-key fingerprints do not establish bundle authenticity or consensus authority")
+	}
+
+	rightManifest.TransportPublicKeyHash = ""
+	if err := writeJSON(filepath.Join(right, "manifest.json"), rightManifest, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	comparison, err = comparePeerStateDiagnosticBundles(left, right)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if comparison.TransportPublicKeyHashComparable || comparison.TransportPublicKeyHashMatch {
+		t.Fatalf("one missing transport fingerprint must be non-comparable, not a mismatch assertion: %+v", comparison)
 	}
 }
 
