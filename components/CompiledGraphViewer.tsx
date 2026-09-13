@@ -107,6 +107,7 @@ function entitySystem(e: Entity): SystemMode {
 export default function CompiledGraphViewer() {
   const mount = useRef<HTMLDivElement | null>(null),
     runtime = useRef<any>(null);
+  const [webglError,setWebglError]=useState(false);
   const [graph, setGraph] = useState<Graph | null>(null),
     [active, setActive] = useState<Layer[]>(["L0", "L1", "L2", "L3", "L4"]),
     [selected, setSelected] = useState<Entity | null>(null),
@@ -160,9 +161,9 @@ export default function CompiledGraphViewer() {
     if (!selected || !activity.trim()) { setActivityMessage("Enter an activity before saving."); return; }
     const item: AssetActivity = { id: crypto.randomUUID(), occurredAt: new Date().toISOString(), activity: activity.trim(), state: nextState, actor: "Current operator", status: "PENDING" };
     const next = [item, ...activities];
+    try { localStorage.setItem(`stratum_asset_activity:${selected.id}`, JSON.stringify(next)); } catch { setActivityMessage("Save failed: browser storage is full or unavailable. Your note has been preserved below."); return; }
     setActivities(next); setActivity("");
-    try { localStorage.setItem(`stratum_asset_activity:${selected.id}`, JSON.stringify(next)); } catch {}
-    setActivityMessage("Saved as a pending field update. Review and approval are still required before finality.");
+    setActivityMessage("Draft saved in this browser only. It has not been submitted for approval or synchronized to another device.");
   }
   const counts = useMemo(
     () =>
@@ -295,10 +296,12 @@ export default function CompiledGraphViewer() {
         600,
       );
       camera.position.set(22, 19, 25);
-      const renderer = new THREE.WebGLRenderer({
+      let renderer;
+      try { renderer = new THREE.WebGLRenderer({
         antialias: true,
         powerPreference: "high-performance",
-      });
+      }); } catch { setWebglError(true); return; }
+      setWebglError(false);
       renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
       renderer.setSize(host.clientWidth, host.clientHeight);
       renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -1178,9 +1181,10 @@ export default function CompiledGraphViewer() {
         className="compiled-twin-grid"
       >
         <div style={{ position: "relative" }}>
+          {webglError && <p role="status">3D rendering is unavailable. Select an imported object from the inventory below.</p>}
           <div
             ref={mount}
-            style={{ height: "min(74vh,780px)", minHeight: 500 }}
+            style={{ height: webglError ? 0 : "min(74vh,780px)", minHeight: webglError ? 0 : 500 }}
           />
           <div
             style={{
@@ -1228,6 +1232,12 @@ export default function CompiledGraphViewer() {
             overflow: "auto",
           }}
         >
+          <label>Imported object
+            <select aria-label="Imported object" value={selected?.id||""} style={{width:"100%"}} onChange={e=>setSelected(graph.entities.find(x=>x.id===e.target.value)||null)}>
+              <option value="">Select an object</option>
+              {graph.entities.map(e=><option key={e.id} value={e.id}>{e.name} · {e.source} · page {String(e.meta?.page||"—")}</option>)}
+            </select>
+          </label>
           <div className="eyebrow">SOURCE-GROUNDED OBJECT</div>
           {selected ? (
             <>
@@ -1242,7 +1252,7 @@ export default function CompiledGraphViewer() {
                 >
                   Focus equipment
                 </button>
-                <Link className="ghost" href={`/verify?q=${encodeURIComponent(selected.id)}`}>QR / verify</Link>
+                <span className="muted">Unregistered candidate · QR verification requires a registered asset.</span>
               </div>
               <div className="passport-facts">
                 <div>
