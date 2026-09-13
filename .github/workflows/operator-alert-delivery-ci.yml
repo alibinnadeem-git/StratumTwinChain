@@ -35,7 +35,7 @@ jobs:
         run: go vet ./...
       - name: Operator alert delivery tests
         working-directory: tools/portable-validator
-        run: go test -race ./... -run 'Test(ValidateOperatorAlertWebhookURL|DeliverPeerOperatorAlertWebhook|FailedWebhookDelivery|OperatorAlertDeliveryJournal|AppendOperatorAlertDeliveryReceipt|BearerTokenFile|PeerOperatorAlertByID|PeerOperatorAlertDeliveryStatus|PeerOperatorAlertDeliveryRetryStatus|DeliveryStatusFilter|PrunePeerOperatorAlertDeliveryReceipts|PendingPeerOperatorAlertsForWebhook|EligiblePeerOperatorAlertsForWebhook|DeliveryStateSurvivesReceiptPruning|AutoDeliverPendingPeerOperatorAlerts)'
+        run: go test -race ./... -run 'Test(ValidateOperatorAlertWebhookURL|DeliverPeerOperatorAlertWebhook|FailedWebhookDelivery|OperatorAlertDeliveryJournal|AppendOperatorAlertDeliveryReceipt|BearerTokenFile|PeerOperatorAlertByID|PeerOperatorAlertDeliveryStatus|PeerOperatorAlertDeliveryRetryStatus|DeliveryStatusFilter|PrunePeerOperatorAlertDeliveryReceipts|PendingPeerOperatorAlertsForWebhook|EligiblePeerOperatorAlertsForWebhook|DeliveryStateSurvivesReceiptPruning|AutoDeliverPendingPeerOperatorAlerts|LoadPeerOperatorAlertDeliveryJournal)'
       - name: Alert delivery trust-boundary invariants
         run: |
           node - <<'NODE'
@@ -54,8 +54,10 @@ jobs:
             'plaintext HTTP refused for non-loopback operator alert webhook',
             'State              map[string]PeerOperatorAlertDeliveryState',
             'applyPeerOperatorAlertDeliveryReceiptState(&journal, receipt)',
+            'len(journal.State) == 0 && len(journal.Receipts) > 0',
+            'reconstruct operator alert delivery state from retained receipts',
           ]) {
-            if (!delivery.includes(required)) throw new Error(`Missing alert-delivery safety/durability invariant: ${required}`);
+            if (!delivery.includes(required)) throw new Error(`Missing alert-delivery safety/durability/migration invariant: ${required}`);
           }
           for (const required of [
             'peer-alert-deliver-webhook',
@@ -119,5 +121,5 @@ jobs:
             if (status.includes(forbidden)) throw new Error(`Alert delivery status must not persist or mutate delivery state through ${forbidden}`);
           }
           if (follower.includes('err = autoDeliverPendingPeerOperatorAlertsContext')) throw new Error('Automatic delivery failure must never replace the follower cycle result');
-          console.log('One-way non-authoritative alert delivery, compact durable dedup/retry state, cancellation, bounded retry scheduling, read-only status, and bounded receipt-retention invariants passed');
+          console.log('One-way non-authoritative alert delivery, legacy migration, compact durable dedup/retry state, bounded retry scheduling, read-only status, and bounded receipt-retention invariants passed');
           NODE
