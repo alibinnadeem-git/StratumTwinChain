@@ -64,6 +64,8 @@ func main() {
 		err = peerStateDiagnosticExportCommand(os.Args[2:])
 	case "peer-state-diagnostic-verify":
 		err = peerStateDiagnosticVerifyCommand(os.Args[2:])
+	case "peer-state-diagnostic-compare":
+		err = peerStateDiagnosticCompareCommand(os.Args[2:])
 	case "peer-quarantine-status":
 		err = peerQuarantineStatusCommand(os.Args[2:])
 	case "peer-quarantine-release":
@@ -111,16 +113,17 @@ func main() {
 
 func usage() {
 	fmt.Fprintln(os.Stderr, "STRATUM portable validator bootstrap")
-	fmt.Fprintln(os.Stderr, "commands: init, doctor, init-consensus-safety, verify-consensus-safety, verify-genesis, verify-genesis-trust, verify-snapshot, verify-finality, verify-validator-governance, verify-round-change, verify-plc, verify-proposer, verify-peer-envelope, serve-readonly-peer, serve-readonly-peer-sync, serve-readonly-peer-sync-governed, peer-probe, peer-sync, peer-sync-governed, peer-sync-survey, peer-sync-resolve, peer-sync-follow, peer-follower-status, peer-state-health, peer-state-diagnostic-export, peer-state-diagnostic-verify, peer-quarantine-status, peer-quarantine-release, peer-reliability-status, peer-alert-status, peer-alert-ack, peer-alert-deliver-webhook, peer-alert-delivery-status, peer-alert-delivery-prune, peer-alert-delivery-state-prune, peer-proof-cache-status, peer-proof-cache-prune, peer-service-package-systemd, peer-service-package-launchd, peer-service-package-windows-task, verify-peer-ancestry, verify-package, version")
+	fmt.Fprintln(os.Stderr, "commands: init, doctor, init-consensus-safety, verify-consensus-safety, verify-genesis, verify-genesis-trust, verify-snapshot, verify-finality, verify-validator-governance, verify-round-change, verify-plc, verify-proposer, verify-peer-envelope, serve-readonly-peer, serve-readonly-peer-sync, serve-readonly-peer-sync-governed, peer-probe, peer-sync, peer-sync-governed, peer-sync-survey, peer-sync-resolve, peer-sync-follow, peer-follower-status, peer-state-health, peer-state-diagnostic-export, peer-state-diagnostic-verify, peer-state-diagnostic-compare, peer-quarantine-status, peer-quarantine-release, peer-reliability-status, peer-alert-status, peer-alert-ack, peer-alert-deliver-webhook, peer-alert-delivery-status, peer-alert-delivery-prune, peer-alert-delivery-state-prune, peer-proof-cache-status, peer-proof-cache-prune, peer-service-package-systemd, peer-service-package-launchd, peer-service-package-windows-task, verify-peer-ancestry, verify-package, version")
 	fmt.Fprintln(os.Stderr, "This bootstrap creates CANDIDATE nodes only. It never grants vote authority.")
 	fmt.Fprintln(os.Stderr, "Peer sync is read-only. Height skew becomes PROVEN_LAG only after governance-aware PFC/DIR ancestry verification; otherwise advancement remains blocked.")
 	fmt.Fprintln(os.Stderr, "peer-sync-follow is a signal-aware read-only CANDIDATE proof follower. It never proposes, votes, commits, round-changes, creates PLC/PFC votes, or activates a validator.")
 	fmt.Fprintln(os.Stderr, "peer-state-health is read-only. It distinguishes missing first-run state from invalid persisted state and never repairs, deletes, resets, unquarantines, rewrites trusted heads, or changes PoVI authority.")
 	fmt.Fprintln(os.Stderr, "peer-state-diagnostic-export copies only an explicit allowlist of peer-state files to a new external diagnostic directory with SHA-256 metadata. It excludes private keys and never repairs or mutates source state.")
 	fmt.Fprintln(os.Stderr, "peer-state-diagnostic-verify verifies the internal integrity and allowlist shape of an exported diagnostic bundle. It does not establish who created the bundle, PoVI finality, canonical history, governance authority, or physical truth.")
+	fmt.Fprintln(os.Stderr, "peer-state-diagnostic-compare first independently verifies both bundles and then reports context, health, timestamp, and file hash/size differences only. It cannot select canonical history, authorize recovery, mutate state, or establish authenticity.")
 	fmt.Fprintln(os.Stderr, "peer-alert-deliver-webhook performs explicit one-way delivery of an existing local operator alert. Webhook responses cannot acknowledge alerts, release quarantine, clear safety halts, select history, or change PoVI state.")
 	fmt.Fprintln(os.Stderr, "peer-alert-delivery-status is read-only. peer-alert-delivery-prune bounds only non-authoritative delivery receipts. peer-alert-delivery-state-prune removes compact delivery state only for already-acknowledged alerts; neither path prunes alerts, acknowledgements, quarantine/evidence, trusted heads, or DIR/PFC history.")
 	fmt.Fprintln(os.Stderr, "peer-service-package-systemd and peer-service-package-launchd generate reviewable CANDIDATE follower service artifacts. peer-service-package-windows-task generates reviewable Task Scheduler auto-start artifacts and is explicitly not a Windows SCM service.")
 	fmt.Fprintln(os.Stderr, "Service/startup package generators do not install, start, activate, or grant vote authority by themselves.")
-	fmt.Fprintln(os.Stderr, "Peer follower status, state-health output, diagnostic exports/verifications, alerts, alert acknowledgements, alert delivery receipts/state, quarantine, reliability, and the verified proof cache are local operational metadata only; they do not alter PoVI membership, governance, canonical history, consensus weighting, or vote authority.")
+	fmt.Fprintln(os.Stderr, "Peer follower status, state-health output, diagnostic exports/verifications/comparisons, alerts, alert acknowledgements, alert delivery receipts/state, quarantine, reliability, and the verified proof cache are local operational metadata only; they do not alter PoVI membership, governance, canonical history, consensus weighting, or vote authority.")
 }
