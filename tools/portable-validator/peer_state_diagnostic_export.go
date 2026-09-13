@@ -25,17 +25,19 @@ type PeerStateDiagnosticFile struct {
 }
 
 type PeerStateDiagnosticManifest struct {
-	ProfileVersion         string                    `json:"profileVersion"`
-	ChainID                string                    `json:"chainId"`
-	ValidatorID            string                    `json:"validatorId"`
-	CreatedAt              string                    `json:"createdAt"`
-	ConsensusAuthority     bool                      `json:"consensusAuthority"`
-	ConsensusParticipation bool                      `json:"consensusParticipation"`
-	VoteAuthority          bool                      `json:"voteAuthority"`
-	SourceMutation         bool                      `json:"sourceMutation"`
-	PrivateKeysIncluded    bool                      `json:"privateKeysIncluded"`
-	Health                 PeerStateHealthReport     `json:"health"`
-	Files                  []PeerStateDiagnosticFile `json:"files"`
+	ProfileVersion           string                    `json:"profileVersion"`
+	ChainID                  string                    `json:"chainId"`
+	ValidatorID              string                    `json:"validatorId"`
+	CreatedAt                string                    `json:"createdAt"`
+	ConfigFingerprintSHA256  string                    `json:"configFingerprintSha256"`
+	TransportPublicKeyHash   string                    `json:"transportPublicKeyHash,omitempty"`
+	ConsensusAuthority       bool                      `json:"consensusAuthority"`
+	ConsensusParticipation   bool                      `json:"consensusParticipation"`
+	VoteAuthority            bool                      `json:"voteAuthority"`
+	SourceMutation           bool                      `json:"sourceMutation"`
+	PrivateKeysIncluded      bool                      `json:"privateKeysIncluded"`
+	Health                   PeerStateHealthReport     `json:"health"`
+	Files                    []PeerStateDiagnosticFile `json:"files"`
 }
 
 type peerStateDiagnosticSource struct {
@@ -54,6 +56,23 @@ func peerStateDiagnosticSources() []peerStateDiagnosticSource {
 		{Name: "peer-reliability", RelativePath: filepath.Join("state", "peer-reliability.json")},
 		{Name: "proof-cache-manifest", RelativePath: filepath.Join("state", "peer-proof-cache", peerProofCacheManifestName)},
 	}
+}
+
+func diagnosticConfigFingerprint(cfg BootstrapConfig) (string, error) {
+	encoded, err := json.Marshal(cfg)
+	if err != nil {
+		return "", err
+	}
+	digest := sha256.Sum256(encoded)
+	return hex.EncodeToString(digest[:]), nil
+}
+
+func diagnosticTransportPublicKeyHash(cfg BootstrapConfig) string {
+	ref, ok := cfg.Keys["TRANSPORT"]
+	if !ok || !isSHA256(ref.PublicKeyHash) {
+		return ""
+	}
+	return strings.ToLower(ref.PublicKeyHash)
 }
 
 func pathWithin(parent, child string) (bool, error) {
@@ -108,19 +127,25 @@ func exportPeerStateDiagnostics(dir, outputDir string, cfg BootstrapConfig, now 
 		return PeerStateDiagnosticManifest{}, err
 	}
 
+	configFingerprint, err := diagnosticConfigFingerprint(cfg)
+	if err != nil {
+		return PeerStateDiagnosticManifest{}, fmt.Errorf("fingerprint validator config: %w", err)
+	}
 	health := inspectPeerStateHealth(dir, cfg)
 	manifest := PeerStateDiagnosticManifest{
-		ProfileVersion:         peerStateDiagnosticExportProfile,
-		ChainID:                cfg.ChainID,
-		ValidatorID:            cfg.ValidatorID,
-		CreatedAt:              now.UTC().Format(time.RFC3339Nano),
-		ConsensusAuthority:     false,
-		ConsensusParticipation: false,
-		VoteAuthority:          false,
-		SourceMutation:         false,
-		PrivateKeysIncluded:    false,
-		Health:                 health,
-		Files:                  []PeerStateDiagnosticFile{},
+		ProfileVersion:          peerStateDiagnosticExportProfile,
+		ChainID:                 cfg.ChainID,
+		ValidatorID:             cfg.ValidatorID,
+		CreatedAt:               now.UTC().Format(time.RFC3339Nano),
+		ConfigFingerprintSHA256: configFingerprint,
+		TransportPublicKeyHash:  diagnosticTransportPublicKeyHash(cfg),
+		ConsensusAuthority:      false,
+		ConsensusParticipation:  false,
+		VoteAuthority:           false,
+		SourceMutation:          false,
+		PrivateKeysIncluded:     false,
+		Health:                  health,
+		Files:                   []PeerStateDiagnosticFile{},
 	}
 
 	tmpDir := outputDir + ".tmp"
