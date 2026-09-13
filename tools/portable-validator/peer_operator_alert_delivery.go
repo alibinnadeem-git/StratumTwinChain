@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -197,8 +198,15 @@ func operatorAlertDeliveryReceiptID(cfg BootstrapConfig, alertID, endpointHash s
 }
 
 func deliverPeerOperatorAlertWebhook(client *http.Client, cfg BootstrapConfig, alert PeerOperatorAlert, webhook *url.URL, bearerToken string, now time.Time) (PeerOperatorAlertDeliveryReceipt, error) {
+	return deliverPeerOperatorAlertWebhookContext(context.Background(), client, cfg, alert, webhook, bearerToken, now)
+}
+
+func deliverPeerOperatorAlertWebhookContext(ctx context.Context, client *http.Client, cfg BootstrapConfig, alert PeerOperatorAlert, webhook *url.URL, bearerToken string, now time.Time) (PeerOperatorAlertDeliveryReceipt, error) {
 	if client == nil {
 		return PeerOperatorAlertDeliveryReceipt{}, errors.New("operator alert webhook HTTP client is required")
+	}
+	if ctx == nil {
+		return PeerOperatorAlertDeliveryReceipt{}, errors.New("operator alert webhook context is required")
 	}
 	payload := PeerOperatorAlertWebhookPayload{
 		ProfileVersion:     peerOperatorAlertDeliveryProfile,
@@ -213,7 +221,7 @@ func deliverPeerOperatorAlertWebhook(client *http.Client, cfg BootstrapConfig, a
 	if err != nil {
 		return PeerOperatorAlertDeliveryReceipt{}, err
 	}
-	req, err := http.NewRequest(http.MethodPost, webhook.String(), bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, webhook.String(), bytes.NewReader(body))
 	if err != nil {
 		return PeerOperatorAlertDeliveryReceipt{}, err
 	}
@@ -257,6 +265,10 @@ func appendPeerOperatorAlertDeliveryReceipt(path string, cfg BootstrapConfig, re
 		return err
 	}
 	journal.Receipts = append(journal.Receipts, receipt)
+	journal, _, err = prunePeerOperatorAlertDeliveryReceipts(journal, peerOperatorAlertDeliveryMaxReceipts)
+	if err != nil {
+		return fmt.Errorf("enforce operator alert delivery receipt retention: %w", err)
+	}
 	return savePeerOperatorAlertDeliveryJournalAtomic(path, journal, cfg)
 }
 
