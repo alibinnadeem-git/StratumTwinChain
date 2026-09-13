@@ -154,3 +154,26 @@ test('electrical graph traces affected assets through controlled API',async({req
  expect(body.source).toBe('electrical-graph-v1');
  expect(body.result.map((item:{id:string})=>item.id)).toContain('STR-AST-0009281');
 });
+
+test('Reality Validation keeps designed observed and verified states separate',async({page})=>{
+ await page.goto('/reality');
+ await expect(page.getByRole('heading',{name:'Designed. Observed. Verified—kept deliberately separate.'})).toBeVisible();
+ await expect(page.getByText('Engineering variances requiring disposition')).toBeVisible();
+ await expect(page.getByText('3000 A',{exact:true})).toBeVisible();
+ await expect(page.getByText('3200 A',{exact:true}).first()).toBeVisible();
+ await expect(page.getByText('READ-ONLY COMPARISON')).toBeVisible();
+});
+
+test('controlled agent detects rating variance without overwriting verified state',async({request})=>{
+ const response=await request.post('/api/twin-agent',{data:{action:'compareObservedToDesigned',assetId:'STR-AST-0009281'}});
+ expect(response.ok()).toBeTruthy();
+ const body=await response.json();
+ expect(body.truthBoundary).toBe('OBSERVED_NEVER_OVERWRITES_VERIFIED');
+ expect(body.result).toContainEqual(expect.objectContaining({field:'Current',designed:'3200 A',observed:'3000 A',verified:'3200 A',reviewState:'REVIEW_REQUIRED'}));
+});
+
+test('OEM-neutral normalization maps manufacturer aliases deterministically',async({request})=>{
+ const response=await request.post('/api/twin-agent',{data:{action:'normalizeOEMAsset',manufacturer:'Square D'}});
+ expect(response.ok()).toBeTruthy();
+ expect(await response.json()).toMatchObject({source:'oem-normalization-v1',result:{canonical:'Schneider Electric',matched:true}});
+});
