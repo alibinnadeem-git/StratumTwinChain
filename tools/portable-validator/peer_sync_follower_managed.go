@@ -135,6 +135,22 @@ func peerSyncFollowerManagedCommand(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	deliverOperatorAlertsBestEffort := func() {
+		if !alertWebhookEnabled || ctx.Err() != nil {
+			return
+		}
+		token, tokenErr := readBearerTokenFile(*alertBearerTokenFile)
+		if tokenErr != nil {
+			fmt.Fprintf(os.Stderr, "Operator alert auto-delivery skipped; follower safety state unchanged: %v\n", tokenErr)
+			return
+		}
+		alertPath := filepath.Join(filepath.Dir(config.EvidenceJournalPath), "peer-operator-alerts.json")
+		client := newOperatorAlertWebhookHTTPClient(*alertDeliveryTimeout)
+		if _, deliveryErr := autoDeliverPendingPeerOperatorAlertsContext(ctx, client, bootstrap, alertPath, *alertDeliveryPath, alertWebhookURL, token, time.Now().UTC()); deliveryErr != nil {
+			fmt.Fprintf(os.Stderr, "Operator alert auto-delivery best-effort failure; follower safety state unchanged: %v\n", deliveryErr)
+		}
+	}
+
 	started := newPeerFollowerStatus(bootstrap, "RUNNING", time.Now().UTC())
 	if err := savePeerFollowerStatusAtomic(*statusPath, started, bootstrap); err != nil {
 		return fmt.Errorf("persist follower start status: %w", err)
@@ -167,19 +183,6 @@ func peerSyncFollowerManagedCommand(args []string) error {
 			return nil
 		}
 
-		if alertWebhookEnabled {
-			token, tokenErr := readBearerTokenFile(*alertBearerTokenFile)
-			if tokenErr != nil {
-				fmt.Fprintf(os.Stderr, "Operator alert auto-delivery skipped; follower safety state unchanged: %v\n", tokenErr)
-			} else {
-				alertPath := filepath.Join(filepath.Dir(config.EvidenceJournalPath), "peer-operator-alerts.json")
-				client := newOperatorAlertWebhookHTTPClient(*alertDeliveryTimeout)
-				if _, deliveryErr := autoDeliverPendingPeerOperatorAlertsContext(ctx, client, bootstrap, alertPath, *alertDeliveryPath, alertWebhookURL, token, time.Now().UTC()); deliveryErr != nil {
-					fmt.Fprintf(os.Stderr, "Operator alert auto-delivery best-effort failure; follower safety state unchanged: %v\n", deliveryErr)
-				}
-			}
-		}
-
 		out, _ := json.MarshalIndent(result, "", "  ")
 		fmt.Println(string(out))
 		now := time.Now().UTC()
@@ -194,6 +197,7 @@ func peerSyncFollowerManagedCommand(args []string) error {
 			if err := savePeerFollowerStatusAtomic(*statusPath, idle, bootstrap); err != nil {
 				return fmt.Errorf("persist follower success status: %w", err)
 			}
+			deliverOperatorAlertsBestEffort()
 			if config.Once {
 				return nil
 			}
@@ -208,6 +212,7 @@ func peerSyncFollowerManagedCommand(args []string) error {
 			if saveErr := savePeerFollowerStatusAtomic(*statusPath, halted, bootstrap); saveErr != nil {
 				return fmt.Errorf("peer follower safety halt %s; additionally failed to persist halt status: %v: %w", result.Resolution.Classification, saveErr, err)
 			}
+			deliverOperatorAlertsBestEffort()
 			return fmt.Errorf("peer follower safety halt: %s: %w", result.Resolution.Classification, err)
 		}
 		if config.Once {
@@ -215,6 +220,7 @@ func peerSyncFollowerManagedCommand(args []string) error {
 			if saveErr := savePeerFollowerStatusAtomic(*statusPath, stopped, bootstrap); saveErr != nil {
 				return fmt.Errorf("persist follower one-shot failure status: %v: %w", saveErr, err)
 			}
+			deliverOperatorAlertsBestEffort()
 			return err
 		}
 
@@ -225,6 +231,7 @@ func peerSyncFollowerManagedCommand(args []string) error {
 		if saveErr := savePeerFollowerStatusAtomic(*statusPath, backoff, bootstrap); saveErr != nil {
 			return fmt.Errorf("persist follower backoff status: %v: %w", saveErr, err)
 		}
+		deliverOperatorAlertsBestEffort()
 		fmt.Printf("Follower cycle blocked/transient failure; retrying after %s; voteAuthority=false consensusParticipation=false; error=%v\n", delay, err)
 		if !waitFollowerContext(ctx, delay) {
 			continue
