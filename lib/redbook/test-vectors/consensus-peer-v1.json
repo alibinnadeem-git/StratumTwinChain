@@ -1,0 +1,94 @@
+{
+  "validatorSet": {
+    "setVersion": "STRATUM-VALIDATOR-SET/1",
+    "chainId": "stratum-devnet-1",
+    "members": [
+      {
+        "validatorId": "validator-a",
+        "identityUuid": "identity-a",
+        "operatorOrg": "stratum",
+        "activationHeight": 0,
+        "retirementHeight": null,
+        "keys": [
+          {
+            "keyId": "consensus-a-1",
+            "purpose": "CONSENSUS",
+            "algorithm": "Ed25519",
+            "publicKeyDerB64": "MCowBQYDK2VwAyEAebVWLo/mVPlAeLES6KmLp5AfhTrmlb7X4OORC60ElmQ=",
+            "activeFromHeight": 0,
+            "retiredAtHeight": null
+          }
+        ]
+      }
+    ]
+  },
+  "peerRegistry": {
+    "registryVersion": "STRATUM-PEER-REGISTRY/1",
+    "chainId": "stratum-devnet-1",
+    "GenesisDIRHash": "1111111111111111111111111111111111111111111111111111111111111111",
+    "protocolVersion": "POVI/1",
+    "members": [
+      {
+        "validatorId": "validator-a",
+        "keys": [
+          {
+            "keyId": "transport-a-1",
+            "purpose": "TRANSPORT",
+            "algorithm": "ED25519_TRANSPORT_IDENTITY",
+            "publicKeyDerB64": "MCowBQYDK2VwAyEA5/FioQvsVZr+oZXk3OhLaVaNXSywlj60RsBoXisX8vA=",
+            "activeFromHeight": 0,
+            "retiredAtHeight": null
+          }
+        ]
+      }
+    ]
+  },
+  "packet": {
+    "profileVersion": "STRATUM-CONSENSUS-PEER/1",
+    "domain": "STRATUM/POVI/PEER_MESSAGE/1",
+    "chainId": "stratum-devnet-1",
+    "networkName": "STRATUM Devnet",
+    "GenesisDIRHash": "1111111111111111111111111111111111111111111111111111111111111111",
+    "protocolVersion": "POVI/1",
+    "senderValidatorId": "validator-a",
+    "senderConsensusKeyId": "consensus-a-1",
+    "senderTransportKeyId": "transport-a-1",
+    "height": 12,
+    "round": 2,
+    "step": "VERIFY",
+    "validatorSetRoot": "fc7594215b80e330e0bdee0eec4b9937ca90f43e89087834d99cec09662f858d",
+    "peerRegistryRoot": "0e406b6f854524572f2a2acc823e221d766c47b90dab95475dc363fe7d29e7e6",
+    "issuedAt": "2026-09-13T23:00:00.000Z",
+    "expiresAt": "2026-09-13T23:01:30.000Z",
+    "sequence": 7,
+    "nonce": "0123456789abcdef0123456789abcdef",
+    "payload": {
+      "domain": "STRATUM/POVI/VERIFY/1",
+      "chainId": "stratum-devnet-1",
+      "height": 12,
+      "round": 2,
+      "step": "VERIFY",
+      "proposalHash": "2222222222222222222222222222222222222222222222222222222222222222",
+      "validatorId": "validator-a",
+      "validatorSetRoot": "fc7594215b80e330e0bdee0eec4b9937ca90f43e89087834d99cec09662f858d",
+      "protocolVersion": "POVI/1",
+      "keyId": "consensus-a-1",
+      "algorithm": "Ed25519",
+      "messageHash": "8e560e116ec1552403db55644e12699ecd251be5f209968d3bc114633c0fcf2d",
+      "signatureB64": "uGQRWdvaawCsnp2WlT6SYJwyxbzz+SxEG4Ybpv9x9UpKKhfw0lur1ldFsUpxf+fc3Er5AK/TZ63E79zCpyPHCw=="
+    },
+    "payloadHash": "21060e2f886cd0960103ddbb7f4ab4d9ab77de15f1bb3803867e93d85dcc41d1",
+    "consensusMessageHash": "8e560e116ec1552403db55644e12699ecd251be5f209968d3bc114633c0fcf2d",
+    "consensusSignatureB64": "uGQRWdvaawCsnp2WlT6SYJwyxbzz+SxEG4Ybpv9x9UpKKhfw0lur1ldFsUpxf+fc3Er5AK/TZ63E79zCpyPHCw==",
+    "safetyRecordHash": "3333333333333333333333333333333333333333333333333333333333333333",
+    "safetySequence": 5,
+    "packetHash": "b7076e9e940d1b5e1545589a267b1d27dc07fc3ccfdfba1661cdd253091365b4",
+    "transportSignatureB64": "MYW32wZ5U8sTS0Ul2AwDcxCZ9fSu//rOunF/7/58pUMy/t8hQU3z5avQK0tf0ySH7cQBCWOsPszI/DHM54DaAA=="
+  },
+  "expected": {
+    "validatorSetRoot": "fc7594215b80e330e0bdee0eec4b9937ca90f43e89087834d99cec09662f858d",
+    "peerRegistryRoot": "0e406b6f854524572f2a2acc823e221d766c47b90dab95475dc363fe7d29e7e6",
+    "consensusMessageHash": "8e560e116ec1552403db55644e12699ecd251be5f209968d3bc114633c0fcf2d",
+    "packetHash": "b7076e9e940d1b5e1545589a267b1d27dc07fc3ccfdfba1661cdd253091365b4"
+  }
+}
