@@ -40,6 +40,10 @@ func peerSyncFollowerManagedCommand(args []string) error {
 	evidenceJournalPath := fs.String("evidence-journal", "", "durable peer safety evidence journal path")
 	quarantineStatePath := fs.String("quarantine-state", "", "durable local peer quarantine state path")
 	statusPath := fs.String("follower-status-state", "", "durable follower heartbeat/status state path")
+	alertWebhookRaw := fs.String("alert-webhook", "", "optional HTTPS webhook for best-effort delivery of already-persisted follower safety alerts")
+	alertBearerTokenFile := fs.String("alert-bearer-token-file", "", "optional owner-only bearer token file for --alert-webhook")
+	alertDeliveryPath := fs.String("alert-delivery-state", "", "durable non-authoritative automatic alert delivery receipt journal path")
+	alertDeliveryTimeout := fs.Duration("alert-delivery-timeout", 10*time.Second, "automatic alert webhook request timeout")
 	policyHash := fs.String("governance-policy-hash", "", "independently pinned validator-governance policy SHA-256")
 	maxSkew := fs.Duration("max-clock-skew", 30*time.Second, "maximum accepted clock skew")
 	batchSize := fs.Int64("batch-size", defaultSyncProofBatch, "DIR finality proofs requested per governed bundle")
@@ -61,6 +65,12 @@ func peerSyncFollowerManagedCommand(args []string) error {
 	if *maxBackoff < *pollInterval || *maxBackoff > 6*time.Hour {
 		return errors.New("--max-backoff must be at least --poll-interval and no more than 6h")
 	}
+	if *alertDeliveryTimeout < time.Second || *alertDeliveryTimeout > time.Minute {
+		return errors.New("--alert-delivery-timeout must be between 1s and 1m")
+	}
+	if strings.TrimSpace(*alertBearerTokenFile) != "" && strings.TrimSpace(*alertWebhookRaw) == "" {
+		return errors.New("--alert-bearer-token-file requires --alert-webhook")
+	}
 	if *sessionStatePath == "" {
 		*sessionStatePath = filepath.Join(*dir, "state", "peer-session.json")
 	}
@@ -78,6 +88,9 @@ func peerSyncFollowerManagedCommand(args []string) error {
 	}
 	if *statusPath == "" {
 		*statusPath = filepath.Join(*dir, "state", "peer-follower-status.json")
+	}
+	if *alertDeliveryPath == "" {
+		*alertDeliveryPath = filepath.Join(filepath.Dir(*evidenceJournalPath), "peer-operator-alert-deliveries.json")
 	}
 	config := PeerFollowerConfig{
 		Dir:                  *dir,
@@ -106,6 +119,16 @@ func peerSyncFollowerManagedCommand(args []string) error {
 	}
 	if bootstrap.State != candidateState || bootstrap.VoteAuthority {
 		return errors.New("managed peer follower requires CANDIDATE state with voteAuthority=false")
+	}
+	var alertWebhookEnabled bool
+	var alertWebhookURL = (*url.URL)(nil)
+	if strings.TrimSpace(*alertWebhookRaw) != "" {
+		validated, err := validateOperatorAlertWebhookURL(*alertWebhookRaw)
+		if err != nil {
+			return fmt.Errorf("invalid --alert-webhook: %w", err)
+		}
+		alertWebhookURL = validated
+		alertWebhookEnabled = true
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -142,6 +165,20 @@ func peerSyncFollowerManagedCommand(args []string) error {
 			}
 			return nil
 		}
+
+		if alertWebhookEnabled {
+			token, tokenErr := readBearerTokenFile(*alertBearerTokenFile)
+			if tokenErr != nil {
+				fmt.Fprintf(os.Stderr, "Operator alert auto-delivery skipped; follower safety state unchanged: %v\n", tokenErr)
+			} else {
+				alertPath := filepath.Join(filepath.Dir(config.EvidenceJournalPath), "peer-operator-alerts.json")
+				client := newOperatorAlertWebhookHTTPClient(*alertDeliveryTimeout)
+				if _, deliveryErr := autoDeliverPendingPeerOperatorAlertsContext(ctx, client, bootstrap, alertPath, *alertDeliveryPath, alertWebhookURL, token, time.Now().UTC()); deliveryErr != nil {
+					fmt.Fprintf(os.Stderr, "Operator alert auto-delivery best-effort failure; follower safety state unchanged: %v\n", deliveryErr)
+				}
+			}
+		}
+
 		out, _ := json.MarshalIndent(result, "", "  ")
 		fmt.Println(string(out))
 		now := time.Now().UTC()
