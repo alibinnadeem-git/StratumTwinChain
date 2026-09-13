@@ -1,6 +1,6 @@
 # STRATUM Proof-Verifying Peer Sync Implementation Profile
 
-Status: **PARTIAL overall — read-only proof-verifying catch-up, governance-aware ancestry, peer safety controls, bounded evidence retention, operational reliability metadata, advisory peer ordering, continuous candidate follower, request-level cancellation, durable follower status, local operator alert journaling, append-only alert acknowledgements, explicit one-way webhook alert delivery with bounded delivery receipts, bounded non-authoritative verified-proof caching, and reviewable candidate-only auto-start packaging for Linux/Raspberry Pi, macOS, and Windows are implemented; live PoVI participation remains intentionally unimplemented**
+Status: **PARTIAL overall — read-only proof-verifying catch-up, governance-aware ancestry, peer safety controls, bounded evidence retention, operational reliability metadata, advisory peer ordering, continuous candidate follower, request-level cancellation, durable follower status, local operator alert journaling, append-only alert acknowledgements, explicit and optional follower-triggered one-way webhook alert delivery with bounded delivery receipts, bounded non-authoritative verified-proof caching, and reviewable candidate-only auto-start packaging for Linux/Raspberry Pi, macOS, and Windows are implemented; live PoVI participation remains intentionally unimplemented**
 
 This profile records the current engineering implementation for read-only STRATUM Chain catch-up. The STRATUM Redbook remains the architectural authority. This profile does not grant consensus authority and does not redefine PoVI finality, validator governance, or activation rules.
 
@@ -157,7 +157,7 @@ The follower has no path to PROPOSE, VERIFY, COMMIT, ROUND_CHANGE, create PLC/PF
 
 `STRATUM-PEER-FOLLOWER-STATUS/1` persists trust-context-bound local follower lifecycle state in `peer-follower-status.json`.
 
-The public `peer-sync-follow` command is signal-aware for `SIGINT` and `SIGTERM`. Cancellation propagates through polling/backoff waits and through the managed follower's peer HTTP requests using request contexts. Survey requests, ancestry-proof retrieval, selected-head refresh, and governed proof downloads can therefore be canceled while in flight rather than waiting for the ordinary request lifecycle to finish.
+The public `peer-sync-follow` command is signal-aware for `SIGINT` and `SIGTERM`. Cancellation propagates through polling/backoff waits and through the managed follower's peer HTTP requests using request contexts. Survey requests, ancestry-proof retrieval, selected-head refresh, governed proof downloads, and optional webhook delivery can therefore be canceled while in flight rather than waiting for the ordinary request lifecycle to finish.
 
 The managed wrapper records operational states such as `RUNNING`, `IDLE`, `BACKOFF`, `SAFETY_HALT`, and `STOPPED`, plus the last resolution classification, locally proof-verified trusted height/hash, selected peer identity, failure count, last error, and next retry time where applicable.
 
@@ -180,7 +180,7 @@ Alert IDs are deterministic SHA-256 identifiers bound to chain/Genesis/protocol 
 
 `peer-alert-ack` appends a separate `PeerOperatorAlertAcknowledgement` record bound to an existing alert ID, operator identity, note, and acknowledgement timestamp. The original alert remains present and unchanged. Acknowledgement is idempotent for an already-acknowledged alert and cannot release a quarantined peer, clear a follower safety halt, resume automatic advancement, change reliability scoring, or affect consensus state. Quarantine release remains a separate explicit operator action.
 
-`STRATUM-PEER-ALERT-DELIVERY/1` implements explicit one-way webhook delivery of an already-existing local operator alert through `peer-alert-deliver-webhook`.
+`STRATUM-PEER-ALERT-DELIVERY/1` implements explicit one-way webhook delivery of an already-existing local operator alert through `peer-alert-deliver-webhook`, and optional follower-triggered delivery through `peer-sync-follow --alert-webhook`.
 
 Delivery preserves these boundaries:
 
@@ -194,9 +194,11 @@ Delivery preserves these boundaries:
 
 Delivery attempts are recorded separately in the trust-context-bound `peer-operator-alert-deliveries.json` journal. Every receipt carries `consensusAuthority=false` and `safetyStateMutation=false`. The read-only `peer-alert-delivery-status` command reports attempt history and may filter by exact alert ID without replaying or mutating an alert.
 
-Delivery receipt retention is bounded to **4,096 receipts**. `peer-alert-delivery-prune` removes only the oldest non-authoritative delivery receipts. It does not prune or alter alerts, acknowledgement records, quarantine/evidence, follower safety state, trusted heads, snapshots, DIR/PFC history, validator governance, or proof-cache material. Malformed receipt timestamps fail closed rather than being silently discarded.
+Delivery receipt retention is bounded to **4,096 receipts**. The normal receipt append path automatically enforces this hard cap, and `peer-alert-delivery-prune` remains available for explicit operator enforcement. Retention removes only the oldest non-authoritative delivery receipts. It does not prune or alter alerts, acknowledgement records, quarantine/evidence, follower safety state, trusted heads, snapshots, DIR/PFC history, validator governance, or proof-cache material. Malformed receipt timestamps fail closed rather than being silently discarded.
 
-Automatic follower-triggered webhook delivery, email, SMS/paging, and third-party incident-management integrations remain unimplemented optional notification-layer work. They are not consensus, governance, or safety authority.
+Optional follower-triggered webhook delivery is a best-effort notification layer over alerts that have already been durably persisted. The follower first persists its own `IDLE`, `BACKOFF`, `SAFETY_HALT`, or `STOPPED` lifecycle/safety status and only then attempts external delivery. Webhook failure therefore cannot change or delay the durable safety classification. Successful delivery is deduplicated per alert and endpoint; locally acknowledged alerts are skipped; failed deliveries remain eligible for retry on later cycles. Automatic delivery is bounded to **16 pending alerts per follower cycle** so an old notification backlog cannot become an unbounded follower workload.
+
+Email, SMS/paging, and third-party incident-management integrations remain unimplemented optional notification-layer work. They are not consensus, governance, or safety authority.
 
 ## Bounded non-authoritative verified-proof cache
 
@@ -286,11 +288,16 @@ Synchronization can make a candidate cryptographically informed about finalized 
 - append-only/idempotent `peer-alert-ack` operator acknowledgement workflow;
 - permanent tests/CI guard that alert acknowledgement does not release quarantine or gain consensus authority;
 - explicit one-way `STRATUM-PEER-ALERT-DELIVERY/1` webhook delivery of an existing local alert;
+- optional best-effort follower-triggered webhook delivery of already-persisted local alerts;
+- follower lifecycle/safety status persisted before automatic external delivery;
+- endpoint-scoped successful-delivery deduplication, acknowledgement skipping, and later-cycle retry of failed deliveries;
+- automatic delivery bounded to 16 pending alerts per follower cycle;
 - remote HTTPS requirement with loopback-only HTTP testing exception;
 - owner-only bearer-token-file authentication and redirect refusal;
+- request-context cancellation for follower-triggered webhook requests;
 - non-authoritative delivery receipt journal with webhook response bodies ignored;
 - read-only `peer-alert-delivery-status` command;
-- bounded delivery receipt retention at 4,096 records through `peer-alert-delivery-prune`;
+- automatic hard delivery-receipt retention at 4,096 records plus explicit `peer-alert-delivery-prune`;
 - permanent alert-delivery CI guards preventing acknowledgement, quarantine release, trusted-head changes, governed-proof application, or other safety/consensus mutation;
 - trust-context-bound `STRATUM-PEER-PROOF-CACHE/1` manifest;
 - post-verification-only caching of governed proof bundles;
@@ -309,12 +316,12 @@ Synchronization can make a candidate cryptographically informed about finalized 
 
 ### Partial
 
-- automatic follower-triggered external notification delivery, email/SMS/paging, and third-party incident-management integration are not implemented;
+- email/SMS/paging and third-party incident-management integration are not implemented;
 - native Windows SCM service integration is not implemented; Windows auto-start currently uses reviewable Task Scheduler packaging instead;
 - wider Byzantine/network/storage/power-loss qualification remains incomplete.
 
 ### Planned
 
-- optional automatic notification/email/SMS/paging/incident-management integrations that remain strictly non-authoritative;
+- optional email/SMS/paging/incident-management notification integrations that remain strictly non-authoritative;
 - optional native Windows SCM service wrapper/integration if an operational requirement justifies it;
 - separately governed validator activation and live PoVI participation.
