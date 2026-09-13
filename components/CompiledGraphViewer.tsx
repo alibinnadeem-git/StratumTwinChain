@@ -108,6 +108,10 @@ export default function CompiledGraphViewer() {
   const mount = useRef<HTMLDivElement | null>(null),
     runtime = useRef<any>(null);
   const [webglError,setWebglError]=useState(false);
+  const [search, setSearch] = useState("");
+  const [isolatedObject, setIsolatedObject] = useState<string | null>(null);
+  const [pieceExplosion, setPieceExplosion] = useState(0);
+  const inspection = useRef({ id: "", amount: 0 });
   const [graph, setGraph] = useState<Graph | null>(null),
     [active, setActive] = useState<Layer[]>(["L0", "L1", "L2", "L3", "L4"]),
     [selected, setSelected] = useState<Entity | null>(null),
@@ -127,6 +131,9 @@ export default function CompiledGraphViewer() {
     [ghostOthers, setGhostOthers] = useState(true),
     [labels, setLabels] = useState(true),
     [focusRevision, setFocusRevision] = useState(0);
+  const matchingEntities = useMemo(() => graph?.entities.filter(e =>
+    `${e.name} ${e.id} ${e.source} ${e.floor || ""} ${e.zone || ""}`.toLowerCase().includes(search.toLowerCase())
+  ) || [], [graph, search]);
   useEffect(() => {
     try {
       const raw = localStorage.getItem("stratum_compiled_graph");
@@ -152,6 +159,8 @@ export default function CompiledGraphViewer() {
       window.removeEventListener("storage", refresh);
     };
   }, []);
+  useEffect(() => { inspection.current = { id: selected?.id || "", amount: pieceExplosion / 100 }; }, [selected?.id, pieceExplosion]);
+  useEffect(() => { setPieceExplosion(0); }, [selected?.id]);
   useEffect(() => {
     if (!selected) { setActivities([]); return; }
     try { setActivities(JSON.parse(localStorage.getItem(`stratum_asset_activity:${selected.id}`) || "[]")); } catch { setActivities([]); }
@@ -453,7 +462,7 @@ export default function CompiledGraphViewer() {
         sprite.position.set(e.x, displayY(e) + 2.45, e.y);
         groups.L2.add(sprite);
       }
-      for (const s of graph.sources) {
+      for (const s of isolatedObject ? [] : graph.sources) {
         if (!floorVisible(s.floor) && !ghostOthers) continue;
         const y = Number(s.elevation || 0) + floorExtra(s.floor) - 0.05,
           plane = new THREE.Mesh(
@@ -473,14 +482,23 @@ export default function CompiledGraphViewer() {
         plane.receiveShadow = true;
         groups.L0.add(plane);
       }
+      const inspectionPieces: { node: any; base: any; offset: any; entityId: string }[] = [];
       function tag(root: any, e: Entity) {
         root.userData.entity = e;
+        let pieceIndex = 0;
         root.traverse((node: any) => {
           if (node.isMesh) {
             node.userData.entity = e;
             node.castShadow = !ghostFloor(e.floor);
             node.receiveShadow = true;
             clickable.push(node);
+            // Preserve hierarchy, rotations and geometry. Spread in each mesh's parent frame.
+            node.geometry.computeBoundingBox();
+            const size = node.geometry.boundingBox?.getSize(new THREE.Vector3()).length() || 1;
+            const index = pieceIndex++;
+            const angle = index * 2.399963229728653;
+            inspectionPieces.push({ node, base: node.position.clone(), entityId: e.id,
+              offset: new THREE.Vector3(Math.cos(angle), (index % 3) - 1, Math.sin(angle)).multiplyScalar(Math.max(size, 0.5)) });
           }
         });
       }
@@ -785,6 +803,7 @@ export default function CompiledGraphViewer() {
         );
       }
       for (const e of graph.entities) {
+        if (isolatedObject && e.id !== isolatedObject) continue;
         if (e.kind === "room-boundary" || e.kind === "floor-boundary") {
           roomSurface(e);
           continue;
@@ -872,7 +891,7 @@ export default function CompiledGraphViewer() {
           clickable.push(marker);
         }
       }
-      for (const link of graph.links || []) {
+      for (const link of isolatedObject ? [] : graph.links || []) {
         if (link.type !== "SAME_TAG") continue;
         const a = entityById.get(link.from),
           b = entityById.get(link.to);
@@ -946,7 +965,14 @@ export default function CompiledGraphViewer() {
         while (node && !node.userData?.entity) node = node.parent;
         if (node?.userData?.entity) setSelected(node.userData.entity);
       };
-      renderer.domElement.addEventListener("pointerup", pick);
+      let pointerStart: { x: number; y: number; id: number } | null = null;
+      const down = (ev: PointerEvent) => { pointerStart = { x: ev.clientX, y: ev.clientY, id: ev.pointerId }; };
+      const up = (ev: PointerEvent) => {
+        if (pointerStart?.id === ev.pointerId && Math.hypot(ev.clientX - pointerStart.x, ev.clientY - pointerStart.y) < 6) pick(ev);
+        pointerStart = null;
+      };
+      renderer.domElement.addEventListener("pointerdown", down);
+      renderer.domElement.addEventListener("pointerup", up);
       renderer.domElement.addEventListener("dblclick", pick);
       const resize = () => {
         if (!host.clientWidth || !host.clientHeight) return;
@@ -967,6 +993,10 @@ export default function CompiledGraphViewer() {
         if (emergency) {
           rim.intensity = 25 + Math.sin(t * 5) * 15;
         }
+        for (const piece of inspectionPieces) {
+          piece.node.position.copy(piece.base).addScaledVector(piece.offset,
+            piece.entityId === inspection.current.id ? inspection.current.amount : 0);
+        }
         controls.update();
         renderer.render(scene, camera);
         f = requestAnimationFrame(animate);
@@ -976,7 +1006,8 @@ export default function CompiledGraphViewer() {
         runtime.current = null;
         cancelAnimationFrame(f);
         ro.disconnect();
-        renderer.domElement.removeEventListener("pointerup", pick);
+        renderer.domElement.removeEventListener("pointerdown", down);
+        renderer.domElement.removeEventListener("pointerup", up);
         renderer.domElement.removeEventListener("dblclick", pick);
         controls.dispose();
         renderer.dispose();
@@ -998,6 +1029,7 @@ export default function CompiledGraphViewer() {
     xray,
     isolatedFloor,
     ghostOthers,
+    isolatedObject,
     labels,
   ]);
   if (!graph) return null;
@@ -1031,7 +1063,7 @@ export default function CompiledGraphViewer() {
       >
         <div>
           <div className="eyebrow">
-            STRATUM TWIN · INFRASTRUCTURE OPERATING VIEW
+            STRATUM SPATIAL VERIFIED · INFRASTRUCTURE VIEW
           </div>
           <strong>{graph.sources.map((s) => s.name).join(" · ")}</strong>
           <div className="muted">
@@ -1232,10 +1264,14 @@ export default function CompiledGraphViewer() {
             overflow: "auto",
           }}
         >
+          <label>Search objects
+            <input aria-label="Search objects" value={search} onChange={e => setSearch(e.target.value)} placeholder="Name, source, floor or identifier" style={{width:"100%"}} />
+          </label>
+          <p role="status">{matchingEntities.length} matching objects</p>
           <label>Imported object
             <select aria-label="Imported object" value={selected?.id||""} style={{width:"100%"}} onChange={e=>setSelected(graph.entities.find(x=>x.id===e.target.value)||null)}>
               <option value="">Select an object</option>
-              {graph.entities.map(e=><option key={e.id} value={e.id}>{e.name} · {e.source} · page {String(e.meta?.page||"—")}</option>)}
+              {matchingEntities.map(e=><option key={e.id} value={e.id}>{e.name} · {e.source} · page {String(e.meta?.page||"—")}</option>)}
             </select>
           </label>
           <div className="eyebrow">SOURCE-GROUNDED OBJECT</div>
@@ -1254,6 +1290,14 @@ export default function CompiledGraphViewer() {
                 </button>
                 <span className="muted">Unregistered candidate · QR verification requires a registered asset.</span>
               </div>
+              <div className="button-row">
+                <button className="ghost" aria-pressed={isolatedObject === selected.id} onClick={() => setIsolatedObject(isolatedObject === selected.id ? null : selected.id)}>Isolate object</button>
+                <button className="ghost" onClick={() => { setIsolatedObject(null); setPieceExplosion(0); setSearch(""); setActive(["L0","L1","L2","L3","L4"]); setSystemMode("ALL"); setIsolatedFloor("ALL"); }}>Restore view</button>
+              </div>
+              {selected.layer === "L2" && <label style={{display:"block",marginTop:12}}>Equipment mesh separation · {pieceExplosion}%
+                <input aria-label="Equipment mesh separation" type="range" min="0" max="100" value={pieceExplosion} onChange={e => setPieceExplosion(Number(e.target.value))} style={{width:"100%"}} />
+                <small>Illustrative mesh separation. Pieces are not verified OEM parts; recorded placement stays unchanged.</small>
+              </label>}
               <div className="passport-facts">
                 <div>
                   <span>Source</span>
@@ -1308,6 +1352,9 @@ export default function CompiledGraphViewer() {
                   </>
                 )}
               </div>
+              <details style={{marginTop:14}}><summary>All source parameters</summary>
+                <dl style={{overflowWrap:"anywhere"}}>{Object.entries(selected.meta || {}).map(([key,value]) => <div key={key}><dt>{key}</dt><dd>{typeof value === "object" ? JSON.stringify(value) : String(value)}</dd></div>)}</dl>
+              </details>
               <div className="notice" style={{ marginTop: 14 }}>
                 <strong>ASSET DESCRIPTION</strong>
                 <span>{String(selected.meta?.description || selected.meta?.text || `${selected.kind} placed from ${selected.source}`)}</span>
