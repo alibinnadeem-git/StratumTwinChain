@@ -118,6 +118,29 @@ Security and integrity properties:
 
 Regression tests plant private-key sentinel material under `keys/private/` and verify it does not appear in the output, preserve and hash an intentionally corrupt trusted-head file byte-for-byte, confirm the source bytes remain unchanged, and require refusal of destinations inside the validator directory or over an existing destination.
 
+## Independent diagnostic bundle verification
+
+`peer-state-diagnostic-verify --bundle <diagnostic-directory>` independently checks the internal integrity and allowed shape of a diagnostic package without modifying the package or any validator state.
+
+The verifier:
+
+- requires the `STRATUM-PEER-STATE-DIAGNOSTIC-EXPORT/1` bundle profile;
+- rejects any manifest claiming consensus authority, consensus participation, vote authority, source mutation, or private-key inclusion;
+- validates the embedded state-health profile and chain context;
+- requires every manifest entry to map exactly to the diagnostic export allowlist;
+- rejects duplicate names or duplicate export paths;
+- rejects absolute paths, `..` traversal, bundle escapes, and any path containing a `keys` or `private` segment;
+- requires regular files and enforces the diagnostic file-size limit;
+- recomputes every file's SHA-256 digest and byte length;
+- walks the bundle and rejects unexpected/unlisted files or non-regular files;
+- performs no delete, rename, repair, trusted-head rewrite, quarantine mutation, governance action, or activation action.
+
+A successful verification returns `integrityVerified=true`, `authenticityEstablished=false`, and `consensusAuthority=false`.
+
+That distinction is normative for this runtime slice: an unsigned hash manifest can demonstrate internal bundle integrity against its manifest, but it does **not** prove who created the package. Diagnostic verification therefore does not establish creator identity/provenance, PoVI finality, canonical history, governance authority, recovery authority, or physical truth.
+
+Regression coverage requires successful integrity-only verification of an untouched package and rejection of changed file bytes, injected `keys/private` content, manifest authority escalation, and unexpected unlisted files.
+
 ## Dedicated durability CI
 
 `STRATUM Peer State Durability CI` permanently checks the persistence and non-authority boundaries for:
@@ -132,9 +155,10 @@ Regression tests plant private-key sentinel material under `keys/private/` and v
 - verified proof cache;
 - fail-closed corruption and authority-escalation regressions;
 - read-only state-health inspection and non-mutation regressions;
-- non-mutating, private-key-excluding diagnostic export and hash-manifest regressions.
+- non-mutating, private-key-excluding diagnostic export and hash-manifest regressions;
+- independent diagnostic bundle verification, integrity-versus-authenticity semantics, path safety, and unexpected-file rejection.
 
-The gate includes Go formatting, `go vet`, targeted race tests, and source-level assertions for file `fsync`, atomic rename, POSIX parent-directory sync, Windows replacement behavior, fail-closed corruption behavior, state-health non-mutation, diagnostic-export allowlisting/private-key exclusion, and non-authority invariants. Separate Peer Sync, Operator Alert Delivery, and full Portable Validator CI remain additional gates.
+The gate includes Go formatting, `go vet`, targeted race tests, and source-level assertions for file `fsync`, atomic rename, POSIX parent-directory sync, Windows replacement behavior, fail-closed corruption behavior, state-health non-mutation, diagnostic-export allowlisting/private-key exclusion, diagnostic-verifier non-mutation/integrity-only semantics, and non-authority invariants. Separate Peer Sync, Operator Alert Delivery, and full Portable Validator CI remain additional gates.
 
 Operator Alert Delivery CI separately guards the same file-plus-parent-directory durability boundary for operator alerts/acknowledgements and the delivery receipt/compact-state journal.
 
