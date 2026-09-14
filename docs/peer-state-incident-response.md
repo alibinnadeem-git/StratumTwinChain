@@ -23,19 +23,27 @@ Do **not** delete or overwrite the suspect file merely to make the health check 
 
 ## 2. Preserve a diagnostic package
 
-Choose a new destination outside the validator data directory:
+For new incident packages, prefer the version-2 exporter so top-level manifest metadata is also bound by a canonical digest:
 
 ```bash
-./stratum-validator-bootstrap peer-state-diagnostic-export \
+./stratum-validator-bootstrap peer-state-diagnostic-export-v2 \
   --dir ~/.stratum/validator \
   --output ~/stratum-diagnostics/validator-d-2026-09-13T225500Z
 ```
 
+The original command remains supported for previously established version-1 workflows:
+
+```bash
+./stratum-validator-bootstrap peer-state-diagnostic-export \
+  --dir ~/.stratum/validator \
+  --output ~/stratum-diagnostics/validator-d-v1
+```
+
 The output directory must not already exist.
 
-The exporter copies only its explicit peer-state allowlist. It does not recursively walk the validator directory and does not traverse or copy `keys/` or `keys/private/`.
+Both exporters copy only an explicit peer-state allowlist. They do not recursively walk the validator directory and do not traverse or copy `keys/` or `keys/private/`.
 
-The bundle includes:
+Both bundle versions include:
 
 - raw allowlisted state bytes, including malformed/truncated bytes where present;
 - SHA-256 digest and byte length for each copied file;
@@ -44,7 +52,9 @@ The bundle includes:
 - the configured TRANSPORT public-key hash when that metadata exists and is a valid SHA-256 digest;
 - a non-authority manifest with `voteAuthority=false`, `consensusParticipation=false`, `consensusAuthority=false`, `sourceMutation=false`, and `privateKeysIncluded=false`.
 
-The source validator state is not changed. The config and transport-key fingerprints are correlation metadata only; export does not sign the bundle and does not prove who created it.
+Version 2 additionally includes `bundleDigestSha256`, computed with the domain `STRATUM/PEER-STATE/DIAGNOSTIC-BUNDLE/2` over a canonicalized representation of manifest metadata, health information, and the file inventory. Ordering-only differences are normalized before digest calculation.
+
+The source validator state is not changed. The config and TRANSPORT-key fingerprints are correlation metadata only. A version-2 bundle digest strengthens integrity but still does not prove who created the package.
 
 ## 3. Verify the exported bundle independently
 
@@ -55,17 +65,20 @@ On the same or another machine:
   --bundle ~/stratum-diagnostics/validator-d-2026-09-13T225500Z
 ```
 
-A successful result reports:
+For a valid version-2 bundle, expect:
 
 ```text
 integrityVerified=true
+bundleDigestVerified=true
 authenticityEstablished=false
 consensusAuthority=false
 ```
 
+For a valid version-1 bundle, `integrityVerified=true` remains valid but `bundleDigestVerified=false` because version 1 intentionally has no version-2 canonical digest.
+
 The verifier checks:
 
-- bundle profile and embedded state-health chain context;
+- supported bundle profile and embedded state-health chain context;
 - config fingerprint is a valid SHA-256 digest;
 - transport public-key hash is either absent or a valid SHA-256 digest;
 - exact allowlist mappings;
@@ -75,11 +88,88 @@ The verifier checks:
 - regular-file and size limits;
 - SHA-256 and byte-length integrity for every listed file;
 - absence of unexpected/unlisted files;
-- non-authority manifest flags.
+- non-authority manifest flags;
+- for version 2, the domain-separated canonical bundle digest.
 
-Valid fingerprint metadata still does not establish bundle authenticity. It is descriptive/correlation metadata unless a separate future signature-verification profile cryptographically proves possession of an independently trusted key.
+Version 1 must not claim version-2 digest semantics. Unknown profiles fail closed.
 
-## 4. Compare verified bundles when useful
+## 4. Optionally create a detached validator attestation
+
+If provenance from the validator's TRANSPORT identity is useful, create a **detached** attestation for an already verified version-2 bundle:
+
+```bash
+./stratum-validator-bootstrap peer-state-diagnostic-attest \
+  --dir ~/.stratum/validator \
+  --bundle ~/stratum-diagnostics/validator-d-2026-09-13T225500Z \
+  --output ~/stratum-diagnostics/validator-d-2026-09-13T225500Z.attestation.json
+```
+
+Important constraints:
+
+- attestation requires a verified version-2 bundle;
+- the validator must remain `CANDIDATE` with `voteAuthority=false`;
+- the bundle's chain ID, validator ID, config fingerprint, and TRANSPORT-key hash must match the local validator config;
+- signing uses the local `ED25519_TRANSPORT_IDENTITY` private key only after confirming its public half matches the configured public identity;
+- the attestation output must be outside both the validator data directory and the diagnostic bundle directory;
+- the bundle is not modified;
+- private key material is never copied into the bundle or attestation;
+- the detached record carries false consensus, canonical-history, recovery, and vote authority flags.
+
+Do not place the attestation file inside the diagnostic bundle. The bundle verifier intentionally rejects unexpected/unlisted files.
+
+## 5. Verify the detached signature
+
+Verify the bundle and detached signature together:
+
+```bash
+./stratum-validator-bootstrap peer-state-diagnostic-attestation-verify \
+  --bundle ~/stratum-diagnostics/validator-d-2026-09-13T225500Z \
+  --attestation ~/stratum-diagnostics/validator-d-2026-09-13T225500Z.attestation.json
+```
+
+A self-contained valid signature can report:
+
+```text
+bundleIntegrityVerified=true
+bundleDigestVerified=true
+cryptographicSignatureValid=true
+trustedConfigUsed=false
+authenticityEstablished=false
+consensusAuthority=false
+canonicalHistorySelection=false
+recoveryAuthority=false
+voteAuthority=false
+```
+
+This is deliberate. Without an external trust anchor, the public key carried in the attestation is self-asserted provenance. It can verify its own signature but does not independently prove that this key is the trusted identity for the claimed validator.
+
+## 6. Establish signer authenticity only from an independent trust anchor
+
+When an independently obtained/trusted validator config is available, supply it explicitly:
+
+```bash
+./stratum-validator-bootstrap peer-state-diagnostic-attestation-verify \
+  --bundle ~/stratum-diagnostics/validator-d-2026-09-13T225500Z \
+  --attestation ~/stratum-diagnostics/validator-d-2026-09-13T225500Z.attestation.json \
+  --trusted-config ~/trusted/validator-d-config.json
+```
+
+`authenticityEstablished=true` is permitted only when the separately supplied trusted config matches the attested chain ID, validator ID, implementation-derived config fingerprint, TRANSPORT public-key hash, and actual public key.
+
+Even then, authenticity means only that the diagnostic attestation was signed by the independently trusted TRANSPORT identity for that validator/config context. It does **not** establish:
+
+- PoVI finality;
+- canonical chain history;
+- which trusted head is correct;
+- validator governance authority;
+- recovery authorization;
+- vote authority;
+- permission to transition `CANDIDATE` to `ACTIVE`;
+- physical truth about infrastructure.
+
+The TRANSPORT identity is not promoted into a PoVI voting identity by this workflow.
+
+## 7. Compare verified bundles when useful
 
 If two preserved packages need to be reviewed side-by-side, compare them only through the verification-first comparison command:
 
@@ -112,34 +202,26 @@ recoveryAuthority=false
 mutationPerformed=false
 ```
 
-A matching config fingerprint means only that the two verified manifests report the same implementation-derived public bootstrap-config fingerprint. A matching transport public-key hash means only that the two verified manifests report the same non-empty hash value. Neither match proves that the same machine created both bundles, that the claimed validator created either bundle, or that any party possesses the corresponding private key.
+Comparison does not consume the detached attestation as fork-choice or recovery authority. A matching fingerprint is only correlation; an independently trusted detached attestation can establish signer provenance, but neither mechanism tells the operator which divergent trusted head is canonical.
 
-A trusted-head file difference is evidence for review only. It does not tell the operator which trusted head is correct and must never be used as automatic fork choice or automatic recovery authorization.
+## 8. Understand the trust ladder
 
-## 5. Understand what verification and comparison do not prove
+The diagnostic workflow deliberately separates four different claims:
 
-Diagnostic verification is an **integrity check**, and diagnostic comparison is an **observational difference/correlation report**. Neither is an authenticated provenance or consensus proof.
+1. **File integrity** — per-file SHA-256 and size match the manifest.
+2. **Canonical bundle integrity** — version-2 `bundleDigestSha256` matches the canonicalized manifest/health/file inventory.
+3. **Cryptographic signature validity** — the detached Ed25519 signature verifies under the public key carried by the attestation.
+4. **Signer authenticity** — that signing key also matches a separately obtained trusted validator config.
 
-A valid unsigned diagnostic bundle, matching config/transport fingerprints, or a comparison between two valid bundles does not establish:
+None of those four claims, separately or together, equals PoVI finality, canonical-history selection, governance authorization, recovery authorization, vote authority, activation authority, or physical truth.
 
-- who created either package;
-- that a particular validator actually produced either package;
-- possession/control of the TRANSPORT private key;
-- PoVI finality;
-- canonical chain history;
-- which differing trusted head is correct;
-- validator governance authority;
-- permission to recover/replace a trusted head;
-- permission to clear a safety halt or release quarantine;
-- physical truth about infrastructure.
+Do not treat `integrityVerified=true`, `bundleDigestVerified=true`, `cryptographicSignatureValid=true`, `authenticityEstablished=true`, fingerprint correlation, or any comparison result as automatic authorization to restore state.
 
-Do not treat `integrityVerified=true`, fingerprint correlation, or any comparison result as authorization to restore state automatically.
-
-## 6. Review and recover deliberately
+## 9. Review and recover deliberately
 
 Recovery depends on the state type.
 
-The proof-verified trusted head is the candidate's authority-bearing local synchronization checkpoint. Any replacement must come from independently verified evidence and the separately approved recovery/governance procedure for that checkpoint.
+The proof-verified trusted head is the candidate's authority-bearing local synchronization checkpoint. Any replacement must come from independently verified chain/finality evidence and the separately approved recovery/governance procedure for that checkpoint. Diagnostic provenance can support incident analysis but cannot substitute for proof of canonical chain state.
 
 Session/replay, evidence, quarantine, authenticated peer-head observations, follower status, reliability, and proof-cache metadata are non-consensus state, but may still be important for replay defense, evidence continuity, quarantine policy, and incident review. Do not silently discard them.
 
