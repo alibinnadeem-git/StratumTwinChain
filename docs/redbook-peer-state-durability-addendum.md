@@ -217,11 +217,22 @@ The attestation uses the TRANSPORT identity, not a PoVI voting key, and does not
 
 `peer-state-diagnostic-compare --left <diagnostic-directory> --right <diagnostic-directory>` compares two diagnostic packages only after independently verifying both packages through the existing diagnostic verifier.
 
-The comparison is observational and read-only. It reports chain/validator context, provenance-fingerprint correlation, timestamps, health differences, and file-presence/size/SHA-256 differences. Transport-key correlation is comparable only when both bundles carry non-empty valid hashes.
+The comparison is observational and read-only. It reports chain/validator context, provenance-fingerprint correlation, timestamps, health differences, file-presence/size/SHA-256 differences, and version-2 canonical bundle-digest correlation when both sides qualify. Transport-key correlation is comparable only when both bundles carry non-empty valid hashes.
+
+For version-2 canonical digest correlation, the comparison reports:
+
+- `bundleDigestComparable`;
+- `bundleDigestMatch`;
+- `leftBundleDigestSha256`;
+- `rightBundleDigestSha256`.
+
+`bundleDigestComparable=true` is allowed only when both diagnostic bundles independently passed version-2 verification with `bundleDigestVerified=true` and both verified canonical digests are non-empty. If either bundle is version 1, the result is `bundleDigestComparable=false`; version-1 participation is therefore **non-comparable**, not a version-2 digest mismatch.
+
+When two independently verified version-2 bundles are comparable, `bundleDigestMatch=true` means their canonical version-2 diagnostic representations produce the same digest. `bundleDigestMatch=false` means their verified canonical diagnostic representations differ. Both outcomes are diagnostic integrity/correlation metadata only.
 
 The comparison result explicitly carries `authenticityEstablished=false`, `consensusAuthority=false`, `canonicalHistorySelection=false`, `recoveryAuthority=false`, and `mutationPerformed=false`.
 
-A matching fingerprint is correlation only, not proof of private-key possession. A trusted-head file difference is evidence for operator review only and does not determine which trusted head is correct, choose a fork, authorize replacement of local state, clear a safety halt, release quarantine, alter reliability state, modify validator governance, change PoVI quorum weight, grant vote authority, activate a validator, or establish physical truth.
+A matching fingerprint or matching canonical bundle digest is correlation/integrity evidence only, not proof of private-key possession and not proof of canonical chain state. A bundle-digest mismatch or trusted-head file difference is evidence for operator review only and does not determine which trusted head is correct, choose a fork, authorize replacement of local state, clear a safety halt, release quarantine, alter reliability state, modify validator governance, change PoVI quorum weight, grant vote authority, activate a validator, or establish physical truth.
 
 If either bundle fails independent diagnostic verification, comparison fails rather than comparing unverified bytes.
 
@@ -229,7 +240,7 @@ If either bundle fails independent diagnostic verification, comparison fails rat
 
 `STRATUM Peer State Durability CI` permanently checks persistence and non-authority boundaries for the candidate runtime, including fail-closed corruption, read-only state-health inspection, diagnostic export allowlisting/private-key exclusion, and diagnostic verifier non-mutation/integrity semantics.
 
-`STRATUM Peer State Diagnostic Compare CI` separately guards the comparison surface with formatting, `go vet`, race-tested regressions, verification-first behavior, explicit non-authority flags, command registration, and negative source assertions preventing trusted-head writes, quarantine mutation, proof application, file deletion/rename, or recovery/state-mutation surfaces from entering comparison.
+`STRATUM Peer State Diagnostic Compare CI` separately guards the comparison surface with formatting, `go vet`, race-tested regressions, verification-first behavior, version-1 non-comparability for v2 digest semantics, v2 digest match/mismatch correlation, provenance-fingerprint correlation, explicit non-authority flags, command registration, and negative source assertions preventing trusted-head writes, quarantine mutation, proof application, file deletion/rename, or recovery/state-mutation surfaces from entering comparison.
 
 `STRATUM Peer State Diagnostic Attestation CI` separately guards version-2 canonical digest and detached-attestation semantics. It requires formatting, `go vet`, race-tested version-2 and attestation regressions, version-1 compatibility, verification-before-signing, exact `ED25519_TRANSPORT_IDENTITY` use, private/public key consistency, detached output, trusted-config-gated authenticity, and explicit false consensus/history/recovery/vote authority. It also contains negative source assertions preventing trusted-head mutation, quarantine mutation, governed proof application, activation, or authority escalation from entering the attestation path.
 
@@ -245,4 +256,4 @@ Filesystem, kernel, virtual-disk, hypervisor, and underlying hardware semantics 
 
 ## Boundary unchanged
 
-Nothing in this addendum permits a CANDIDATE node to PROPOSE, VERIFY-vote, COMMIT-vote, ROUND_CHANGE, create PLC/PFC votes, alter validator governance, select canonical history, authorize recovery, or become ACTIVE. Synchronization, durable local state, diagnostic integrity, and authenticated diagnostic provenance can make a candidate cryptographically informed and operationally resilient; they do not make it a consensus participant or establish physical truth.
+Nothing in this addendum permits a CANDIDATE node to PROPOSE, VERIFY-vote, COMMIT-vote, ROUND_CHANGE, create PLC/PFC votes, alter validator governance, select canonical history, authorize recovery, or become ACTIVE. Synchronization, durable local state, diagnostic integrity, authenticated diagnostic provenance, and diagnostic comparison can make a candidate cryptographically informed and operationally resilient; they do not make it a consensus participant or establish physical truth.
