@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import {useEffect,useState} from 'react';
+import StatusChip from '@/components/ui/StatusChip';
 
 export type AssetDrawerRecord={
  id:string;
@@ -41,7 +42,7 @@ export default function AssetDrawer({asset}:{asset:AssetDrawerRecord}){
 
     <div className="asset-drawer-summary">
      <span className="status-chip">{asset.status||'UNVERIFIED'}</span>
-     <span className={asset.dirHeight?'proof':'pending'}>{asset.dirHeight?`DIR #${asset.dirHeight}`:'DIR pending'}</span>
+     <StatusChip domain="trust" state={asset.dirHeight?'DIR_RECORDED':'UNVERIFIED'} label={asset.dirHeight?`DIR #${asset.dirHeight} recorded`:'DIR pending'}/>
     </div>
 
     <section>
@@ -68,9 +69,9 @@ export default function AssetDrawer({asset}:{asset:AssetDrawerRecord}){
      <dl>
       <div><dt>Latest event</dt><dd>{asset.latestEvent||'No verified event'}</dd></div>
       <div><dt>Current state</dt><dd>{asset.status||'UNVERIFIED'}</dd></div>
-      <div><dt>PoVI / DIR</dt><dd>{asset.dirHeight?`Finalized in DIR #${asset.dirHeight}`:'Awaiting immutable lifecycle record'}</dd></div>
+      <div><dt>DIR reference</dt><dd>{asset.dirHeight?`DIR #${asset.dirHeight} recorded`:'Awaiting immutable lifecycle record'}</dd></div>
      </dl>
-     <p className="drawer-note">A DIR proves canonical network finality for the recorded event; it does not by itself prove physical truth.</p>
+     <p className="drawer-note">A verified PoVI finality proof establishes canonical network finality. A recorded DIR reference alone does not prove finality, physical truth, work quality, or engineering approval.</p>
     </section>
 
     <footer>
