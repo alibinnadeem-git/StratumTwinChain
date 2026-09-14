@@ -39,6 +39,15 @@ test('asset registry opens the universal asset drawer without losing list contex
  await expect(page).toHaveURL(/\/assets$/);
 });
 
+test('role-aware Home uses the shared asset card and canonical DIR terminology',async({page})=>{
+ await page.goto('/');
+ const asset=page.locator('[data-asset-id="STR-AST-0009281"]');
+ await expect(asset).toBeVisible();
+ await expect(asset.locator('[data-semantic-domain="operation"]')).toBeVisible();
+ await expect(asset.locator('[data-semantic-domain="trust"][data-semantic-state="POVI_VERIFIED"]')).toBeVisible();
+ await expect(asset).toContainText('DIR 8,194,251');
+});
+
 test('trust states resolve through the shared semantic token system',async({page})=>{
  await page.goto('/spatial');
  const badges=page.locator('[data-semantic-domain="trust"]');
@@ -58,11 +67,13 @@ test('field workflow uses shared work and approval components',async({page})=>{
  await expect(page.locator('[data-semantic-domain="approval"][data-semantic-state="PENDING"]')).toBeVisible();
 });
 
-test('evidence vault uses shared evidence cards and privacy semantics',async({page})=>{
+test('evidence vault uses shared evidence cards and preserves client-restricted privacy',async({page})=>{
  await page.goto('/evidence');
  const cards=page.locator('.shared-evidence-card');
  expect(await cards.count()).toBeGreaterThan(0);
  await expect(cards.first()).toBeVisible();
  await expect(cards.first().locator('[data-semantic-domain="privacy"]')).toBeVisible();
  await expect(cards.first().locator('[data-semantic-domain="trust"]')).toBeVisible();
+ const clientEvidence=page.locator('[data-evidence-id="EV-003"]');
+ await expect(clientEvidence.locator('[data-semantic-domain="privacy"][data-semantic-state="CLIENT"]')).toBeVisible();
 });
