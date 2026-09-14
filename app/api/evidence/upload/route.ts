@@ -31,6 +31,17 @@ export async function POST(req:Request){
    );
    if(!context.rows[0])throw new Error('Lifecycle event and asset linkage not found in active organization');
 
+   const replayKey=`${s.organizationId}:${lifecycleEventId}:${assetId}:${kind}:${digest}`;
+   await c.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[replayKey]);
+   const existing=await c.query<any>(`SELECT ev.*,EXISTS(SELECT 1 FROM evidence_files ef WHERE ef.evidence_id=ev.id) file_stored
+     FROM evidence ev
+     WHERE ev.organization_id=$1 AND ev.lifecycle_event_id=$2 AND ev.asset_id=$3 AND ev.kind=$4 AND ev.sha256=$5
+     ORDER BY ev.created_at ASC,ev.id ASC LIMIT 1`,[s.organizationId,lifecycleEventId,assetId,kind,digest]);
+   if(existing.rows[0]){
+    if(!existing.rows[0].file_stored)throw new Error('Existing evidence metadata is incomplete; file storage repair is required before retry');
+    return{row:existing.rows[0],idempotent:true};
+   }
+
    const e=await c.query<any>(
     `INSERT INTO evidence(organization_id,lifecycle_event_id,asset_id,kind,file_name,mime_type,sha256,visibility,captured_by,captured_at,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,now(),'{}'::jsonb) RETURNING *`,
     [s.organizationId,lifecycleEventId,assetId,kind,file.name,file.type||'application/octet-stream',digest,visibility,s.userId],
@@ -46,10 +57,10 @@ export async function POST(req:Request){
    const metadata={_stratumCanonicalEvidence:canonicalEvidence,_stratumCanonicalEvidenceHash:canonicalEvidenceHash};
    await c.query(`UPDATE evidence SET metadata=$2::jsonb WHERE id=$1`,[row.id,JSON.stringify(metadata)]);
    await c.query(`INSERT INTO evidence_files(evidence_id,content,byte_size) VALUES($1,$2,$3)`,[row.id,bytes,bytes.length]);
-   return{...row,metadata,canonicalEvidence,canonicalEvidenceHash};
+   return{row:{...row,metadata,canonicalEvidence,canonicalEvidenceHash},idempotent:false};
   });
 
-  return NextResponse.json({...out,sha256:digest,fileStored:true},{status:201});
+  return NextResponse.json({...out.row,sha256:digest,fileStored:true,idempotent:out.idempotent},{status:out.idempotent?200:201});
  }catch(e:any){
   return NextResponse.json({error:e.message},{status:e.status||400});
  }
