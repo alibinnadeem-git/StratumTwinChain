@@ -1,0 +1,49 @@
+:root{
+ --semantic-verified-fg:#86efb5;
+ --semantic-verified-bg:#0a2b1f;
+ --semantic-verified-border:#2f7655;
+ --semantic-info-fg:#a9d7ff;
+ --semantic-info-bg:#0b2539;
+ --semantic-info-border:#2e638c;
+ --semantic-caution-fg:#ffe08b;
+ --semantic-caution-bg:#2b2511;
+ --semantic-caution-border:#6e5a1d;
+ --semantic-critical-fg:#ffb0b8;
+ --semantic-critical-bg:#33171c;
+ --semantic-critical-border:#7e3640;
+ --semantic-neutral-fg:#c3d0dc;
+ --semantic-neutral-bg:#151f29;
+ --semantic-neutral-border:#40505f;
+ --semantic-restricted-fg:#d7c2ff;
+ --semantic-restricted-bg:#241a36;
+ --semantic-restricted-border:#63488d;
+}
+
+.semantic-badge{
+ display:inline-flex;
+ align-items:center;
+ gap:6px;
+ padding:5px 8px;
+ border-radius:999px;
+ border:1px solid var(--semantic-border);
+ background:var(--semantic-bg);
+ color:var(--semantic-fg);
+ font-size:10px;
+ font-weight:850;
+ line-height:1.2;
+ letter-spacing:.02em;
+ white-space:nowrap;
+}
+.semantic-badge::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 10px color-mix(in srgb,currentColor 45%,transparent)}
+.semantic-tone-verified{--semantic-fg:var(--semantic-verified-fg);--semantic-bg:var(--semantic-verified-bg);--semantic-border:var(--semantic-verified-border)}
+.semantic-tone-info{--semantic-fg:var(--semantic-info-fg);--semantic-bg:var(--semantic-info-bg);--semantic-border:var(--semantic-info-border)}
+.semantic-tone-caution{--semantic-fg:var(--semantic-caution-fg);--semantic-bg:var(--semantic-caution-bg);--semantic-border:var(--semantic-caution-border)}
+.semantic-tone-critical{--semantic-fg:var(--semantic-critical-fg);--semantic-bg:var(--semantic-critical-bg);--semantic-border:var(--semantic-critical-border)}
+.semantic-tone-neutral{--semantic-fg:var(--semantic-neutral-fg);--semantic-bg:var(--semantic-neutral-bg);--semantic-border:var(--semantic-neutral-border)}
+.semantic-tone-restricted{--semantic-fg:var(--semantic-restricted-fg);--semantic-bg:var(--semantic-restricted-bg);--semantic-border:var(--semantic-restricted-border)}
+
+/* Compatibility aliases: old surfaces retain layout while inheriting canonical semantics. */
+.proof{background:var(--semantic-verified-bg);color:var(--semantic-verified-fg);border-color:var(--semantic-verified-border)}
+.pending{background:var(--semantic-caution-bg);color:var(--semantic-caution-fg);border-color:var(--semantic-caution-border)}
+.status-chip{background:var(--semantic-info-bg);color:var(--semantic-info-fg);border-color:var(--semantic-info-border)}
+.trust-badge{border-color:var(--semantic-border)!important;background:var(--semantic-bg)!important;color:var(--semantic-fg)!important}
