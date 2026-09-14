@@ -5,7 +5,7 @@ import {demoSession} from '@/lib/auth/session';
 const groups=[
  {label:'Command',links:[['/','Command Center'],['/spatial','STRATUM Spatial Verified'],['/compiler','Spatial Compiler'],['/component-library','Component Library'],['/reality','Reality Capture & Reconciliation']]},
  {label:'Infrastructure',links:[['/projects','Projects'],['/sites','Sites'],['/assets','Asset Passports']]},
- {label:'Operations',links:[['/workflows','Field Work & Commissioning'],['/maintenance','Maintenance'],['/predictive','Predictive Intelligence'],['/simulation','Simulation'],['/evidence','Evidence']]},
+ {label:'Operations',links:[['/scan','Scan Equipment'],['/workflows','Field Work & Commissioning'],['/maintenance','Maintenance'],['/predictive','Predictive Intelligence'],['/simulation','Simulation'],['/evidence','Evidence']]},
  {label:'Trust',links:[['/handover','Digital Handover'],['/provenance','Provenance Explorer'],['/verify','Verify Record'],['/dir','DIR Explorer']]},
  {label:'Platform',links:[['/admin','Admin & RBAC']]}
 ];
