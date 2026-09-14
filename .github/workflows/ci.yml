@@ -54,6 +54,8 @@ jobs:
         run: npm run qa:field-scan
       - name: Asset Passport truth-boundary conformance
         run: npm run qa:asset-passport
+      - name: Typed human attestation conformance
+        run: npm run qa:human-attestations
       - run: npm run qa:ui
       - run: npm run typecheck
       - run: npm run build
