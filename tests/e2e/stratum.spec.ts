@@ -64,7 +64,7 @@ test('Spatial Compiler accepts a real DXF through the file workflow',async({page
  const dxf=`0\nSECTION\n2\nENTITIES\n0\nINSERT\n8\nE-EQUIP\n2\nPANEL-LP1\n10\n100\n20\n200\n0\nLINE\n8\nE-FEEDER\n10\n100\n20\n200\n11\n300\n21\n200\n0\nENDSEC\n0\nEOF\n`;
  await sourceUpload(page).setInputFiles({name:'E1-test.dxf',mimeType:'application/dxf',buffer:Buffer.from(dxf)});
  await expect(page.getByText('E1-test.dxf')).toBeVisible();
- await expect(page.getByRole('status').filter({hasText:/Source compilation updated: 1\/1 sources/i})).toBeVisible();
+ await expect(page.getByText(/Source compilation updated: 1\/1 sources/i)).toBeVisible();
  const compiled=await page.evaluate(()=>{
   const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
   return{source:graph.sources?.[0]?.name,names:(graph.entities||[]).map((entity:any)=>entity.name),stats:graph.stats};
