@@ -184,11 +184,23 @@ The command independently verifies both bundles before comparing them. It report
 - chain-ID and validator-ID match/mismatch;
 - config-fingerprint match/mismatch;
 - transport public-key hash correlation only when **both** bundles contain a non-empty valid hash;
+- version-2 canonical bundle-digest correlation only when **both** bundles independently pass `bundleDigestVerified=true`;
 - bundle timestamps;
 - embedded state-health classifications;
 - file presence;
 - file byte lengths;
 - file SHA-256 digests.
+
+For canonical bundle-digest comparison, the output uses:
+
+```text
+bundleDigestComparable=<true|false>
+bundleDigestMatch=<true|false>
+leftBundleDigestSha256=<digest when available>
+rightBundleDigestSha256=<digest when available>
+```
+
+`bundleDigestComparable=true` is possible only for two independently verified version-2 bundles with non-empty verified canonical digests. If either side is version 1, `bundleDigestComparable=false`; this means **not comparable**, not “digest mismatch.” A version-2 digest match means the two canonical diagnostic representations are equal under the version-2 digest profile. A digest mismatch means they differ under that profile. Neither result identifies the canonical chain state or authorizes recovery.
 
 If either transport fingerprint is absent, the result is `transportPublicKeyHashComparable=false`; empty/empty is never treated as a positive key match.
 
@@ -202,7 +214,7 @@ recoveryAuthority=false
 mutationPerformed=false
 ```
 
-Comparison does not consume the detached attestation as fork-choice or recovery authority. A matching fingerprint is only correlation; an independently trusted detached attestation can establish signer provenance, but neither mechanism tells the operator which divergent trusted head is canonical.
+Comparison does not consume the detached attestation as fork-choice or recovery authority. Matching fingerprints and matching version-2 canonical bundle digests are correlation/integrity observations only; an independently trusted detached attestation can establish signer provenance, but none of these mechanisms tells the operator which divergent trusted head is canonical.
 
 ## 8. Understand the trust ladder
 
@@ -215,7 +227,7 @@ The diagnostic workflow deliberately separates four different claims:
 
 None of those four claims, separately or together, equals PoVI finality, canonical-history selection, governance authorization, recovery authorization, vote authority, activation authority, or physical truth.
 
-Do not treat `integrityVerified=true`, `bundleDigestVerified=true`, `cryptographicSignatureValid=true`, `authenticityEstablished=true`, fingerprint correlation, or any comparison result as automatic authorization to restore state.
+Do not treat `integrityVerified=true`, `bundleDigestVerified=true`, `cryptographicSignatureValid=true`, `authenticityEstablished=true`, fingerprint correlation, canonical bundle-digest correlation, or any comparison result as automatic authorization to restore state.
 
 ## 9. Review and recover deliberately
 
