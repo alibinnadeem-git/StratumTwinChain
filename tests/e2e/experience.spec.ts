@@ -32,20 +32,21 @@ test('asset registry opens the universal asset drawer without losing list contex
  await expect(drawer).toBeVisible();
  await expect(drawer.getByText('Infrastructure context')).toBeVisible();
  await expect(drawer.getByText('Lifecycle & trust')).toBeVisible();
- await expect(drawer.getByText(/A DIR proves canonical network finality/i)).toBeVisible();
+ await expect(drawer.getByText(/verified PoVI finality proof establishes canonical network finality/i)).toBeVisible();
  await expect(drawer.getByRole('link',{name:'Open full asset'})).toHaveAttribute('href',/\/assets\/STR-AST-0009281/);
  await page.keyboard.press('Escape');
  await expect(drawer).not.toBeVisible();
  await expect(page).toHaveURL(/\/assets$/);
 });
 
-test('role-aware Home uses the shared asset card and canonical DIR terminology',async({page})=>{
+test('role-aware Home records a DIR reference without falsely claiming PoVI verification',async({page})=>{
  await page.goto('/');
  const asset=page.locator('[data-asset-id="STR-AST-0009281"]');
  await expect(asset).toBeVisible();
  await expect(asset.locator('[data-semantic-domain="operation"]')).toBeVisible();
- await expect(asset.locator('[data-semantic-domain="trust"][data-semantic-state="POVI_VERIFIED"]')).toBeVisible();
- await expect(asset).toContainText('DIR 8,194,251');
+ await expect(asset.locator('[data-semantic-domain="trust"][data-semantic-state="DIR_RECORDED"]')).toBeVisible();
+ await expect(asset.locator('[data-semantic-state="POVI_VERIFIED"]')).toHaveCount(0);
+ await expect(asset).toContainText('DIR 8,194,251 recorded');
 });
 
 test('trust states resolve through the shared semantic token system',async({page})=>{
@@ -74,6 +75,7 @@ test('evidence vault uses shared evidence cards and preserves client-restricted 
  await expect(cards.first()).toBeVisible();
  await expect(cards.first().locator('[data-semantic-domain="privacy"]')).toBeVisible();
  await expect(cards.first().locator('[data-semantic-domain="trust"]')).toBeVisible();
+ await expect(cards.first().locator('[data-semantic-state="POVI_VERIFIED"]')).toHaveCount(0);
  const clientEvidence=page.locator('[data-evidence-id="EV-003"]');
  await expect(clientEvidence.locator('[data-semantic-domain="privacy"][data-semantic-state="CLIENT"]')).toBeVisible();
 });
