@@ -19,14 +19,14 @@ test('automatic room proposal remains review-only until explicit human confirmat
  await expect(proposals).toContainText('Electrical Room 101');
  await expect(proposals).toContainText('ROOM PROPOSAL');
 
- let state=await page.evaluate(()=>{
+ const before=await page.evaluate(()=>{
   const entity=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}').entities.find((item:any)=>item.id==='candidate-1');
   return {kind:entity.kind,validated:entity.meta.geometryValidated,reviewRequired:entity.meta.reviewRequired,proposal:entity.meta.automaticRoomProposal};
  });
- expect(state.kind).toBe('vector-boundary-candidate');
- expect(state.validated).toBe(false);
- expect(state.reviewRequired).toBe(true);
- expect(state.proposal.eligible).toBe(true);
+ expect(before.kind).toBe('vector-boundary-candidate');
+ expect(before.validated).toBe(false);
+ expect(before.reviewRequired).toBe(true);
+ expect(before.proposal.eligible).toBe(true);
 
  const review=page.getByRole('region',{name:'Drawing review'});
  await review.getByLabel('Drawing sheet').selectOption({label:'A-101.pdf · page 1'});
@@ -36,9 +36,9 @@ test('automatic room proposal remains review-only until explicit human confirmat
 
  await review.getByRole('button',{name:'Confirm selected boundary as room'}).click();
  await expect(review.getByRole('status')).toContainText(/Drawing review saved/i);
- state=await page.evaluate(()=>{
+ const after=await page.evaluate(()=>{
   const entity=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}').entities.find((item:any)=>item.id==='candidate-1');
   return {kind:entity.kind,validated:entity.meta.geometryValidated,reviewRequired:entity.meta.reviewRequired,accepted:entity.meta.automaticProposalAccepted};
  });
- expect(state).toEqual({kind:'room-boundary',validated:true,reviewRequired:false,accepted:true});
+ expect(after).toEqual({kind:'room-boundary',validated:true,reviewRequired:false,accepted:true});
 });
