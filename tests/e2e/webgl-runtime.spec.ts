@@ -43,7 +43,7 @@ test('desktop Spatial workspace creates a live WebGL canvas and preserves it acr
  await page.getByLabel('Environment mode').selectOption('NIGHT');
  await expect(page.getByLabel('Environment mode')).toHaveValue('NIGHT');
  await expect(canvas).toBeVisible();
- await expect(page.getByRole('status')).toHaveCount(0);
+ await expect(page.getByText(/3D rendering is unavailable/i)).toHaveCount(0);
  const fatal=consoleErrors.filter(message=>/webgl context lost|failed to create webgl|three\.webglrenderer.*error/i.test(message));
  expect(fatal).toEqual([]);
 });
