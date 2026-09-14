@@ -46,6 +46,8 @@ jobs:
         run: npm run qa:spatial-persistence
       - name: PDF title-block intelligence conformance
         run: npm run qa:title-block
+      - name: Automatic sheet alignment conformance
+        run: npm run qa:auto-alignment
       - run: npm run qa:ui
       - run: npm run typecheck
       - run: npm run build
