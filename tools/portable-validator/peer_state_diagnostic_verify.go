@@ -21,6 +21,8 @@ type PeerStateDiagnosticVerification struct {
 	ValidatorID             string `json:"validatorId"`
 	ConfigFingerprintSHA256 string `json:"configFingerprintSha256"`
 	TransportPublicKeyHash  string `json:"transportPublicKeyHash,omitempty"`
+	BundleDigestSHA256      string `json:"bundleDigestSha256,omitempty"`
+	BundleDigestVerified    bool   `json:"bundleDigestVerified"`
 	IntegrityVerified       bool   `json:"integrityVerified"`
 	AuthenticityEstablished bool   `json:"authenticityEstablished"`
 	ConsensusAuthority      bool   `json:"consensusAuthority"`
@@ -45,7 +47,16 @@ func verifyPeerStateDiagnosticBundle(bundleDir string) (PeerStateDiagnosticVerif
 	if err := readJSON(manifestPath, &manifest); err != nil {
 		return PeerStateDiagnosticVerification{}, fmt.Errorf("read diagnostic manifest: %w", err)
 	}
-	if manifest.ProfileVersion != peerStateDiagnosticExportProfile {
+	switch manifest.ProfileVersion {
+	case peerStateDiagnosticExportProfile:
+		if manifest.BundleDigestSHA256 != "" {
+			return PeerStateDiagnosticVerification{}, errors.New("diagnostic export profile /1 must not claim a version-2 bundle digest")
+		}
+	case peerStateDiagnosticExportProfileV2:
+		if !isSHA256(manifest.BundleDigestSHA256) {
+			return PeerStateDiagnosticVerification{}, errors.New("diagnostic export profile /2 requires a SHA-256 bundle digest")
+		}
+	default:
 		return PeerStateDiagnosticVerification{}, errors.New("unsupported diagnostic export profile")
 	}
 	if !isSHA256(manifest.ConfigFingerprintSHA256) {
@@ -139,6 +150,20 @@ func verifyPeerStateDiagnosticBundle(bundleDir string) (PeerStateDiagnosticVerif
 		return PeerStateDiagnosticVerification{}, err
 	}
 
+	bundleDigestVerified := false
+	bundleDigest := ""
+	if manifest.ProfileVersion == peerStateDiagnosticExportProfileV2 {
+		expectedDigest, err := peerStateDiagnosticBundleDigestV2(manifest)
+		if err != nil {
+			return PeerStateDiagnosticVerification{}, err
+		}
+		if !strings.EqualFold(manifest.BundleDigestSHA256, expectedDigest) {
+			return PeerStateDiagnosticVerification{}, errors.New("diagnostic bundle digest mismatch")
+		}
+		bundleDigestVerified = true
+		bundleDigest = strings.ToLower(manifest.BundleDigestSHA256)
+	}
+
 	return PeerStateDiagnosticVerification{
 		ProfileVersion:          peerStateDiagnosticVerifyProfile,
 		BundleProfileVersion:    manifest.ProfileVersion,
@@ -146,6 +171,8 @@ func verifyPeerStateDiagnosticBundle(bundleDir string) (PeerStateDiagnosticVerif
 		ValidatorID:             manifest.ValidatorID,
 		ConfigFingerprintSHA256: strings.ToLower(manifest.ConfigFingerprintSHA256),
 		TransportPublicKeyHash:  strings.ToLower(manifest.TransportPublicKeyHash),
+		BundleDigestSHA256:      bundleDigest,
+		BundleDigestVerified:    bundleDigestVerified,
 		IntegrityVerified:       true,
 		AuthenticityEstablished: false,
 		ConsensusAuthority:      false,
