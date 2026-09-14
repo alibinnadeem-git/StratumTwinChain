@@ -9,7 +9,7 @@ test('global command palette finds a canonical asset and preserves entity naviga
  const result=page.getByRole('option',{name:/Main Switchgear SG-01/i});
  await expect(result).toBeVisible();
  await result.click();
- await expect(page).toHaveURL(/\/passport\/STR-AST-0009281$/);
+ await expect(page).toHaveURL(/\/assets\/STR-AST-0009281$/);
 });
 
 test('command palette supports keyboard opening and clear no-match feedback',async({page})=>{
