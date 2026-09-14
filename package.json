@@ -8,6 +8,7 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "qa:ui": "node scripts/qa-ui.mjs",
+    "qa:asset-archive": "node scripts/qa-asset-archive.mjs",
     "qa:redbook": "node scripts/redbook-conformance.mjs",
     "qa:genesis": "node scripts/genesis-conformance.mjs",
     "qa:genesis-trust": "node scripts/genesis-trust-conformance.mjs",
@@ -28,7 +29,7 @@
     "pg": "^8.13.3",
     "qrcode": "^1.5.4",
     "react": "19.2.0",
-    "react-dom": "19.2.0",
+    "react-dom": "^19.2.0",
     "three": "^0.179.1",
     "zod": "^3.24.2"
   },
