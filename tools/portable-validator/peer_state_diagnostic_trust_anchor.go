@@ -27,86 +27,86 @@ const (
 )
 
 type PeerStateDiagnosticTrustAnchorRecord struct {
-	ProfileVersion               string `json:"profileVersion"`
-	Domain                       string `json:"domain"`
-	Sequence                     uint64 `json:"sequence"`
-	Action                       string `json:"action"`
-	ChainID                      string `json:"chainId"`
-	ValidatorID                  string `json:"validatorId"`
-	Purpose                      string `json:"purpose"`
-	Algorithm                    string `json:"algorithm"`
-	KeyVersion                   int    `json:"keyVersion"`
-	PublicKeyHash                string `json:"publicKeyHash"`
-	PublicKeyB64                 string `json:"publicKeyB64"`
-	ConfigFingerprintSHA256      string `json:"configFingerprintSha256"`
-	EffectiveFrom                string `json:"effectiveFrom"`
-	RecordedAt                   string `json:"recordedAt"`
-	RecordedBy                   string `json:"recordedBy"`
-	ProvenanceKind               string `json:"provenanceKind"`
-	ProvenanceRef                string `json:"provenanceRef"`
-	Reason                       string `json:"reason"`
-	SupersedesKeyVersion         int    `json:"supersedesKeyVersion,omitempty"`
-	SupersedesPublicKeyHash      string `json:"supersedesPublicKeyHash,omitempty"`
-	PreviousRecordDigestSHA256   string `json:"previousRecordDigestSha256,omitempty"`
-	RecordDigestSHA256           string `json:"recordDigestSha256,omitempty"`
-	ConsensusAuthority           bool   `json:"consensusAuthority"`
-	CanonicalHistorySelection    bool   `json:"canonicalHistorySelection"`
-	RecoveryAuthority            bool   `json:"recoveryAuthority"`
-	VoteAuthority                bool   `json:"voteAuthority"`
-	ActivationAuthority          bool   `json:"activationAuthority"`
-	PhysicalTruthEstablished     bool   `json:"physicalTruthEstablished"`
+	ProfileVersion             string `json:"profileVersion"`
+	Domain                     string `json:"domain"`
+	Sequence                   uint64 `json:"sequence"`
+	Action                     string `json:"action"`
+	ChainID                    string `json:"chainId"`
+	ValidatorID                string `json:"validatorId"`
+	Purpose                    string `json:"purpose"`
+	Algorithm                  string `json:"algorithm"`
+	KeyVersion                 int    `json:"keyVersion"`
+	PublicKeyHash              string `json:"publicKeyHash"`
+	PublicKeyB64               string `json:"publicKeyB64"`
+	ConfigFingerprintSHA256    string `json:"configFingerprintSha256"`
+	EffectiveFrom              string `json:"effectiveFrom"`
+	RecordedAt                 string `json:"recordedAt"`
+	RecordedBy                 string `json:"recordedBy"`
+	ProvenanceKind             string `json:"provenanceKind"`
+	ProvenanceRef              string `json:"provenanceRef"`
+	Reason                     string `json:"reason"`
+	SupersedesKeyVersion       int    `json:"supersedesKeyVersion,omitempty"`
+	SupersedesPublicKeyHash    string `json:"supersedesPublicKeyHash,omitempty"`
+	PreviousRecordDigestSHA256 string `json:"previousRecordDigestSha256,omitempty"`
+	RecordDigestSHA256         string `json:"recordDigestSha256,omitempty"`
+	ConsensusAuthority         bool   `json:"consensusAuthority"`
+	CanonicalHistorySelection  bool   `json:"canonicalHistorySelection"`
+	RecoveryAuthority          bool   `json:"recoveryAuthority"`
+	VoteAuthority              bool   `json:"voteAuthority"`
+	ActivationAuthority        bool   `json:"activationAuthority"`
+	PhysicalTruthEstablished   bool   `json:"physicalTruthEstablished"`
 }
 
 type PeerStateDiagnosticTrustAnchorEffectiveState struct {
-	ChainID                   string `json:"chainId"`
-	ValidatorID               string `json:"validatorId"`
-	Status                    string `json:"status"`
-	KeyVersion                int    `json:"keyVersion"`
-	PublicKeyHash             string `json:"publicKeyHash"`
-	ConfigFingerprintSHA256   string `json:"configFingerprintSha256"`
-	EffectiveFrom             string `json:"effectiveFrom"`
-	RecordSequence            uint64 `json:"recordSequence"`
-	RecordedBy                string `json:"recordedBy"`
-	ProvenanceKind            string `json:"provenanceKind"`
-	ProvenanceRef             string `json:"provenanceRef"`
-	Reason                    string `json:"reason"`
+	ChainID                 string `json:"chainId"`
+	ValidatorID             string `json:"validatorId"`
+	Status                  string `json:"status"`
+	KeyVersion              int    `json:"keyVersion"`
+	PublicKeyHash           string `json:"publicKeyHash"`
+	ConfigFingerprintSHA256 string `json:"configFingerprintSha256"`
+	EffectiveFrom           string `json:"effectiveFrom"`
+	RecordSequence          uint64 `json:"recordSequence"`
+	RecordedBy              string `json:"recordedBy"`
+	ProvenanceKind          string `json:"provenanceKind"`
+	ProvenanceRef           string `json:"provenanceRef"`
+	Reason                  string `json:"reason"`
 }
 
 type PeerStateDiagnosticTrustAnchorInspection struct {
-	ProfileVersion             string                                          `json:"profileVersion"`
-	JournalVerified            bool                                            `json:"journalVerified"`
-	RecordCount                int                                             `json:"recordCount"`
-	LastSequence               uint64                                          `json:"lastSequence"`
-	LastRecordDigestSHA256     string                                          `json:"lastRecordDigestSha256"`
-	EffectiveAt               string                                          `json:"effectiveAt"`
-	Records                    []PeerStateDiagnosticTrustAnchorRecord           `json:"records"`
-	EffectiveAnchors           []PeerStateDiagnosticTrustAnchorEffectiveState   `json:"effectiveAnchors"`
-	MutationPerformed          bool                                            `json:"mutationPerformed"`
-	PoVIFinalityEstablished    bool                                            `json:"poviFinalityEstablished"`
-	CanonicalHistorySelection  bool                                            `json:"canonicalHistorySelection"`
-	RecoveryAuthority          bool                                            `json:"recoveryAuthority"`
-	ValidatorGovernanceAuthority bool                                          `json:"validatorGovernanceAuthority"`
-	VoteAuthority              bool                                            `json:"voteAuthority"`
-	ActivationAuthority        bool                                            `json:"activationAuthority"`
-	PhysicalTruthEstablished   bool                                            `json:"physicalTruthEstablished"`
+	ProfileVersion               string                                         `json:"profileVersion"`
+	JournalVerified              bool                                           `json:"journalVerified"`
+	RecordCount                  int                                            `json:"recordCount"`
+	LastSequence                 uint64                                         `json:"lastSequence"`
+	LastRecordDigestSHA256       string                                         `json:"lastRecordDigestSha256"`
+	EffectiveAt                  string                                         `json:"effectiveAt"`
+	Records                      []PeerStateDiagnosticTrustAnchorRecord         `json:"records"`
+	EffectiveAnchors             []PeerStateDiagnosticTrustAnchorEffectiveState `json:"effectiveAnchors"`
+	MutationPerformed            bool                                           `json:"mutationPerformed"`
+	PoVIFinalityEstablished      bool                                           `json:"poviFinalityEstablished"`
+	CanonicalHistorySelection    bool                                           `json:"canonicalHistorySelection"`
+	RecoveryAuthority            bool                                           `json:"recoveryAuthority"`
+	ValidatorGovernanceAuthority bool                                           `json:"validatorGovernanceAuthority"`
+	VoteAuthority                bool                                           `json:"voteAuthority"`
+	ActivationAuthority          bool                                           `json:"activationAuthority"`
+	PhysicalTruthEstablished     bool                                           `json:"physicalTruthEstablished"`
 }
 
 type PeerStateDiagnosticAnchoredAttestationVerification struct {
 	PeerStateDiagnosticAttestationVerification
-	TrustAnchorJournalUsed      bool   `json:"trustAnchorJournalUsed"`
-	TrustAnchorJournalProfile   string `json:"trustAnchorJournalProfile"`
-	TrustAnchorRecordSequence   uint64 `json:"trustAnchorRecordSequence"`
-	TrustAnchorKeyVersion       int    `json:"trustAnchorKeyVersion"`
-	TrustAnchorEffectiveFrom    string `json:"trustAnchorEffectiveFrom"`
-	TrustAnchorEvaluationTime   string `json:"trustAnchorEvaluationTime"`
-	TrustAnchorProvenanceKind   string `json:"trustAnchorProvenanceKind"`
-	TrustAnchorProvenanceRef    string `json:"trustAnchorProvenanceRef"`
-	TrustAnchorRecordedBy       string `json:"trustAnchorRecordedBy"`
-	MutationPerformed           bool   `json:"mutationPerformed"`
-	PoVIFinalityEstablished     bool   `json:"poviFinalityEstablished"`
-	ValidatorGovernanceAuthority bool  `json:"validatorGovernanceAuthority"`
-	ActivationAuthority         bool   `json:"activationAuthority"`
-	PhysicalTruthEstablished    bool   `json:"physicalTruthEstablished"`
+	TrustAnchorJournalUsed       bool   `json:"trustAnchorJournalUsed"`
+	TrustAnchorJournalProfile    string `json:"trustAnchorJournalProfile"`
+	TrustAnchorRecordSequence    uint64 `json:"trustAnchorRecordSequence"`
+	TrustAnchorKeyVersion        int    `json:"trustAnchorKeyVersion"`
+	TrustAnchorEffectiveFrom     string `json:"trustAnchorEffectiveFrom"`
+	TrustAnchorEvaluationTime    string `json:"trustAnchorEvaluationTime"`
+	TrustAnchorProvenanceKind    string `json:"trustAnchorProvenanceKind"`
+	TrustAnchorProvenanceRef     string `json:"trustAnchorProvenanceRef"`
+	TrustAnchorRecordedBy        string `json:"trustAnchorRecordedBy"`
+	MutationPerformed            bool   `json:"mutationPerformed"`
+	PoVIFinalityEstablished      bool   `json:"poviFinalityEstablished"`
+	ValidatorGovernanceAuthority bool   `json:"validatorGovernanceAuthority"`
+	ActivationAuthority          bool   `json:"activationAuthority"`
+	PhysicalTruthEstablished     bool   `json:"physicalTruthEstablished"`
 }
 
 type diagnosticTrustAnchorJournalState struct {
@@ -427,57 +427,57 @@ func diagnosticTrustAnchorFromConfig(action string, cfg BootstrapConfig, effecti
 		return PeerStateDiagnosticTrustAnchorRecord{}, err
 	}
 	return PeerStateDiagnosticTrustAnchorRecord{
-		ProfileVersion:          peerStateDiagnosticTrustAnchorProfile,
-		Domain:                  peerStateDiagnosticTrustAnchorDomain,
-		Action:                  action,
-		ChainID:                 cfg.ChainID,
-		ValidatorID:             cfg.ValidatorID,
-		Purpose:                 ref.Purpose,
-		Algorithm:               ref.Algorithm,
-		KeyVersion:              ref.KeyVersion,
-		PublicKeyHash:           strings.ToLower(ref.PublicKeyHash),
-		PublicKeyB64:            ref.PublicKeyB64,
-		ConfigFingerprintSHA256: strings.ToLower(fingerprint),
-		EffectiveFrom:           effectiveAt.UTC().Format(time.RFC3339Nano),
-		RecordedAt:              recordedAt.UTC().Format(time.RFC3339Nano),
-		RecordedBy:              strings.TrimSpace(recordedBy),
-		ProvenanceKind:          strings.TrimSpace(provenanceKind),
-		ProvenanceRef:           strings.TrimSpace(provenanceRef),
-		Reason:                  strings.TrimSpace(reason),
-		ConsensusAuthority:      false,
+		ProfileVersion:            peerStateDiagnosticTrustAnchorProfile,
+		Domain:                    peerStateDiagnosticTrustAnchorDomain,
+		Action:                    action,
+		ChainID:                   cfg.ChainID,
+		ValidatorID:               cfg.ValidatorID,
+		Purpose:                   ref.Purpose,
+		Algorithm:                 ref.Algorithm,
+		KeyVersion:                ref.KeyVersion,
+		PublicKeyHash:             strings.ToLower(ref.PublicKeyHash),
+		PublicKeyB64:              ref.PublicKeyB64,
+		ConfigFingerprintSHA256:   strings.ToLower(fingerprint),
+		EffectiveFrom:             effectiveAt.UTC().Format(time.RFC3339Nano),
+		RecordedAt:                recordedAt.UTC().Format(time.RFC3339Nano),
+		RecordedBy:                strings.TrimSpace(recordedBy),
+		ProvenanceKind:            strings.TrimSpace(provenanceKind),
+		ProvenanceRef:             strings.TrimSpace(provenanceRef),
+		Reason:                    strings.TrimSpace(reason),
+		ConsensusAuthority:        false,
 		CanonicalHistorySelection: false,
-		RecoveryAuthority:       false,
-		VoteAuthority:           false,
-		ActivationAuthority:     false,
-		PhysicalTruthEstablished: false,
+		RecoveryAuthority:         false,
+		VoteAuthority:             false,
+		ActivationAuthority:       false,
+		PhysicalTruthEstablished:  false,
 	}, nil
 }
 
 func diagnosticTrustAnchorRevokeRecord(current PeerStateDiagnosticTrustAnchorRecord, effectiveAt, recordedAt time.Time, recordedBy, provenanceKind, provenanceRef, reason string) PeerStateDiagnosticTrustAnchorRecord {
 	return PeerStateDiagnosticTrustAnchorRecord{
-		ProfileVersion:           peerStateDiagnosticTrustAnchorProfile,
-		Domain:                   peerStateDiagnosticTrustAnchorDomain,
-		Action:                   diagnosticTrustAnchorActionRevoke,
-		ChainID:                  current.ChainID,
-		ValidatorID:              current.ValidatorID,
-		Purpose:                  current.Purpose,
-		Algorithm:                current.Algorithm,
-		KeyVersion:               current.KeyVersion,
-		PublicKeyHash:            strings.ToLower(current.PublicKeyHash),
-		PublicKeyB64:             current.PublicKeyB64,
-		ConfigFingerprintSHA256:  strings.ToLower(current.ConfigFingerprintSHA256),
-		EffectiveFrom:            effectiveAt.UTC().Format(time.RFC3339Nano),
-		RecordedAt:               recordedAt.UTC().Format(time.RFC3339Nano),
-		RecordedBy:               strings.TrimSpace(recordedBy),
-		ProvenanceKind:           strings.TrimSpace(provenanceKind),
-		ProvenanceRef:            strings.TrimSpace(provenanceRef),
-		Reason:                   strings.TrimSpace(reason),
-		ConsensusAuthority:       false,
+		ProfileVersion:            peerStateDiagnosticTrustAnchorProfile,
+		Domain:                    peerStateDiagnosticTrustAnchorDomain,
+		Action:                    diagnosticTrustAnchorActionRevoke,
+		ChainID:                   current.ChainID,
+		ValidatorID:               current.ValidatorID,
+		Purpose:                   current.Purpose,
+		Algorithm:                 current.Algorithm,
+		KeyVersion:                current.KeyVersion,
+		PublicKeyHash:             strings.ToLower(current.PublicKeyHash),
+		PublicKeyB64:              current.PublicKeyB64,
+		ConfigFingerprintSHA256:   strings.ToLower(current.ConfigFingerprintSHA256),
+		EffectiveFrom:             effectiveAt.UTC().Format(time.RFC3339Nano),
+		RecordedAt:                recordedAt.UTC().Format(time.RFC3339Nano),
+		RecordedBy:                strings.TrimSpace(recordedBy),
+		ProvenanceKind:            strings.TrimSpace(provenanceKind),
+		ProvenanceRef:             strings.TrimSpace(provenanceRef),
+		Reason:                    strings.TrimSpace(reason),
+		ConsensusAuthority:        false,
 		CanonicalHistorySelection: false,
-		RecoveryAuthority:        false,
-		VoteAuthority:            false,
-		ActivationAuthority:      false,
-		PhysicalTruthEstablished: false,
+		RecoveryAuthority:         false,
+		VoteAuthority:             false,
+		ActivationAuthority:       false,
+		PhysicalTruthEstablished:  false,
 	}
 }
 
