@@ -11,19 +11,24 @@ type LoadResponse={schemaReady:boolean;capacity:string|null;allowedAttestationTy
 const label=(value:string)=>value.replaceAll('_',' ').toLowerCase().replace(/\b\w/g,char=>char.toUpperCase());
 const short=(value:string)=>value.length>28?`${value.slice(0,14)}…${value.slice(-10)}`:value;
 
-export default function HumanAttestationPanel({assetId,events}:{assetId:string;events:EventOption[]}){
- const [data,setData]=useState<LoadResponse|null>(null),[message,setMessage]=useState(''),[busy,setBusy]=useState(false);
- const [eventId,setEventId]=useState(events[0]?.id||''),[type,setType]=useState(''),[statement,setStatement]=useState('');
+export default function HumanAttestationPanel({assetId}:{assetId:string}){
+ const [data,setData]=useState<LoadResponse|null>(null),[events,setEvents]=useState<EventOption[]>([]),[message,setMessage]=useState(''),[busy,setBusy]=useState(false);
+ const [eventId,setEventId]=useState(''),[type,setType]=useState(''),[statement,setStatement]=useState('');
  const selected=useMemo(()=>events.find(event=>event.id===eventId)||null,[events,eventId]);
 
  async function load(){
   try{
-   const response=await fetch(`/api/attestations?assetId=${encodeURIComponent(assetId)}`,{cache:'no-store',credentials:'same-origin'});
-   const body=await response.json();
-   if(!response.ok)throw new Error(body.error||'Attestations could not be loaded');
-   setData(body);
-   setType(current=>current&&body.allowedAttestationTypes?.includes(current)?current:(body.allowedAttestationTypes?.[0]||''));
-  }catch(error){setMessage(error instanceof Error?error.message:'Attestations could not be loaded');}
+   const [attestationResponse,lifecycleResponse]=await Promise.all([
+    fetch(`/api/attestations?assetId=${encodeURIComponent(assetId)}`,{cache:'no-store',credentials:'same-origin'}),
+    fetch(`/api/lifecycle?assetId=${encodeURIComponent(assetId)}`,{cache:'no-store',credentials:'same-origin'})
+   ]);
+   const [attestationBody,lifecycleBody]=await Promise.all([attestationResponse.json(),lifecycleResponse.json()]);
+   if(!attestationResponse.ok)throw new Error(attestationBody.error||'Attestations could not be loaded');
+   if(!lifecycleResponse.ok)throw new Error(lifecycleBody.error||'Lifecycle events could not be loaded');
+   const options:EventOption[]=(lifecycleBody.events||[]).map((event:any)=>({id:String(event.id),eventType:String(event.event_type),status:String(event.status),occurredAt:event.occurred_at?String(event.occurred_at):null}));
+   setData(attestationBody);setEvents(options);setEventId(current=>current&&options.some(event=>event.id===current)?current:(options[0]?.id||''));
+   setType(current=>current&&attestationBody.allowedAttestationTypes?.includes(current)?current:(attestationBody.allowedAttestationTypes?.[0]||''));
+  }catch(error){setMessage(error instanceof Error?error.message:'Human attestation context could not be loaded');}
  }
  useEffect(()=>{void load()},[assetId]);
 
