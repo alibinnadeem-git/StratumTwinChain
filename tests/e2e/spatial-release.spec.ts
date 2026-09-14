@@ -10,7 +10,7 @@ test('manual plan annotations persist deletion and restore without resurrecting 
  await page.getByAltText('annotation-plan.png').click({position:{x:1,y:1}});
  await expect(page.getByText('PANEL-LP1 · E-201')).toBeVisible();
  await page.getByRole('button',{name:'Save annotations to Spatial'}).click();
- await expect(page.getByRole('status')).toContainText(/Annotations saved in this browser/i);
+ await expect(page.getByRole('status').filter({hasText:'Annotations saved in this browser'})).toContainText(/Annotations saved in this browser/i);
 
  const saved=await page.evaluate(()=>{
   const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
@@ -23,7 +23,7 @@ test('manual plan annotations persist deletion and restore without resurrecting 
  await page.getByRole('button',{name:'Remove'}).click();
  await expect(page.getByText('PANEL-LP1 · E-201')).toHaveCount(0);
  await page.getByRole('button',{name:'Save annotations to Spatial'}).click();
- await expect(page.getByRole('status')).toContainText(/Annotations saved in this browser/i);
+ await expect(page.getByRole('status').filter({hasText:'Annotations saved in this browser'})).toContainText(/Annotations saved in this browser/i);
 
  const afterDelete=await page.evaluate(()=>{
   const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
