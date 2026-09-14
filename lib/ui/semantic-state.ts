@@ -11,7 +11,9 @@ type Registry=Record<SemanticDomain,Record<string,SemanticStateDefinition>>;
 
 export const semanticStateRegistry:Registry={
  trust:{
-  POVI_VERIFIED:{label:'PoVI Verified',tone:'verified',meaning:'Canonical network finality has been proven for the referenced DIR.'},
+  POVI_VERIFIED:{label:'PoVI Verified',tone:'verified',meaning:'A PoVI finality proof has been cryptographically verified against the trusted active validator set.'},
+  DIR_RECORDED:{label:'DIR Recorded',tone:'info',meaning:'A DIR reference is recorded for this object. The reference alone does not establish independently verified PoVI finality or physical truth.'},
+  RECORD_MATCHED:{label:'Record Matched',tone:'info',meaning:'The submitted identifier or fingerprint matches a record in the STRATUM verification index.'},
   FIELD_VERIFIED:{label:'Field Verified',tone:'verified',meaning:'A qualified field verification has been recorded.'},
   SURVEYED:{label:'Surveyed',tone:'info',meaning:'The state is supported by survey evidence.'},
   SCANNED:{label:'Scanned',tone:'info',meaning:'The state is supported by capture or scan evidence.'},
