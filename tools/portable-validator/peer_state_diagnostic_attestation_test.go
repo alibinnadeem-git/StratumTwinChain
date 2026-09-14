@@ -2,8 +2,10 @@ package main
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -151,11 +153,11 @@ func TestPeerStateDiagnosticAttestationDoesNotEmbedPrivateKeyMaterialOrMutateBun
 		t.Fatal(err)
 	}
 	encodedPrivate := base64.StdEncoding.EncodeToString(privateBytes)
-	attBytes, err := jsonMarshalForTest(att)
+	attBytes, err := json.Marshal(att)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(attBytes) == "" || containsForTest(string(attBytes), encodedPrivate) {
+	if len(attBytes) == 0 || strings.Contains(string(attBytes), encodedPrivate) {
 		t.Fatal("detached attestation must not embed TRANSPORT private key material")
 	}
 	after, err := os.ReadFile(manifestPath)
@@ -165,12 +167,4 @@ func TestPeerStateDiagnosticAttestationDoesNotEmbedPrivateKeyMaterialOrMutateBun
 	if string(before) != string(after) {
 		t.Fatal("creating detached attestation must not mutate the diagnostic bundle")
 	}
-}
-
-func jsonMarshalForTest(value any) ([]byte, error) {
-	return json.Marshal(value)
-}
-
-func containsForTest(value, needle string) bool {
-	return strings.Contains(value, needle)
 }
