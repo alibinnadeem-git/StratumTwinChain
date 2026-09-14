@@ -60,6 +60,7 @@ export const semanticStateRegistry:Registry={
  privacy:{
   PUBLIC:{label:'Public',tone:'info',meaning:'The information is approved for public disclosure.'},
   INTERNAL:{label:'Internal',tone:'neutral',meaning:'The information is intended for authorized internal users.'},
+  CLIENT:{label:'Client restricted',tone:'restricted',meaning:'Access is limited to the authorized client scope and approved STRATUM users.'},
   RESTRICTED:{label:'Restricted',tone:'restricted',meaning:'Access is limited to explicitly authorized roles or parties.'},
   PRIVATE:{label:'Private',tone:'restricted',meaning:'The information is private and should not be exposed beyond its approved scope.'},
  },
