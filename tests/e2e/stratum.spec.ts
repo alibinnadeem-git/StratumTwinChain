@@ -1,6 +1,6 @@
 import {expect,test} from '@playwright/test';
 
-const routes=['/','/library','/spatial','/twin','/compiler','/component-library','/reality','/projects','/sites','/assets','/workflows','/maintenance','/predictive','/simulation','/evidence','/handover','/provenance','/verify','/dir','/admin','/inspection','/passports','/asset-passports','/passport/STR-AST-0009281','/build','/install','/operate','/predictive-maintenance','/reality-reconciliation','/digital-handover','/client-trust','/chain-explorer','/trust','/twin-compiler','/dirs'];
+const routes=['/','/library','/spatial','/twin','/compiler','/component-library','/reality','/projects','/sites','/assets','/workflows','/scan','/capture','/maintenance','/predictive','/simulation','/evidence','/handover','/provenance','/verify','/dir','/admin','/inspection','/passports','/asset-passports','/passport/STR-AST-0009281','/build','/install','/operate','/predictive-maintenance','/reality-reconciliation','/digital-handover','/client-trust','/chain-explorer','/trust','/twin-compiler','/dirs'];
 
 test.describe('STRATUM Spatial Verified route and responsive UAT',()=>{
  for(const route of routes){
@@ -31,28 +31,41 @@ test('Home is role-aware while preserving explicit implementation status',async(
  await expect(page.getByText('P1 · IN PROGRESS',{exact:true})).toBeVisible();
 });
 
-test('primary navigation stays focused on the five canonical destinations',async({page})=>{
+test('navigation exposes the correct canonical destinations for desktop and field-mobile contexts',async({page})=>{
  await page.goto('/');
- const nav=page.getByRole('navigation',{name:'Primary navigation'});
- await expect(nav).toBeVisible();
- const links=nav.getByRole('link');
- await expect(links).toHaveCount(5);
- await expect(nav.getByRole('link',{name:'Home',exact:true})).toBeVisible();
- await expect(nav.getByRole('link',{name:'Sites',exact:true})).toBeVisible();
- await expect(nav.getByRole('link',{name:'Work',exact:true})).toBeVisible();
- await expect(nav.getByRole('link',{name:'Verify',exact:true})).toBeVisible();
- await expect(nav.getByRole('link',{name:'Library',exact:true})).toBeVisible();
- await nav.getByRole('link',{name:'Sites',exact:true}).click();
- await expect(page).toHaveURL(/\/sites$/);
- await page.getByRole('navigation',{name:'Primary navigation'}).getByRole('link',{name:'Work',exact:true}).click();
- await expect(page).toHaveURL(/\/workflows$/);
- await page.getByRole('navigation',{name:'Primary navigation'}).getByRole('link',{name:'Verify',exact:true}).click();
- await expect(page).toHaveURL(/\/verify$/);
- await page.getByRole('navigation',{name:'Primary navigation'}).getByRole('link',{name:'Library',exact:true}).click();
- await expect(page).toHaveURL(/\/library$/);
- await expect(page.getByRole('heading',{name:/Specialist tools, one understandable place/i})).toBeVisible();
- await page.getByRole('link',{name:/Spatial Compiler/i}).click();
- await expect(page).toHaveURL(/\/compiler$/);
+ const compact=(page.viewportSize()?.width||0)<=900;
+ if(compact){
+  const fieldNav=page.getByRole('navigation',{name:'Field navigation'});
+  await expect(fieldNav).toBeVisible();
+  await expect(page.getByRole('navigation',{name:'Primary navigation'})).not.toBeVisible();
+  await expect(fieldNav.getByRole('link',{name:'My Work',exact:true})).toBeVisible();
+  await expect(fieldNav.getByRole('link',{name:'Scan',exact:true})).toBeVisible();
+  await expect(fieldNav.getByRole('link',{name:'Capture',exact:true})).toBeVisible();
+  await fieldNav.getByRole('link',{name:'Scan',exact:true}).click();
+  await expect(page).toHaveURL(/\/scan$/);
+  await expect(page.getByRole('heading',{name:'Scan equipment'})).toBeVisible();
+ }else{
+  const nav=page.getByRole('navigation',{name:'Primary navigation'});
+  await expect(nav).toBeVisible();
+  const links=nav.getByRole('link');
+  await expect(links).toHaveCount(5);
+  await expect(nav.getByRole('link',{name:'Home',exact:true})).toBeVisible();
+  await expect(nav.getByRole('link',{name:'Sites',exact:true})).toBeVisible();
+  await expect(nav.getByRole('link',{name:'Work',exact:true})).toBeVisible();
+  await expect(nav.getByRole('link',{name:'Verify',exact:true})).toBeVisible();
+  await expect(nav.getByRole('link',{name:'Library',exact:true})).toBeVisible();
+  await nav.getByRole('link',{name:'Sites',exact:true}).click();
+  await expect(page).toHaveURL(/\/sites$/);
+  await page.getByRole('navigation',{name:'Primary navigation'}).getByRole('link',{name:'Work',exact:true}).click();
+  await expect(page).toHaveURL(/\/workflows$/);
+  await page.getByRole('navigation',{name:'Primary navigation'}).getByRole('link',{name:'Verify',exact:true}).click();
+  await expect(page).toHaveURL(/\/verify$/);
+  await page.getByRole('navigation',{name:'Primary navigation'}).getByRole('link',{name:'Library',exact:true}).click();
+  await expect(page).toHaveURL(/\/library$/);
+  await expect(page.getByRole('heading',{name:/Specialist tools, one understandable place/i})).toBeVisible();
+  await page.getByRole('link',{name:/Spatial Compiler/i}).click();
+  await expect(page).toHaveURL(/\/compiler$/);
+ }
 });
 
 test('legacy /twin remains a compatibility route and lands on Spatial',async({page})=>{
