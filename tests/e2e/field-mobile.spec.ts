@@ -19,7 +19,7 @@ test('responsive shell exposes field navigation on compact viewports without rep
 
 test('standalone scan route identifies an asset through the manual resilience path and enters inspection',async({page})=>{
  await page.goto('/scan');
- await expect(page.getByRole('heading',{name:'Scan equipment'})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Scan equipment',exact:true})).toBeVisible();
  const input=page.getByRole('textbox',{name:'Asset code or serial'});
  await input.fill('STR-AST-0009281');
  await page.getByRole('button',{name:'Continue inspection'}).click();
@@ -30,7 +30,7 @@ test('standalone scan route identifies an asset through the manual resilience pa
 
 test('standalone capture route preserves capture intent while entering the controlled field session',async({page})=>{
  await page.goto('/capture');
- await expect(page.getByRole('heading',{name:'Capture evidence'})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Capture evidence',exact:true})).toBeVisible();
  await page.getByRole('textbox',{name:'Asset code or serial'}).fill('STR-AST-0009281');
  await page.getByRole('button',{name:'Continue to field capture'}).click();
  await expect(page).toHaveURL(/\/inspection\?q=STR-AST-0009281&intent=capture/);
