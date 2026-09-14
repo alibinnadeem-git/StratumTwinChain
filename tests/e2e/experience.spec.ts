@@ -14,7 +14,7 @@ test('global command palette finds a canonical asset and preserves entity naviga
 
 test('command palette supports keyboard opening and clear no-match feedback',async({page})=>{
  await page.goto('/');
- await page.keyboard.press('Control+K');
+ await page.evaluate(()=>window.dispatchEvent(new KeyboardEvent('keydown',{key:'k',ctrlKey:true,bubbles:true})));
  const search=page.getByRole('textbox',{name:'Search assets, projects, evidence or tools'});
  await expect(search).toBeVisible();
  await search.fill('definitely-no-such-stratum-record');
