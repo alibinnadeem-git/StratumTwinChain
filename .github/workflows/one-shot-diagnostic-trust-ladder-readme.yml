@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   update-readme-once:
-    if: github.event.head_commit.message == 'Add one-shot diagnostic trust ladder README helper'
+    if: github.event.head_commit.message == 'Fix one-shot diagnostic trust ladder README helper'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,37 +20,14 @@ jobs:
           ref: redbook/povi-proof-verifying-sync-runtime-v1
           fetch-depth: 0
       - name: Append diagnostic trust ladder once
+        env:
+          TRUST_LADDER_B64: CgojIyBEaWFnbm9zdGljIGJ1bmRsZSB0cnVzdCBsYWRkZXIKCkRpYWdub3N0aWMgdmVyaWZpY2F0aW9uIGlzIGRlbGliZXJhdGVseSBsYXllcmVkIGFuZCByZW1haW5zIHNlcGFyYXRlIGZyb20gUG9WSSBjb25zZW5zdXMgYXV0aG9yaXR5OgoKMS4gKip2MSBkaWFnbm9zdGljIGV4cG9ydCDigJQgaW50ZWdyaXR5LWNvbXBhdGlibGUgb25seS4qKiBWZXJzaW9uIDEgcmVtYWlucyBzdXBwb3J0ZWQgZm9yIGluY2lkZW50L2V4cG9ydCBjb21wYXRpYmlsaXR5LiBJdHMgZmlsZXMgY2FuIGJlIHZlcmlmaWVkLCBidXQgaXQgaGFzIG5vIGNhbm9uaWNhbCB2MiBidW5kbGUgZGlnZXN0LiBXaGVuIGEgYjEgYnVuZGxlIHBhcnRpY2lwYXRlcyBpbiBjb21wYXJpc29uLCBgYnVuZGxlRGlnZXN0Q29tcGFyYWJsZT1mYWxzZWA7IGl0IGlzICoqbm9uLWNvbXBhcmFibGUqKiwgbm90IGEgZGlnZXN0IG1pc21hdGNoLgoKMi4gKip2MiBkaWFnbm9zdGljIGV4cG9ydCDigJQgaW50ZWdyaXR5ICsgY2Fub25pY2FsIGNvcnJlbGF0aW9uIGRpZ2VzdC4qKiBWZXJzaW9uIDIgYWRkcyB0aGUgZG9tYWluLXNlcGFyYXRlZCBjYW5vbmljYWwgYnVuZGxlIGRpZ2VzdCBhbmQgdGhlIGNvbXBhcmlzb24gZmllbGRzIGBidW5kbGVEaWdlc3RDb21wYXJhYmxlYCwgYGJ1bmRsZURpZ2VzdE1hdGNoYCwgYGxlZnRCdW5kbGVEaWdlc3RTaGEyNTZgLCBhbmQgYHJpZ2h0QnVuZGxlRGlnZXN0U2hhMjU2YC4gRGlnZXN0IGVxdWFsaXR5IGNvcnJlbGF0ZXMgaW5kZXBlbmRlbnRseSB2ZXJpZmllZCBkaWFnbm9zdGljIGNvbnRlbnQ7IGl0IGRvZXMgbm90IGVzdGFibGlzaCBjcmVhdG9yIGlkZW50aXR5LCBQb1ZJIGZpbmFsaXR5LCBjYW5vbmljYWwgaGlzdG9yeSwgcmVjb3ZlcnkgYXV0aG9yaXR5LCBnb3Zlcm5hbmNlIGF1dGhvcml0eSwgdm90ZSBhdXRob3JpdHksIGFjdGl2YXRpb24gYXV0aG9yaXR5LCBvciBwaHlzaWNhbCB0cnV0aC4KCjMuICoqRGV0YWNoZWQgRWQyNTUxOSBUUkFOU1BPUlQgYXR0ZXN0YXRpb24g4oCUIIGNyeXB0b2dyYXBoaWMgc2lnbmVyIHByb29mLCBzZWxmLWFzc2VydGVkIHVudGlsIGluZGVwZW5kZW50bHkgdHJ1c3RlZC4qKiBUaGUgZGV0YWNoZWQgc2lnbmF0dXJlIGJpbmRzIHRoZSB2ZXJpZmllZCB2MiBkaWdlc3QgdG8gdGhlIHN1cHBsaWVkIFRSQU5TUE9SVCBwdWJsaWMga2V5LiBTaWduYXR1cmUgdmFsaWRpdHkgYWxvbmUgbGVhdmVzIGBhdXRoZW50aWNpdHlFc3RhYmxpc2hlZD1mYWxzZWAuCgo0LiAqKmAtLXRydXN0ZWQtY29uZmlnYCDigJQgcG9pbnQtaW4tdGltZSBpbmRlcGVuZGVudCBhdXRoZW50aWNpdHkgY2hlY2suKiogU3VwcGx5aW5nIGFuIGluZGVwZW5kZW50bHkgb2J0YWluZWQgdHJ1c3RlZCB2YWxpZGF0b3IgY29uZmlnIGNhbiBlc3RhYmxpc2ggZGlhZ25vc3RpYyBzaWduZXIgYXV0aGVudGljaXR5IHdoZW4gY2hhaW4gaWRlbnRpdHksIHZhbGlkYXRvciBpZGVudGl0eSwgY29uZmlnIGZpbmdlcnByaW50LCBUUkFOU1BPUlQgcHVycG9zZS9hbGdvcml0aG0va2V5IHZlcnNpb24vcHVibGljIGtleS9oYXNoLCBkaWdlc3QsIGFuZCBzaWduYXR1cmUgYWxsIG1hdGNoLiBUaGlzIGlzIGFuIGV4dGVybmFsIHRydXN0IGNoZWNrIG9ubHk7IGl0IGRvZXMgbm90IG1vZGlmeSB2YWxpZGF0b3IgbWVtYmVyc2hpcCBvciBQb1ZJIHN0YXRlLgoKNS4gKipJbmRlcGVuZGVudCB0cnVzdC1hbmNob3Igam91cm5hbCDigJQgbGlmZWN5Y2xlLW1hbmFnZWQgZGlhZ25vc3RpYyBhdXRoZW50aWNpdHkuKiogYFNUUkFUVU0tUEVFUi1TVEFURS1ESUFHTk9TVElDLVRSVVNULUFOQ0hPUi8xYCBpcyBhbiBhcHBlbmQtb25seSwgZG9tYWluLXNlcGFyYXRlZCwgU0hBLTI1NiBoYXNoLWNoYWluZWQgb3BlcmF0b3Igam91cm5hbCB3aXRoIGV4cGxpY2l0IHByb3ZlbmFuY2UsIGVmZmVjdGl2ZSB0aW1lLCBgVFJVU1RgLCBleGFjdCBtb25vdG9uaWMgYFJPVEFURWAsIGFuZCBleHBsaWNpdCBgUkVWT0tFYCByZWNvcmRzLiBSb3RhdGVkIGtleXMgYXJlIG5ldmVyIHNpbGVudGx5IGFjY2VwdGVkLCByZXZva2VkL3VuYW5jaG9yZWQga2V5cyBmYWlsIGNsb3NlZCwgaGlzdG9yaWNhbCB2ZXJpZmljYXRpb24gcmVxdWlyZXMgYW4gZXhwbGljaXQgYC0tZWZmZWN0aXZlLWF0YCwgYW5kIHRoZSBqb3VybmFsIG11c3QgYmUgc3VwcGxpZWQgaW5kZXBlbmRlbnRseSBvdXRzaWRlIHRoZSBkb3dubG9hZGVkIGRpYWdub3N0aWMgYnVuZGxlLiBBIGJ1bmRsZSBjYW4gbmV2ZXIgbm9taW5hdGUgaXRzIG93biB0cnVzdCBhbmNob3IuCgpUaGUgdHJ1c3QtYW5jaG9yIGxpZmVjeWNsZSBpcyBkaWFnbm9zdGljLW9ubHkuIEl0cyBpbnNwZWN0aW9uIGFuZCB2ZXJpZmljYXRpb24gcGF0aHMgYXJlIHJlYWQtb25seSB3aXRoIHJlc3BlY3QgdG8gU1RSQVRVTSBDaGFpbiBzdGF0ZSBhbmQga2VlcCBgY29uc2Vuc3VzQXV0aG9yaXR5PWZhbHNlYCwgYGNhbm9uaWNhbEhpc3RvcnlTZWxlY3Rpb249ZmFsc2VgLCBgcmVjb3ZlcnlBdXRob3JpdHk9ZmFsc2VgLCBgdm90ZUF1dGhvcml0eT1mYWxzZWAsIGBhY3RpdmF0aW9uQXV0aG9yaXR5PWZhbHNlYCwgYW5kIGBwaHlzaWNhbFRydXRoRXN0YWJsaXNoZWQ9ZmFsc2VgLiBJdCBuZXZlciBjaGFuZ2VzIGEgbm9kZSBmcm9tIGBDQU5ESURBVEVgLCBuZXZlciBjaGFuZ2VzIHZhbGlkYXRvciBnb3Zlcm5hbmNlL3F1b3J1bSwgbmV2ZXIgYWR2YW5jZXMgYSB0cnVzdGVkIGhlYWQsIGFuZCBuZXZlciBhdXRob3JpemVzIGBQUk9QT1NFYCwgYFZFUklGWWAsIGBDT01NSVRgLCBgUk9VTkRfQ0hBTkdFYCwgUExDL1BGQyB2b3RpbmcsIG9yIENBTkRJREFUReKGkkFDVElWRS4KCk9wZXJhdG9yIGxpZmVjeWNsZSBjb21tYW5kczoKCmBgYGJhc2gKLi9zdHJhdHVtLXZhbGlkYXRvci1ib290c3RyYXAgcGVlci1zdGF0ZS1kaWFnbm9zdGljLXRydXN0LWFuY2hvci1hZGQgLi4uCi4vc3RyYXR1bS12YWxpZGF0b3ItYm9vdHN0cmFwIHBlZXItc3RhdGUtZGlhZ25vc3RpYy10cnVzdC1hbmNob3Itcm90YXRlIC4uLgouL3N0cmF0dW0tdmFsaWRhdG9yLWJvb3RzdHJhcCBwZWVyLXN0YXRlLWRpYWdub3N0aWMtdHJ1c3QtYW5jaG9yLXJldm9rZSAuLi4KLi9zdHJhdHVtLXZhbGlkYXRvci1ib290c3RyYXAgcGVlci1zdGF0ZS1kaWFnbm9zdGljLXRydXN0LWFuY2hvci1pbnNwZWN0IC4uLgouL3N0cmF0dW0tdmFsaWRhdG9yLWJvb3RzdHJhcCBwZWVyLXN0YXRlLWRpYWdub3N0aWMtYXR0ZXN0YXRpb24tdmVyaWZ5LWFuY2hvciAuLi4KYGBgCgpUcnVzdC1hbmNob3IgbXV0YXRpb24gY29tbWFuZHMgcmVxdWlyZSBleHBsaWNpdCBvcGVyYXRvciBwcm92ZW5hbmNlL3JlYXNvbiBhbmQgZXhwbGljaXQgZWZmZWN0aXZlIHRpbWUuIFZlcmlmaWNhdGlvbiBkZWZhdWx0cyB0byBjdXJyZW50LXRpbWUgdHJ1c3Q7IGAtLWVmZmVjdGl2ZS1hdGAgaXMgdGhlIGV4cGxpY2l0IGhpc3RvcmljYWwgYXVkaXQgbWVjaGFuaXNtIGZvciBzdXBlcnNlZGVkIHBlcmlvZHMuCg==
         run: |
-          if grep -q '^## Diagnostic bundle trust ladder$' tools/portable-validator/README.md; then
+          python3 -c "import base64,os,pathlib; p=pathlib.Path('tools/portable-validator/README.md'); text=p.read_text(); marker='## Diagnostic bundle trust ladder'; section=base64.b64decode(os.environ['TRUST_LADDER_B64']).decode(); p.write_text(text if marker in text else text+section)"
+          if git diff --quiet -- tools/portable-validator/README.md; then
             echo 'Trust ladder already present.'
             exit 0
           fi
-          cat >> tools/portable-validator/README.md <<'EOF'
-
-## Diagnostic bundle trust ladder
-
-Diagnostic verification is deliberately layered and remains separate from PoVI consensus authority:
-
-1. **v1 diagnostic export — integrity-compatible only.** Version 1 remains supported for incident/export compatibility. Its files can be verified, but it has no canonical v2 bundle digest. When a v1 bundle participates in comparison, `bundleDigestComparable=false`; it is **non-comparable**, not a digest mismatch.
-2. **v2 diagnostic export — integrity + canonical correlation digest.** Version 2 adds the domain-separated canonical bundle digest and the comparison fields `bundleDigestComparable`, `bundleDigestMatch`, `leftBundleDigestSha256`, and `rightBundleDigestSha256`. Digest equality correlates independently verified diagnostic content; it does not establish creator identity, PoVI finality, canonical history, recovery authority, governance authority, vote authority, activation authority, or physical truth.
-3. **Detached Ed25519 TRANSPORT attestation — cryptographic signer proof, self-asserted until independently trusted.** The detached signature binds the verified v2 digest to the supplied TRANSPORT public key. Signature validity alone leaves `authenticityEstablished=false`.
-4. **`--trusted-config` — point-in-time independent authenticity check.** Supplying an independently obtained trusted validator config can establish diagnostic signer authenticity when chain identity, validator identity, config fingerprint, TRANSPORT purpose/algorithm/key version/public key/hash, digest, and signature all match. This is an external trust check only; it does not modify validator membership or PoVI state.
-5. **Independent trust-anchor journal — lifecycle-managed diagnostic authenticity.** `STRATUM-PEER-STATE-DIAGNOSTIC-TRUST-ANCHOR/1` is an append-only, domain-separated, SHA-256 hash-chained operator journal with explicit provenance, effective time, `TRUST`, exact monotonic `ROTATE`, and explicit `REVOKE` records. Rotated keys are never silently accepted, revoked/unanchored keys fail closed, historical verification requires an explicit `--effective-at`, and the journal must be supplied independently outside the downloaded diagnostic bundle. A bundle can never nominate its own trust anchor.
-
-The trust-anchor lifecycle is diagnostic-only. Its inspection and verification paths are read-only with respect to STRATUM Chain state and keep `consensusAuthority=false`, `canonicalHistorySelection=false`, `recoveryAuthority=false`, `voteAuthority=false`, `activationAuthority=false`, and `physicalTruthEstablished=false`. It never changes a node from `CANDIDATE`, never changes validator governance/quorum, never advances a trusted head, and never authorizes `PROPOSE`, `VERIFY`, `COMMIT`, `ROUND_CHANGE`, PLC/PFC voting, or CANDIDATE→ACTIVE.
-
-Operator lifecycle commands:
-
-```bash
-./stratum-validator-bootstrap peer-state-diagnostic-trust-anchor-add ...
-./stratum-validator-bootstrap peer-state-diagnostic-trust-anchor-rotate ...
-./stratum-validator-bootstrap peer-state-diagnostic-trust-anchor-revoke ...
-./stratum-validator-bootstrap peer-state-diagnostic-trust-anchor-inspect ...
-./stratum-validator-bootstrap peer-state-diagnostic-attestation-verify-anchor ...
-```
-
-Trust-anchor mutation commands require explicit operator provenance/reason and explicit effective time. Verification defaults to current-time trust; `--effective-at` is the explicit historical audit mechanism for superseded periods.
-EOF
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add tools/portable-validator/README.md
