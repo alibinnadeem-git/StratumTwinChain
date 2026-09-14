@@ -38,3 +38,13 @@ test('asset registry opens the universal asset drawer without losing list contex
  await expect(drawer).not.toBeVisible();
  await expect(page).toHaveURL(/\/assets$/);
 });
+
+test('trust states resolve through the shared semantic token system',async({page})=>{
+ await page.goto('/spatial');
+ const badges=page.locator('[data-semantic-domain="trust"]');
+ await expect(badges.first()).toBeVisible();
+ await expect(badges.first()).toHaveClass(/semantic-badge/);
+ const states=await badges.evaluateAll(nodes=>nodes.map(node=>node.getAttribute('data-semantic-state')));
+ expect(states.length).toBeGreaterThanOrEqual(2);
+ expect(states.some(state=>state==='LIVE'||state==='STALE')).toBeTruthy();
+});
