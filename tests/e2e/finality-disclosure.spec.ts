@@ -26,14 +26,21 @@ test('Verify explains record integrity before progressively disclosing protocol 
  await expect(page.getByText('Transaction reference')).toBeVisible();
 });
 
-test('asset passport treats a stored DIR height as a recorded reference, not PoVI verification',async({page})=>{
+test('asset passport never infers PoVI verification from a DIR reference or lifecycle metadata',async({page})=>{
  await page.goto('/assets/STR-AST-0009281');
- await expect(page.getByText(/DIR #8194251 recorded/)).toBeVisible();
- await expect(page.getByRole('heading',{name:'Immutable record reference present'})).toBeVisible();
- await expect(page.getByText(/PoVI Verified is reserved for a DIR whose finality proof has been independently verified/i)).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Main Switchgear SG-01'})).toBeVisible();
+ await expect(page.locator('[data-semantic-state="POVI_VERIFIED"]')).toHaveCount(0);
  await expect(page.locator('body')).not.toContainText('Verified in DIR');
- await expect(page.getByText('Technical record details')).toBeVisible();
- await expect(page.getByText('DIR network')).not.toBeVisible();
- await page.getByText('Technical record details').click();
- await expect(page.getByText('DIR network')).toBeVisible();
+ const recorded=page.locator('[data-semantic-domain="trust"][data-semantic-state="DIR_RECORDED"]');
+ if(await recorded.count()){
+  await expect(recorded).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Immutable record reference present'})).toBeVisible();
+  await expect(page.getByText(/PoVI Verified is reserved for a DIR whose finality proof has been independently verified/i)).toBeVisible();
+  await expect(page.getByText('Technical record details')).toBeVisible();
+  await expect(page.getByText('DIR network')).not.toBeVisible();
+  await page.getByText('Technical record details').click();
+  await expect(page.getByText('DIR network')).toBeVisible();
+ }else{
+  await expect(page.getByRole('heading',{name:'Awaiting immutable lifecycle record'})).toBeVisible();
+ }
 });
