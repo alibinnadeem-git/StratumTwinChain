@@ -4,6 +4,7 @@ import {demoSession} from '@/lib/auth/session';
 import CommandPalette from '@/components/CommandPalette';
 import PrimaryNav from '@/components/PrimaryNav';
 import SkipLink from '@/components/SkipLink';
+import MobileFieldNav from '@/components/MobileFieldNav';
 
 export default function Shell({children}:{children:ReactNode}){
  return <div className="shell">
@@ -19,5 +20,6 @@ export default function Shell({children}:{children:ReactNode}){
    <div className="usercard"><div className="avatar">AB</div><div><strong>{demoSession.user.name}</strong><small>{demoSession.role.replaceAll('_',' ')}</small></div></div>
   </aside>
   <main className="main" id="main-content" tabIndex={-1}>{children}</main>
+  <MobileFieldNav/>
  </div>
 }
