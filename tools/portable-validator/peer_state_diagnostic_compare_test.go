@@ -29,6 +29,25 @@ func createDiagnosticBundleAt(t *testing.T, root, name string, when time.Time) (
 	return output, manifest
 }
 
+func createDiagnosticBundleV2At(t *testing.T, root, name string, when time.Time) (string, PeerStateDiagnosticManifest) {
+	t.Helper()
+	cfg := testPeerSyncConfig()
+	dir := filepath.Join(root, name+"-validator")
+	output := filepath.Join(root, name+"-diagnostic-v2")
+	if err := os.MkdirAll(filepath.Join(dir, "state"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	head := defaultPeerSyncTrustedHead(cfg)
+	if err := savePeerSyncTrustedHeadAtomic(filepath.Join(dir, "state", "peer-sync-head.json"), head); err != nil {
+		t.Fatal(err)
+	}
+	manifest, err := exportPeerStateDiagnosticsV2(dir, output, cfg, when.UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return output, manifest
+}
+
 func cloneDiagnosticBundle(t *testing.T, source, dest string, manifest PeerStateDiagnosticManifest) PeerStateDiagnosticManifest {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Join(dest, "state"), 0o700); err != nil {
@@ -117,8 +136,47 @@ func TestPeerStateDiagnosticCompareReportsMetadataWithoutAuthority(t *testing.T)
 	if comparison.TransportPublicKeyHashComparable || comparison.TransportPublicKeyHashMatch {
 		t.Fatalf("empty transport hashes must not be represented as a positive fingerprint match: %+v", comparison)
 	}
+	if comparison.BundleDigestComparable || comparison.BundleDigestMatch || comparison.LeftBundleDigestSHA256 != "" || comparison.RightBundleDigestSHA256 != "" {
+		t.Fatalf("version-1 bundles must remain non-comparable for version-2 canonical bundle digests: %+v", comparison)
+	}
 	if comparison.HealthChanged || len(comparison.HealthChanges) != 0 || len(comparison.FileChanges) != 0 {
 		t.Fatalf("identical state bytes should not produce health/file changes: %+v", comparison)
+	}
+}
+
+func TestPeerStateDiagnosticCompareReportsV2BundleDigestCorrelationWithoutAuthority(t *testing.T) {
+	root := t.TempDir()
+	left, manifest := createDiagnosticBundleV2At(t, root, "left", time.Unix(1_800_000_000, 0))
+	right := filepath.Join(root, "right-diagnostic-v2")
+	cloneDiagnosticBundle(t, left, right, manifest)
+
+	comparison, err := comparePeerStateDiagnosticBundles(left, right)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !comparison.BundleDigestComparable || !comparison.BundleDigestMatch {
+		t.Fatalf("identical verified version-2 bundles should expose matching canonical bundle digests: %+v", comparison)
+	}
+	if comparison.LeftBundleDigestSHA256 != manifest.BundleDigestSHA256 || comparison.RightBundleDigestSHA256 != manifest.BundleDigestSHA256 {
+		t.Fatalf("expected version-2 bundle digest metadata to round-trip through comparison: %+v", comparison)
+	}
+	if comparison.AuthenticityEstablished || comparison.ConsensusAuthority || comparison.CanonicalHistorySelection || comparison.RecoveryAuthority {
+		t.Fatal("matching canonical bundle digests must remain integrity correlation, not authenticity, fork-choice, consensus, or recovery authority")
+	}
+
+	different, differentManifest := createDiagnosticBundleV2At(t, root, "different", time.Unix(1_800_000_100, 0))
+	if differentManifest.BundleDigestSHA256 == manifest.BundleDigestSHA256 {
+		t.Fatal("fixture must produce a different canonical version-2 bundle digest")
+	}
+	comparison, err = comparePeerStateDiagnosticBundles(left, different)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !comparison.BundleDigestComparable || comparison.BundleDigestMatch {
+		t.Fatalf("two independently valid version-2 bundles with different canonical digests must report comparable mismatch: %+v", comparison)
+	}
+	if comparison.AuthenticityEstablished || comparison.CanonicalHistorySelection || comparison.RecoveryAuthority {
+		t.Fatal("a canonical bundle digest mismatch is diagnostic evidence only and must not choose history or authorize recovery")
 	}
 }
 
