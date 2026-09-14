@@ -25,3 +25,15 @@ test('Verify explains record integrity before progressively disclosing protocol 
  await expect(page.getByText('DIR network')).toBeVisible();
  await expect(page.getByText('Transaction reference')).toBeVisible();
 });
+
+test('asset passport treats a stored DIR height as a recorded reference, not PoVI verification',async({page})=>{
+ await page.goto('/assets/STR-AST-0009281');
+ await expect(page.getByText(/DIR #8194251 recorded/)).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Immutable record reference present'})).toBeVisible();
+ await expect(page.getByText(/PoVI Verified is reserved for a DIR whose finality proof has been independently verified/i)).toBeVisible();
+ await expect(page.locator('body')).not.toContainText('Verified in DIR');
+ await expect(page.getByText('Technical record details')).toBeVisible();
+ await expect(page.getByText('DIR network')).not.toBeVisible();
+ await page.getByText('Technical record details').click();
+ await expect(page.getByText('DIR network')).toBeVisible();
+});
