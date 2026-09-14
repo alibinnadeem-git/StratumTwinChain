@@ -31,6 +31,7 @@ type PeerStateDiagnosticManifest struct {
 	CreatedAt               string                    `json:"createdAt"`
 	ConfigFingerprintSHA256 string                    `json:"configFingerprintSha256"`
 	TransportPublicKeyHash  string                    `json:"transportPublicKeyHash,omitempty"`
+	BundleDigestSHA256      string                    `json:"bundleDigestSha256,omitempty"`
 	ConsensusAuthority      bool                      `json:"consensusAuthority"`
 	ConsensusParticipation  bool                      `json:"consensusParticipation"`
 	VoteAuthority           bool                      `json:"voteAuthority"`
