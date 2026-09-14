@@ -1,0 +1,113 @@
+name: STRATUM Peer State Diagnostic Attestation CI
+on:
+  pull_request:
+    paths:
+      - 'tools/portable-validator/peer_state_diagnostic_attestation.go'
+      - 'tools/portable-validator/peer_state_diagnostic_attestation_test.go'
+      - 'tools/portable-validator/peer_state_diagnostic_v2.go'
+      - 'tools/portable-validator/peer_state_diagnostic_v2_test.go'
+      - 'tools/portable-validator/peer_state_diagnostic_export.go'
+      - 'tools/portable-validator/peer_state_diagnostic_verify.go'
+      - 'tools/portable-validator/main.go'
+      - '.github/workflows/peer-state-diagnostic-attestation-ci.yml'
+  push:
+    branches-ignore: [main]
+    paths:
+      - 'tools/portable-validator/peer_state_diagnostic_attestation.go'
+      - 'tools/portable-validator/peer_state_diagnostic_attestation_test.go'
+      - 'tools/portable-validator/peer_state_diagnostic_v2.go'
+      - 'tools/portable-validator/peer_state_diagnostic_v2_test.go'
+      - 'tools/portable-validator/peer_state_diagnostic_export.go'
+      - 'tools/portable-validator/peer_state_diagnostic_verify.go'
+      - 'tools/portable-validator/main.go'
+      - '.github/workflows/peer-state-diagnostic-attestation-ci.yml'
+
+jobs:
+  diagnostic-attestation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.24.x'
+          cache-dependency-path: tools/portable-validator/go.mod
+      - name: Go formatting check
+        working-directory: tools/portable-validator
+        run: |
+          gofmt -w peer_state_diagnostic_export.go peer_state_diagnostic_verify.go peer_state_diagnostic_v2.go peer_state_diagnostic_v2_test.go peer_state_diagnostic_attestation.go peer_state_diagnostic_attestation_test.go main.go
+          git diff --exit-code -- peer_state_diagnostic_export.go peer_state_diagnostic_verify.go peer_state_diagnostic_v2.go peer_state_diagnostic_v2_test.go peer_state_diagnostic_attestation.go peer_state_diagnostic_attestation_test.go main.go
+      - name: Go vet
+        working-directory: tools/portable-validator
+        run: go vet ./...
+      - name: Diagnostic v2 and attestation race tests
+        working-directory: tools/portable-validator
+        run: go test -race ./... -run 'TestPeerStateDiagnostic(V2|Attestation)'
+      - name: Detached attestation trust-boundary invariants
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const att=fs.readFileSync('tools/portable-validator/peer_state_diagnostic_attestation.go','utf8');
+          const attTests=fs.readFileSync('tools/portable-validator/peer_state_diagnostic_attestation_test.go','utf8');
+          const v2=fs.readFileSync('tools/portable-validator/peer_state_diagnostic_v2.go','utf8');
+          const verify=fs.readFileSync('tools/portable-validator/peer_state_diagnostic_verify.go','utf8');
+          const main=fs.readFileSync('tools/portable-validator/main.go','utf8');
+
+          for (const required of [
+            'STRATUM-PEER-STATE-DIAGNOSTIC-ATTESTATION/1',
+            'STRATUM/PEER-STATE/DIAGNOSTIC-ATTESTATION/1',
+            'verifyPeerStateDiagnosticBundle(bundleDir)',
+            'ED25519_TRANSPORT_IDENTITY',
+            'loadTransportPrivateKey',
+            'diagnosticAttestationSigningDigest',
+            'TrustedConfigUsed',
+            'AuthenticityEstablished',
+            'ConsensusAuthority:          false',
+            'CanonicalHistorySelection:   false',
+            'RecoveryAuthority:           false',
+            'VoteAuthority:               false',
+            'independently supplied trusted config'
+          ]) if (!att.includes(required)) throw new Error(`Missing diagnostic-attestation invariant: ${required}`);
+
+          for (const required of [
+            'STRATUM-PEER-STATE-DIAGNOSTIC-EXPORT/2',
+            'STRATUM/PEER-STATE/DIAGNOSTIC-BUNDLE/2',
+            'peerStateDiagnosticBundleDigestV2'
+          ]) if (!v2.includes(required)) throw new Error(`Missing version-2 diagnostic digest invariant: ${required}`);
+
+          for (const required of [
+            'BundleDigestVerified',
+            'diagnostic bundle digest mismatch',
+            'profile /1 must not claim a version-2 bundle digest'
+          ]) if (!verify.includes(required)) throw new Error(`Missing diagnostic verifier compatibility invariant: ${required}`);
+
+          for (const forbidden of [
+            'savePeerSyncTrustedHeadAtomic(',
+            'savePeerQuarantineStateAtomic(',
+            'quarantinePeer(',
+            'releasePeerQuarantine(',
+            'applyGovernedProofBundle(',
+            'appendConsensusSafetyDecision(',
+            'activateValidator',
+            'VoteAuthority:               true',
+            'ConsensusAuthority:          true',
+            'CanonicalHistorySelection:   true',
+            'RecoveryAuthority:           true'
+          ]) if (att.includes(forbidden)) throw new Error(`Detached attestation must not acquire consensus/recovery mutation surface: ${forbidden}`);
+
+          for (const required of [
+            'TestPeerStateDiagnosticAttestationSignatureValidWithoutAuthenticityClaim',
+            'TestPeerStateDiagnosticAttestationTrustedConfigEstablishesSignerAuthenticityOnly',
+            'TestPeerStateDiagnosticAttestationRejectsMismatchedTrustedConfig',
+            'TestPeerStateDiagnosticAttestationRejectsTamperedSignature',
+            'TestPeerStateDiagnosticAttestationRejectsTamperedBundle',
+            'TestPeerStateDiagnosticAttestationRequiresVersion2Bundle',
+            'TestPeerStateDiagnosticAttestationDoesNotEmbedPrivateKeyMaterialOrMutateBundle'
+          ]) if (!attTests.includes(required)) throw new Error(`Missing diagnostic-attestation regression: ${required}`);
+
+          if (!main.includes('case "peer-state-diagnostic-attest"') || !main.includes('peerStateDiagnosticAttestCommand')) throw new Error('peer-state-diagnostic-attest must remain registered');
+          if (!main.includes('case "peer-state-diagnostic-attestation-verify"') || !main.includes('peerStateDiagnosticAttestationVerifyCommand')) throw new Error('peer-state-diagnostic-attestation-verify must remain registered');
+          if (!main.includes('authenticityEstablished becomes true only when the signature also matches an independently supplied trusted validator config')) throw new Error('CLI must preserve external-trust authenticity boundary');
+          if (!main.includes('does not establish PoVI finality, canonical history, governance authority, recovery authority, vote authority, activation, or physical truth')) throw new Error('CLI must preserve non-consensus meaning of authenticated provenance');
+
+          console.log('Detached diagnostic attestation signature/authenticity/non-authority invariants passed');
+          NODE
