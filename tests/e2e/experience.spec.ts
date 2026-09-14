@@ -6,7 +6,7 @@ test('global command palette finds a canonical asset and preserves entity naviga
  const search=page.getByRole('textbox',{name:'Search assets, projects, evidence or tools'});
  await expect(search).toBeFocused();
  await search.fill('Main Switchgear');
- const result=page.getByRole('button',{name:/Main Switchgear SG-01/i});
+ const result=page.getByRole('option',{name:/Main Switchgear SG-01/i});
  await expect(result).toBeVisible();
  await result.click();
  await expect(page).toHaveURL(/\/passport\/STR-AST-0009281$/);
