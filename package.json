@@ -17,6 +17,7 @@
     "qa:field-scan": "node --experimental-strip-types scripts/qa-field-scan.mjs",
     "qa:asset-passport": "node scripts/qa-asset-passport.mjs",
     "qa:human-attestations": "node scripts/qa-human-attestations.mjs",
+    "qa:offline-field": "node scripts/qa-offline-field.mjs",
     "qa:redbook": "node scripts/redbook-conformance.mjs",
     "qa:genesis": "node scripts/genesis-conformance.mjs",
     "qa:genesis-trust": "node scripts/genesis-trust-conformance.mjs",
