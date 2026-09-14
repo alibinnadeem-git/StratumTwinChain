@@ -1,0 +1,119 @@
+name: STRATUM Peer State Diagnostic Trust Anchor CI
+on:
+  pull_request:
+    paths:
+      - 'tools/portable-validator/peer_state_diagnostic_trust_anchor.go'
+      - 'tools/portable-validator/peer_state_diagnostic_trust_anchor_test.go'
+      - 'tools/portable-validator/peer_state_diagnostic_attestation.go'
+      - 'tools/portable-validator/peer_state_diagnostic_attestation_test.go'
+      - 'tools/portable-validator/main.go'
+      - '.github/workflows/peer-state-diagnostic-trust-anchor-ci.yml'
+  push:
+    branches-ignore: [main]
+    paths:
+      - 'tools/portable-validator/peer_state_diagnostic_trust_anchor.go'
+      - 'tools/portable-validator/peer_state_diagnostic_trust_anchor_test.go'
+      - 'tools/portable-validator/peer_state_diagnostic_attestation.go'
+      - 'tools/portable-validator/peer_state_diagnostic_attestation_test.go'
+      - 'tools/portable-validator/main.go'
+      - '.github/workflows/peer-state-diagnostic-trust-anchor-ci.yml'
+
+jobs:
+  diagnostic-trust-anchor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.24.x'
+          cache-dependency-path: tools/portable-validator/go.mod
+      - name: Go formatting check
+        working-directory: tools/portable-validator
+        run: |
+          gofmt -w peer_state_diagnostic_trust_anchor.go peer_state_diagnostic_trust_anchor_test.go peer_state_diagnostic_attestation.go peer_state_diagnostic_attestation_test.go main.go
+          git diff --exit-code -- peer_state_diagnostic_trust_anchor.go peer_state_diagnostic_trust_anchor_test.go peer_state_diagnostic_attestation.go peer_state_diagnostic_attestation_test.go main.go
+      - name: Go vet
+        working-directory: tools/portable-validator
+        run: go vet ./...
+      - name: Trust-anchor lifecycle race tests
+        working-directory: tools/portable-validator
+        run: go test -race ./... -run 'TestPeerStateDiagnosticTrustAnchor'
+      - name: Existing diagnostic attestation regressions
+        working-directory: tools/portable-validator
+        run: go test -race ./... -run 'TestPeerStateDiagnosticAttestation'
+      - name: Trust-anchor separation and non-authority invariants
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const anchor=fs.readFileSync('tools/portable-validator/peer_state_diagnostic_trust_anchor.go','utf8');
+          const tests=fs.readFileSync('tools/portable-validator/peer_state_diagnostic_trust_anchor_test.go','utf8');
+          const main=fs.readFileSync('tools/portable-validator/main.go','utf8');
+          const bootstrap=fs.readFileSync('tools/portable-validator/bootstrap.go','utf8');
+
+          for (const required of [
+            'STRATUM-PEER-STATE-DIAGNOSTIC-TRUST-ANCHOR/1',
+            'STRATUM/PEER-STATE/DIAGNOSTIC-TRUST-ANCHOR/1',
+            'diagnosticTrustAnchorActionTrust',
+            'diagnosticTrustAnchorActionRotate',
+            'diagnosticTrustAnchorActionRevoke',
+            'PreviousRecordDigestSHA256',
+            'RecordDigestSHA256',
+            'ROTATE must explicitly supersede the exact prior trust anchor',
+            'ROTATE must increment TRANSPORT keyVersion by exactly one',
+            'REVOKE must not silently nominate a replacement key',
+            'DisallowUnknownFields',
+            'os.O_APPEND',
+            'file.Sync()',
+            'diagnostic bundle must never supply or contain its own trust-anchor journal',
+            'AuthenticityEstablished:     true',
+            'PoVIFinalityEstablished:      false',
+            'ValidatorGovernanceAuthority: false',
+            'ActivationAuthority:          false',
+            'PhysicalTruthEstablished:     false'
+          ]) if (!anchor.includes(required)) throw new Error(`Missing diagnostic trust-anchor invariant: ${required}`);
+
+          for (const forbidden of [
+            'savePeerSyncTrustedHeadAtomic(',
+            'savePeerQuarantineStateAtomic(',
+            'quarantinePeer(',
+            'releasePeerQuarantine(',
+            'applyGovernedProofBundle(',
+            'appendConsensusSafetyDecision(',
+            'activateValidator',
+            'ConsensusAuthority:          true',
+            'CanonicalHistorySelection:   true',
+            'RecoveryAuthority:           true',
+            'VoteAuthority:               true',
+            'ActivationAuthority:         true',
+            'PhysicalTruthEstablished:    true'
+          ]) if (anchor.includes(forbidden)) throw new Error(`Diagnostic trust-anchor lifecycle must stay outside consensus/recovery/governance mutation: ${forbidden}`);
+
+          for (const required of [
+            'TestPeerStateDiagnosticTrustAnchorEstablishesAuthenticityWithoutPoVIAuthority',
+            'TestPeerStateDiagnosticTrustAnchorRejectsSilentRotatedKey',
+            'TestPeerStateDiagnosticTrustAnchorExplicitRotationAndHistoricalAudit',
+            'TestPeerStateDiagnosticTrustAnchorRevocationFailsClosed',
+            'TestPeerStateDiagnosticTrustAnchorRejectsRotationVersionGapWithoutAppending',
+            'TestPeerStateDiagnosticTrustAnchorJournalTamperingIsDetected',
+            'TestPeerStateDiagnosticTrustAnchorJournalCannotBeNominatedByDownloadedBundle',
+            'TestPeerStateDiagnosticTrustAnchorInspectionIsReadOnlyAndAuditable'
+          ]) if (!tests.includes(required)) throw new Error(`Missing diagnostic trust-anchor regression: ${required}`);
+
+          for (const required of [
+            'case "peer-state-diagnostic-trust-anchor-add"',
+            'case "peer-state-diagnostic-trust-anchor-rotate"',
+            'case "peer-state-diagnostic-trust-anchor-revoke"',
+            'case "peer-state-diagnostic-trust-anchor-inspect"',
+            'case "peer-state-diagnostic-attestation-verify-anchor"',
+            'downloaded diagnostic bundle is never allowed to contain or nominate its own trust-anchor journal',
+            'Rotated diagnostic TRANSPORT keys require an explicit monotonic ROTATE record'
+          ]) if (!main.includes(required)) throw new Error(`Missing trust-anchor CLI invariant: ${required}`);
+
+          for (const required of [
+            'candidateState   = "CANDIDATE"',
+            'GOVERNANCE_ACTIVATION_REQUIRED'
+          ]) if (!bootstrap.includes(required)) throw new Error(`Candidate safety invariant missing: ${required}`);
+          if (/case\s+"(activate|vote|force-active)"/.test(main)) throw new Error('Trust-anchor work must not add activation/vote commands');
+
+          console.log('Diagnostic trust-anchor append-only lifecycle, rotation/revocation, external-trust and non-authority invariants passed');
+          NODE
