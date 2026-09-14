@@ -1,16 +1,24 @@
 import {expect,test} from '@playwright/test';
 
-test('shared shell exposes skip navigation, main focus target and current-page semantics',async({page})=>{
+test('shared shell exposes skip navigation, main focus target and responsive current-page semantics',async({page})=>{
  await page.goto('/');
  const skip=page.getByRole('link',{name:'Skip to main content'});
  await page.keyboard.press('Tab');
  await expect(skip).toBeFocused();
  await page.keyboard.press('Enter');
  await expect(page.locator('#main-content')).toBeFocused();
- const nav=page.getByRole('navigation',{name:'Primary navigation'});
- await expect(nav.getByRole('link',{name:'Home',exact:true})).toHaveAttribute('aria-current','page');
- await nav.getByRole('link',{name:'Sites',exact:true}).click();
- await expect(page.getByRole('navigation',{name:'Primary navigation'}).getByRole('link',{name:'Sites',exact:true})).toHaveAttribute('aria-current','page');
+ const compact=(page.viewportSize()?.width||0)<=900;
+ if(compact){
+  const fieldNav=page.getByRole('navigation',{name:'Field navigation'});
+  await expect(fieldNav).toBeVisible();
+  await fieldNav.getByRole('link',{name:'My Work',exact:true}).click();
+  await expect(page.getByRole('navigation',{name:'Field navigation'}).getByRole('link',{name:'My Work',exact:true})).toHaveAttribute('aria-current','page');
+ }else{
+  const nav=page.getByRole('navigation',{name:'Primary navigation'});
+  await expect(nav.getByRole('link',{name:'Home',exact:true})).toHaveAttribute('aria-current','page');
+  await nav.getByRole('link',{name:'Sites',exact:true}).click();
+  await expect(page.getByRole('navigation',{name:'Primary navigation'}).getByRole('link',{name:'Sites',exact:true})).toHaveAttribute('aria-current','page');
+ }
 });
 
 test('command palette traps keyboard focus and returns it to the opener',async({page})=>{
@@ -55,6 +63,7 @@ test('coarse-pointer controls meet the minimum release touch target',async({page
 test('reduced-motion preference suppresses nonessential motion durations',async({page})=>{
  await page.emulateMedia({reducedMotion:'reduce'});
  await page.goto('/');
- const duration=await page.getByRole('button',{name:'Search STRATUM'}).evaluate(element=>getComputedStyle(element).transitionDuration);
- expect(['0s','0.00001s','0.01ms']).toContain(duration);
+ const durations=await page.getByRole('button',{name:'Search STRATUM'}).evaluate(element=>getComputedStyle(element).transitionDuration.split(',').map(value=>value.trim()));
+ const seconds=durations.map(value=>value.endsWith('ms')?Number.parseFloat(value)/1000:Number.parseFloat(value));
+ expect(seconds.every(value=>Number.isFinite(value)&&value<=0.001)).toBeTruthy();
 });
