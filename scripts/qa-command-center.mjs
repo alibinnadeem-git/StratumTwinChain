@@ -22,7 +22,7 @@ const checks=[
  ['compact passport explicitly distinguishes DIR presence',referencePassport.includes('DIR RECORDED')&&referencePassport.includes('NO DIR')],
  ['reference passport states that DIR does not establish physical truth',referencePassport.includes('DIR reference does not by itself establish physical truth')],
  ['live asset card is explicitly tenant data',livePassport.includes('Live tenant record')],
- ['live asset card denies DIR-as-physical-truth inference',livePassport.includes('does not, by itself, a claim')||livePassport.includes('does not by itself')||livePassport.includes('not, by itself, a claim')),
+ ['live asset card denies DIR-as-physical-truth inference',livePassport.includes('does not, by itself, a claim')||livePassport.includes('does not by itself')||livePassport.includes('not, by itself, a claim')],
  ['home page states observed and Verified are distinct',page.includes('OBSERVED ≠ VERIFIED')],
  ['home page states DIR is not physical truth',page.includes('DIR ≠ PHYSICAL TRUTH')]
 ];
