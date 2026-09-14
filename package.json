@@ -11,6 +11,7 @@
     "qa:asset-archive": "node scripts/qa-asset-archive.mjs",
     "qa:command-center": "node scripts/qa-command-center.mjs",
     "qa:spatial-persistence": "node scripts/qa-spatial-persistence.mjs",
+    "qa:title-block": "node --experimental-strip-types scripts/qa-title-block.mjs",
     "qa:redbook": "node scripts/redbook-conformance.mjs",
     "qa:genesis": "node scripts/genesis-conformance.mjs",
     "qa:genesis-trust": "node scripts/genesis-trust-conformance.mjs",
