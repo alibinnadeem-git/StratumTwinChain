@@ -1,2 +1,12 @@
-import {evidence} from '@/lib/data';import EvidenceUpload from '@/components/EvidenceUpload';
-export default function Evidence(){return <><div className="page-head"><div><div className="eyebrow">Evidence Vault</div><h1 className="title">Private files. Publicly verifiable fingerprints.</h1><p className="subtitle">Evidence stays in controlled storage. SHA-256 fingerprints and minimal proof metadata can become part of Digital Immutable Records (DIR) without exposing private source files.</p></div><a className="action" href="#upload-evidence">+ Upload evidence</a></div><div className="card notice"><strong>Privacy by design</strong><span>Original customer files are never exposed through DIR. Cryptographic fingerprints prove integrity while the underlying files remain in permission-controlled storage.</span></div><div className="card table-card"><table className="table"><thead><tr><th>Evidence</th><th>Asset</th><th>Type</th><th>SHA-256</th><th>Visibility</th><th>DIR proof</th></tr></thead><tbody>{evidence.map(e=><tr key={e.id}><td><strong>{e.name}</strong><div className="muted">{e.id}</div></td><td>{e.assetId}</td><td>{e.kind}</td><td className="mono">{e.hash}</td><td>{e.privacy}</td><td>{e.status==='Verified'?<span className="proof">✓ Record #{e.block}</span>:<span className="pending">Pending</span>}</td></tr>)}</tbody></table></div><div style={{marginTop:16}}><EvidenceUpload/></div></>}
+import EvidenceCard from '@/components/ui/EvidenceCard';
+import EvidenceUpload from '@/components/EvidenceUpload';
+import {evidence} from '@/lib/data';
+
+export default function Evidence(){
+ return <>
+  <div className="page-head"><div><div className="eyebrow">Evidence Vault</div><h1 className="title">Private files. Publicly verifiable fingerprints.</h1><p className="subtitle">Evidence stays in controlled storage. SHA-256 fingerprints and minimal proof metadata can become part of Digital Immutable Records (DIR) without exposing private source files.</p></div><a className="action" href="#upload-evidence">+ Upload evidence</a></div>
+  <div className="card notice"><strong>Privacy by design</strong><span>Original customer files are never exposed through DIR. Cryptographic fingerprints prove integrity while the underlying files remain in permission-controlled storage.</span></div>
+  <div className="shared-evidence-grid">{evidence.map(item=><EvidenceCard key={item.id} evidence={item}/>)}</div>
+  <div style={{marginTop:16}}><EvidenceUpload/></div>
+ </>;
+}
