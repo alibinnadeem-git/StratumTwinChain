@@ -44,6 +44,8 @@ jobs:
         run: npm run qa:command-center
       - name: Spatial persistence and human-review conformance
         run: npm run qa:spatial-persistence
+      - name: PDF title-block intelligence conformance
+        run: npm run qa:title-block
       - run: npm run qa:ui
       - run: npm run typecheck
       - run: npm run build
