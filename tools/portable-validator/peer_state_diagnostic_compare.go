@@ -38,6 +38,10 @@ type PeerStateDiagnosticComparison struct {
 	RightBundleProfileVersion        string                            `json:"rightBundleProfileVersion"`
 	LeftIntegrityVerified            bool                              `json:"leftIntegrityVerified"`
 	RightIntegrityVerified           bool                              `json:"rightIntegrityVerified"`
+	BundleDigestComparable           bool                              `json:"bundleDigestComparable"`
+	BundleDigestMatch                bool                              `json:"bundleDigestMatch"`
+	LeftBundleDigestSHA256           string                            `json:"leftBundleDigestSha256,omitempty"`
+	RightBundleDigestSHA256          string                            `json:"rightBundleDigestSha256,omitempty"`
 	AuthenticityEstablished          bool                              `json:"authenticityEstablished"`
 	ConsensusAuthority               bool                              `json:"consensusAuthority"`
 	CanonicalHistorySelection        bool                              `json:"canonicalHistorySelection"`
@@ -110,6 +114,9 @@ func comparePeerStateDiagnosticBundles(leftDir, rightDir string) (PeerStateDiagn
 	leftTransportHash := strings.ToLower(left.TransportPublicKeyHash)
 	rightTransportHash := strings.ToLower(right.TransportPublicKeyHash)
 	transportComparable := leftTransportHash != "" && rightTransportHash != ""
+	leftBundleDigest := strings.ToLower(leftVerification.BundleDigestSHA256)
+	rightBundleDigest := strings.ToLower(rightVerification.BundleDigestSHA256)
+	bundleDigestComparable := leftVerification.BundleDigestVerified && rightVerification.BundleDigestVerified && leftBundleDigest != "" && rightBundleDigest != ""
 
 	comparison := PeerStateDiagnosticComparison{
 		ProfileVersion:                   peerStateDiagnosticCompareProfile,
@@ -117,6 +124,10 @@ func comparePeerStateDiagnosticBundles(leftDir, rightDir string) (PeerStateDiagn
 		RightBundleProfileVersion:        right.ProfileVersion,
 		LeftIntegrityVerified:            leftVerification.IntegrityVerified,
 		RightIntegrityVerified:           rightVerification.IntegrityVerified,
+		BundleDigestComparable:           bundleDigestComparable,
+		BundleDigestMatch:                bundleDigestComparable && leftBundleDigest == rightBundleDigest,
+		LeftBundleDigestSHA256:           leftBundleDigest,
+		RightBundleDigestSHA256:          rightBundleDigest,
 		AuthenticityEstablished:          false,
 		ConsensusAuthority:               false,
 		CanonicalHistorySelection:        false,
