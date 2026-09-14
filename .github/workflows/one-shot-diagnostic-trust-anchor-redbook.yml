@@ -1,0 +1,69 @@
+name: One-shot diagnostic trust-anchor Redbook update
+
+on:
+  push:
+    branches:
+      - redbook/povi-proof-verifying-sync-runtime-v1
+    paths:
+      - '.github/workflows/one-shot-diagnostic-trust-anchor-redbook.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  update-redbook-once:
+    if: github.event.head_commit.message == 'Add one-shot diagnostic trust anchor Redbook helper'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: redbook/povi-proof-verifying-sync-runtime-v1
+          fetch-depth: 0
+      - name: Synchronize trust-anchor lifecycle into Redbook addendum
+        env:
+          SECTION_B64: CiMjIEluZGVwZW5kZW50IGRpYWdub3N0aWMgdHJ1c3QtYW5jaG9yIGxpZmVjeWNsZQoKUG9pbnQtaW4tdGltZSBgLS10cnVzdGVkLWNvbmZpZ2AgdmVyaWZpY2F0aW9uIHJlbWFpbnMgc3VwcG9ydGVkLCBidXQgbG9uZy1saXZlZCBkaWFnbm9zdGljIGF1dGhlbnRpY2l0eSBtYXkgaW5zdGVhZCB1c2UgdGhlIGluZGVwZW5kZW50IGBTVFJBVFVNLVBFRVItU1RBVEUtRElBR05PU1RJQy1UUlVTVC1BTkNIT1IvMWAgam91cm5hbC4gVGhlIGpvdXJuYWwgaXMgZXh0ZXJuYWwgdG8gZXZlcnkgZGlhZ25vc3RpYyBidW5kbGUgYW5kIGlzIG5ldmVyIGxlYXJuZWQgZnJvbSwgbm9taW5hdGVkIGJ5LCBvciBjb3BpZWQgb3V0IG9mIGEgZG93bmxvYWRlZCBidW5kbGUuCgpUaGUgam91cm5hbCBpcyBhcHBlbmQtb25seSBKU09OTCB3aXRoIHRoZSBkb21haW4gYFNUUkFUVU0vUEVFUi1TVEFURS9ESUFHTk9TVElDLVRSVVNULUFOQ0hPUi8xYC4gRWFjaCByZWNvcmQgY2FycmllcyBhbiBleHBsaWNpdCBzZXF1ZW5jZSwgY2hhaW4gSUQsIHZhbGlkYXRvciBJRCwgVFJBTlNQT1JUIGtleSBpZGVudGl0eSBhbmQgdmVyc2lvbiwgaW1wbGVtZW50YXRpb24tZGVyaXZlZCBjb25maWcgZmluZ2VycHJpbnQsIGVmZmVjdGl2ZSB0aW1lLCByZWNvcmRlZCB0aW1lLCBvcGVyYXRvciBpZGVudGl0eSwgcHJvdmVuYW5jZSBraW5kL3JlZmVyZW5jZSwgcmVhc29uLCBwcmV2aW91cy1yZWNvcmQgZGlnZXN0LCBhbmQgZG9tYWluLXNlcGFyYXRlZCBTSEEtMjU2IHJlY29yZCBkaWdlc3QuCgpMaWZlY3ljbGUgYWN0aW9ucyBhcmUgZGVsaWJlcmF0ZWx5IG5hcnJvdzoKCi0gYFRSVVNUYCBtYXkgYXBwZWFyIG9ubHkgYXMgdGhlIGZpcnN0IGFuY2hvciBldmVudCBmb3Igb25lIGNoYWluL3ZhbGlkYXRvciBpZGVudGl0eS4KLSBgUk9UQVRFYCByZXF1aXJlcyBhbiBleGlzdGluZyBpbmRlcGVuZGVudGx5IHRydXN0ZWQgYW5jaG9yLCBtdXN0IGV4cGxpY2l0bHkgaWRlbnRpZnkgdGhlIGV4YWN0IHN1cGVyc2VkZWQga2V5IHZlcnNpb24gYW5kIHB1YmxpYy1rZXkgaGFzaCwgbXVzdCBpbmNyZW1lbnQgVFJBTlNQT1JUIGBrZXlWZXJzaW9uYCBieSBleGFjdGx5IG9uZSwgYW5kIG11c3QgaW50cm9kdWNlIHByZXZpb3VzbHkgdW5zZWVuIGtleSBtYXRlcmlhbC4KLSBgUkVWT0tFYC must identify the exact currently tracked anchor and cannot nominate a replacement key.
+- effective times must strictly advance for a given chain/validator identity; recorded times and journal sequence/digest continuity are also validated.
+- malformed records, unknown fields, broken hash chains, version gaps, stale/unknown keys, revoked current anchors, or a journal located inside the downloaded diagnostic bundle fail closed.
+
+`peer-state-diagnostic-trust-anchor-inspect` is read-only and supports an explicit historical `--effective-at` audit time. `peer-state-diagnostic-attestation-verify-anchor` may set `authenticityEstablished=true` only when the detached version-2 attestation is cryptographically valid and matches the independently effective ACTIVE trust anchor at the requested evaluation time. This lifecycle trust does not make the journal a PoVI trust root.
+
+The trust-anchor record and verification surfaces explicitly retain `consensusAuthority=false`, `canonicalHistorySelection=false`, `recoveryAuthority=false`, `voteAuthority=false`, `activationAuthority=false`, and `physicalTruthEstablished=false`. They do not advance the durable trusted head, mutate quarantine, apply governed proof bundles, change validator membership/quorum/governance, grant voting rights, authorize recovery, or change CANDIDATE state.
+
+Operator mutation commands require explicit provenance, reason, and effective time:
+
+```bash
+./stratum-validator-bootstrap peer-state-diagnostic-trust-anchor-add ...
+./stratum-validator-bootstrap peer-state-diagnostic-trust-anchor-rotate ...
+./stratum-validator-bootstrap peer-state-diagnostic-trust-anchor-revoke ...
+./stratum-validator-bootstrap peer-state-diagnostic-trust-anchor-inspect ...
+./stratum-validator-bootstrap peer-state-diagnostic-attestation-verify-anchor ...
+```
+
+A rotated or replacement TRANSPORT key is never trusted merely because a diagnostic bundle or detached attestation contains it. Trust changes only through the independently controlled anchor journal.
+
+
+        run: |
+          python3 - <<'PY'
+          import base64, os, pathlib
+          p=pathlib.Path('docs/redbook-peer-state-durability-addendum.md')
+          text=p.read_text()
+          marker='## Independent diagnostic bundle comparison'
+          section=base64.b64decode(os.environ['SECTION_B64']).decode('ascii')
+          if '## Independent diagnostic trust-anchor lifecycle' not in text:
+              if marker not in text: raise SystemExit('comparison marker missing')
+              text=text.replace(marker, section+marker, 1)
+          ci='`STRATUM Peer State Diagnostic Trust Anchor CI` separately guards the independent append-only diagnostic trust-anchor lifecycle with formatting, `go vet`, race-tested TRUST/ROTATE/REVOKE, historical-audit, tamper, bundle-self-nomination, and non-authority regressions. The full Portable Validator matrix remains required before this lifecycle is promoted as implemented.\n\n'
+          att='`STRATUM Peer State Diagnostic Attestation CI` separately guards version-2 canonical digest and detached-attestation semantics. It requires formatting, `go vet`, race-tested version-2 and attestation regressions, version-1 compatibility, verification-before-signing, exact `ED25519_TRANSPORT_IDENTITY` use, private/public key consistency, detached output, trusted-config-gated authenticity, and explicit false consensus/history/recovery/vote authority. It also contains negative source assertions preventing trusted-head mutation, quarantine mutation, governed proof application, activation, or authority escalation from entering the attestation path.\n\n'
+          if ci not in text:
+              if att not in text: raise SystemExit('attestation CI paragraph missing')
+              text=text.replace(att, att+ci, 1)
+          old='Synchronization, durable local state, diagnostic integrity, authenticated diagnostic provenance, and diagnostic comparison can make a candidate cryptographically informed and operationally resilient; they do not make it a consensus participant or establish physical truth.'
+          new='Synchronization, durable local state, diagnostic integrity, authenticated diagnostic provenance, diagnostic trust-anchor lifecycle, and diagnostic comparison can make a candidate cryptographically informed and operationally resilient; they do not make it a consensus participant or establish physical truth.'
+          text=text.replace(old,new,1)
+          p.write_text(text)
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/redbook-peer-state-durability-addendum.md
+          git commit -m 'Document diagnostic trust anchor lifecycle in Red Book'
+          git push origin HEAD:redbook/povi-proof-verifying-sync-runtime-v1
