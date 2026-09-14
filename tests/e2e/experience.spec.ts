@@ -22,3 +22,19 @@ test('command palette supports keyboard opening and clear no-match feedback',asy
  await page.keyboard.press('Escape');
  await expect(search).not.toBeVisible();
 });
+
+test('asset registry opens the universal asset drawer without losing list context',async({page})=>{
+ await page.goto('/assets');
+ const trigger=page.getByRole('button',{name:/Open Main Switchgear SG-01 quick view/i});
+ await expect(trigger).toBeVisible();
+ await trigger.click();
+ const drawer=page.getByRole('dialog',{name:/Main Switchgear SG-01 asset details/i});
+ await expect(drawer).toBeVisible();
+ await expect(drawer.getByText('Infrastructure context')).toBeVisible();
+ await expect(drawer.getByText('Lifecycle & trust')).toBeVisible();
+ await expect(drawer.getByText(/A DIR proves canonical network finality/i)).toBeVisible();
+ await expect(drawer.getByRole('link',{name:'Open full asset'})).toHaveAttribute('href',/\/assets\/STR-AST-0009281/);
+ await page.keyboard.press('Escape');
+ await expect(drawer).not.toBeVisible();
+ await expect(page).toHaveURL(/\/assets$/);
+});
