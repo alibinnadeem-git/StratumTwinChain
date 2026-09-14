@@ -3,6 +3,7 @@ import './responsive.css';
 import './redbook.css';
 import './semantic-tokens.css';
 import './design-system.css';
+import './accessibility.css';
 import Shell from '@/components/Shell';
 import {STRATUM_PRODUCT} from '@/lib/redbook/terminology';
 
