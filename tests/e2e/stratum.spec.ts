@@ -85,7 +85,7 @@ test('compiled Spatial model preserves level elevation rotation and source place
  await page.locator('input[type=file][accept*=".dxf"]').setInputFiles({name:'E2-Level-2-Power.dxf',mimeType:'application/dxf',buffer:Buffer.from(dxf)});
  await expect(page.getByText(/L2 @ 4m/).first()).toBeVisible();
  await page.goto('/spatial');
- await expect(page.getByText(/INFRASTRUCTURE OPERATING VIEW/i)).toBeVisible();
+ await expect(page.getByRole('heading',{name:/spatial operating and trust model for physical infrastructure/i})).toBeVisible();
  await expect(page.getByText(/1 level\(s\)/i)).toBeVisible();
  await expect(page.getByLabel('Environment mode')).toBeVisible();
 });
