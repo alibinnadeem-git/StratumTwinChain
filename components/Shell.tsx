@@ -3,10 +3,11 @@ import type {ReactNode} from 'react';
 import {demoSession} from '@/lib/auth/session';
 import CommandPalette from '@/components/CommandPalette';
 import PrimaryNav from '@/components/PrimaryNav';
+import SkipLink from '@/components/SkipLink';
 
 export default function Shell({children}:{children:ReactNode}){
  return <div className="shell">
-  <a className="skip-link" href="#main-content">Skip to main content</a>
+  <SkipLink/>
   <aside className="sidebar">
    <div className="sidebar-head">
     <Link href="/" className="brand">STRATUM <span>Spatial Verified</span></Link>
