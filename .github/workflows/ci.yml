@@ -38,6 +38,8 @@ jobs:
         run: npm run qa:plc
       - name: PoVI proposer entropy profile conformance
         run: npm run qa:vrf
+      - name: Asset archive and restore safety conformance
+        run: npm run qa:asset-archive
       - run: npm run qa:ui
       - run: npm run typecheck
       - run: npm run build
