@@ -1,6 +1,7 @@
 import {expect,test} from '@playwright/test';
 
 const routes=['/','/spatial','/twin','/compiler','/component-library','/reality','/projects','/sites','/assets','/workflows','/maintenance','/predictive','/simulation','/evidence','/handover','/provenance','/verify','/dir','/admin','/inspection','/passports','/asset-passports','/passport/STR-AST-0009281','/build','/install','/operate','/predictive-maintenance','/reality-reconciliation','/digital-handover','/client-trust','/chain-explorer','/trust','/twin-compiler','/dirs'];
+const sourceUpload=(page:import('@playwright/test').Page)=>page.locator('input[type=file][accept*=".dxf"]');
 
 test.describe('STRATUM Spatial Verified route and responsive UAT',()=>{
  for(const route of routes){
@@ -61,7 +62,7 @@ test('Spatial layer controls are interactive',async({page})=>{
 test('Spatial Compiler accepts a real DXF through the file workflow',async({page})=>{
  await page.goto('/compiler');
  const dxf=`0\nSECTION\n2\nENTITIES\n0\nINSERT\n8\nE-EQUIP\n2\nPANEL-LP1\n10\n100\n20\n200\n0\nLINE\n8\nE-FEEDER\n10\n100\n20\n200\n11\n300\n21\n200\n0\nENDSEC\n0\nEOF\n`;
- await page.locator('input[type=file]').setInputFiles({name:'E1-test.dxf',mimeType:'application/dxf',buffer:Buffer.from(dxf)});
+ await sourceUpload(page).setInputFiles({name:'E1-test.dxf',mimeType:'application/dxf',buffer:Buffer.from(dxf)});
  await expect(page.getByText('E1-test.dxf')).toBeVisible();
  await expect(page.getByText(/CAD entities|Architectural compilation updated/i).first()).toBeVisible();
  await expect(page.getByText(/PARSED/).first()).toBeVisible();
@@ -70,7 +71,7 @@ test('Spatial Compiler accepts a real DXF through the file workflow',async({page
 test('compiled Spatial model preserves level elevation rotation and source placement',async({page})=>{
  await page.goto('/compiler');
  const dxf=`0\nSECTION\n2\nENTITIES\n0\nINSERT\n8\nE-EQUIP\n2\nPANELBOARD LP-2\n10\n100\n20\n200\n30\n0\n41\n1.25\n42\n1.25\n50\n90\n0\nTEXT\n8\nA-ROOM\n1\nELECTRICAL ROOM 201\n10\n102\n20\n202\n0\nENDSEC\n0\nEOF\n`;
- await page.locator('input[type=file]').setInputFiles({name:'E2-Level-2-Power.dxf',mimeType:'application/dxf',buffer:Buffer.from(dxf)});
+ await sourceUpload(page).setInputFiles({name:'E2-Level-2-Power.dxf',mimeType:'application/dxf',buffer:Buffer.from(dxf)});
  await expect(page.getByText(/L2 @ 4m/).first()).toBeVisible();
  await page.goto('/spatial');
  await expect(page.getByText(/INFRASTRUCTURE OPERATING VIEW/i)).toBeVisible();
@@ -81,7 +82,7 @@ test('compiled Spatial model preserves level elevation rotation and source place
 test('DXF closed architectural polyline becomes reconstructed Spatial room geometry',async({page})=>{
  await page.goto('/compiler');
  const dxf=`0\nSECTION\n2\nHEADER\n9\n$INSUNITS\n70\n2\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n0\nLWPOLYLINE\n8\nA-ROOM\n70\n1\n10\n0\n20\n0\n10\n20\n20\n0\n10\n20\n20\n15\n10\n0\n20\n15\n0\nTEXT\n8\nA-ROOM\n1\nELECTRICAL ROOM 101\n10\n10\n20\n7\n0\nINSERT\n8\nE-EQUIP\n2\nPANELBOARD LP-1\n10\n12\n20\n8\n0\nENDSEC\n0\nEOF\n`;
- await page.locator('input[type=file]').setInputFiles({name:'A-E-Level-1-Room.dxf',mimeType:'application/dxf',buffer:Buffer.from(dxf)});
+ await sourceUpload(page).setInputFiles({name:'A-E-Level-1-Room.dxf',mimeType:'application/dxf',buffer:Buffer.from(dxf)});
  await expect(page.getByText(/1 reconstructed rooms/i)).toBeVisible();
  await expect(page.getByText(/units ft/i).first()).toBeVisible();
  await page.goto('/spatial');
