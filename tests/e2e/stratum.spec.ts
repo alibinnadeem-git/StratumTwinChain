@@ -20,10 +20,13 @@ test.describe('STRATUM Spatial Verified route and responsive UAT',()=>{
  }
 });
 
-test('command center exposes the canonical Redbook product and implementation discipline',async({page})=>{
+test('Home is role-aware while preserving explicit implementation status',async({page})=>{
  await page.goto('/');
  await expect(page.getByText('STRATUM Spatial Verified',{exact:false}).first()).toBeVisible();
- await expect(page.getByText(/Redbook implementation order/i)).toBeVisible();
+ await expect(page.getByText(/Program command/i)).toBeVisible();
+ await expect(page.getByRole('heading',{name:/See what needs attention across STRATUM/i})).toBeVisible();
+ await expect(page.getByText(/Your most relevant actions/i)).toBeVisible();
+ await expect(page.getByText(/Implementation status/i)).toBeVisible();
  await expect(page.getByText('P0 · PARTIAL',{exact:true})).toBeVisible();
  await expect(page.getByText('P1 · IN PROGRESS',{exact:true})).toBeVisible();
 });
