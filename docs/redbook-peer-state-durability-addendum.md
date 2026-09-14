@@ -213,6 +213,36 @@ Even then, authenticated provenance means only that the detached signature match
 
 The attestation uses the TRANSPORT identity, not a PoVI voting key, and does not alter consensus ability.
 
+## Independent diagnostic trust-anchor lifecycle
+
+Point-in-time `--trusted-config` verification remains supported, but long-lived diagnostic authenticity may instead use the independent `STRATUM-PEER-STATE-DIAGNOSTIC-TRUST-ANCHOR/1` journal. The journal is external to every diagnostic bundle and is never learned from, nominated by, or copied out of a downloaded bundle.
+
+The journal is append-only JSONL with the domain `STRATUM/PEER-STATE/DIAGNOSTIC-TRUST-ANCHOR/1`. Each record carries an explicit sequence, chain ID, validator ID, TRANSPORT key identity and version, implementation-derived config fingerprint, effective time, recorded time, operator identity, provenance kind/reference, reason, previous-record digest, and domain-separated SHA-256 record digest.
+
+Lifecycle actions are deliberately narrow:
+
+- `TRUST` may appear only as the first anchor event for one chain/validator identity.
+- `ROTATE` requires an existing independently trusted anchor, must explicitly identify the exact superseded key version and public-key hash, must increment TRANSPORT `keyVersion` by exactly one, and must introduce previously unseen key material.
+- `REVOKE` must identify the exact currently tracked anchor and cannot nominate a replacement key.
+- effective times must strictly advance for a given chain/validator identity; recorded times and journal sequence/digest continuity are also validated.
+- malformed records, unknown fields, broken hash chains, version gaps, stale/unknown keys, revoked current anchors, or a journal located inside the downloaded diagnostic bundle fail closed.
+
+`peer-state-diagnostic-trust-anchor-inspect` is read-only and supports an explicit historical `--effective-at` audit time. `peer-state-diagnostic-attestation-verify-anchor` may set `authenticityEstablished=true` only when the detached version-2 attestation is cryptographically valid and matches the independently effective ACTIVE trust anchor at the requested evaluation time. This lifecycle trust does not make the journal a PoVI trust root.
+
+The trust-anchor record and verification surfaces explicitly retain `consensusAuthority=false`, `canonicalHistorySelection=false`, `recoveryAuthority=false`, `voteAuthority=false`, `activationAuthority=false`, and `physicalTruthEstablished=false`. They do not advance the durable trusted head, mutate quarantine, apply governed proof bundles, change validator membership/quorum/governance, grant voting rights, authorize recovery, or change CANDIDATE state.
+
+Operator mutation commands require explicit provenance, reason, and effective time:
+
+```bash
+./stratum-validator-bootstrap peer-state-diagnostic-trust-anchor-add ...
+./stratum-validator-bootstrap peer-state-diagnostic-trust-anchor-rotate ...
+./stratum-validator-bootstrap peer-state-diagnostic-trust-anchor-revoke ...
+./stratum-validator-bootstrap peer-state-diagnostic-trust-anchor-inspect ...
+./stratum-validator-bootstrap peer-state-diagnostic-attestation-verify-anchor ...
+```
+
+A rotated or replacement TRANSPORT key is never trusted merely because a diagnostic bundle or detached attestation contains it. Trust changes only through the independently controlled anchor journal.
+
 ## Independent diagnostic bundle comparison
 
 `peer-state-diagnostic-compare --left <diagnostic-directory> --right <diagnostic-directory>` compares two diagnostic packages only after independently verifying both packages through the existing diagnostic verifier.
@@ -244,6 +274,8 @@ If either bundle fails independent diagnostic verification, comparison fails rat
 
 `STRATUM Peer State Diagnostic Attestation CI` separately guards version-2 canonical digest and detached-attestation semantics. It requires formatting, `go vet`, race-tested version-2 and attestation regressions, version-1 compatibility, verification-before-signing, exact `ED25519_TRANSPORT_IDENTITY` use, private/public key consistency, detached output, trusted-config-gated authenticity, and explicit false consensus/history/recovery/vote authority. It also contains negative source assertions preventing trusted-head mutation, quarantine mutation, governed proof application, activation, or authority escalation from entering the attestation path.
 
+`STRATUM Peer State Diagnostic Trust Anchor CI` separately guards the independent append-only diagnostic trust-anchor lifecycle with formatting, `go vet`, race-tested TRUST/ROTATE/REVOKE, historical-audit, tamper, bundle-self-nomination, and non-authority regressions. The full Portable Validator matrix remains required before this lifecycle is promoted as implemented.
+
 The full `STRATUM Portable Validator CI` remains the cross-platform promotion gate, including protocol vectors, vet/tests, host build, Linux ARM64/Raspberry Pi, Linux AMD64, macOS ARM64, Windows AMD64, and final safety invariants.
 
 Operator Alert Delivery CI separately guards file-plus-parent-directory durability for operator alerts/acknowledgements and the delivery receipt/compact-state journal.
@@ -256,4 +288,4 @@ Filesystem, kernel, virtual-disk, hypervisor, and underlying hardware semantics 
 
 ## Boundary unchanged
 
-Nothing in this addendum permits a CANDIDATE node to PROPOSE, VERIFY-vote, COMMIT-vote, ROUND_CHANGE, create PLC/PFC votes, alter validator governance, select canonical history, authorize recovery, or become ACTIVE. Synchronization, durable local state, diagnostic integrity, authenticated diagnostic provenance, and diagnostic comparison can make a candidate cryptographically informed and operationally resilient; they do not make it a consensus participant or establish physical truth.
+Nothing in this addendum permits a CANDIDATE node to PROPOSE, VERIFY-vote, COMMIT-vote, ROUND_CHANGE, create PLC/PFC votes, alter validator governance, select canonical history, authorize recovery, or become ACTIVE. Synchronization, durable local state, diagnostic integrity, authenticated diagnostic provenance, diagnostic trust-anchor lifecycle, and diagnostic comparison can make a candidate cryptographically informed and operationally resilient; they do not make it a consensus participant or establish physical truth.
