@@ -1,4 +1,4 @@
-import {fitSheetSimilarity,type SheetSimilarity} from './sheet-similarity';
+import {fitSheetSimilarity,type SheetSimilarity} from './sheet-similarity.ts';
 
 export type AlignmentEntity={id:string;name:string;x:number;y:number;kind:string;confidence:number;meta?:Record<string,unknown>};
 export type AlignmentSheet={sourceSha256:string;page:number;sheetNumber:{value:string|null};discipline:{value:string|null};reviewState:'CANDIDATE'|'CONFIRMED'};
