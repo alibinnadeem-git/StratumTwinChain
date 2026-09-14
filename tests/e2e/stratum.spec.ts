@@ -64,8 +64,15 @@ test('Spatial Compiler accepts a real DXF through the file workflow',async({page
  const dxf=`0\nSECTION\n2\nENTITIES\n0\nINSERT\n8\nE-EQUIP\n2\nPANEL-LP1\n10\n100\n20\n200\n0\nLINE\n8\nE-FEEDER\n10\n100\n20\n200\n11\n300\n21\n200\n0\nENDSEC\n0\nEOF\n`;
  await sourceUpload(page).setInputFiles({name:'E1-test.dxf',mimeType:'application/dxf',buffer:Buffer.from(dxf)});
  await expect(page.getByText('E1-test.dxf')).toBeVisible();
- await expect(page.getByText(/CAD entities|Architectural compilation updated/i).first()).toBeVisible();
- await expect(page.getByText(/PARSED/).first()).toBeVisible();
+ await expect(page.getByRole('status').filter({hasText:/Source compilation updated: 1\/1 sources/i})).toBeVisible();
+ const compiled=await page.evaluate(()=>{
+  const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
+  return{source:graph.sources?.[0]?.name,names:(graph.entities||[]).map((entity:any)=>entity.name),stats:graph.stats};
+ });
+ expect(compiled.source).toBe('E1-test.dxf');
+ expect(compiled.names).toContain('PANEL-LP1');
+ expect(compiled.stats.L2).toBeGreaterThanOrEqual(1);
+ expect(compiled.stats.L3).toBeGreaterThanOrEqual(1);
 });
 
 test('compiled Spatial model preserves level elevation rotation and source placement',async({page})=>{
@@ -73,10 +80,21 @@ test('compiled Spatial model preserves level elevation rotation and source place
  const dxf=`0\nSECTION\n2\nENTITIES\n0\nINSERT\n8\nE-EQUIP\n2\nPANELBOARD LP-2\n10\n100\n20\n200\n30\n0\n41\n1.25\n42\n1.25\n50\n90\n0\nTEXT\n8\nA-ROOM\n1\nELECTRICAL ROOM 201\n10\n102\n20\n202\n0\nENDSEC\n0\nEOF\n`;
  await sourceUpload(page).setInputFiles({name:'E2-Level-2-Power.dxf',mimeType:'application/dxf',buffer:Buffer.from(dxf)});
  await expect(page.getByText(/L2 @ 4m/).first()).toBeVisible();
+ const sourceEntity=await page.evaluate(()=>{
+  const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
+  const entity=(graph.entities||[]).find((item:any)=>item.name==='PANELBOARD LP-2'&&item.layer==='L2');
+  return entity?{floor:entity.floor,z:entity.z,rotation:entity.rotation,scale:entity.scale,source:entity.source}:null;
+ });
+ expect(sourceEntity).not.toBeNull();
+ expect(sourceEntity!.floor).toBe('L2');
+ expect(sourceEntity!.z).toBe(4);
+ expect(sourceEntity!.rotation).toBe(90);
+ expect(sourceEntity!.scale).toBeCloseTo(1.25,6);
+ expect(sourceEntity!.source).toBe('E2-Level-2-Power.dxf');
  await page.goto('/spatial');
- await expect(page.getByText(/INFRASTRUCTURE OPERATING VIEW/i)).toBeVisible();
- await expect(page.getByText(/1 level\(s\)/i)).toBeVisible();
  await expect(page.getByLabel('Environment mode')).toBeVisible();
+ await expect(page.getByLabel('Floor isolation')).toContainText('L2');
+ await expect(page.getByLabel('Imported object')).toContainText('PANELBOARD LP-2');
 });
 
 test('DXF closed architectural polyline becomes reconstructed Spatial room geometry',async({page})=>{
