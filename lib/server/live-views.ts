@@ -3,6 +3,15 @@ import {query} from './db';
 export type LiveAssetRow={
   id:string;asset_code:string;asset_type:string;name:string;model:string|null;serial_number:string|null;location_label:string|null;status:string;qr_token:string;specifications:Record<string,unknown>;installed_at:Date|null;commissioned_at:Date|null;warranty_expires_at:Date|null;project_code:string;project_name:string;site_name:string;system_name:string|null;manufacturer_name:string|null;latest_event_id:string|null;latest_event_type:string|null;latest_event_status:string|null;ledger_network:string|null;ledger_tx_hash:string|null;ledger_block_height:string|null;anchored_at:Date|null;};
 
+export type LiveActivity={
+  id:string;
+  title:string;
+  meta:string;
+  kind:'maintain'|'inspect'|'commission'|'evidence'|'info';
+  occurredAt:Date;
+  source:'live';
+};
+
 export async function liveAssets(){
   const r=await query<LiveAssetRow>(`SELECT a.id,a.asset_code,a.asset_type,a.name,a.model,a.serial_number,a.location_label,a.status,a.qr_token::text,a.specifications,a.installed_at,a.commissioned_at,a.warranty_expires_at,p.project_code,p.name project_name,si.name site_name,sy.name system_name,m.name manufacturer_name,le.id::text latest_event_id,le.event_type::text latest_event_type,le.status::text latest_event_status,le.ledger_network,le.ledger_tx_hash,le.ledger_block_height::text,le.anchored_at FROM assets a JOIN projects p ON p.id=a.project_id JOIN sites si ON si.id=a.site_id LEFT JOIN systems sy ON sy.id=a.system_id LEFT JOIN manufacturers m ON m.id=a.manufacturer_id LEFT JOIN LATERAL (SELECT x.* FROM lifecycle_events x WHERE x.asset_id=a.id AND x.status='VERIFIED' ORDER BY x.anchored_at DESC NULLS LAST,x.occurred_at DESC LIMIT 1) le ON true ORDER BY COALESCE(le.anchored_at,a.created_at) DESC LIMIT 500`);
   return r.rows;
@@ -21,6 +30,56 @@ export async function assetLifecycle(assetId:string){
 export async function publicEvidence(assetId:string){
   const r=await query<any>(`SELECT ev.id::text,ev.kind,ev.sha256,ev.visibility,ev.captured_at FROM evidence ev WHERE ev.asset_id=$1 ORDER BY ev.captured_at DESC NULLS LAST,ev.created_at DESC`,[assetId]);
   return r.rows;
+}
+
+function activityKind(eventType:string):LiveActivity['kind']{
+  const value=eventType.toUpperCase();
+  if(value.includes('MAINTAIN')||value.includes('SERVICE'))return'maintain';
+  if(value.includes('INSPECT')||value.includes('TEST'))return'inspect';
+  if(value.includes('COMMISSION')||value.includes('ENERG'))return'commission';
+  return'info';
+}
+
+function activityTitle(eventType:string){
+  const readable=eventType.toLowerCase().replaceAll('_',' ').replace(/\b\w/g,letter=>letter.toUpperCase());
+  return `${readable} recorded`;
+}
+
+function activityTime(value:Date){
+  return new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZone:'UTC'}).format(value);
+}
+
+export async function recentActivity(limit=8):Promise<LiveActivity[]>{
+  const safeLimit=Math.max(1,Math.min(25,Math.trunc(limit)||8));
+  const [lifecycle,evidence]=await Promise.all([
+    query<any>(`SELECT le.id::text,le.event_type::text,le.status::text,le.occurred_at,le.ledger_block_height::text,a.asset_code,a.name asset_name FROM lifecycle_events le JOIN assets a ON a.id=le.asset_id ORDER BY le.occurred_at DESC LIMIT $1`,[safeLimit]),
+    query<any>(`SELECT ev.id::text,ev.kind::text,ev.visibility::text,COALESCE(ev.captured_at,ev.created_at) occurred_at,a.asset_code,a.name asset_name FROM evidence ev JOIN assets a ON a.id=ev.asset_id ORDER BY COALESCE(ev.captured_at,ev.created_at) DESC LIMIT $1`,[safeLimit])
+  ]);
+  const lifecycleRows:LiveActivity[]=lifecycle.rows.map((row:any)=>{
+    const occurredAt=new Date(row.occurred_at);
+    const recordReference=row.ledger_block_height?`DIR #${row.ledger_block_height} recorded`:`Lifecycle status ${String(row.status||'RECORDED').replaceAll('_',' ')}`;
+    return{
+      id:`lifecycle:${row.id}`,
+      title:activityTitle(String(row.event_type||'LIFECYCLE_EVENT')),
+      meta:`${row.asset_name||row.asset_code} • ${recordReference} • ${activityTime(occurredAt)}`,
+      kind:activityKind(String(row.event_type||'')),
+      occurredAt,
+      source:'live' as const
+    };
+  });
+  const evidenceRows:LiveActivity[]=evidence.rows.map((row:any)=>{
+    const occurredAt=new Date(row.occurred_at);
+    const kind=String(row.kind||'Evidence').replaceAll('_',' ');
+    return{
+      id:`evidence:${row.id}`,
+      title:`${kind} evidence captured`,
+      meta:`${row.asset_name||row.asset_code} • ${String(row.visibility||'PRIVATE').replaceAll('_',' ')} evidence • ${activityTime(occurredAt)}`,
+      kind:'evidence' as const,
+      occurredAt,
+      source:'live' as const
+    };
+  });
+  return[...lifecycleRows,...evidenceRows].filter(item=>Number.isFinite(item.occurredAt.getTime())).sort((a,b)=>b.occurredAt.getTime()-a.occurredAt.getTime()).slice(0,safeLimit);
 }
 
 export async function recentChain(){
