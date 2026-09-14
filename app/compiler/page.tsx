@@ -1,4 +1,5 @@
 import CompilerWorkspace from '@/components/CompilerWorkspace';
+import RoomReconstructionReview from '@/components/RoomReconstructionReview';
 import TitleBlockIntelligence from '@/components/TitleBlockIntelligence';
 import AutoSheetAlignmentReview from '@/components/AutoSheetAlignmentReview';
 import SpatialCompilationPersistence from '@/components/SpatialCompilationPersistence';
@@ -6,6 +7,7 @@ import SpatialCompilationPersistence from '@/components/SpatialCompilationPersis
 export default function CompilerPage(){return <>
   <div className="page-head"><div><div className="eyebrow">STRATUM Spatial Compiler</div><h1 className="title">Engineering sources in. Traceable Spatial model out.</h1><p className="subtitle">Ingest drawing sets and engineering sources, fingerprint originals, classify disciplines, preserve revisions and source transforms, build cross-document relationships, surface confidence exceptions, and compile the reviewed project graph that drives STRATUM Spatial Verified. Inference remains inference until reviewed.</p></div><div className="badge">SOURCE → SPATIAL → ASSET</div></div>
   <CompilerWorkspace/>
+  <RoomReconstructionReview/>
   <TitleBlockIntelligence/>
   <AutoSheetAlignmentReview/>
   <SpatialCompilationPersistence/>
