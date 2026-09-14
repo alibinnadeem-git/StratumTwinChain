@@ -9,6 +9,6 @@ export default function EvidenceCard({evidence}:{evidence:EvidenceCardRecord}){
  return <article className="shared-evidence-card" data-evidence-id={evidence.id}>
   <header><div><div className="eyebrow">{evidence.kind}</div><h3>{evidence.name}</h3><small>{evidence.id} · {evidence.assetId}</small></div><SemanticBadge domain="privacy" state={privacyState}/></header>
   <div className="shared-evidence-hash"><span>SHA-256</span><code>{evidence.hash}</code></div>
-  <footer><SemanticBadge domain="trust" state={verified?'POVI_VERIFIED':'UNVERIFIED'} label={verified?`DIR ${evidence.block??'verified'}`:'Pending verification'}/></footer>
+  <footer><SemanticBadge domain="trust" state={verified?(evidence.block?'DIR_RECORDED':'SOURCE_VERIFIED'):'UNVERIFIED'} label={verified?(evidence.block?`DIR ${evidence.block} recorded`:'Evidence verified'):'Pending verification'}/></footer>
  </article>;
 }
