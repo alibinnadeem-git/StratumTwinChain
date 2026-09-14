@@ -48,3 +48,21 @@ test('trust states resolve through the shared semantic token system',async({page
  expect(states.length).toBeGreaterThanOrEqual(2);
  expect(states.some(state=>state==='LIVE'||state==='STALE')).toBeTruthy();
 });
+
+test('field workflow uses shared work and approval components',async({page})=>{
+ await page.goto('/workflows');
+ const progress=page.getByLabel('Work progress');
+ await expect(progress).toBeVisible();
+ await expect(progress.locator('.shared-work-step')).toHaveCount(10);
+ await expect(page.locator('.shared-approval-card')).toBeVisible();
+ await expect(page.locator('[data-semantic-domain="approval"][data-semantic-state="PENDING"]')).toBeVisible();
+});
+
+test('evidence vault uses shared evidence cards and privacy semantics',async({page})=>{
+ await page.goto('/evidence');
+ const cards=page.locator('.shared-evidence-card');
+ expect(await cards.count()).toBeGreaterThan(0);
+ await expect(cards.first()).toBeVisible();
+ await expect(cards.first().locator('[data-semantic-domain="privacy"]')).toBeVisible();
+ await expect(cards.first().locator('[data-semantic-domain="trust"]')).toBeVisible();
+});
