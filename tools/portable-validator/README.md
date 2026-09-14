@@ -392,3 +392,28 @@ The following remain incomplete and must not be represented as implemented:
 - resource benchmarking before publishing final minimum hardware claims.
 
 Until those activation gates are completed and distributed UAT passes, the portable validator remains **PARTIAL overall / candidate-only**, even though proof verification, multi-peer resolution, local peer-safety controls, bounded peer-evidence retention, operational reliability state, advisory sync-peer ordering, request-cancelable continuous read-only following, durable follower status, local operator alert journaling, append-only alert acknowledgement, explicit and optional follower-triggered one-way webhook delivery, read-only/hard-bounded delivery-receipt operations, bounded non-authoritative verified-proof caching, and reviewable Linux/Raspberry Pi, macOS, and Windows candidate-follower auto-start packaging are implemented on this feature branch.
+
+
+## Diagnostic bundle trust ladder
+
+Diagnostic verification is deliberately layered and remains separate from PoVI consensus authority:
+
+1. **v1 diagnostic export - integrity-compatible only.** Version 1 remains supported for incident/export compatibility. Its files can be verified, but it has no canonical v2 bundle digest. When a v1 bundle participates in comparison, `bundleDigestComparable=false`; it is **non-comparable**, not a digest mismatch.
+2. **v2 diagnostic export - integrity + canonical correlation digest.** Version 2 adds the domain-separated canonical bundle digest and the comparison fields `bundleDigestComparable`, `bundleDigestMatch`, `leftBundleDigestSha256`, and `rightBundleDigestSha256`. Digest equality correlates independently verified diagnostic content; it does not establish creator identity, PoVI finality, canonical history, recovery authority, governance authority, vote authority, activation authority, or physical truth.
+3. **Detached Ed25519 TRANSPORT attestation - cryptographic signer proof, self-asserted until independently trusted.** The detached signature binds the verified v2 digest to the supplied TRANSPORT public key. Signature validity alone leaves `authenticityEstablished=false`.
+4. **`--trusted-config` - point-in-time independent authenticity check.** Supplying an independently obtained trusted validator config can establish diagnostic signer authenticity when chain identity, validator identity, config fingerprint, TRANSPORT purpose/algorithm/key version/public key/hash, digest, and signature all match. This is an external trust check only; it does not modify validator membership or PoVI state.
+5. **Independent trust-anchor journal - lifecycle-managed diagnostic authenticity.** `STRATUM-PEER-STATE-DIAGNOSTIC-TRUST-ANCHOR/1` is an append-only, domain-separated, SHA-256 hash-chained operator journal with explicit provenance, effective time, `TRUST`, exact monotonic `ROTATE`, and explicit `REVOKE` records. Rotated keys are never silently accepted, revoked/unanchored keys fail closed, historical verification requires an explicit `--effective-at`, and the journal must be supplied independently outside the downloaded diagnostic bundle. A bundle can never nominate its own trust anchor.
+
+The trust-anchor lifecycle is diagnostic-only. Its inspection and verification paths are read-only with respect to STRATUM Chain state and keep `consensusAuthority=false`, `canonicalHistorySelection=false`, `recoveryAuthority=false`, `voteAuthority=false`, `activationAuthority=false`, and `physicalTruthEstablished=false`. It never changes a node from `CANDIDATE`, never changes validator governance/quorum, never advances a trusted head, and never authorizes `PROPOSE`, `VERIFY`, `COMMIT`, `ROUND_CHANGE`, PLC/PFC voting, or CANDIDATE-to-ACTIVE.
+
+Operator lifecycle commands:
+
+```bash
+./stratum-validator-bootstrap peer-state-diagnostic-trust-anchor-add ...
+./stratum-validator-bootstrap peer-state-diagnostic-trust-anchor-rotate ...
+./stratum-validator-bootstrap peer-state-diagnostic-trust-anchor-revoke ...
+./stratum-validator-bootstrap peer-state-diagnostic-trust-anchor-inspect ...
+./stratum-validator-bootstrap peer-state-diagnostic-attestation-verify-anchor ...
+```
+
+Trust-anchor mutation commands require explicit operator provenance/reason and explicit effective time. Verification defaults to current-time trust; `--effective-at` is the explicit historical audit mechanism for superseded periods.
