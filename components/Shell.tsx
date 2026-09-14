@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type {ReactNode} from 'react';
 import {demoSession} from '@/lib/auth/session';
+import CommandPalette from '@/components/CommandPalette';
 
 const primary=[
  ['/','Home'],
@@ -18,6 +19,7 @@ export default function Shell({children}:{children:ReactNode}){
     <div className="network-pill"><i/> DIRs · {process.env.STRATUM_CHAIN_ID||'stratum-devnet-1'}</div>
     <div className="redbook-version">Redbook 1.0 baseline</div>
    </div>
+   <CommandPalette/>
    <nav className="nav" aria-label="Primary navigation">
     <div className="nav-group">
      <small>Workspace</small>
