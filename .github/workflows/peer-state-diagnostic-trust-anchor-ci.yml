@@ -1,3 +1,4 @@
+# Permanent P0 gate for diagnostic trust-anchor lifecycle and non-authority boundaries.
 name: STRATUM Peer State Diagnostic Trust Anchor CI
 on:
   pull_request:
