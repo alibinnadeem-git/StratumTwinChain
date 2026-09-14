@@ -63,7 +63,7 @@ test('sheet review requires explicit room confirmation and alignment remains rev
  const review=page.getByRole('region',{name:'Drawing review'});
  await expect(review).toBeVisible();
  await review.getByLabel('Drawing sheet').selectOption({label:'review-sheet.pdf · page 1'});
- await review.getByLabel('Boundary').selectOption({label:/PDF closed path · page 1/});
+ await review.getByLabel('Boundary').selectOption('pdf-room-1-test');
  await review.getByLabel('Reviewed room name').fill('Electrical Room 101');
  await review.getByRole('button',{name:'Confirm selected boundary as room'}).click();
  await expect(review.getByRole('status')).toContainText(/Drawing review saved/i);
