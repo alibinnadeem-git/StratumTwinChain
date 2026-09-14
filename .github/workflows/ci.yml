@@ -50,6 +50,8 @@ jobs:
         run: npm run qa:auto-alignment
       - name: Room reconstruction and HITL conformance
         run: npm run qa:room-reconstruction
+      - name: Field scan tenant identity conformance
+        run: npm run qa:field-scan
       - run: npm run qa:ui
       - run: npm run typecheck
       - run: npm run build
