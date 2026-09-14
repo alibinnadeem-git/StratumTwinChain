@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import {useEffect,useState} from 'react';
+import {useEffect,useRef,useState} from 'react';
 import StatusChip from '@/components/ui/StatusChip';
 
 export type AssetDrawerRecord={
@@ -22,22 +22,48 @@ export type AssetDrawerRecord={
 
 export default function AssetDrawer({asset}:{asset:AssetDrawerRecord}){
  const [open,setOpen]=useState(false);
+ const triggerRef=useRef<HTMLButtonElement>(null);
+ const drawerRef=useRef<HTMLElement>(null);
+ const closeRef=useRef<HTMLButtonElement>(null);
+ const returnFocusRef=useRef<HTMLElement|null>(null);
+ const openDrawer=()=>{
+  returnFocusRef.current=document.activeElement instanceof HTMLElement?document.activeElement:triggerRef.current;
+  setOpen(true);
+ };
+ const closeDrawer=()=>{
+  setOpen(false);
+  requestAnimationFrame(()=>returnFocusRef.current?.focus());
+ };
  useEffect(()=>{
   if(!open)return;
-  const onKey=(event:KeyboardEvent)=>{if(event.key==='Escape')setOpen(false)};
+  closeRef.current?.focus();
+  const onKey=(event:KeyboardEvent)=>{
+   if(event.key==='Escape'){
+    event.preventDefault();
+    closeDrawer();
+    return;
+   }
+   if(event.key==='Tab'&&drawerRef.current){
+    const focusable=[...drawerRef.current.querySelectorAll<HTMLElement>('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])')].filter(element=>!element.hasAttribute('disabled'));
+    if(!focusable.length)return;
+    const first=focusable[0],last=focusable[focusable.length-1],active=document.activeElement;
+    if(event.shiftKey&&active===first){event.preventDefault();last.focus();}
+    else if(!event.shiftKey&&active===last){event.preventDefault();first.focus();}
+   }
+  };
   window.addEventListener('keydown',onKey);
   return()=>window.removeEventListener('keydown',onKey);
  },[open]);
 
  return <>
-  <button className="asset-drawer-trigger" type="button" onClick={()=>setOpen(true)} aria-label={`Open ${asset.name} quick view`}>
+  <button ref={triggerRef} className="asset-drawer-trigger" type="button" onClick={openDrawer} aria-label={`Open ${asset.name} quick view`} aria-haspopup="dialog" aria-expanded={open}>
    <strong>{asset.name}</strong><span>{asset.assetCode} · {asset.assetType}</span>
   </button>
-  {open&&<div className="asset-drawer-backdrop" role="presentation" onMouseDown={()=>setOpen(false)}>
-   <aside className="asset-drawer" role="dialog" aria-modal="true" aria-label={`${asset.name} asset details`} onMouseDown={event=>event.stopPropagation()}>
+  {open&&<div className="asset-drawer-backdrop" role="presentation" onMouseDown={closeDrawer}>
+   <aside ref={drawerRef} className="asset-drawer" role="dialog" aria-modal="true" aria-label={`${asset.name} asset details`} onMouseDown={event=>event.stopPropagation()}>
     <header>
      <div><small>Asset · {asset.assetCode}</small><h2>{asset.name}</h2></div>
-     <button type="button" onClick={()=>setOpen(false)} aria-label="Close asset details">×</button>
+     <button ref={closeRef} type="button" onClick={closeDrawer} aria-label="Close asset details">×</button>
     </header>
 
     <div className="asset-drawer-summary">
@@ -84,7 +110,7 @@ export default function AssetDrawer({asset}:{asset:AssetDrawerRecord}){
   <style jsx>{`
    .asset-drawer-trigger{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:0;border:0;background:transparent;color:inherit;text-align:left;cursor:pointer}
    .asset-drawer-trigger strong{text-decoration:underline;text-decoration-color:transparent;text-underline-offset:3px}
-   .asset-drawer-trigger:hover strong,.asset-drawer-trigger:focus strong{text-decoration-color:currentColor}
+   .asset-drawer-trigger:hover strong,.asset-drawer-trigger:focus-visible strong{text-decoration-color:currentColor}
    .asset-drawer-trigger span{font-size:12px;opacity:.62}
    .asset-drawer-backdrop{position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.56);display:flex;justify-content:flex-end}
    .asset-drawer{width:min(520px,100%);height:100%;overflow:auto;background:#111827;border-left:1px solid rgba(255,255,255,.12);box-shadow:-24px 0 70px rgba(0,0,0,.45);padding:22px;display:flex;flex-direction:column;gap:18px}
