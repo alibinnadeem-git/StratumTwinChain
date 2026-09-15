@@ -31,4 +31,6 @@ export default function CompilerPage(){return <>
    <p className="muted">Server persistence is append-only review storage. Saving or accepting a snapshot does not create STRATUM Assets, DIR finality or physical truth.</p>
    <SpatialCompilationPersistence/>
   </details>
+
+  <p className="muted" style={{marginTop:14}}>L4 compiler candidates remain source-derived review objects until an authorized downstream asset workflow establishes durable STRATUM Asset identity. Spatial review acceptance does not perform that promotion.</p>
 </>}
