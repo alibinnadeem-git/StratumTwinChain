@@ -4,6 +4,7 @@ const tinyPng=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQ
 
 test('manual plan annotations persist deletion and restore without resurrecting removed marks',async({page})=>{
  await page.goto('/compiler');
+ await page.getByText('Manual annotation',{exact:true}).click();
  await page.getByLabel('Plan image').setInputFiles({name:'annotation-plan.png',mimeType:'image/png',buffer:tinyPng});
  await page.getByLabel('Annotation text').fill('PANEL-LP1');
  await page.getByLabel('Drawing reference').fill('E-201');
@@ -34,6 +35,7 @@ test('manual plan annotations persist deletion and restore without resurrecting 
  expect(afterDelete).toEqual({entities:0,marks:0});
 
  await page.reload();
+ await page.getByText('Manual annotation',{exact:true}).click();
  await page.getByLabel('Saved plan').selectOption({label:'annotation-plan.png'});
  await expect(page.getByText('PANEL-LP1 · E-201')).toHaveCount(0);
  const restored=await page.evaluate(()=>{
@@ -62,6 +64,9 @@ test('sheet review requires explicit room confirmation and alignment remains rev
 
  const review=page.getByRole('region',{name:'Drawing review'});
  await expect(review).toBeVisible();
+ await expect(review.getByLabel('Drawing sheet')).toBeHidden();
+ await review.getByText('Review drawing geometry',{exact:true}).click();
+ await expect(review.getByLabel('Drawing sheet')).toBeVisible();
  await review.getByLabel('Drawing sheet').selectOption({label:'review-sheet.pdf · page 1'});
  await review.locator('select').nth(1).selectOption('pdf-room-1-test');
  await review.getByLabel('Reviewed room name').fill('Electrical Room 101');
@@ -83,6 +88,7 @@ test('sheet review requires explicit room confirmation and alignment remains rev
  expect(state.validated).toBe(false);
  expect(state.reviewRequired).toBe(true);
 
+ await review.getByText('Alignment & elevation controls',{exact:true}).click();
  const values:Record<string,string>={
   'Sheet A X':'0','Sheet A Y':'0','Sheet B X':'10','Sheet B Y':'0',
   'Project A X (m)':'100','Project A Y (m)':'200','Project B X (m)':'120','Project B Y (m)':'200',
