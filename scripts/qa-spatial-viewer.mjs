@@ -50,6 +50,29 @@ const floorStanding=resolveAssetPlacement({name:'DRY TYPE TRANSFORMER T1',floor:
 assert.equal(floorStanding.baseZ,4);assert.equal(floorStanding.zAuthority,'FLOOR_STANDING_PROFILE');assert.equal(floorStanding.physicalTruth,false);
 console.log('✓ floor-standing equipment uses floor elevation as a placement candidate without claiming physical truth');
 
+const pedestalEvse=resolveAssetPlacement({name:'EV Charging Station',floor:'L2',meta:{mountingType:'pedestal'}});
+assert.equal(pedestalEvse.baseZ,4);assert.equal(pedestalEvse.zAuthority,'FLOOR_STANDING_PROFILE');assert.equal(pedestalEvse.recommendation?.kind,'EVSE_PEDESTAL_BASE_ON_FINISHED_FLOOR');assert.equal(pedestalEvse.physicalTruth,false);
+console.log('✓ explicitly pedestal-mounted EVSE remains a floor-standing placement candidate');
+
+const teslaEvse=resolveAssetPlacement({name:'EV Charging Station · Tesla Universal Wall Connector',floor:'L2',meta:{manufacturer:'Tesla',model:'Universal Wall Connector',partNumber:'1734412-XX-X',mountingType:'wall-mounted',installationEnvironment:'outdoor'}});
+assert.equal(teslaEvse.dimensions.authority,'WEB_OEM_REFERENCE');assert.deepEqual([teslaEvse.dimensions.width,teslaEvse.dimensions.height,teslaEvse.dimensions.depth],[.155,.345,.15]);
+assert.ok(Math.abs(teslaEvse.baseZ-5.15)<1e-9);assert.deepEqual(teslaEvse.recommendation?.rangeMeters,[4.6,5.52]);assert.equal(teslaEvse.recommendation?.evidenceClass,'OEM_INSTALLATION_GUIDANCE');assert.equal(teslaEvse.physicalTruth,false);
+console.log('✓ identified Tesla Universal Wall Connector uses auditable OEM dimensions and mounting guidance without claiming as-built Z');
+
+const chargePointEvse=resolveAssetPlacement({name:'EV Charging Station · ChargePoint Home Flex CPH50',floor:'L2',meta:{manufacturer:'ChargePoint',model:'Home Flex CPH50',mountingType:'wall-mounted'}});
+assert.equal(chargePointEvse.dimensions.authority,'WEB_OEM_REFERENCE');assert.ok(Math.abs(chargePointEvse.dimensions.height-.2843)<1e-9);
+assert.ok(Math.abs(chargePointEvse.topZ-5.3)<1e-9);assert.ok(Math.abs(chargePointEvse.baseZ-5.0157)<1e-9);assert.deepEqual(chargePointEvse.recommendation?.rangeMeters,[5,5.1]);assert.equal(chargePointEvse.physicalTruth,false);
+console.log('✓ identified ChargePoint Home Flex uses current OEM dimensions and mounting references as recommendation evidence');
+
+const genericWallEvse=resolveAssetPlacement({name:'EV Charging Station',floor:'L2',meta:{mountingType:'wall-mounted'}});
+assert.equal(genericWallEvse.zAuthority,'UNRESOLVED');assert.equal(genericWallEvse.recommendation?.kind,'WALL_EVSE_OEM_HEIGHT_REQUIRED');assert.equal(genericWallEvse.dimensions.authority,'STRATUM_NOMINAL');
+assert.ok(!/tesla|chargepoint/i.test(genericWallEvse.recommendation?.source||''),'generic EVSE must not silently borrow OEM-specific guidance');assert.equal(genericWallEvse.physicalTruth,false);
+console.log('✓ generic wall EVSE fails closed until manufacturer/model-specific mounting evidence is known');
+
+const sourceGuidedEvse=resolveAssetPlacement({name:'EV Charging Station · Tesla Universal Wall Connector',floor:'L2',meta:{manufacturer:'Tesla',model:'Universal Wall Connector',mountingType:'wall-mounted',mountingBaseFromFloorMeters:.92,mountingInstructionSource:'Project-approved OEM submittal',mountingInstructionSourceUrl:'https://project.invalid/oem-submittal',oemDimensionsMeters:[.16,.36,.14],dimensionsSource:'Project OEM submittal'}});
+assert.equal(sourceGuidedEvse.dimensions.authority,'SOURCE_SPEC');assert.ok(Math.abs(sourceGuidedEvse.baseZ-4.92)<1e-9);assert.equal(sourceGuidedEvse.recommendation?.kind,'SOURCE_INSTALLATION_BASE_RECOMMENDATION');assert.equal(sourceGuidedEvse.recommendation?.source,'Project-approved OEM submittal');assert.equal(sourceGuidedEvse.physicalTruth,false);
+console.log('✓ project/OEM source mounting metadata outranks public web guidance but remains recommendation-only');
+
 const projectionSource=fs.readFileSync('lib/spatial-projection.ts','utf8');
 const placementSource=fs.readFileSync('lib/asset-placement.ts','utf8');
 const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
@@ -60,4 +83,4 @@ assert.match(projectionSource,/NEVER_ESTABLISH_PHYSICAL_TRUTH/);assert.match(pla
 assert.doesNotMatch(projectionSource,/finalizeDIR|PoVI finality|VERIFIED\s*=\s*true/i);
 console.log('✓ simplified Spatial UX and truth boundaries are release-gated');
 
-console.log('\nSpatial viewer, metric Z placement and SLD projection contract passed.');
+console.log('\nSpatial viewer, metric Z placement, EVSE evidence and SLD projection contract passed.');
