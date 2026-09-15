@@ -124,6 +124,7 @@ export function enrichSpatialProjection<T extends SpatialProjectionGraph>(graph:
     meta.zPlacementAuthority=placement.zAuthority;
     meta.inferredZCandidate=placement.baseZ;
     meta.zReviewRequired=true;
+    if(meta.cadMetricXY===true){meta.planCoordinateUnits='m';meta.coordinateUnits='m_xy';}
    }
    if((entity.kind==='text-asset-candidate'||isSld)&&placement.dimensions.authority!=='STRATUM_NOMINAL'){
     const nominal=nominalDimensionsFor(entity.name);
@@ -154,7 +155,7 @@ export function enrichSpatialProjection<T extends SpatialProjectionGraph>(graph:
  const deduped=[...new Map([...retained,...generated].map(link=>[`${link.type}:${link.from}:${link.to}`,link])).values()];
  const changed=entities.some(entity=>JSON.stringify(originalById.get(entity.id))!==JSON.stringify(entity))||JSON.stringify(graph.links||[])!==JSON.stringify(deduped);
  if(!changed)return graph;
- return {...graph,entities,links:deduped,spatialProjection:{version:'5',generatedAt:new Date().toISOString(),cadMetricFrames:cadScales.size,sldFrames:sldFrames.size,sldLinks:generated.length,dimensionRegistryEntries:modelRegistry.filter(item=>item.dimensionsMeters).length,truthBoundary:'METRIC_XY_SLD_LOGICAL_Z_AND_RECOMMENDED_PLACEMENT_NEVER_ESTABLISH_PHYSICAL_TRUTH'}} as T;
+ return {...graph,entities,links:deduped,spatialProjection:{version:'6',generatedAt:new Date().toISOString(),cadMetricFrames:cadScales.size,sldFrames:sldFrames.size,sldLinks:generated.length,dimensionRegistryEntries:modelRegistry.filter(item=>item.dimensionsMeters).length,truthBoundary:'METRIC_XY_SLD_LOGICAL_Z_AND_RECOMMENDED_PLACEMENT_NEVER_ESTABLISH_PHYSICAL_TRUTH'}} as T;
 }
 
 export function projectionSummary(graph:SpatialProjectionGraph){
