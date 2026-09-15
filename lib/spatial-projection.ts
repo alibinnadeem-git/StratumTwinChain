@@ -1,5 +1,7 @@
+import {nominalDimensionsFor,resolveAssetPlacement} from './asset-placement';
+
 export type SpatialProjectionEntity={
- id:string;source:string;layer:string;kind:string;name:string;x:number;y:number;z?:number;x2?:number;y2?:number;z2?:number;floor?:string;confidence:number;meta?:Record<string,unknown>;
+ id:string;source:string;layer:string;kind:string;name:string;x:number;y:number;z?:number;x2?:number;y2?:number;z2?:number;floor?:string;scale?:number;confidence:number;meta?:Record<string,unknown>;
 };
 export type SpatialProjectionLink={id:string;from:string;to:string;type:string;confidence:number;meta?:Record<string,unknown>};
 export type SheetIdentityLike={
@@ -43,7 +45,7 @@ function sldDepth(name:string){
  return 3;
 }
 function canUsePhysicalZ(entity:SpatialProjectionEntity){
- return entity.meta?.elevationKnown===true||entity.meta?.physicalElevationKnown===true||entity.meta?.alignmentVerified===true||entity.meta?.zPlacementAuthority==='MEASURED_OR_REVIEWED';
+ return entity.meta?.elevationKnown===true||entity.meta?.physicalElevationKnown===true||entity.meta?.alignmentVerified===true||entity.meta?.zPlacementAuthority==='MEASURED_OR_REVIEWED'||entity.meta?.sourceType==='DXF';
 }
 
 export function enrichSpatialProjection<T extends SpatialProjectionGraph>(graph:T):T{
@@ -56,7 +58,34 @@ export function enrichSpatialProjection<T extends SpatialProjectionGraph>(graph:
   const meta={...(entity.meta||{})};
   const frame=sourceFrame(entity),isSld=entity.layer==='L2'&&sldFrames.has(frame);
   let z=Number.isFinite(Number(entity.z))?Number(entity.z):0;
-  if(!isSld&&!canUsePhysicalZ(entity)){
+  let scale=entity.scale;
+
+  if(entity.layer==='L2'){
+   const placement=resolveAssetPlacement({...entity,meta});
+   meta.assetDimensionsMeters=[placement.dimensions.width,placement.dimensions.height,placement.dimensions.depth];
+   meta.assetDimensionAuthority=placement.dimensions.authority;
+   meta.assetDimensionSource=placement.dimensions.source;
+   meta.assetDimensionConfidence=placement.dimensions.confidence;
+   meta.assetRecommendedBaseZ=placement.baseZ;
+   meta.assetRecommendedTopZ=placement.topZ;
+   meta.assetZRecommendationAuthority=placement.zAuthority;
+   meta.assetZRecommendationConfidence=placement.zConfidence;
+   if(placement.recommendation)meta.assetPlacementRecommendation=placement.recommendation;
+
+   if(!canUsePhysicalZ(entity)&&!isSld){
+    z=placement.baseZ;
+    meta.elevationKnown=false;
+    meta.physicalElevationKnown=false;
+    meta.zPlacementAuthority=placement.zAuthority;
+    meta.inferredZCandidate=placement.baseZ;
+    meta.zReviewRequired=true;
+   }
+   if((entity.kind==='text-asset-candidate'||isSld)&&placement.dimensions.authority!=='STRATUM_NOMINAL'){
+    const nominal=nominalDimensionsFor(entity.name);
+    scale=Math.max(.1,Math.min(8,placement.dimensions.height/Math.max(nominal[1],.05)));
+    meta.assetScaleAuthority=placement.dimensions.authority;
+   }
+  }else if(!isSld&&!canUsePhysicalZ(entity)){
    const candidate=inferredFloorElevation(entity.floor);
    if(candidate!==null&&Math.abs(z)<1e-9){
     z=candidate;
@@ -67,6 +96,7 @@ export function enrichSpatialProjection<T extends SpatialProjectionGraph>(graph:
     meta.zReviewRequired=true;
    }
   }
+
   if(isSld){
    meta.sldSpatialProjection=true;
    meta.sldLogicalDepth=sldDepth(entity.name);
@@ -75,10 +105,9 @@ export function enrichSpatialProjection<T extends SpatialProjectionGraph>(graph:
    meta.sldPhysicalElevationKnown=canUsePhysicalZ(entity);
    meta.sldTruthBoundary='LOGICAL_Z_NEVER_ESTABLISHES_PHYSICAL_ELEVATION';
   }
-  return {...entity,z,meta};
+  return {...entity,z,scale,meta};
  });
 
- const projectedById=new Map(entities.map(entity=>[entity.id,entity]));
  const retained=(graph.links||[]).filter(link=>link.type!=='SLD_FEEDS');
  const generated:SpatialProjectionLink[]=[];
  for(const frame of sldFrames){
@@ -103,12 +132,12 @@ export function enrichSpatialProjection<T extends SpatialProjectionGraph>(graph:
   const prior=originalById.get(entity.id);return JSON.stringify(prior)!==JSON.stringify(entity);
  })||JSON.stringify(graph.links||[])!==JSON.stringify(deduped);
  if(!changed)return graph;
- return {...graph,entities,links:deduped,spatialProjection:{version:'1',generatedAt:new Date().toISOString(),sldFrames:sldFrames.size,sldLinks:generated.length,truthBoundary:'LOGICAL_SLD_Z_AND_INFERRED_FLOOR_Z_NEVER_ESTABLISH_PHYSICAL_TRUTH'}} as T;
+ return {...graph,entities,links:deduped,spatialProjection:{version:'2',generatedAt:new Date().toISOString(),sldFrames:sldFrames.size,sldLinks:generated.length,truthBoundary:'LOGICAL_SLD_Z_AND_RECOMMENDED_PLACEMENT_NEVER_ESTABLISH_PHYSICAL_TRUTH'}} as T;
 }
 
 export function projectionSummary(graph:SpatialProjectionGraph){
  const sld=graph.entities.filter(entity=>entity.meta?.sldSpatialProjection===true).length;
- const inferredZ=graph.entities.filter(entity=>entity.meta?.zPlacementAuthority==='INFERRED_FLOOR_LABEL').length;
+ const inferredZ=graph.entities.filter(entity=>entity.meta?.zReviewRequired===true).length;
  const links=(graph.links||[]).filter(link=>link.type==='SLD_FEEDS').length;
  return{sldObjects:sld,inferredZCandidates:inferredZ,sldLinks:links};
 }
