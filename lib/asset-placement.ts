@@ -1,5 +1,5 @@
-import {resolveElectricalComponent} from './electrical-component-library';
-import type {ElectricalModelConfig} from './electrical-model-registry';
+import {resolveElectricalComponent} from './electrical-component-library.ts';
+import type {ElectricalModelConfig} from './electrical-model-registry.ts';
 
 export type PlacementEntity={name:string;floor?:string;z?:number;meta?:Record<string,unknown>};
 export type DimensionAuthority='SOURCE_SPEC'|'MODEL_REGISTRY'|'STRATUM_NOMINAL';
