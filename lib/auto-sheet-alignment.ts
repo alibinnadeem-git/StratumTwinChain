@@ -1,8 +1,26 @@
 import {fitSheetSimilarity,type SheetSimilarity} from './sheet-similarity.ts';
+import {drawingScaleDenominator} from './title-block.ts';
 
 export type AlignmentEntity={id:string;name:string;x:number;y:number;kind:string;confidence:number;meta?:Record<string,unknown>};
-export type AlignmentSheet={sourceSha256:string;page:number;sheetNumber:{value:string|null};discipline:{value:string|null};reviewState:'CANDIDATE'|'CONFIRMED'};
-export type AlignmentProposal={id:string;referenceKey:string;movingKey:string;referenceSheet:string;movingSheet:string;anchors:{name:string;referenceEntityId:string;movingEntityId:string}[];transform:SheetSimilarity;confidence:number;eligible:boolean;reasons:string[];reviewRequired:true;autoApply:false;verified:false};
+export type AlignmentSheet={
+ sourceSha256:string;
+ page:number;
+ sheetNumber:{value:string|null};
+ discipline:{value:string|null};
+ floor?:{value:string|null};
+ drawingScale?:{value:string|null};
+ pageGeometry?:{widthPoints:number|null;heightPoints:number|null;maxDimensionPoints:number|null};
+ geometryScaleAuthority?:boolean;
+ reviewState:'CANDIDATE'|'CONFIRMED';
+};
+export type AlignmentCrossChecks={
+ discipline:'MATCH'|'MISMATCH'|'UNAVAILABLE';
+ floor:'MATCH'|'MISMATCH'|'UNAVAILABLE';
+ scale:'CONSISTENT'|'REVIEW'|'MISMATCH'|'UNAVAILABLE';
+ expectedScale:number|null;
+ scaleDeviationFactor:number|null;
+};
+export type AlignmentProposal={id:string;referenceKey:string;movingKey:string;referenceSheet:string;movingSheet:string;anchors:{name:string;referenceEntityId:string;movingEntityId:string}[];transform:SheetSimilarity;confidence:number;eligible:boolean;reasons:string[];crossChecks:AlignmentCrossChecks;reviewRequired:true;autoApply:false;verified:false};
 
 const normalize=(value:string)=>value.toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim();
 const excluded=new Set(['ROOM','PLAN','ELECTRICAL','POWER','LIGHTING','GENERAL NOTES','NOTES','DETAIL','SECTION','ELEVATION','SHEET']);
@@ -18,6 +36,14 @@ function anchorsFor(entities:AlignmentEntity[],key:string){
  }
  return byName;
 }
+function positive(value:unknown){const n=Number(value);return Number.isFinite(n)&&n>0?n:null}
+function scaleExpectation(reference:AlignmentSheet,moving:AlignmentSheet){
+ const referenceDenominator=drawingScaleDenominator(reference.drawingScale?.value),movingDenominator=drawingScaleDenominator(moving.drawingScale?.value);
+ const referencePage=positive(reference.pageGeometry?.maxDimensionPoints),movingPage=positive(moving.pageGeometry?.maxDimensionPoints);
+ if(!referenceDenominator||!movingDenominator||!referencePage||!movingPage)return null;
+ const expected=movingDenominator*movingPage/(referenceDenominator*referencePage);
+ return Number.isFinite(expected)&&expected>0?expected:null;
+}
 
 export function proposeSheetAlignments(entities:AlignmentEntity[],sheets:AlignmentSheet[]):AlignmentProposal[]{
  const confirmed=sheets.filter(sheet=>sheet.reviewState==='CONFIRMED'&&sheet.sheetNumber.value);
@@ -31,10 +57,23 @@ export function proposeSheetAlignments(entities:AlignmentEntity[],sheets:Alignme
   if(names.length<3)reasons.push('At least three shared source-grounded anchors are required.');
   if(transform.scale<.25||transform.scale>4)reasons.push('Estimated scale is outside the bounded review range.');
   if(transform.rmsResidual>.75)reasons.push('Residual exceeds the review threshold.');
-  const sameDiscipline=Boolean(reference.discipline.value&&moving.discipline.value&&reference.discipline.value===moving.discipline.value);
-  if(reference.discipline.value&&moving.discipline.value&&!sameDiscipline)reasons.push('Confirmed sheet disciplines differ.');
-  const confidence=Math.max(0,Math.min(1,(.48+Math.min(names.length,8)*.055+(sameDiscipline?.08:0))*Math.exp(-transform.rmsResidual/.7)));
-  proposals.push({id:`${referenceKey}->${movingKey}`,referenceKey,movingKey,referenceSheet:reference.sheetNumber.value!,movingSheet:moving.sheetNumber.value!,anchors:names.map(name=>({name,referenceEntityId:referenceAnchors.get(name)!.id,movingEntityId:movingAnchors.get(name)!.id})),transform,confidence:Number(confidence.toFixed(3)),eligible:reasons.length===0,reasons,reviewRequired:true,autoApply:false,verified:false});
+
+  const disciplineReference=reference.discipline.value,disciplineMoving=moving.discipline.value;
+  const discipline=disciplineReference&&disciplineMoving?(disciplineReference===disciplineMoving?'MATCH':'MISMATCH'):'UNAVAILABLE';
+  if(discipline==='MISMATCH')reasons.push('Confirmed sheet disciplines differ.');
+
+  const floorReference=reference.floor?.value,floorMoving=moving.floor?.value;
+  const floor=floorReference&&floorMoving?(floorReference===floorMoving?'MATCH':'MISMATCH'):'UNAVAILABLE';
+  if(floor==='MISMATCH')reasons.push(`Confirmed sheet floors differ (${floorReference} vs ${floorMoving}).`);
+
+  if(reference.geometryScaleAuthority===true||moving.geometryScaleAuthority===true)reasons.push('Title-block scale cannot hold geometry authority.');
+  const expectedScale=scaleExpectation(reference,moving);
+  const scaleDeviationFactor=expectedScale?Math.max(transform.scale/expectedScale,expectedScale/transform.scale):null;
+  const scale=scaleDeviationFactor===null?'UNAVAILABLE':scaleDeviationFactor>1.6?'MISMATCH':scaleDeviationFactor>1.25?'REVIEW':'CONSISTENT';
+  if(scale==='MISMATCH')reasons.push(`Anchor-derived scale ${transform.scale.toFixed(4)}× strongly disagrees with the title-block/page-geometry expectation ${expectedScale!.toFixed(4)}× (factor ${scaleDeviationFactor!.toFixed(2)}).`);
+
+  const confidence=Math.max(0,Math.min(1,(.48+Math.min(names.length,8)*.055+(discipline==='MATCH'?.08:0))*Math.exp(-transform.rmsResidual/.7)));
+  proposals.push({id:`${referenceKey}->${movingKey}`,referenceKey,movingKey,referenceSheet:reference.sheetNumber.value!,movingSheet:moving.sheetNumber.value!,anchors:names.map(name=>({name,referenceEntityId:referenceAnchors.get(name)!.id,movingEntityId:movingAnchors.get(name)!.id})),transform,confidence:Number(confidence.toFixed(3)),eligible:reasons.length===0,reasons,crossChecks:{discipline,floor,scale,expectedScale:expectedScale===null?null:Number(expectedScale.toFixed(6)),scaleDeviationFactor:scaleDeviationFactor===null?null:Number(scaleDeviationFactor.toFixed(4))},reviewRequired:true,autoApply:false,verified:false});
  }
  return proposals.sort((a,b)=>Number(b.eligible)-Number(a.eligible)||b.confidence-a.confidence||a.id.localeCompare(b.id));
 }

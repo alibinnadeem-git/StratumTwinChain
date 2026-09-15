@@ -1,5 +1,6 @@
 export type PositionedSheetText={text:string;x:number;y:number;width?:number;height?:number};
 export type SheetField={value:string|null;confidence:number;evidence:string[];method:string};
+export type SheetPageGeometry={widthPoints:number|null;heightPoints:number|null;maxDimensionPoints:number|null};
 export type SheetIdentityCandidate={
   page:number;
   sourceName:string;
@@ -12,6 +13,7 @@ export type SheetIdentityCandidate={
   discipline:SheetField;
   floor:SheetField;
   drawingScale:SheetField;
+  pageGeometry:SheetPageGeometry;
   confidence:number;
   reviewRequired:true;
   reviewState:'CANDIDATE'|'CONFIRMED';
@@ -24,6 +26,7 @@ const compact=(value:string)=>value.replace(/\s+/g,' ').trim();
 const upper=(value:string)=>compact(value).toUpperCase();
 const isLabel=(value:string)=>/^(SHEET|SHEET NO|SHEET NO\.|SHEET NUMBER|DRAWING|DRAWING NO|DRAWING NO\.|DRAWING NUMBER|TITLE|SHEET TITLE|DRAWING TITLE|REV|REVISION|DATE|ISSUE DATE|DRAWING DATE|SCALE|DRAWING SCALE|FLOOR|LEVEL)$/i.test(compact(value));
 const field=(value:string|null,confidence:number,evidence:string[],method:string):SheetField=>({value,confidence:value?Math.max(0,Math.min(1,confidence)):0,evidence:evidence.slice(0,8),method});
+const finitePositive=(value:unknown)=>{const n=Number(value);return Number.isFinite(n)&&n>0?n:null};
 
 function nearbyValue(label:PositionedSheetText,items:PositionedSheetText[],predicate:(value:string)=>boolean){
   const ranked=items
@@ -42,8 +45,8 @@ function labeledField(items:PositionedSheetText[],labels:RegExp,predicate:(value
 const sheetPattern=/^[A-Z]{1,4}(?:[-.]?[A-Z]{0,2})?[-.]?\d{1,3}(?:[.-]\d{1,3})?[A-Z]?$/i;
 const revisionPattern=/^(?:[A-Z]|\d{1,3}|P\d{1,2}|R\d{1,2})$/i;
 const datePattern=/^(?:\d{1,2}[\/-]\d{1,2}[\/-](?:\d{2}|\d{4})|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|SEPT|OCT|NOV|DEC)[A-Z]*[ .-]+\d{1,2}[, .-]+\d{2,4}|\d{4}-\d{2}-\d{2})$/i;
-const architecturalScalePattern=/^(?:\d+\s+)?(?:\d+\/\d+|\d+(?:\.\d+)?)?\s*["”]\s*=\s*\d+\s*['’](?:\s*-\s*\d+\s*["”])?$/i;
-const metricScalePattern=/^1\s*:\s*\d{1,5}$/i;
+const architecturalScalePattern=/^(?:\d+\s+)?(?:\d+\/\d+|\d+(?:\.\d+)?)?\s*["”]\s*=\s*\d+(?:\.\d+)?\s*['’](?:\s*-\s*\d+(?:\.\d+)?\s*["”])?$/i;
+const metricScalePattern=/^1\s*:\s*\d{1,5}(?:\.\d+)?$/i;
 const ntsPattern=/^(?:NTS|NOT TO SCALE)$/i;
 const scalePattern=(value:string)=>architecturalScalePattern.test(compact(value))||metricScalePattern.test(compact(value))||ntsPattern.test(compact(value));
 
@@ -102,7 +105,7 @@ function inferFloor(title:SheetField,items:PositionedSheetText[]){
 function normalizeScale(value:string){
   const text=upper(value).replace(/[”]/g,'"').replace(/[’]/g,"'").replace(/\s+/g,' ').trim();
   if(ntsPattern.test(text))return'NTS';
-  const metric=text.match(/^1\s*:\s*(\d{1,5})$/);if(metric)return`1:${Number(metric[1])}`;
+  const metric=text.match(/^1\s*:\s*(\d{1,5}(?:\.\d+)?)$/);if(metric)return`1:${Number(metric[1])}`;
   return text;
 }
 function inferScale(items:PositionedSheetText[]){
@@ -112,8 +115,20 @@ function inferScale(items:PositionedSheetText[]){
   if(unique.length>1)return field(null,0,unique.slice(0,4).map(([,item])=>compact(item.text)),'AMBIGUOUS_SCALE');
   return field(null,0,[],'UNRESOLVED');
 }
+function mixedNumber(value:string){
+  const parts=value.trim().split(/\s+/).filter(Boolean);let total=0;
+  for(const part of parts){if(part.includes('/')){const [a,b]=part.split('/').map(Number);if(!Number.isFinite(a)||!Number.isFinite(b)||b===0)return null;total+=a/b}else{const n=Number(part);if(!Number.isFinite(n))return null;total+=n}}
+  return total>0?total:null;
+}
+export function drawingScaleDenominator(value:string|null|undefined){
+  if(!value)return null;const text=normalizeScale(value);if(text==='NTS')return null;
+  const metric=text.match(/^1:(\d+(?:\.\d+)?)$/);if(metric){const denominator=Number(metric[1]);return denominator>0?denominator:null}
+  const architectural=text.match(/^(.+?)"\s*=\s*(\d+(?:\.\d+)?)\s*'(?:\s*-\s*(\d+(?:\.\d+)?)\s*")?$/);if(!architectural)return null;
+  const paperInches=mixedNumber(architectural[1]);const realInches=Number(architectural[2])*12+Number(architectural[3]||0);if(!paperInches||!Number.isFinite(realInches)||realInches<=0)return null;
+  return realInches/paperInches;
+}
 
-export function extractSheetIdentity(input:{page:number;sourceName:string;sourceSha256:string;items:PositionedSheetText[]}):SheetIdentityCandidate{
+export function extractSheetIdentity(input:{page:number;sourceName:string;sourceSha256:string;items:PositionedSheetText[];pageWidthPoints?:number;pageHeightPoints?:number}):SheetIdentityCandidate{
   const clean=input.items.map(item=>({...item,text:compact(item.text)})).filter(item=>item.text);
   const titleRegion=clean.filter(item=>item.x>=.48||item.y>=.72);
   const items=titleRegion.length>=3?titleRegion:clean;
@@ -121,5 +136,7 @@ export function extractSheetIdentity(input:{page:number;sourceName:string;source
   const sheetNumber=inferSheetNumber(items),sheetTitle=inferTitle(items),revision=inferRevision(items),issueDate=inferDate(items),discipline=inferDiscipline(sheetNumber,sheetTitle,items),floor=inferFloor(sheetTitle,items),drawingScale=inferScale(items);
   const weighted=[[sheetNumber.confidence,.29],[sheetTitle.confidence,.2],[revision.confidence,.08],[issueDate.confidence,.08],[discipline.confidence,.15],[floor.confidence,.1],[drawingScale.confidence,.1]] as const;
   const confidence=Number(weighted.reduce((sum,[score,weight])=>sum+score*weight,0).toFixed(3));
-  return{page:input.page,sourceName:input.sourceName,sourceSha256:input.sourceSha256,region,sheetNumber,sheetTitle,revision,issueDate,discipline,floor,drawingScale,confidence,reviewRequired:true,reviewState:'CANDIDATE',alignmentEligible:false,geometryScaleAuthority:false};
+  const widthPoints=finitePositive(input.pageWidthPoints),heightPoints=finitePositive(input.pageHeightPoints),maxDimensionPoints=widthPoints&&heightPoints?Math.max(widthPoints,heightPoints):widthPoints||heightPoints;
+  const pageGeometry={widthPoints,heightPoints,maxDimensionPoints};
+  return{page:input.page,sourceName:input.sourceName,sourceSha256:input.sourceSha256,region,sheetNumber,sheetTitle,revision,issueDate,discipline,floor,drawingScale,pageGeometry,confidence,reviewRequired:true,reviewState:'CANDIDATE',alignmentEligible:false,geometryScaleAuthority:false};
 }
