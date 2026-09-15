@@ -26,7 +26,7 @@ export default async function SpatialPage(){
 
   {!backendOnline&&<div className="card" style={{marginBottom:16,borderColor:'#75592e'}}><div className="eyebrow">Model available · registered asset data unavailable</div><p className="subtitle" style={{margin:'6px 0 0'}}>You can still inspect imported drawings and the spatial graph. Sign in and connect the production data service to load registered assets.</p></div>}
 
-  <section id="spatial-model" aria-label="Spatial model viewer"><CompiledGraphViewer/></section>
+  <section id="spatial-model" aria-label="Spatial model viewer"><CompiledGraphViewer registeredAssets={assets}/></section>
 
   <details className="card" style={{marginTop:16}}>
    <summary style={{cursor:'pointer',fontWeight:700}}>Registered asset operations</summary>
