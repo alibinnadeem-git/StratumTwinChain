@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {useEffect,useMemo,useRef,useState} from "react";
 import {resolveElectricalComponent} from "@/lib/electrical-component-library";
+import {resolveRegisteredSpatialAsset,spatialAssetDirState,type RegisteredSpatialAsset} from "@/lib/spatial-asset-link";
 import {
   DEFAULT_ELECTRICAL_MODEL_REGISTRY,
   ELECTRICAL_MODEL_REGISTRY_STORAGE_KEY,
@@ -63,7 +64,7 @@ function bounds2d(entities:Entity[]){
   return{minX,maxX,minY,maxY};
 }
 
-export default function CompiledGraphViewer(){
+export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAssets?:RegisteredSpatialAsset[]}){
   const mount=useRef<HTMLDivElement|null>(null),runtime=useRef<any>(null);
   const [graph,setGraph]=useState<Graph|null>(null);
   const [registry,setRegistry]=useState<ElectricalModelConfig[]>(DEFAULT_ELECTRICAL_MODEL_REGISTRY);
@@ -120,6 +121,8 @@ export default function CompiledGraphViewer(){
   }).length||0,[graph,registry]);
   const matching=useMemo(()=>inventory,[inventory]);
   const fallbackBounds=useMemo(()=>bounds2d(visible),[visible]);
+  const selectedBinding=useMemo(()=>resolveRegisteredSpatialAsset(selected,registeredAssets),[selected,registeredAssets]);
+  const selectedDir=useMemo(()=>spatialAssetDirState(selectedBinding),[selectedBinding]);
 
   useEffect(()=>{
     if(!graph||!mount.current)return;
@@ -262,14 +265,16 @@ export default function CompiledGraphViewer(){
 
       <aside style={{padding:15,borderLeft:"1px solid #17334a",overflow:"auto"}}>
         <label>Imported object<select aria-label="Imported object" value={selected?.id||""} onChange={e=>setSelected(graph.entities.find(x=>x.id===e.target.value)||null)} style={{width:"100%"}}><option value="">Select an object</option>{matching.map(e=><option key={e.id} value={e.id}>{e.name} · {e.floor||"UNRESOLVED"}</option>)}</select></label>
-        {selected?<><div className="eyebrow" style={{marginTop:14}}>SELECTED OBJECT</div><h2 style={{margin:"4px 0"}}>{selected.name}</h2><p className="subtitle">{selected.layer} {layerNames[selected.layer]} · {selected.kind}</p>
-          <div className="passport-facts"><div><span>Floor</span><strong>{selected.floor||"UNRESOLVED"}</strong></div><div><span>Z placement</span><strong>{selectedZ.toFixed(2)} m</strong></div><div><span>Z authority</span><strong>{selectedZKind}</strong></div><div><span>Plan X / Y</span><strong>{selected.x.toFixed(2)} / {selected.y.toFixed(2)}</strong></div><div><span>Source</span><strong>{selected.source}</strong></div><div><span>Confidence</span><strong>{Math.round(selected.confidence*100)}%</strong></div>{isSld(selected)&&<div><span>SLD depth</span><strong>{metaNumber(selected,"sldLogicalDepth")??0}</strong></div>}</div>
+        {selected?<><div className="eyebrow" style={{marginTop:14}}>{selectedBinding?'ASSET PASSPORT PREVIEW':'SELECTED OBJECT'}</div><h2 style={{margin:"4px 0"}}>{selectedBinding?.asset.name||selected.name}</h2><p className="subtitle">{selectedBinding?`${selectedBinding.asset.asset_code} · ${selectedBinding.asset.status}`:`${selected.layer} ${layerNames[selected.layer]} · ${selected.kind}`}</p>
+          {selectedBinding&&<><div className="passport-facts"><div><span>Manufacturer</span><strong>{selectedBinding.asset.manufacturer_name||'Pending'}</strong></div><div><span>Model</span><strong>{selectedBinding.asset.model||'Pending'}</strong></div><div><span>Serial</span><strong>{selectedBinding.asset.serial_number||'—'}</strong></div><div><span>Location</span><strong>{selectedBinding.asset.location_label||selected.zone||'Pending'}</strong></div><div><span>Lifecycle</span><strong>{selectedBinding.asset.latest_event_type||'No lifecycle event'}</strong></div><div><span>Registry binding</span><strong>{selectedBinding.method.replaceAll('_',' ')}</strong></div></div><div className="notice" style={{marginTop:12,borderColor:selectedDir.finalized?'#2d7252':'#75592e'}}><strong>{selectedDir.finalized?'DIR FINALIZED':'NO FINALIZED DIR'}</strong><span>{selectedDir.finalized?`Immutable record ${selectedDir.blockHeight} on ${selectedDir.network||'STRATUM Chain'}. DIR establishes record integrity/finality, not physical truth.`:'This registered asset has no finalized DIR yet. Spatial selection never upgrades it to Verified or finalized state.'}</span></div><div className="button-row" style={{marginTop:12}}><Link className="action" href={`/assets/${encodeURIComponent(selectedBinding.asset.id)}`}>Open Asset Passport</Link><Link className="ghost" href={`/verify?q=${encodeURIComponent(selectedBinding.asset.asset_code)}`}>Verify record</Link></div></>}
+          <div className="passport-facts" style={{marginTop:selectedBinding?12:0}}><div><span>Floor</span><strong>{selected.floor||"UNRESOLVED"}</strong></div><div><span>Z placement</span><strong>{selectedZ.toFixed(2)} m</strong></div><div><span>Z authority</span><strong>{selectedZKind}</strong></div><div><span>Plan X / Y</span><strong>{selected.x.toFixed(2)} / {selected.y.toFixed(2)}</strong></div><div><span>Source</span><strong>{selected.source}</strong></div><div><span>Confidence</span><strong>{Math.round(selected.confidence*100)}%</strong></div>{isSld(selected)&&<div><span>SLD depth</span><strong>{metaNumber(selected,"sldLogicalDepth")??0}</strong></div>}</div>
+          {!selectedBinding&&(selected.layer==='L2'||selected.layer==='L4')&&<div className="notice" style={{marginTop:12}}><strong>NOT YET LINKED TO A REGISTERED ASSET</strong><span>This spatial object remains source/candidate data. No tenant Asset Passport or DIR state is attached until an exact registered identity is established.</span></div>}
           {isSld(selected)&&<div className="notice" style={{marginTop:12}}><strong>SLD → SPATIAL PROJECTION</strong><span>The vertical separation in Electrical mode expresses logical power hierarchy. It is not an as-built physical elevation until field/design evidence establishes Z.</span></div>}
           {!physicalElevationKnown(selected)&&!isSld(selected)&&<div className="notice" style={{marginTop:12}}><strong>Z NEEDS REVIEW</strong><span>This object has source placement, but physical elevation is not yet established. Review floor/elevation before treating Z as physical placement.</span></div>}
-          <button className="action" style={{width:"100%",marginTop:12}} onClick={()=>setFitRevision(v=>v+1)}>Fit full model</button>
+          <button className="ghost" style={{width:"100%",marginTop:12}} onClick={()=>setFitRevision(v=>v+1)}>Fit full model</button>
           <details style={{marginTop:12}}><summary>Source details</summary><dl>{Object.entries(selected.meta||{}).map(([k,v])=><div key={k}><dt>{k}</dt><dd style={{overflowWrap:"anywhere"}}>{typeof v==="object"?JSON.stringify(v):String(v)}</dd></div>)}</dl></details>
-        </>:<><div className="eyebrow" style={{marginTop:14}}>HOW TO USE</div><p className="subtitle">1. Choose Model for physical placement. 2. Choose Electrical for SLD topology. 3. Select an object to inspect Z and source authority.</p></>}
-        <div className="notice" style={{marginTop:14}}><strong>TRUTH BOUNDARY</strong><span>Observed/source-derived geometry never silently overwrites Verified infrastructure state. SLD logical Z is a visualization aid, not physical truth.</span></div>
+        </>:<><div className="eyebrow" style={{marginTop:14}}>HOW TO USE</div><p className="subtitle">Click equipment to inspect placement. When the object is bound to a registered STRATUM Asset, its Asset Passport and DIR state appear here automatically.</p></>}
+        <div className="notice" style={{marginTop:14}}><strong>TRUTH BOUNDARY</strong><span>DIR finality secures the immutable record; it does not by itself establish physical truth. Observed/source-derived geometry never silently overwrites Verified infrastructure state.</span></div>
       </aside>
     </div>
     <style jsx>{`@media(max-width:820px){.compiled-twin-grid{grid-template-columns:1fr!important}.compiled-twin-grid aside{border-left:0!important;border-top:1px solid #17334a}}select,input{background:#08131d;color:#d8edf6;border:1px solid #28465f;border-radius:9px;padding:9px 10px}`}</style>
