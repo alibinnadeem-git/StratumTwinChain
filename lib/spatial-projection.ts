@@ -1,7 +1,7 @@
 import {nominalDimensionsFor,resolveAssetPlacement} from './asset-placement';
 
 export type SpatialProjectionEntity={
- id:string;source:string;layer:string;kind:string;name:string;x:number;y:number;z?:number;x2?:number;y2?:number;z2?:number;floor?:string;scale?:number;confidence:number;meta?:Record<string,unknown>;
+ id:string;source:string;layer:string;kind:string;name:string;x:number;y:number;z?:number;x2?:number;y2?:number;z2?:number;floor?:string;vertices?:{x:number;y:number}[];scale?:number;confidence:number;meta?:Record<string,unknown>;
 };
 export type SpatialProjectionLink={id:string;from:string;to:string;type:string;confidence:number;meta?:Record<string,unknown>};
 export type SheetIdentityLike={
@@ -10,6 +10,7 @@ export type SheetIdentityLike={
 };
 export type SpatialProjectionGraph={entities:SpatialProjectionEntity[];links?:SpatialProjectionLink[];titleBlocks?:SheetIdentityLike[];[key:string]:unknown};
 
+type CadScale={metersPerX:number;metersPerY:number;minDisplayX:number;minDisplayY:number};
 const SLD_PATTERN=/single\s*line|one\s*line|one-line|single-line|\bsld\b|riser|power\s*diagram|electrical\s*diagram/i;
 const SOURCE_PATTERN=/utility|service|source|incoming|generator|genset|solar|\bpv\b|battery|\bups\b/i;
 const TRANSFORMER_PATTERN=/transformer|\bxfmr\b/i;
@@ -28,8 +29,8 @@ export function inferredFloorElevation(floor?:string|null):number|null{
  if(normalized==='PENTHOUSE')return 16;
  return null;
 }
-
 function sourceFrame(entity:SpatialProjectionEntity){return `${String(entity.meta?.sourceSha256||entity.source)}:${String(entity.meta?.page||1)}`}
+function sourceDocument(entity:SpatialProjectionEntity){return String(entity.meta?.sourceSha256||entity.source)}
 function titleFor(entity:SpatialProjectionEntity,titleBlocks:SheetIdentityLike[]){
  const sha=String(entity.meta?.sourceSha256||'');const page=Number(entity.meta?.page||1);
  const reviewed=titleBlocks.find(item=>item.sourceSha256===sha&&item.page===page&&item.reviewState==='CONFIRMED')||titleBlocks.find(item=>item.sourceSha256===sha&&item.page===page);
@@ -45,16 +46,51 @@ function sldDepth(name:string){
  return 3;
 }
 function canUsePhysicalZ(entity:SpatialProjectionEntity){
- return entity.meta?.elevationKnown===true||entity.meta?.physicalElevationKnown===true||entity.meta?.alignmentVerified===true||entity.meta?.zPlacementAuthority==='MEASURED_OR_REVIEWED'||entity.meta?.sourceType==='DXF';
+ return entity.meta?.elevationKnown===true||entity.meta?.physicalElevationKnown===true||entity.meta?.alignmentVerified===true||entity.meta?.zPlacementAuthority==='MEASURED_OR_REVIEWED'||entity.meta?.cadMetricXY===true;
+}
+function finite(value:unknown){const n=Number(value);return Number.isFinite(n)?n:null}
+function buildCadScales(entities:SpatialProjectionEntity[]){
+ const result=new Map<string,CadScale>();
+ const docs=[...new Set(entities.map(sourceDocument))];
+ for(const doc of docs){
+  const sourceEntities=entities.filter(entity=>sourceDocument(entity)===doc);
+  const unitName=String(sourceEntities.find(entity=>entity.meta?.unitName)?.meta?.unitName||'');
+  const unitToMeters=finite(sourceEntities.find(entity=>entity.meta?.unitToMeters)?.meta?.unitToMeters);
+  if(!unitToMeters||unitToMeters<=0||unitName==='unitless')continue;
+  const rawDisplayX:{raw:number;display:number}[]=[],rawDisplayY:{raw:number;display:number}[]=[];
+  const allX:number[]=[],allY:number[]=[];
+  for(const entity of sourceEntities){
+   allX.push(entity.x);allY.push(entity.y);if(Number.isFinite(entity.x2))allX.push(Number(entity.x2));if(Number.isFinite(entity.y2))allY.push(Number(entity.y2));
+   for(const point of entity.vertices||[]){allX.push(point.x);allY.push(point.y)}
+   const rx=finite(entity.meta?.rawX),ry=finite(entity.meta?.rawY),rx2=finite(entity.meta?.rawX2),ry2=finite(entity.meta?.rawY2);
+   if(rx!==null)rawDisplayX.push({raw:rx,display:entity.x});if(ry!==null)rawDisplayY.push({raw:ry,display:entity.y});
+   if(rx2!==null&&Number.isFinite(entity.x2))rawDisplayX.push({raw:rx2,display:Number(entity.x2)});if(ry2!==null&&Number.isFinite(entity.y2))rawDisplayY.push({raw:ry2,display:Number(entity.y2)});
+  }
+  const scale=(items:{raw:number;display:number}[])=>{
+   if(items.length<2)return null;const min=items.reduce((a,b)=>a.raw<b.raw?a:b),max=items.reduce((a,b)=>a.raw>b.raw?a:b);
+   const displaySpan=Math.abs(max.display-min.display),rawSpan=Math.abs(max.raw-min.raw)*unitToMeters;return displaySpan>1e-9&&rawSpan>1e-9?rawSpan/displaySpan:null;
+  };
+  const metersPerX=scale(rawDisplayX),metersPerY=scale(rawDisplayY);
+  if(!metersPerX&&!metersPerY)continue;
+  const fallback=metersPerX||metersPerY||1;
+  result.set(doc,{metersPerX:metersPerX||fallback,metersPerY:metersPerY||fallback,minDisplayX:Math.min(...allX),minDisplayY:Math.min(...allY)});
+ }
+ return result;
 }
 
 export function enrichSpatialProjection<T extends SpatialProjectionGraph>(graph:T):T{
  const titleBlocks=Array.isArray(graph.titleBlocks)?graph.titleBlocks:[];
  const originalById=new Map(graph.entities.map(entity=>[entity.id,entity]));
+ const cadScales=buildCadScales(graph.entities);
+ const metricEntities=graph.entities.map(entity=>{
+  const scale=cadScales.get(sourceDocument(entity));if(!scale||entity.meta?.cadMetricXY===true)return entity;
+  const tx=(x:number)=>(x-scale.minDisplayX)*scale.metersPerX,ty=(y:number)=>(y-scale.minDisplayY)*scale.metersPerY;
+  return {...entity,x:tx(entity.x),y:ty(entity.y),...(Number.isFinite(entity.x2)?{x2:tx(Number(entity.x2))}:{}),...(Number.isFinite(entity.y2)?{y2:ty(Number(entity.y2))}:{}),vertices:entity.vertices?.map(point=>({x:tx(point.x),y:ty(point.y)})),meta:{...(entity.meta||{}),cadMetricXY:true,coordinateUnits:'m',planScaleMethod:'DXF_RAW_XY_AND_INSUNITS',metersPerDisplayUnitX:scale.metersPerX,metersPerDisplayUnitY:scale.metersPerY}};
+ });
  const sldFrames=new Set<string>();
- for(const entity of graph.entities){if(entity.layer==='L2'&&SLD_PATTERN.test(titleFor(entity,titleBlocks)))sldFrames.add(sourceFrame(entity))}
+ for(const entity of metricEntities){if(entity.layer==='L2'&&SLD_PATTERN.test(titleFor(entity,titleBlocks)))sldFrames.add(sourceFrame(entity))}
 
- const entities=graph.entities.map(entity=>{
+ const entities=metricEntities.map(entity=>{
   const meta={...(entity.meta||{})};
   const frame=sourceFrame(entity),isSld=entity.layer==='L2'&&sldFrames.has(frame);
   let z=Number.isFinite(Number(entity.z))?Number(entity.z):0;
@@ -87,24 +123,10 @@ export function enrichSpatialProjection<T extends SpatialProjectionGraph>(graph:
    }
   }else if(!isSld&&!canUsePhysicalZ(entity)){
    const candidate=inferredFloorElevation(entity.floor);
-   if(candidate!==null&&Math.abs(z)<1e-9){
-    z=candidate;
-    meta.elevationKnown=false;
-    meta.physicalElevationKnown=false;
-    meta.zPlacementAuthority='INFERRED_FLOOR_LABEL';
-    meta.inferredZCandidate=candidate;
-    meta.zReviewRequired=true;
-   }
+   if(candidate!==null&&Math.abs(z)<1e-9){z=candidate;meta.elevationKnown=false;meta.physicalElevationKnown=false;meta.zPlacementAuthority='INFERRED_FLOOR_LABEL';meta.inferredZCandidate=candidate;meta.zReviewRequired=true;}
   }
 
-  if(isSld){
-   meta.sldSpatialProjection=true;
-   meta.sldLogicalDepth=sldDepth(entity.name);
-   meta.sldProjectionMethod='DETERMINISTIC_ELECTRICAL_HIERARCHY_V1';
-   meta.sldProjectionReviewRequired=true;
-   meta.sldPhysicalElevationKnown=canUsePhysicalZ(entity);
-   meta.sldTruthBoundary='LOGICAL_Z_NEVER_ESTABLISHES_PHYSICAL_ELEVATION';
-  }
+  if(isSld){meta.sldSpatialProjection=true;meta.sldLogicalDepth=sldDepth(entity.name);meta.sldProjectionMethod='DETERMINISTIC_ELECTRICAL_HIERARCHY_V1';meta.sldProjectionReviewRequired=true;meta.sldPhysicalElevationKnown=canUsePhysicalZ(entity);meta.sldTruthBoundary='LOGICAL_Z_NEVER_ESTABLISHES_PHYSICAL_ELEVATION';}
   return {...entity,z,scale,meta};
  });
 
@@ -114,30 +136,19 @@ export function enrichSpatialProjection<T extends SpatialProjectionGraph>(graph:
   const nodes=entities.filter(entity=>entity.layer==='L2'&&sourceFrame(entity)===frame&&entity.meta?.sldSpatialProjection===true);
   const ordered=[...nodes].sort((a,b)=>Number(a.meta?.sldLogicalDepth||0)-Number(b.meta?.sldLogicalDepth||0)||a.x-b.x||a.y-b.y||a.id.localeCompare(b.id));
   for(const target of ordered){
-   const targetDepth=Number(target.meta?.sldLogicalDepth||0);
-   const upstream=ordered.filter(candidate=>Number(candidate.meta?.sldLogicalDepth||0)<targetDepth);
-   if(!upstream.length)continue;
-   upstream.sort((a,b)=>{
-    const ad=targetDepth-Number(a.meta?.sldLogicalDepth||0),bd=targetDepth-Number(b.meta?.sldLogicalDepth||0);
-    if(ad!==bd)return ad-bd;
-    const ax=Math.hypot(target.x-a.x,target.y-a.y),bx=Math.hypot(target.x-b.x,target.y-b.y);return ax-bx||a.id.localeCompare(b.id);
-   });
-   const from=upstream[0];
-   generated.push({id:`sld-feeds:${from.id}:${target.id}`,from:from.id,to:target.id,type:'SLD_FEEDS',confidence:.72,meta:{inference:'DETERMINISTIC_HIERARCHY_NEAREST_UPSTREAM',reviewRequired:true,physicalTruth:false}});
+   const targetDepth=Number(target.meta?.sldLogicalDepth||0),upstream=ordered.filter(candidate=>Number(candidate.meta?.sldLogicalDepth||0)<targetDepth);if(!upstream.length)continue;
+   upstream.sort((a,b)=>{const ad=targetDepth-Number(a.meta?.sldLogicalDepth||0),bd=targetDepth-Number(b.meta?.sldLogicalDepth||0);if(ad!==bd)return ad-bd;return Math.hypot(target.x-a.x,target.y-a.y)-Math.hypot(target.x-b.x,target.y-b.y)||a.id.localeCompare(b.id)});
+   const from=upstream[0];generated.push({id:`sld-feeds:${from.id}:${target.id}`,from:from.id,to:target.id,type:'SLD_FEEDS',confidence:.72,meta:{inference:'DETERMINISTIC_HIERARCHY_NEAREST_UPSTREAM',reviewRequired:true,physicalTruth:false}});
   }
  }
 
  const deduped=[...new Map([...retained,...generated].map(link=>[`${link.type}:${link.from}:${link.to}`,link])).values()];
- const changed=entities.some(entity=>{
-  const prior=originalById.get(entity.id);return JSON.stringify(prior)!==JSON.stringify(entity);
- })||JSON.stringify(graph.links||[])!==JSON.stringify(deduped);
+ const changed=entities.some(entity=>JSON.stringify(originalById.get(entity.id))!==JSON.stringify(entity))||JSON.stringify(graph.links||[])!==JSON.stringify(deduped);
  if(!changed)return graph;
- return {...graph,entities,links:deduped,spatialProjection:{version:'2',generatedAt:new Date().toISOString(),sldFrames:sldFrames.size,sldLinks:generated.length,truthBoundary:'LOGICAL_SLD_Z_AND_RECOMMENDED_PLACEMENT_NEVER_ESTABLISH_PHYSICAL_TRUTH'}} as T;
+ return {...graph,entities,links:deduped,spatialProjection:{version:'3',generatedAt:new Date().toISOString(),cadMetricFrames:cadScales.size,sldFrames:sldFrames.size,sldLinks:generated.length,truthBoundary:'METRIC_XY_SLD_LOGICAL_Z_AND_RECOMMENDED_PLACEMENT_NEVER_ESTABLISH_PHYSICAL_TRUTH'}} as T;
 }
 
 export function projectionSummary(graph:SpatialProjectionGraph){
- const sld=graph.entities.filter(entity=>entity.meta?.sldSpatialProjection===true).length;
- const inferredZ=graph.entities.filter(entity=>entity.meta?.zReviewRequired===true).length;
- const links=(graph.links||[]).filter(link=>link.type==='SLD_FEEDS').length;
- return{sldObjects:sld,inferredZCandidates:inferredZ,sldLinks:links};
+ const sld=graph.entities.filter(entity=>entity.meta?.sldSpatialProjection===true).length,inferredZ=graph.entities.filter(entity=>entity.meta?.zReviewRequired===true).length,links=(graph.links||[]).filter(link=>link.type==='SLD_FEEDS').length,metricCad=graph.entities.filter(entity=>entity.meta?.cadMetricXY===true).length;
+ return{sldObjects:sld,inferredZCandidates:inferredZ,sldLinks:links,metricCadObjects:metricCad};
 }
