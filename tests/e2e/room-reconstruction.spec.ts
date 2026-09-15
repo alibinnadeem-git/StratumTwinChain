@@ -30,6 +30,8 @@ test('automatic room proposal remains review-only until explicit human confirmat
  expect(before.proposal.eligible).toBe(true);
 
  const review=page.getByRole('region',{name:'Drawing review'});
+ await expect(review).toBeVisible();
+ await review.getByText('Review drawing geometry',{exact:true}).click();
  await review.getByLabel('Drawing sheet').selectOption({label:'A-101.pdf · page 1'});
  await review.getByRole('combobox',{name:'Boundary'}).selectOption('candidate-1');
  await expect(review.getByLabel('Reviewed room name')).toHaveValue('Electrical Room 101');
