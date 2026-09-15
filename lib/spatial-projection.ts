@@ -1,6 +1,6 @@
-import {nominalDimensionsFor,resolveAssetPlacement} from './asset-placement';
-import {resolveElectricalComponent} from './electrical-component-library';
-import type {ElectricalModelConfig} from './electrical-model-registry';
+import {nominalDimensionsFor,resolveAssetPlacement} from './asset-placement.ts';
+import {resolveElectricalComponent} from './electrical-component-library.ts';
+import type {ElectricalModelConfig} from './electrical-model-registry.ts';
 
 export type SpatialProjectionEntity={
  id:string;source:string;layer:string;kind:string;name:string;x:number;y:number;z?:number;x2?:number;y2?:number;z2?:number;floor?:string;vertices?:{x:number;y:number}[];scale?:number;confidence:number;meta?:Record<string,unknown>;
