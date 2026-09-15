@@ -7,19 +7,18 @@ test('DXF plan scale becomes metric while equipment Z remains separately reviewa
  const dxf=`0\nSECTION\n2\nHEADER\n9\n$INSUNITS\n70\n2\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n0\nINSERT\n8\nE-EQUIP\n2\nDRY TYPE TRANSFORMER T1\n10\n100\n20\n100\n30\n0\n0\nINSERT\n8\nE-EQUIP\n2\nPANELBOARD LP-2\n10\n200\n20\n110\n30\n0\n0\nENDSEC\n0\nEOF\n`;
  await sourceUpload(page).setInputFiles({name:'E2-Level-2-Power.dxf',mimeType:'application/dxf',buffer:Buffer.from(dxf)});
  await expect(page.getByText(/Source compilation updated/i)).toBeVisible();
- const state=await expect.poll(()=>page.evaluate(()=>{
+ await expect.poll(()=>page.evaluate(()=>{
   const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
   const panel=(graph.entities||[]).find((entity:any)=>entity.name==='PANELBOARD LP-2'&&entity.layer==='L2');
   const transformer=(graph.entities||[]).find((entity:any)=>entity.name==='DRY TYPE TRANSFORMER T1'&&entity.layer==='L2');
   return panel&&transformer?{
-   panel:{metric:panel.meta?.cadMetricXY,units:panel.meta?.coordinateUnits,z:panel.z,floor:panel.floor,authority:panel.meta?.zPlacementAuthority,review:panel.meta?.zReviewRequired},
-   transformer:{z:transformer.z,authority:transformer.meta?.zPlacementAuthority}
+   panel:{metric:panel.meta?.cadMetricXY,units:panel.meta?.coordinateUnits,planUnits:panel.meta?.planCoordinateUnits,z:panel.z,floor:panel.floor,authority:panel.meta?.zPlacementAuthority,review:panel.meta?.zReviewRequired},
+   transformer:{z:transformer.z,authority:transformer.meta?.zPlacementAuthority,review:transformer.meta?.zReviewRequired}
   }:null;
  })).toEqual({
-  panel:{metric:true,units:'m',z:4.695,floor:'L2',authority:'HISTORICAL_RECOMMENDATION',review:true},
-  transformer:{z:4,authority:'FLOOR_STANDING_PROFILE'}
+  panel:{metric:true,units:'m_xy',planUnits:'m',z:4.695,floor:'L2',authority:'HISTORICAL_RECOMMENDATION',review:true},
+  transformer:{z:4,authority:'FLOOR_STANDING_PROFILE',review:true}
  });
- void state;
  await page.goto('/spatial');
  await expect(page.getByRole('group',{name:'Spatial view mode'})).toBeVisible();
  await expect(page.getByRole('button',{name:/Model/i})).toBeVisible();
