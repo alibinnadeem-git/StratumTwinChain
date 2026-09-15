@@ -1,15 +1,34 @@
+import Link from 'next/link';
 import CompilerWorkspace from '@/components/CompilerWorkspace';
 import RoomReconstructionReview from '@/components/RoomReconstructionReview';
 import TitleBlockIntelligence from '@/components/TitleBlockIntelligence';
 import AutoSheetAlignmentReview from '@/components/AutoSheetAlignmentReview';
 import SpatialCompilationPersistence from '@/components/SpatialCompilationPersistence';
+import SpatialProjectionEngine from '@/components/SpatialProjectionEngine';
 
 export default function CompilerPage(){return <>
-  <div className="page-head"><div><div className="eyebrow">STRATUM Spatial Compiler</div><h1 className="title">Engineering sources in. Traceable Spatial model out.</h1><p className="subtitle">Ingest drawing sets and engineering sources, fingerprint originals, classify disciplines, preserve revisions and source transforms, build cross-document relationships, surface confidence exceptions, and compile the reviewed project graph that drives STRATUM Spatial Verified. Inference remains inference until reviewed.</p></div><div className="badge">SOURCE → SPATIAL → ASSET</div></div>
+  <SpatialProjectionEngine/>
+  <div className="page-head"><div><div className="eyebrow">STRATUM Spatial Compiler</div><h1 className="title">Import. Review exceptions. Open Spatial.</h1><p className="subtitle">Drop the drawing set once. STRATUM extracts source-grounded geometry and electrical objects, proposes rooms, Z placement and SLD hierarchy, then asks for human review only where authority is missing.</p></div><Link className="action" href="/spatial">Open Spatial viewer</Link></div>
+
+  <div className="grid three" style={{marginBottom:16}}>
+   <div className="card"><div className="eyebrow">1 · Import</div><strong>CAD · PDF · BIM · imagery</strong><p className="muted">Original source fingerprint and extraction provenance are preserved.</p></div>
+   <div className="card"><div className="eyebrow">2 · Review</div><strong>Only uncertain geometry or identity</strong><p className="muted">Room boundaries, title blocks, alignment and inferred Z stay reviewable.</p></div>
+   <div className="card"><div className="eyebrow">3 · View</div><strong>Model · Electrical · Review</strong><p className="muted">Physical Z and logical SLD Z stay visibly distinct.</p></div>
+  </div>
+
   <CompilerWorkspace/>
-  <RoomReconstructionReview/>
-  <TitleBlockIntelligence/>
-  <AutoSheetAlignmentReview/>
-  <SpatialCompilationPersistence/>
-  <div className="card" style={{marginTop:16}}><div className="eyebrow">Current compiler output</div><div className="provenance-map"><div className="prov-step active"><i>L0</i><b>Source</b><span>CAD · PDF · BIM · imagery</span></div><em>→</em><div className="prov-step active"><i>L1</i><b>Architectural</b><span>Rooms · walls · doors · levels</span></div><em>→</em><div className="prov-step active"><i>L2</i><b>Electrical Physical</b><span>Panels · transformers · devices</span></div><em>→</em><div className="prov-step active"><i>L3</i><b>Electrical Logical</b><span>Feeders · circuits · dependencies</span></div><em>→</em><div className="prov-step active"><i>L4</i><b>STRATUM Assets</b><span>Durable canonical identities</span></div></div><p className="muted" style={{marginBottom:0}}>L4 compiler candidates remain source-derived review objects until an authorized downstream asset workflow establishes durable STRATUM Asset identity. Spatial review acceptance does not perform that promotion.</p></div>
+
+  <details className="card" style={{marginTop:16}}>
+   <summary style={{cursor:'pointer',fontWeight:700}}>Review drawing intelligence and alignment</summary>
+   <p className="muted">Open this only when STRATUM flags uncertainty. Automatic proposals never become Verified state by themselves.</p>
+   <RoomReconstructionReview/>
+   <TitleBlockIntelligence/>
+   <AutoSheetAlignmentReview/>
+  </details>
+
+  <details className="card" style={{marginTop:16}}>
+   <summary style={{cursor:'pointer',fontWeight:700}}>Save or load a reviewed compiler snapshot</summary>
+   <p className="muted">Server persistence is append-only review storage. Saving or accepting a snapshot does not create STRATUM Assets, DIR finality or physical truth.</p>
+   <SpatialCompilationPersistence/>
+  </details>
 </>}
