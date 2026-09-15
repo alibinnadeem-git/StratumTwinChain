@@ -15,6 +15,7 @@ test('automatic room proposal remains review-only until explicit human confirmat
   window.dispatchEvent(new Event('stratum:graph-updated'));
  });
 
+ await page.getByText('Review drawing intelligence and alignment',{exact:true}).click();
  const proposals=page.getByRole('region',{name:'Automatic room reconstruction review'});
  await expect(proposals).toContainText('Electrical Room 101');
  await expect(proposals).toContainText('ROOM PROPOSAL');
