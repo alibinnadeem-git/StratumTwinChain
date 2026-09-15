@@ -4,13 +4,24 @@ import type {ElectricalModelConfig} from './electrical-model-registry';
 export type PlacementEntity={name:string;floor?:string;z?:number;meta?:Record<string,unknown>};
 export type DimensionAuthority='SOURCE_SPEC'|'MODEL_REGISTRY'|'STRATUM_NOMINAL';
 export type ZAuthority='MEASURED_OR_REVIEWED'|'FLOOR_STANDING_PROFILE'|'HISTORICAL_RECOMMENDATION'|'FLOOR_LABEL_ONLY'|'UNRESOLVED';
+export type PlacementEvidenceClass='SOURCE_SPEC'|'CODE_CONSTRAINT'|'ACCESSIBILITY_GUIDANCE'|'DESIGN_GUIDE'|'TYPE_PROFILE'|'VISUALIZATION_HEURISTIC';
+export type PlacementRecommendation={
+ kind:string;
+ valueMeters?:number;
+ rangeMeters?:[number,number];
+ constraintMaxMeters?:number;
+ source:string;
+ sourceUrl?:string;
+ evidenceClass:PlacementEvidenceClass;
+ note:string;
+};
 export type AssetPlacement={
  dimensions:{width:number;height:number;depth:number;authority:DimensionAuthority;source:string;confidence:number};
  baseZ:number;
  topZ:number;
  zAuthority:ZAuthority;
  zConfidence:number;
- recommendation?:{kind:string;valueMeters?:number;rangeMeters?:[number,number];constraintMaxMeters?:number;source:string;note:string};
+ recommendation?:PlacementRecommendation;
  physicalTruth:false;
 };
 
@@ -67,20 +78,20 @@ export function resolveAssetPlacement(entity:PlacementEntity,registry?:Electrica
  }
  const key=component?.key||'';
  if(FLOOR_KEYS.has(key)){
-  return{dimensions,baseZ:floorZ,topZ:floorZ+dimensions.height,zAuthority:'FLOOR_STANDING_PROFILE',zConfidence:.72,recommendation:{kind:'BASE_ON_FINISHED_FLOOR',valueMeters:floorZ,source:'Equipment-type installation profile',note:'Floor/pad-standing placement recommendation only; confirm pad, housekeeping curb and actual field elevation.'},physicalTruth:false};
+  return{dimensions,baseZ:floorZ,topZ:floorZ+dimensions.height,zAuthority:'FLOOR_STANDING_PROFILE',zConfidence:.72,recommendation:{kind:'BASE_ON_FINISHED_FLOOR',valueMeters:floorZ,source:'Equipment-type installation profile',evidenceClass:'TYPE_PROFILE',note:'Floor/pad-standing placement recommendation only; confirm pad, housekeeping curb and actual field elevation.'},physicalTruth:false};
  }
  if(PANEL_KEYS.has(key)){
   const accessible:[number,number]=[.38,1.22];
   const center=floorZ+1.22;
   const base=Math.max(floorZ,center-dimensions.height/2);
-  return{dimensions,baseZ:base,topZ:base+dimensions.height,zAuthority:'HISTORICAL_RECOMMENDATION',zConfidence:.48,recommendation:{kind:'OPERABLE_PART_REACH_CONTEXT',rangeMeters:[floorZ+accessible[0],floorZ+accessible[1]],constraintMaxMeters:floorZ+2,source:'ADA 2010 Standards §308; NEC 240.24(A) / Schneider installation guidance',note:'Accessibility range applies where required. Breaker handle highest position is limited to 2.0 m by NEC 240.24(A); this is not an exact installed base elevation.'},physicalTruth:false};
+  return{dimensions,baseZ:base,topZ:base+dimensions.height,zAuthority:'HISTORICAL_RECOMMENDATION',zConfidence:.48,recommendation:{kind:'OPERABLE_PART_REACH_CONTEXT',rangeMeters:[floorZ+accessible[0],floorZ+accessible[1]],constraintMaxMeters:floorZ+2,source:'ADA 2010 Standards §308 + NEC 240.24(A) / Schneider installation guidance',sourceUrl:'https://www.se.com/us/en/faqs/FA296388/',evidenceClass:'CODE_CONSTRAINT',note:'Accessibility range applies where required. Breaker handle highest position is limited to 2.0 m by NEC 240.24(A); this is not an exact installed base elevation.'},physicalTruth:false};
  }
  if(RECEPTACLE_KEYS.has(key)){
   const center=floorZ+.46;
-  return{dimensions,baseZ:center-dimensions.height/2,topZ:center+dimensions.height/2,zAuthority:'HISTORICAL_RECOMMENDATION',zConfidence:.6,recommendation:{kind:'TYPICAL_RECEPTACLE_CENTER',valueMeters:center,rangeMeters:[floorZ+.38,floorZ+1.22],source:'VA Section 26 27 26 (450 mm / 18 in typical); ADA §308 reach range when accessibility applies',note:'Historical/design-guide placement candidate only. Project drawings and field conditions govern.'},physicalTruth:false};
+  return{dimensions,baseZ:center-dimensions.height/2,topZ:center+dimensions.height/2,zAuthority:'HISTORICAL_RECOMMENDATION',zConfidence:.6,recommendation:{kind:'TYPICAL_RECEPTACLE_CENTER',valueMeters:center,rangeMeters:[floorZ+.38,floorZ+1.22],source:'VA Section 26 27 26 (450 mm / 18 in typical); ADA §308 reach range when accessibility applies',sourceUrl:'https://www.wbdg.org/FFC/VA/VAASC/VA%2026%2027%2026.pdf',evidenceClass:'DESIGN_GUIDE',note:'Historical/design-guide placement candidate only. Project drawings and field conditions govern.'},physicalTruth:false};
  }
  if(component?.twinShape==='sensor'||component?.twinShape==='light'){
-  return{dimensions,baseZ:floorZ+2.5,topZ:floorZ+2.5+dimensions.height,zAuthority:'HISTORICAL_RECOMMENDATION',zConfidence:.3,recommendation:{kind:'OVERHEAD_DEVICE_CANDIDATE',valueMeters:floorZ+2.5,source:'STRATUM low-confidence visualization profile',note:'Ceiling/fixture height must come from reflected ceiling plans, OEM data or field evidence.'},physicalTruth:false};
+  return{dimensions,baseZ:floorZ+2.5,topZ:floorZ+2.5+dimensions.height,zAuthority:'HISTORICAL_RECOMMENDATION',zConfidence:.3,recommendation:{kind:'OVERHEAD_DEVICE_CANDIDATE',valueMeters:floorZ+2.5,source:'STRATUM low-confidence visualization profile',evidenceClass:'VISUALIZATION_HEURISTIC',note:'Ceiling/fixture height must come from reflected ceiling plans, OEM data or field evidence.'},physicalTruth:false};
  }
  return{dimensions,baseZ:floorZ,topZ:floorZ+dimensions.height,zAuthority:entity.floor&&entity.floor!=='UNRESOLVED'?'FLOOR_LABEL_ONLY':'UNRESOLVED',zConfidence:entity.floor&&entity.floor!=='UNRESOLVED'?.35:0,physicalTruth:false};
 }
