@@ -1,4 +1,6 @@
 import {nominalDimensionsFor,resolveAssetPlacement} from './asset-placement';
+import {resolveElectricalComponent} from './electrical-component-library';
+import type {ElectricalModelConfig} from './electrical-model-registry';
 
 export type SpatialProjectionEntity={
  id:string;source:string;layer:string;kind:string;name:string;x:number;y:number;z?:number;x2?:number;y2?:number;z2?:number;floor?:string;vertices?:{x:number;y:number}[];scale?:number;confidence:number;meta?:Record<string,unknown>;
@@ -78,14 +80,14 @@ function buildCadScales(entities:SpatialProjectionEntity[]){
  return result;
 }
 
-export function enrichSpatialProjection<T extends SpatialProjectionGraph>(graph:T):T{
+export function enrichSpatialProjection<T extends SpatialProjectionGraph>(graph:T,modelRegistry:ElectricalModelConfig[]=[]):T{
  const titleBlocks=Array.isArray(graph.titleBlocks)?graph.titleBlocks:[];
  const originalById=new Map(graph.entities.map(entity=>[entity.id,entity]));
  const cadScales=buildCadScales(graph.entities);
  const metricEntities=graph.entities.map(entity=>{
-  const scale=cadScales.get(sourceDocument(entity));if(!scale||entity.meta?.cadMetricXY===true)return entity;
-  const tx=(x:number)=>(x-scale.minDisplayX)*scale.metersPerX,ty=(y:number)=>(y-scale.minDisplayY)*scale.metersPerY;
-  return {...entity,x:tx(entity.x),y:ty(entity.y),...(Number.isFinite(entity.x2)?{x2:tx(Number(entity.x2))}:{}),...(Number.isFinite(entity.y2)?{y2:ty(Number(entity.y2))}:{}),vertices:entity.vertices?.map(point=>({x:tx(point.x),y:ty(point.y)})),meta:{...(entity.meta||{}),cadMetricXY:true,coordinateUnits:'m',planScaleMethod:'DXF_RAW_XY_AND_INSUNITS',metersPerDisplayUnitX:scale.metersPerX,metersPerDisplayUnitY:scale.metersPerY}};
+  const cadScale=cadScales.get(sourceDocument(entity));if(!cadScale||entity.meta?.cadMetricXY===true)return entity;
+  const tx=(x:number)=>(x-cadScale.minDisplayX)*cadScale.metersPerX,ty=(y:number)=>(y-cadScale.minDisplayY)*cadScale.metersPerY;
+  return {...entity,x:tx(entity.x),y:ty(entity.y),...(Number.isFinite(entity.x2)?{x2:tx(Number(entity.x2))}:{}),...(Number.isFinite(entity.y2)?{y2:ty(Number(entity.y2))}:{}),vertices:entity.vertices?.map(point=>({x:tx(point.x),y:ty(point.y)})),meta:{...(entity.meta||{}),cadMetricXY:true,coordinateUnits:'m',planScaleMethod:'DXF_RAW_XY_AND_INSUNITS',metersPerDisplayUnitX:cadScale.metersPerX,metersPerDisplayUnitY:cadScale.metersPerY}};
  });
  const sldFrames=new Set<string>();
  for(const entity of metricEntities){if(entity.layer==='L2'&&SLD_PATTERN.test(titleFor(entity,titleBlocks)))sldFrames.add(sourceFrame(entity))}
@@ -97,7 +99,9 @@ export function enrichSpatialProjection<T extends SpatialProjectionGraph>(graph:
   let scale=entity.scale;
 
   if(entity.layer==='L2'){
-   const placement=resolveAssetPlacement({...entity,meta});
+   const component=resolveElectricalComponent(entity.name);
+   const registry=component?modelRegistry.find(item=>item.componentKey===component.key):undefined;
+   const placement=resolveAssetPlacement({...entity,meta},registry);
    meta.assetDimensionsMeters=[placement.dimensions.width,placement.dimensions.height,placement.dimensions.depth];
    meta.assetDimensionAuthority=placement.dimensions.authority;
    meta.assetDimensionSource=placement.dimensions.source;
@@ -145,7 +149,7 @@ export function enrichSpatialProjection<T extends SpatialProjectionGraph>(graph:
  const deduped=[...new Map([...retained,...generated].map(link=>[`${link.type}:${link.from}:${link.to}`,link])).values()];
  const changed=entities.some(entity=>JSON.stringify(originalById.get(entity.id))!==JSON.stringify(entity))||JSON.stringify(graph.links||[])!==JSON.stringify(deduped);
  if(!changed)return graph;
- return {...graph,entities,links:deduped,spatialProjection:{version:'3',generatedAt:new Date().toISOString(),cadMetricFrames:cadScales.size,sldFrames:sldFrames.size,sldLinks:generated.length,truthBoundary:'METRIC_XY_SLD_LOGICAL_Z_AND_RECOMMENDED_PLACEMENT_NEVER_ESTABLISH_PHYSICAL_TRUTH'}} as T;
+ return {...graph,entities,links:deduped,spatialProjection:{version:'4',generatedAt:new Date().toISOString(),cadMetricFrames:cadScales.size,sldFrames:sldFrames.size,sldLinks:generated.length,dimensionRegistryEntries:modelRegistry.filter(item=>item.dimensionsMeters).length,truthBoundary:'METRIC_XY_SLD_LOGICAL_Z_AND_RECOMMENDED_PLACEMENT_NEVER_ESTABLISH_PHYSICAL_TRUTH'}} as T;
 }
 
 export function projectionSummary(graph:SpatialProjectionGraph){
