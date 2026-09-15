@@ -2,23 +2,32 @@ import {expect,test} from '@playwright/test';
 
 const sourceUpload=(page:import('@playwright/test').Page)=>page.locator('input[type=file][accept*=".dxf"]');
 
-test('DXF plan scale becomes metric and physical Z remains source grounded',async({page})=>{
+test('DXF plan scale becomes metric while equipment Z remains separately reviewable',async({page})=>{
  await page.goto('/compiler');
  const dxf=`0\nSECTION\n2\nHEADER\n9\n$INSUNITS\n70\n2\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n0\nINSERT\n8\nE-EQUIP\n2\nDRY TYPE TRANSFORMER T1\n10\n100\n20\n100\n30\n0\n0\nINSERT\n8\nE-EQUIP\n2\nPANELBOARD LP-2\n10\n200\n20\n110\n30\n0\n0\nENDSEC\n0\nEOF\n`;
  await sourceUpload(page).setInputFiles({name:'E2-Level-2-Power.dxf',mimeType:'application/dxf',buffer:Buffer.from(dxf)});
  await expect(page.getByText(/Source compilation updated/i)).toBeVisible();
- await expect.poll(()=>page.evaluate(()=>{
+ const state=await expect.poll(()=>page.evaluate(()=>{
   const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
   const panel=(graph.entities||[]).find((entity:any)=>entity.name==='PANELBOARD LP-2'&&entity.layer==='L2');
-  return panel?{metric:panel.meta?.cadMetricXY,units:panel.meta?.coordinateUnits,z:panel.z,floor:panel.floor}:null;
- })).toEqual({metric:true,units:'m',z:4,floor:'L2'});
+  const transformer=(graph.entities||[]).find((entity:any)=>entity.name==='DRY TYPE TRANSFORMER T1'&&entity.layer==='L2');
+  return panel&&transformer?{
+   panel:{metric:panel.meta?.cadMetricXY,units:panel.meta?.coordinateUnits,z:panel.z,floor:panel.floor,authority:panel.meta?.zPlacementAuthority,review:panel.meta?.zReviewRequired},
+   transformer:{z:transformer.z,authority:transformer.meta?.zPlacementAuthority}
+  }:null;
+ })).toEqual({
+  panel:{metric:true,units:'m',z:4.695,floor:'L2',authority:'HISTORICAL_RECOMMENDATION',review:true},
+  transformer:{z:4,authority:'FLOOR_STANDING_PROFILE'}
+ });
+ void state;
  await page.goto('/spatial');
  await expect(page.getByRole('group',{name:'Spatial view mode'})).toBeVisible();
  await expect(page.getByRole('button',{name:/Model/i})).toBeVisible();
  await expect(page.getByRole('button',{name:/Electrical/i})).toBeVisible();
  await expect(page.getByRole('button',{name:/Review/i})).toBeVisible();
  await page.getByLabel('Imported object').selectOption({label:/PANELBOARD LP-2/});
- await expect(page.getByText('4.00 m',{exact:true})).toBeVisible();
+ await expect(page.getByText(/4\.70 m/)).toBeVisible();
+ await expect(page.getByText(/Z NEEDS REVIEW/)).toBeVisible();
 });
 
 test('SLD becomes review-only spatial electrical hierarchy',async({page})=>{
