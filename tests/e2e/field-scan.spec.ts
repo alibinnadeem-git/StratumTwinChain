@@ -27,7 +27,7 @@ test('field scan blocks inspection for an administratively archived asset',async
  await page.goto('/scan');
  await page.getByLabel('Asset code or serial').fill('STR-AST-0009281');
  await page.getByRole('button',{name:'Identify asset'}).click();
- await expect(page.getByText('ADMINISTRATIVELY ARCHIVED')).toBeVisible();
- await expect(page.getByText('Retired equipment')).toBeVisible();
+ await expect(page.getByText('ADMINISTRATIVELY ARCHIVED',{exact:true})).toBeVisible();
+ await expect(page.getByText('Retired equipment',{exact:true})).toBeVisible();
  await expect(page.getByRole('button',{name:'Continue inspection'})).toBeDisabled();
 });
