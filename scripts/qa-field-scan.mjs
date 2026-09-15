@@ -23,20 +23,23 @@ assert.match(resolver,/session\.organizationId/);
 assert.doesNotMatch(resolver,/findAsset/);
 assert.match(resolver,/tenantScoped:true/);
 assert.match(resolver,/FIELD_IDENTITY_RESOLUTION_DOES_NOT_ESTABLISH_VERIFIED_STATE/);
+assert.match(resolver,/identityAssurance:lookupOnlyAssurance\(lookupMatch\)/);
 assert.match(resolver,/asset_archive_events/);
 console.log('✓ field resolver is authenticated and organization-scoped with no reference fallback');
-console.log('✓ resolver surfaces administrative archive state and denies verification authority');
+console.log('✓ resolver surfaces administrative archive state and lookup-only assurance without verification authority');
 
 assert.match(scanner,/normalizeScanValue/);
 assert.match(scanner,/\/api\/assets\/resolve\?q=/);
 assert.match(scanner,/administratively_archived/);
 assert.match(scanner,/Archived assets cannot start a new inspection/);
-assert.match(scanner,/QR\/barcode recognition establishes identity lookup only/);
+assert.match(scanner,/QR\/barcode recognition establishes registry lookup only/);
+assert.match(scanner,/Printed codes can be copied or replayed/);
+assert.match(scanner,/does not establish physical identity, Verified state, DIR finality, PoVI finality, or physical truth/);
 assert.match(scanner,/router\.push\(`\/inspection\?q=/);
 assert.match(page,/FieldScanner/);
 assert.match(page,/Scan first\. Verify separately\./);
-console.log('✓ scanner resolves tenant identity before controlled inspection handoff');
+console.log('✓ scanner resolves tenant registry identity before controlled inspection handoff');
 console.log('✓ archived asset inspection is blocked');
-console.log('✓ dedicated /scan surface states identity is not physical verification');
+console.log('✓ dedicated /scan surface keeps printed-code identity lookup separate from physical verification');
 
 console.log('\nField scan, tenant identity and trust-boundary contract passed.');
