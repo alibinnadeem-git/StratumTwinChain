@@ -23,13 +23,13 @@ test('offline inspection stays UNSYNCED and retries lifecycle/evidence with the 
  await page.goto(`/inspection?q=${asset.id}`);
  await expect(page.getByText('Main Switchgear')).toBeVisible();
  await context.setOffline(true);
- await expect(page.getByText('OFFLINE')).toBeVisible();
+ await expect(page.getByText('OFFLINE',{exact:true})).toBeVisible();
  const checks=page.locator('input[type="checkbox"]');
  await checks.nth(0).check();
  await checks.nth(1).check();
  await page.getByPlaceholder(/Voltage, current, torque/i).fill('480 V phase-to-phase; enclosure visually acceptable');
  await page.locator('input[type="file"]').setInputFiles({name:'inspection.txt',mimeType:'text/plain',buffer:tiny});
- await expect(page.getByText(/fingerprinted and persisted locally/i)).toBeVisible();
+ await expect(page.locator('small').filter({hasText:/1 evidence file\(s\) fingerprinted and persisted locally/i})).toBeVisible();
  await page.getByRole('button',{name:'Queue inspection for sync'}).click();
  await expect(page.getByText(/UNSYNCED: inspection is safely queued on this device/i)).toBeVisible();
  expect(lifecycleRequestIds).toHaveLength(0);
