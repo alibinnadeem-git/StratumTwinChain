@@ -47,10 +47,14 @@ function sldDepth(name:string){
  if(LOAD_PATTERN.test(name))return 5;
  return 3;
 }
-function canUsePhysicalZ(entity:SpatialProjectionEntity){
- return entity.meta?.elevationKnown===true||entity.meta?.physicalElevationKnown===true||entity.meta?.alignmentVerified===true||entity.meta?.zPlacementAuthority==='MEASURED_OR_REVIEWED'||entity.meta?.cadMetricXY===true;
-}
 function finite(value:unknown){const n=Number(value);return Number.isFinite(n)?n:null}
+function hasExplicitCadZ(entity:SpatialProjectionEntity){
+ const rawZ=finite(entity.meta?.rawZ),unit=finite(entity.meta?.unitToMeters);
+ return rawZ!==null&&unit!==null&&unit>0&&Math.abs(rawZ)>1e-9;
+}
+function canUsePhysicalZ(entity:SpatialProjectionEntity){
+ return entity.meta?.elevationKnown===true||entity.meta?.physicalElevationKnown===true||entity.meta?.alignmentVerified===true||entity.meta?.zPlacementAuthority==='MEASURED_OR_REVIEWED'||entity.meta?.zPlacementAuthority==='SOURCE_CAD_Z'||hasExplicitCadZ(entity);
+}
 function buildCadScales(entities:SpatialProjectionEntity[]){
  const result=new Map<string,CadScale>();
  const docs=[...new Set(entities.map(sourceDocument))];
@@ -87,7 +91,8 @@ export function enrichSpatialProjection<T extends SpatialProjectionGraph>(graph:
  const metricEntities=graph.entities.map(entity=>{
   const cadScale=cadScales.get(sourceDocument(entity));if(!cadScale||entity.meta?.cadMetricXY===true)return entity;
   const tx=(x:number)=>(x-cadScale.minDisplayX)*cadScale.metersPerX,ty=(y:number)=>(y-cadScale.minDisplayY)*cadScale.metersPerY;
-  return {...entity,x:tx(entity.x),y:ty(entity.y),...(Number.isFinite(entity.x2)?{x2:tx(Number(entity.x2))}:{}),...(Number.isFinite(entity.y2)?{y2:ty(Number(entity.y2))}:{}),vertices:entity.vertices?.map(point=>({x:tx(point.x),y:ty(point.y)})),meta:{...(entity.meta||{}),cadMetricXY:true,coordinateUnits:'m',planScaleMethod:'DXF_RAW_XY_AND_INSUNITS',metersPerDisplayUnitX:cadScale.metersPerX,metersPerDisplayUnitY:cadScale.metersPerY}};
+  const explicitCadZ=hasExplicitCadZ(entity);
+  return {...entity,x:tx(entity.x),y:ty(entity.y),...(Number.isFinite(entity.x2)?{x2:tx(Number(entity.x2))}:{}),...(Number.isFinite(entity.y2)?{y2:ty(Number(entity.y2))}:{}),vertices:entity.vertices?.map(point=>({x:tx(point.x),y:ty(point.y)})),meta:{...(entity.meta||{}),cadMetricXY:true,coordinateUnits:'m',planScaleMethod:'DXF_RAW_XY_AND_INSUNITS',metersPerDisplayUnitX:cadScale.metersPerX,metersPerDisplayUnitY:cadScale.metersPerY,...(explicitCadZ?{zPlacementAuthority:'SOURCE_CAD_Z',physicalElevationKnown:true}:{})}};
  });
  const sldFrames=new Set<string>();
  for(const entity of metricEntities){if(entity.layer==='L2'&&SLD_PATTERN.test(titleFor(entity,titleBlocks)))sldFrames.add(sourceFrame(entity))}
@@ -112,7 +117,7 @@ export function enrichSpatialProjection<T extends SpatialProjectionGraph>(graph:
    meta.assetZRecommendationConfidence=placement.zConfidence;
    if(placement.recommendation)meta.assetPlacementRecommendation=placement.recommendation;
 
-   if(!canUsePhysicalZ(entity)&&!isSld){
+   if(!canUsePhysicalZ({...entity,meta})&&!isSld){
     z=placement.baseZ;
     meta.elevationKnown=false;
     meta.physicalElevationKnown=false;
@@ -125,12 +130,12 @@ export function enrichSpatialProjection<T extends SpatialProjectionGraph>(graph:
     scale=Math.max(.1,Math.min(8,placement.dimensions.height/Math.max(nominal[1],.05)));
     meta.assetScaleAuthority=placement.dimensions.authority;
    }
-  }else if(!isSld&&!canUsePhysicalZ(entity)){
+  }else if(!isSld&&!canUsePhysicalZ({...entity,meta})){
    const candidate=inferredFloorElevation(entity.floor);
    if(candidate!==null&&Math.abs(z)<1e-9){z=candidate;meta.elevationKnown=false;meta.physicalElevationKnown=false;meta.zPlacementAuthority='INFERRED_FLOOR_LABEL';meta.inferredZCandidate=candidate;meta.zReviewRequired=true;}
   }
 
-  if(isSld){meta.sldSpatialProjection=true;meta.sldLogicalDepth=sldDepth(entity.name);meta.sldProjectionMethod='DETERMINISTIC_ELECTRICAL_HIERARCHY_V1';meta.sldProjectionReviewRequired=true;meta.sldPhysicalElevationKnown=canUsePhysicalZ(entity);meta.sldTruthBoundary='LOGICAL_Z_NEVER_ESTABLISHES_PHYSICAL_ELEVATION';}
+  if(isSld){meta.sldSpatialProjection=true;meta.sldLogicalDepth=sldDepth(entity.name);meta.sldProjectionMethod='DETERMINISTIC_ELECTRICAL_HIERARCHY_V1';meta.sldProjectionReviewRequired=true;meta.sldPhysicalElevationKnown=canUsePhysicalZ({...entity,meta});meta.sldTruthBoundary='LOGICAL_Z_NEVER_ESTABLISHES_PHYSICAL_ELEVATION';}
   return {...entity,z,scale,meta};
  });
 
@@ -149,7 +154,7 @@ export function enrichSpatialProjection<T extends SpatialProjectionGraph>(graph:
  const deduped=[...new Map([...retained,...generated].map(link=>[`${link.type}:${link.from}:${link.to}`,link])).values()];
  const changed=entities.some(entity=>JSON.stringify(originalById.get(entity.id))!==JSON.stringify(entity))||JSON.stringify(graph.links||[])!==JSON.stringify(deduped);
  if(!changed)return graph;
- return {...graph,entities,links:deduped,spatialProjection:{version:'4',generatedAt:new Date().toISOString(),cadMetricFrames:cadScales.size,sldFrames:sldFrames.size,sldLinks:generated.length,dimensionRegistryEntries:modelRegistry.filter(item=>item.dimensionsMeters).length,truthBoundary:'METRIC_XY_SLD_LOGICAL_Z_AND_RECOMMENDED_PLACEMENT_NEVER_ESTABLISH_PHYSICAL_TRUTH'}} as T;
+ return {...graph,entities,links:deduped,spatialProjection:{version:'5',generatedAt:new Date().toISOString(),cadMetricFrames:cadScales.size,sldFrames:sldFrames.size,sldLinks:generated.length,dimensionRegistryEntries:modelRegistry.filter(item=>item.dimensionsMeters).length,truthBoundary:'METRIC_XY_SLD_LOGICAL_Z_AND_RECOMMENDED_PLACEMENT_NEVER_ESTABLISH_PHYSICAL_TRUTH'}} as T;
 }
 
 export function projectionSummary(graph:SpatialProjectionGraph){
