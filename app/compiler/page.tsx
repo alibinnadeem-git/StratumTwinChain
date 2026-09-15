@@ -8,7 +8,7 @@ import SpatialProjectionEngine from '@/components/SpatialProjectionEngine';
 
 export default function CompilerPage(){return <>
   <SpatialProjectionEngine/>
-  <div className="page-head"><div><div className="eyebrow">STRATUM Spatial Compiler</div><h1 className="title">Import. Review exceptions. Open Spatial.</h1><p className="subtitle">Drop the drawing set once. STRATUM extracts source-grounded geometry and electrical objects, proposes rooms, Z placement and SLD hierarchy, then asks for human review only where authority is missing.</p></div><Link className="action" href="/spatial">Open Spatial viewer</Link></div>
+  <div className="page-head"><div><div className="eyebrow">STRATUM Spatial Compiler</div><h1 className="title">Import. Review exceptions. Open Spatial.</h1><h2 className="subtitle" style={{fontSize:16,margin:'6px 0'}}>Engineering sources in. Traceable Spatial model out.</h2><p className="subtitle">Drop the drawing set once. STRATUM extracts source-grounded geometry and electrical objects, proposes rooms, Z placement and SLD hierarchy, then asks for human review only where authority is missing.</p></div><Link className="action" href="/spatial">Open Spatial viewer</Link></div>
 
   <div className="grid three" style={{marginBottom:16}}>
    <div className="card"><div className="eyebrow">1 · Import</div><strong>CAD · PDF · BIM · imagery</strong><p className="muted">Original source fingerprint and extraction provenance are preserved.</p></div>
