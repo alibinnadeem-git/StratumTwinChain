@@ -30,7 +30,8 @@ test('DXF plan scale becomes metric while equipment Z remains separately reviewa
  const panelValue=await panelOption.getAttribute('value');
  expect(panelValue).toBeTruthy();
  await imported.selectOption(panelValue!);
- await expect(page.getByText(/4\.70 m/)).toBeVisible();
+ await expect(page.getByText('Z placement',{exact:true})).toBeVisible();
+ await expect(page.getByText('Unverified elevation',{exact:true})).toBeVisible();
  await expect(page.getByText(/Z NEEDS REVIEW/)).toBeVisible();
 });
 
