@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import type { MeshDetail, createMeshInspection } from "@/lib/mesh-inspection";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { resolveElectricalComponent } from "@/lib/electrical-component-library";
+import {useEffect,useMemo,useRef,useState} from "react";
+import {resolveElectricalComponent} from "@/lib/electrical-component-library";
 import {
   DEFAULT_ELECTRICAL_MODEL_REGISTRY,
   ELECTRICAL_MODEL_REGISTRY_STORAGE_KEY,
@@ -11,1452 +10,268 @@ import {
   normalizeElectricalModelRegistry,
 } from "@/lib/electrical-model-registry";
 
-type Layer = "L0" | "L1" | "L2" | "L3" | "L4";
-type XY = { x: number; y: number };
-type EnvironmentMode = "CINEMATIC" | "ENGINEERING" | "NIGHT" | "EMERGENCY";
-type SystemMode =
-  | "ALL"
-  | "POWER"
-  | "EMERGENCY"
-  | "EV"
-  | "LOW_VOLTAGE"
-  | "RENEWABLE";
-type Entity = {
-  id: string;
-  source: string;
-  layer: Layer;
-  kind: string;
-  name: string;
-  x: number;
-  y: number;
-  z?: number;
-  x2?: number;
-  y2?: number;
-  z2?: number;
-  rotation?: number;
-  scale?: number;
-  floor?: string;
-  zone?: string;
-  vertices?: XY[];
-  confidence: number;
-  meta?: Record<string, unknown>;
+type Layer="L0"|"L1"|"L2"|"L3"|"L4";
+type ViewMode="MODEL"|"ELECTRICAL"|"REVIEW";
+type EnvironmentMode="CINEMATIC"|"ENGINEERING"|"NIGHT"|"EMERGENCY";
+type SystemMode="ALL"|"POWER"|"EMERGENCY"|"EV"|"LOW_VOLTAGE"|"RENEWABLE";
+type XY={x:number;y:number};
+type Entity={
+  id:string;source:string;layer:Layer;kind:string;name:string;x:number;y:number;z?:number;
+  x2?:number;y2?:number;z2?:number;rotation?:number;scale?:number;floor?:string;zone?:string;
+  vertices?:XY[];confidence:number;meta?:Record<string,unknown>;
 };
-type GraphLink = {
-  id: string;
-  from: string;
-  to: string;
-  type: string;
-  confidence: number;
+type GraphLink={id:string;from:string;to:string;type:string;confidence:number};
+type Graph={
+  version:string;createdAt:string;
+  sources:{name:string;ext:string;sha256:string;discipline:string;floor?:string;elevation?:number;unitName?:string;unitToMeters?:number}[];
+  entities:Entity[];links?:GraphLink[];stats:Record<Layer,number>;
 };
-type Graph = {
-  version: string;
-  createdAt: string;
-  sources: {
-    name: string;
-    ext: string;
-    sha256: string;
-    discipline: string;
-    floor?: string;
-    elevation?: number;
-    unitName?: string;
-    unitToMeters?: number;
-  }[];
-  entities: Entity[];
-  links?: GraphLink[];
-  stats: Record<Layer, number>;
-};
-type AssetActivity = { id: string; occurredAt: string; activity: string; state: string; actor: string; status: "PENDING" | "SUBMITTED" };
-const layerNames: Record<Layer, string> = {
-  L0: "Source",
-  L1: "Architectural",
-  L2: "Electrical Physical",
-  L3: "Electrical Logical",
-  L4: "STRATUM Assets",
-};
-const colors: Record<Layer, number> = {
-  L0: 0x1d4964,
-  L1: 0x6f8c9d,
-  L2: 0xd28a3e,
-  L3: 0x58b7ff,
-  L4: 0x39db8a,
-};
-const registryEvent = "stratum:model-registry-updated";
-const systemOptions: { id: SystemMode; label: string }[] = [
-  { id: "ALL", label: "All systems" },
-  { id: "POWER", label: "Power distribution" },
-  { id: "EMERGENCY", label: "Emergency power" },
-  { id: "EV", label: "EV infrastructure" },
-  { id: "LOW_VOLTAGE", label: "Low voltage" },
-  { id: "RENEWABLE", label: "Renewables" },
+
+type RenderStatus="STARTING"|"WEBGL"|"FALLBACK";
+const layerNames:Record<Layer,string>={L0:"Source",L1:"Architectural",L2:"Electrical Physical",L3:"Electrical Logical",L4:"STRATUM Assets"};
+const colors:Record<Layer,number>={L0:0x31566d,L1:0x7f98a6,L2:0xe5a14d,L3:0x62bfff,L4:0x43d98f};
+const systemOptions:{id:SystemMode;label:string}[]=[
+  {id:"ALL",label:"All systems"},{id:"POWER",label:"Power distribution"},{id:"EMERGENCY",label:"Emergency power"},
+  {id:"EV",label:"EV infrastructure"},{id:"LOW_VOLTAGE",label:"Low voltage"},{id:"RENEWABLE",label:"Renewables"},
 ];
 
-function entitySystem(e: Entity): SystemMode {
-  const def = resolveElectricalComponent(e.name),
-    n = `${e.name} ${def?.category || ""}`.toLowerCase();
-  if (/generator|ats|ups|battery|emergency/.test(n)) return "EMERGENCY";
-  if (/ev|charger/.test(n)) return "EV";
-  if (/solar|pv|inverter|renewable/.test(n)) return "RENEWABLE";
-  if (
-    /fire alarm|security|access control|intercom|communication|data|sensor|low voltage/.test(
-      n,
-    )
-  )
-    return "LOW_VOLTAGE";
-  return "POWER";
+function n(value:unknown,fallback=0){const x=Number(value);return Number.isFinite(x)?x:fallback}
+function metaNumber(e:Entity,key:string){const value=e.meta?.[key];const x=Number(value);return Number.isFinite(x)?x:null}
+function isSld(e:Entity){return Boolean(e.meta?.sldSpatialProjection||e.meta?.sldLogicalDepth!==undefined||/single.?line|one.?line|\bsld\b|riser/i.test(String(e.meta?.sheetTitle||e.source)))}
+function physicalElevationKnown(e:Entity){return e.meta?.elevationKnown===true||e.meta?.physicalElevationKnown===true||e.meta?.sourceType==="DXF"||e.meta?.coordinateUnits==="m"&&e.floor!=="UNRESOLVED"}
+function displayElevation(e:Entity,mode:ViewMode){
+  const base=n(e.z);
+  if(mode==="ELECTRICAL"&&isSld(e)){
+    const logical=metaNumber(e,"sldLogicalDepth")??0;
+    return base+logical*2.4;
+  }
+  return base;
+}
+function entitySystem(e:Entity):SystemMode{
+  const def=resolveElectricalComponent(e.name),name=`${e.name} ${def?.category||""}`.toLowerCase();
+  if(/generator|ats|ups|battery|emergency/.test(name))return"EMERGENCY";
+  if(/ev|charger/.test(name))return"EV";
+  if(/solar|pv|inverter|renewable/.test(name))return"RENEWABLE";
+  if(/fire alarm|security|access control|intercom|communication|data|sensor|low voltage/.test(name))return"LOW_VOLTAGE";
+  return"POWER";
+}
+function bounds2d(entities:Entity[]){
+  const pts=entities.flatMap(e=>[{x:e.x,y:e.y},...(Number.isFinite(e.x2)&&Number.isFinite(e.y2)?[{x:e.x2!,y:e.y2!}]:[])]);
+  if(!pts.length)return{minX:-10,maxX:10,minY:-10,maxY:10};
+  let minX=Math.min(...pts.map(p=>p.x)),maxX=Math.max(...pts.map(p=>p.x)),minY=Math.min(...pts.map(p=>p.y)),maxY=Math.max(...pts.map(p=>p.y));
+  if(maxX-minX<1){minX-=1;maxX+=1}if(maxY-minY<1){minY-=1;maxY+=1}
+  return{minX,maxX,minY,maxY};
 }
 
-export default function CompiledGraphViewer() {
-  const mount = useRef<HTMLDivElement | null>(null),
-    runtime = useRef<any>(null);
-  const [webglError,setWebglError]=useState(false);
-  const [search, setSearch] = useState("");
-  const [isolatedObject, setIsolatedObject] = useState<string | null>(null);
-  const [pieceExplosion, setPieceExplosion] = useState(0);
-  const pendingMeshPick = useRef({ entityId: "", meshId: "" });
-  const [meshDetails, setMeshDetails] = useState<MeshDetail[]>([]);
-  const [selectedMesh, setSelectedMesh] = useState("");
-  const [isolateMesh, setIsolateMesh] = useState(false);
-  const [canExplodeMesh, setCanExplodeMesh] = useState(false);
-  const inspections = useRef(new Map<string, ReturnType<typeof createMeshInspection>>());
-  const inspection = useRef({ id: "", amount: 0, mesh: "", isolate: false });
-  const [graph, setGraph] = useState<Graph | null>(null),
-    [active, setActive] = useState<Layer[]>(["L0", "L1", "L2", "L3", "L4"]),
-    [selected, setSelected] = useState<Entity | null>(null),
-    [activities, setActivities] = useState<AssetActivity[]>([]),
-    [activity, setActivity] = useState(""),
-    [nextState, setNextState] = useState("IN_SERVICE"),
-    [activityMessage, setActivityMessage] = useState(""),
-    [registry, setRegistry] = useState<ElectricalModelConfig[]>(
-      DEFAULT_ELECTRICAL_MODEL_REGISTRY,
-    ),
-    [renderRevision, setRenderRevision] = useState(0);
-  const [environment, setEnvironment] = useState<EnvironmentMode>("CINEMATIC"),
-    [systemMode, setSystemMode] = useState<SystemMode>("ALL"),
-    [exploded, setExploded] = useState(false),
-    [xray, setXray] = useState(false),
-    [isolatedFloor, setIsolatedFloor] = useState("ALL"),
-    [ghostOthers, setGhostOthers] = useState(true),
-    [labels, setLabels] = useState(true),
-    [focusRevision, setFocusRevision] = useState(0);
-  const matchingEntities = useMemo(() => graph?.entities.filter(e =>
-    `${e.name} ${e.id} ${e.source} ${e.floor || ""} ${e.zone || ""}`.toLowerCase().includes(search.toLowerCase())
-  ) || [], [graph, search]);
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("stratum_compiled_graph");
-      if (raw) setGraph(JSON.parse(raw));
-      const reg = localStorage.getItem(ELECTRICAL_MODEL_REGISTRY_STORAGE_KEY);
-      if (reg) setRegistry(normalizeElectricalModelRegistry(JSON.parse(reg)));
-    } catch {}
-    const refresh = () => {
-      try {
+export default function CompiledGraphViewer(){
+  const mount=useRef<HTMLDivElement|null>(null),runtime=useRef<any>(null);
+  const [graph,setGraph]=useState<Graph|null>(null);
+  const [registry,setRegistry]=useState<ElectricalModelConfig[]>(DEFAULT_ELECTRICAL_MODEL_REGISTRY);
+  const [renderStatus,setRenderStatus]=useState<RenderStatus>("STARTING");
+  const [mode,setMode]=useState<ViewMode>("MODEL");
+  const [environment,setEnvironment]=useState<EnvironmentMode>("ENGINEERING");
+  const [systemMode,setSystemMode]=useState<SystemMode>("ALL");
+  const [floor,setFloor]=useState("ALL");
+  const [exploded,setExploded]=useState(false);
+  const [xray,setXray]=useState(false);
+  const [search,setSearch]=useState("");
+  const [selected,setSelected]=useState<Entity|null>(null);
+  const [fitRevision,setFitRevision]=useState(0);
+  const [labels,setLabels]=useState(true);
+
+  useEffect(()=>{
+    const load=()=>{
+      try{
         const raw=localStorage.getItem("stratum_compiled_graph");
         setGraph(raw?JSON.parse(raw):null);
-        const reg = localStorage.getItem(ELECTRICAL_MODEL_REGISTRY_STORAGE_KEY);
-        setRegistry(
-          reg
-            ? normalizeElectricalModelRegistry(JSON.parse(reg))
-            : DEFAULT_ELECTRICAL_MODEL_REGISTRY,
-        );
-        setRenderRevision((v) => v + 1);
-      } catch {}
+        const stored=localStorage.getItem(ELECTRICAL_MODEL_REGISTRY_STORAGE_KEY);
+        setRegistry(stored?normalizeElectricalModelRegistry(JSON.parse(stored)):DEFAULT_ELECTRICAL_MODEL_REGISTRY);
+      }catch{}
     };
-    window.addEventListener("stratum:graph-updated", refresh);
-    window.addEventListener(registryEvent, refresh);
-    window.addEventListener("storage", refresh);
-    return () => {
-      window.removeEventListener("stratum:graph-updated", refresh);
-      window.removeEventListener(registryEvent, refresh);
-      window.removeEventListener("storage", refresh);
-    };
-  }, []);
-  useEffect(() => { inspection.current = { id: selected?.id || "", amount: pieceExplosion / 100, mesh: selectedMesh, isolate: isolateMesh }; }, [selected?.id, pieceExplosion, selectedMesh, isolateMesh]);
-  useEffect(() => {
-    setPieceExplosion(0); setSelectedMesh(pendingMeshPick.current.entityId === selected?.id ? pendingMeshPick.current.meshId : ""); setIsolateMesh(false);
-    pendingMeshPick.current = { entityId: "", meshId: "" };
-    const model = inspections.current.get(selected?.id || "");
-    setMeshDetails(model?.details || []); setCanExplodeMesh(model?.canExplode || false);
-  }, [selected?.id]);
-  useEffect(() => {
-    if (!selected) { setActivities([]); return; }
-    try { setActivities(JSON.parse(localStorage.getItem(`stratum_asset_activity:${selected.id}`) || "[]")); } catch { setActivities([]); }
-    setActivity(""); setActivityMessage(""); setNextState("IN_SERVICE");
-  }, [selected]);
-  function saveActivity() {
-    if (!selected || !activity.trim()) { setActivityMessage("Enter an activity before saving."); return; }
-    const item: AssetActivity = { id: crypto.randomUUID(), occurredAt: new Date().toISOString(), activity: activity.trim(), state: nextState, actor: "Current operator", status: "PENDING" };
-    const next = [item, ...activities];
-    try { localStorage.setItem(`stratum_asset_activity:${selected.id}`, JSON.stringify(next)); } catch { setActivityMessage("Save failed: browser storage is full or unavailable. Your note has been preserved below."); return; }
-    setActivities(next); setActivity("");
-    setActivityMessage("Draft saved in this browser only. It has not been submitted for approval or synchronized to another device.");
-  }
-  const counts = useMemo(
-    () =>
-      graph
-        ? (["L0", "L1", "L2", "L3", "L4"] as Layer[]).reduce(
-            (a, l) => ({
-              ...a,
-              [l]:
-                l === "L0"
-                  ? graph.sources.length
-                  : graph.entities.filter((e) => e.layer === l).length,
-            }),
-            {} as Record<Layer, number>,
-          )
-        : null,
-    [graph],
-  );
-  const recognized = useMemo(
-    () =>
-      graph?.entities.filter(
-        (e) =>
-          e.layer === "L2" &&
-          e.kind !== "line" &&
-          resolveElectricalComponent(e.name),
-      ).length || 0,
-    [graph],
-  );
-  const mapped = useMemo(
-    () =>
-      graph?.entities.filter((e) => {
-        if (e.layer !== "L2" || e.kind === "line") return false;
-        const def = resolveElectricalComponent(e.name);
-        return (
-          !!def &&
-          !!registry.find((r) => r.componentKey === def.key)?.modelUrl.trim()
-        );
-      }).length || 0,
-    [graph, registry],
-  );
-  const levels = useMemo(
-    () =>
-      graph
-        ? [
-            ...new Map(
-              graph.entities.map((s) => [
-                s.floor || "UNRESOLVED",
-                Number(s.z || 0),
-              ]),
-            ).entries(),
-          ].sort((a, b) => a[1] - b[1])
-        : [],
-    [graph],
-  );
-  const rooms = useMemo(
-    () => graph?.entities.filter((e) => e.kind === "room-boundary").length || 0,
-    [graph],
-  );
-  const visibleElectrical = useMemo(
-    () =>
-      graph?.entities.filter(
-        (e) =>
-          e.layer === "L2" &&
-          e.kind !== "line" &&
-          (systemMode === "ALL" || entitySystem(e) === systemMode),
-      ).length || 0,
-    [graph, systemMode],
-  );
-  useEffect(() => {
-    const r = runtime.current;
-    if (!r || !selected) return;
-    const { camera, controls, THREE } = r;
-    const floorIndex = Math.max(
-        0,
-        levels.findIndex(([f]) => f === (selected.floor || "L1")),
-      ),
-      extra = exploded ? floorIndex * 2.8 : 0,
-      target = new THREE.Vector3(
-        selected.x,
-        Number(selected.z || 0) + extra + 1,
-        selected.y,
-      ),
-      start = camera.position.clone(),
-      dest = target.clone().add(new THREE.Vector3(4.8, 3.6, 5.6));
-    let p = 0;
-    const move = () => {
-      p = Math.min(1, p + 0.055);
-      const k = 1 - Math.pow(1 - p, 3);
-      camera.position.lerpVectors(start, dest, k);
-      controls.target.lerp(target, 0.16);
-      controls.update();
-      if (p < 1) requestAnimationFrame(move);
-    };
-    move();
-  }, [focusRevision]);
-  useEffect(() => {
-    if (!graph || !mount.current) return;
-    let disposed = false;
-    let cleanup = () => {};
-    (async () => {
-      const THREE = await import("three");
-      const { createMeshInspection } = await import("@/lib/mesh-inspection");
-      const { OrbitControls } = await import(
-        "three/examples/jsm/controls/OrbitControls.js"
-      );
-      const { GLTFLoader } = await import(
-        "three/examples/jsm/loaders/GLTFLoader.js"
-      );
-      if (disposed || !mount.current) return;
-      const cinematic = environment === "CINEMATIC",
-        night = environment === "NIGHT",
-        emergency = environment === "EMERGENCY",
-        host = mount.current,
-        scene = new THREE.Scene();
-      scene.background = new THREE.Color(
-        night
-          ? 0x010407
-          : emergency
-            ? 0x100403
-            : cinematic
-              ? 0x03090e
-              : 0x07131d,
-      );
-      scene.fog = new THREE.FogExp2(
-        scene.background.getHex(),
-        cinematic ? 0.009 : 0.013,
-      );
-      const camera = new THREE.PerspectiveCamera(
-        42,
-        host.clientWidth / Math.max(host.clientHeight, 1),
-        0.1,
-        600,
-      );
-      camera.position.set(22, 19, 25);
-      let renderer;
-      try { renderer = new THREE.WebGLRenderer({
-        antialias: true,
-        powerPreference: "high-performance",
-      }); } catch { setWebglError(true); return; }
-      setWebglError(false);
-      renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-      renderer.setSize(host.clientWidth, host.clientHeight);
-      renderer.outputColorSpace = THREE.SRGBColorSpace;
-      renderer.shadowMap.enabled = true;
-      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-      renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = night ? 0.82 : emergency ? 1 : 1.08;
-      host.replaceChildren(renderer.domElement);
-      const controls = new OrbitControls(camera, renderer.domElement);
-      controls.enableDamping = true;
-      controls.dampingFactor = 0.06;
-      controls.target.set(0, 3, 0);
-      controls.maxPolarAngle = Math.PI * 0.49;
-      scene.add(
-        new THREE.HemisphereLight(
-          night ? 0x4e7390 : 0xbfe8ff,
-          0x02080d,
-          night ? 0.7 : 1.7,
-        ),
-      );
-      scene.add(
-        new THREE.AmbientLight(
-          emergency ? 0xff3b22 : 0x88a6b5,
-          emergency ? 0.35 : 0.55,
-        ),
-      );
-      const key = new THREE.DirectionalLight(
-        emergency ? 0xff9c80 : 0xffffff,
-        night ? 1.2 : 3.5,
-      );
-      key.position.set(14, 24, 10);
-      key.castShadow = true;
-      key.shadow.mapSize.set(2048, 2048);
-      key.shadow.camera.left = -30;
-      key.shadow.camera.right = 30;
-      key.shadow.camera.top = 30;
-      key.shadow.camera.bottom = -30;
-      scene.add(key);
-      const rim = new THREE.PointLight(
-        emergency ? 0xff351f : 0x38dba0,
-        night ? 18 : 35,
-        55,
-        2,
-      );
-      rim.position.set(-12, 8, -12);
-      scene.add(rim);
-      const blue = new THREE.PointLight(
-        emergency ? 0xff7b35 : 0x4aa6ff,
-        night ? 14 : 28,
-        50,
-        2,
-      );
-      blue.position.set(12, 7, 10);
-      scene.add(blue);
-      runtime.current = { camera, controls, THREE };
-      const groups: Record<Layer, any> = {
-        L0: new THREE.Group(),
-        L1: new THREE.Group(),
-        L2: new THREE.Group(),
-        L3: new THREE.Group(),
-        L4: new THREE.Group(),
+    load();
+    window.addEventListener("stratum:graph-updated",load);window.addEventListener("storage",load);window.addEventListener("stratum:model-registry-updated",load);
+    return()=>{window.removeEventListener("stratum:graph-updated",load);window.removeEventListener("storage",load);window.removeEventListener("stratum:model-registry-updated",load)};
+  },[]);
+
+  const levels=useMemo(()=>{
+    if(!graph)return[] as [string,number][];
+    const map=new Map<string,number>();
+    for(const e of graph.entities){const f=e.floor||"UNRESOLVED";if(!map.has(f)||physicalElevationKnown(e))map.set(f,n(e.z))}
+    for(const s of graph.sources){if(s.floor&&!map.has(s.floor))map.set(s.floor,n(s.elevation))}
+    return[...map.entries()].sort((a,b)=>a[1]-b[1]);
+  },[graph]);
+  const visible=useMemo(()=>{
+    if(!graph)return[];
+    const q=search.trim().toLowerCase();
+    return graph.entities.filter(e=>{
+      if(floor!=="ALL"&&(e.floor||"UNRESOLVED")!==floor)return false;
+      if(mode==="ELECTRICAL"&&!(["L2","L3","L4"] as Layer[]).includes(e.layer))return false;
+      if(systemMode!=="ALL"&&e.layer==="L2"&&entitySystem(e)!==systemMode)return false;
+      if(q&&!`${e.name} ${e.source} ${e.floor||""} ${e.zone||""}`.toLowerCase().includes(q))return false;
+      return true;
+    });
+  },[graph,floor,mode,systemMode,search]);
+  const inventory=useMemo(()=>visible.filter(e=>e.kind!=="line"&&e.kind!=="wall-segment"),[visible]);
+  const rooms=useMemo(()=>graph?.entities.filter(e=>e.kind==="room-boundary").length||0,[graph]);
+  const sldObjects=useMemo(()=>graph?.entities.filter(e=>e.layer==="L2"&&isSld(e)).length||0,[graph]);
+  const unresolvedZ=useMemo(()=>graph?.entities.filter(e=>e.layer==="L2"&&!physicalElevationKnown(e)&&!isSld(e)).length||0,[graph]);
+  const modelMapped=useMemo(()=>graph?.entities.filter(e=>{
+    if(e.layer!=="L2"||e.kind==="line")return false;const def=resolveElectricalComponent(e.name);return!!def&&!!registry.find(r=>r.componentKey===def.key)?.modelUrl.trim();
+  }).length||0,[graph,registry]);
+  const matching=useMemo(()=>inventory,[inventory]);
+  const fallbackBounds=useMemo(()=>bounds2d(visible),[visible]);
+
+  useEffect(()=>{
+    if(!graph||!mount.current)return;
+    let disposed=false,cleanup=()=>{};
+    (async()=>{
+      const THREE=await import("three");
+      const {OrbitControls}=await import("three/examples/jsm/controls/OrbitControls.js");
+      const {GLTFLoader}=await import("three/examples/jsm/loaders/GLTFLoader.js");
+      if(disposed||!mount.current)return;
+      const host=mount.current;host.replaceChildren();
+      let renderer:any;
+      try{renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:"high-performance",alpha:false});}
+      catch{setRenderStatus("FALLBACK");return}
+      setRenderStatus("WEBGL");
+      const scene=new THREE.Scene();
+      scene.background=new THREE.Color(environment==="NIGHT"?0x02070b:environment==="EMERGENCY"?0x130504:0x07131d);
+      const camera=new THREE.PerspectiveCamera(44,host.clientWidth/Math.max(host.clientHeight,1),0.05,2000);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));renderer.setSize(host.clientWidth,host.clientHeight);renderer.outputColorSpace=THREE.SRGBColorSpace;
+      renderer.shadowMap.enabled=true;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=environment==="NIGHT"?.8:1.05;
+      host.appendChild(renderer.domElement);
+      const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.dampingFactor=.07;controls.maxPolarAngle=Math.PI*.495;
+      runtime.current={THREE,camera,controls,scene};
+      scene.add(new THREE.HemisphereLight(0xccecff,0x071018,environment==="NIGHT"?.8:1.7));
+      const sun=new THREE.DirectionalLight(environment==="EMERGENCY"?0xff9378:0xffffff,environment==="NIGHT"?1.2:3.2);sun.position.set(16,25,12);sun.castShadow=true;scene.add(sun);
+      scene.add(new THREE.AmbientLight(0x7796a8,.45));
+      const groups={L0:new THREE.Group(),L1:new THREE.Group(),L2:new THREE.Group(),L3:new THREE.Group(),L4:new THREE.Group()} as Record<Layer,any>;
+      (Object.keys(groups) as Layer[]).forEach(l=>scene.add(groups[l]));
+      groups.L0.visible=mode!=="ELECTRICAL";groups.L1.visible=mode!=="ELECTRICAL";groups.L2.visible=true;groups.L3.visible=true;groups.L4.visible=mode!=="MODEL";
+      const entityById=new Map(graph.entities.map(e=>[e.id,e]));
+      const clickable:any[]=[];
+      const floorIndex=new Map(levels.map(([name],i)=>[name,i]));
+      const extra=(e:Entity)=>exploded?(floorIndex.get(e.floor||"UNRESOLVED")||0)*2.6:0;
+      const height=(e:Entity)=>displayElevation(e,mode)+extra(e);
+      const isVisible=(e:Entity)=>visible.some(v=>v.id===e.id);
+      const material=(color:number,opacity=1,emissive=0)=>new THREE.MeshStandardMaterial({color,emissive,emissiveIntensity:.2,metalness:.28,roughness:.48,transparent:opacity<1,opacity,depthWrite:opacity>.2});
+      const tag=(obj:any,e:Entity)=>{obj.userData.entity=e;obj.traverse?.((node:any)=>{if(node.isMesh){node.userData.entity=e;node.castShadow=true;node.receiveShadow=true;clickable.push(node)}})};
+      const label=(text:string,x:number,y:number,z:number,color="#cfefff")=>{
+        if(!labels)return;const canvas=document.createElement("canvas");canvas.width=512;canvas.height=112;const ctx=canvas.getContext("2d");if(!ctx)return;
+        ctx.fillStyle="rgba(3,12,18,.82)";ctx.roundRect(4,4,504,104,16);ctx.fill();ctx.fillStyle=color;ctx.font="700 28px system-ui";ctx.fillText(text.slice(0,30),20,49);ctx.fillStyle="#83a6b7";ctx.font="20px system-ui";ctx.fillText(`${y.toFixed(2)} m Z`,20,82);
+        const texture=new THREE.CanvasTexture(canvas),sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,depthTest:false}));sprite.scale.set(3.5,.77,1);sprite.position.set(x,y+2.2,z);scene.add(sprite);
       };
-      (Object.keys(groups) as Layer[]).forEach((l) => {
-        groups[l].visible = active.includes(l);
-        scene.add(groups[l]);
-      });
-      const clickable: any[] = [];
-      const loader = new GLTFLoader(),
-        entityById = new Map(graph.entities.map((e) => [e.id, e])),
-        floorIndex = new Map(levels.map(([f], i) => [f, i]));
-      const floorExtra = (floor?: string) =>
-          exploded ? (floorIndex.get(floor || "L1") || 0) * 2.8 : 0,
-        displayY = (e: Entity) => Number(e.z || 0) + floorExtra(e.floor),
-        floorVisible = (floor?: string) =>
-          isolatedFloor === "ALL" || (floor || "L1") === isolatedFloor,
-        ghostFloor = (floor?: string) =>
-          isolatedFloor !== "ALL" &&
-          (floor || "L1") !== isolatedFloor &&
-          ghostOthers;
-      const mat = (
-        color: number,
-        emissive = 0,
-        metal = 0.28,
-        rough = 0.46,
-        opacity = 1,
-      ) =>
-        new THREE.MeshStandardMaterial({
-          color,
-          emissive,
-          emissiveIntensity: 0.16,
-          metalness: metal,
-          roughness: rough,
-          transparent: opacity < 1,
-          opacity,
-          depthWrite: opacity > 0.2,
-        });
-      const steel = (o = 1) => mat(0x607887, 0, 0.65, 0.28, o),
-        dark = (o = 1) => mat(0x17242d, 0, 0.55, 0.38, o),
-        physical = (o = 1) =>
-          mat(
-            emergency ? 0xd76635 : colors.L2,
-            emergency ? 0x4b1307 : 0x251305,
-            0.42,
-            0.34,
-            o,
-          );
-      function opacityFor(e: Entity) {
-        return ghostFloor(e.floor) ? 0.16 : 1;
-      }
-      function makeLabel(e: Entity) {
-        if (
-          !labels ||
-          e.layer !== "L2" ||
-          !resolveElectricalComponent(e.name) ||
-          (!floorVisible(e.floor) && !ghostOthers)
-        )
-          return;
-        const canvas = document.createElement("canvas");
-        canvas.width = 512;
-        canvas.height = 128;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
-        ctx.fillStyle = "rgba(4,14,21,.78)";
-        ctx.roundRect(4, 4, 504, 120, 18);
-        ctx.fill();
-        ctx.strokeStyle = "rgba(75,214,164,.72)";
-        ctx.lineWidth = 3;
-        ctx.stroke();
-        ctx.fillStyle = "#dff7ff";
-        ctx.font = "700 30px system-ui";
-        ctx.fillText(e.name.slice(0, 28), 22, 48);
-        ctx.fillStyle = "#7fdcb8";
-        ctx.font = "22px system-ui";
-        ctx.fillText(
-          `${e.floor || "L1"} · ${e.zone || "UNRESOLVED"}`.slice(0, 38),
-          22,
-          86,
-        );
-        const texture = new THREE.CanvasTexture(canvas),
-          sprite = new THREE.Sprite(
-            new THREE.SpriteMaterial({
-              map: texture,
-              transparent: true,
-              depthTest: false,
-              opacity: ghostFloor(e.floor) ? 0.28 : 1,
-            }),
-          );
-        sprite.scale.set(3.6, 0.9, 1);
-        sprite.position.set(e.x, displayY(e) + 2.45, e.y);
-        groups.L2.add(sprite);
-      }
-      for (const s of isolatedObject ? [] : graph.sources) {
-        if (!floorVisible(s.floor) && !ghostOthers) continue;
-        const y = Number(s.elevation || 0) + floorExtra(s.floor) - 0.05,
-          plane = new THREE.Mesh(
-            new THREE.PlaneGeometry(24, 17),
-            new THREE.MeshStandardMaterial({
-              color: 0x102532,
-              transparent: true,
-              opacity: ghostFloor(s.floor) ? 0.035 : cinematic ? 0.1 : 0.18,
-              side: THREE.DoubleSide,
-              roughness: 0.7,
-              metalness: 0.15,
-              depthWrite: false,
-            }),
-          );
-        plane.rotation.x = -Math.PI / 2;
-        plane.position.y = y;
-        plane.receiveShadow = true;
-        groups.L0.add(plane);
-      }
-      inspections.current.clear();
-      setMeshDetails([]); setCanExplodeMesh(false);
-      function tag(root: any, e: Entity) {
-        root.userData.entity = e;
-        root.traverse((node: any) => {
-          if (node.isMesh) {
-            node.userData.entity = e;
-            node.castShadow = !ghostFloor(e.floor);
-            node.receiveShadow = true;
-            clickable.push(node);
-          }
-        });
-        const model = createMeshInspection(root);
-        inspections.current.set(e.id, model);
-        model.details.forEach(detail => { const mesh = model.mesh(detail.id); if (mesh) mesh.userData.inspectionMeshId = detail.id; });
-        if (inspection.current.id === e.id) {
-          setMeshDetails(model.details); setCanExplodeMesh(model.canExplode);
-        }
-      }
-      function wallBetween(
-        a: XY,
-        b: XY,
-        y: number,
-        height = 2.75,
-        opacity = 0.7,
-      ) {
-        const dx = b.x - a.x,
-          dz = b.y - a.y,
-          len = Math.hypot(dx, dz);
-        if (len < 0.03) return;
-        const wall = new THREE.Mesh(
-          new THREE.BoxGeometry(len, height, 0.11),
-          new THREE.MeshPhysicalMaterial({
-            color: 0x6f8795,
-            metalness: 0.08,
-            roughness: 0.66,
-            transparent: true,
-            opacity: xray ? Math.min(0.13, opacity) : opacity,
-            depthWrite: !xray,
-          }),
-        );
-        wall.position.set((a.x + b.x) / 2, y + height / 2, (a.y + b.y) / 2);
-        wall.rotation.y = -Math.atan2(dz, dx);
-        wall.castShadow = !xray;
-        wall.receiveShadow = true;
-        groups.L1.add(wall);
-      }
-      function roomSurface(e: Entity) {
-        if (
-          !e.vertices ||
-          e.vertices.length < 3 ||
-          (!floorVisible(e.floor) && !ghostOthers)
-        )
-          return;
-        const op = ghostFloor(e.floor) ? 0.06 : cinematic ? 0.2 : 0.3,
-          shape = new THREE.Shape();
-        e.vertices.forEach((p, i) =>
-          i ? shape.lineTo(p.x, p.y) : shape.moveTo(p.x, p.y),
-        );
-        shape.closePath();
-        const floor = new THREE.Mesh(
-          new THREE.ShapeGeometry(shape),
-          new THREE.MeshPhysicalMaterial({
-            color: 0x173748,
-            transparent: true,
-            opacity: xray ? Math.min(0.08, op) : op,
-            metalness: 0.18,
-            roughness: 0.58,
-            side: THREE.DoubleSide,
-            depthWrite: false,
-          }),
-        );
-        floor.rotation.x = Math.PI / 2;
-        floor.position.y = displayY(e) + 0.012;
-        floor.receiveShadow = true;
-        groups.L1.add(floor);
-        for (let i = 0; i < e.vertices.length; i++)
-          wallBetween(
-            e.vertices[i],
-            e.vertices[(i + 1) % e.vertices.length],
-            displayY(e),
-            2.75,
-            ghostFloor(e.floor) ? 0.1 : 0.62,
-          );
-      }
-      function procedural(e: Entity, shape: string) {
-        if (systemMode !== "ALL" && entitySystem(e) !== systemMode) return;
-        if (!floorVisible(e.floor) && !ghostOthers) return;
-        const op = opacityFor(e),
-          root = new THREE.Group();
-        root.position.set(e.x, displayY(e), e.y);
-        root.rotation.y = THREE.MathUtils.degToRad(-(e.rotation || 0));
-        root.scale.setScalar(
-          Math.max(0.2, Math.min(1.7, (e.scale || 1) * 0.68)),
-        );
-        const mesh = (
-          geo: any,
-          material: any,
-          p: [number, number, number] = [0, 0, 0],
-          r: [number, number, number] = [0, 0, 0],
-        ) => {
-          const m = new THREE.Mesh(geo, material);
-          m.position.set(...p);
-          m.rotation.set(...r);
-          root.add(m);
-          return m;
-        };
-        if (shape === "transformer") {
-          mesh(
-            new THREE.BoxGeometry(1.7, 1.6, 1.22),
-            physical(op),
-            [0, 0.83, 0],
-          );
-          for (let x = -0.48; x <= 0.48; x += 0.48)
-            mesh(new THREE.CylinderGeometry(0.11, 0.15, 0.52, 14), steel(op), [
-              x,
-              1.9,
-              0,
-            ]);
-          for (let x = -0.68; x <= 0.68; x += 0.23)
-            mesh(new THREE.BoxGeometry(0.055, 1.2, 1.38), dark(op), [
-              x,
-              0.83,
-              0,
-            ]);
-        } else if (
-          ["cabinet", "panel", "meter", "breaker", "rack", "junction"].includes(
-            shape,
-          )
-        ) {
-          const w = shape === "panel" ? 0.9 : shape === "rack" ? 1.22 : 1.35,
-            h = shape === "breaker" ? 1.05 : 1.9,
-            d = shape === "panel" ? 0.38 : 0.76;
-          mesh(new THREE.BoxGeometry(w, h, d), physical(op), [0, h / 2, 0]);
-          mesh(new THREE.BoxGeometry(w * 0.77, h * 0.72, 0.045), dark(op), [
-            0,
-            h / 2,
-            d / 2 + 0.03,
-          ]);
-          if (shape === "meter")
-            mesh(
-              new THREE.CylinderGeometry(0.19, 0.19, 0.07, 24),
-              new THREE.MeshBasicMaterial({
-                color: 0x8bd5ea,
-                transparent: op < 1,
-                opacity: op,
-              }),
-              [0, h * 0.62, d / 2 + 0.07],
-              [Math.PI / 2, 0, 0],
-            );
-        } else if (shape === "generator") {
-          mesh(new THREE.BoxGeometry(2.15, 0.26, 1.18), dark(op), [0, 0.14, 0]);
-          mesh(
-            new THREE.BoxGeometry(1.15, 1.12, 0.96),
-            physical(op),
-            [0.28, 0.82, 0],
-          );
-          mesh(
-            new THREE.CylinderGeometry(0.37, 0.37, 0.98, 18),
-            steel(op),
-            [-0.68, 0.78, 0],
-            [0, 0, Math.PI / 2],
-          );
-        } else if (shape === "evse") {
-          mesh(
-            new THREE.BoxGeometry(0.58, 1.34, 0.4),
-            physical(op),
-            [0, 0.75, 0],
-          );
-          mesh(
-            new THREE.BoxGeometry(0.34, 0.29, 0.04),
-            new THREE.MeshBasicMaterial({
-              color: 0x3be39a,
-              transparent: op < 1,
-              opacity: op,
-            }),
-            [0, 1, 0.22],
-          );
-        } else if (shape === "motor") {
-          mesh(
-            new THREE.CylinderGeometry(0.48, 0.48, 1.1, 22),
-            physical(op),
-            [0, 0.58, 0],
-            [0, 0, Math.PI / 2],
-          );
-          mesh(
-            new THREE.CylinderGeometry(0.1, 0.1, 0.58, 12),
-            steel(op),
-            [0.8, 0.58, 0],
-            [0, 0, Math.PI / 2],
-          );
-        } else if (shape === "battery") {
-          for (let x = -0.58; x <= 0.58; x += 0.39)
-            mesh(new THREE.BoxGeometry(0.31, 0.86, 0.52), physical(op), [
-              x,
-              0.47,
-              0,
-            ]);
-          mesh(
-            new THREE.BoxGeometry(1.58, 0.12, 0.66),
-            dark(op),
-            [0, 0.065, 0],
-          );
-        } else if (shape === "solar") {
-          mesh(
-            new THREE.BoxGeometry(1.9, 0.08, 1.16),
-            new THREE.MeshStandardMaterial({
-              color: 0x255c86,
-              metalness: 0.55,
-              roughness: 0.25,
-              transparent: op < 1,
-              opacity: op,
-            }),
-            [0, 0.86, 0],
-            [-0.35, 0, 0],
-          );
-        } else if (shape === "receptacle") {
-          mesh(new THREE.BoxGeometry(0.34, 0.48, 0.1), steel(op), [0, 0.29, 0]);
-        } else if (shape === "light") {
-          mesh(
-            new THREE.CylinderGeometry(0.52, 0.19, 0.3, 20),
-            new THREE.MeshStandardMaterial({
-              color: 0xe8e2c0,
-              emissive: 0xffe8a3,
-              emissiveIntensity: 1.4,
-              transparent: op < 1,
-              opacity: op,
-            }),
-            [0, 1.6, 0],
-          );
-        } else if (shape === "sensor") {
-          mesh(
-            new THREE.CylinderGeometry(0.12, 0.12, 0.4, 14),
-            physical(op),
-            [0, 0.74, 0],
-          );
-          mesh(
-            new THREE.SphereGeometry(0.16, 14, 10),
-            new THREE.MeshBasicMaterial({
-              color: 0x54dca0,
-              transparent: op < 1,
-              opacity: op,
-            }),
-            [0, 1, 0],
-          );
-        } else
-          mesh(
-            new THREE.BoxGeometry(0.78, 0.84, 0.78),
-            physical(op),
-            [0, 0.44, 0],
-          );
-        tag(root, e);
-        groups.L2.add(root);
-        makeLabel(e);
-      }
-      function addCandidateMarker(e: Entity) {
-        if (!floorVisible(e.floor) && !ghostOthers) return;
-        const ring = new THREE.Mesh(
-          new THREE.TorusGeometry(0.35, 0.026, 8, 32),
-          new THREE.MeshBasicMaterial({
-            color: colors.L4,
-            transparent: true,
-            opacity: ghostFloor(e.floor) ? 0.12 : 0.88,
-          }),
-        );
-        ring.rotation.x = Math.PI / 2;
-        ring.position.set(e.x, displayY(e) + 0.04, e.y);
-        ring.userData.entity = e;
-        clickable.push(ring);
-        groups.L4.add(ring);
-      }
-      function loadEquipment(e: Entity) {
-        if (systemMode !== "ALL" && entitySystem(e) !== systemMode) return;
-        if (!floorVisible(e.floor) && !ghostOthers) return;
-        const def = resolveElectricalComponent(e.name),
-          cfg = def ? registry.find((r) => r.componentKey === def.key) : null;
-        if (
-          !def ||
-          !cfg?.modelUrl.trim() ||
-          !["GLB", "GLTF"].includes(cfg.format)
-        ) {
-          procedural(e, def?.twinShape || "cabinet");
-          return;
-        }
-        loader.load(
-          cfg.modelUrl,
-          (gltf) => {
-            if (disposed) return;
-            const root = gltf.scene,
-              op = opacityFor(e);
-            root.position.set(
-              e.x + cfg.offset[0],
-              displayY(e) + cfg.offset[1],
-              e.y + cfg.offset[2],
-            );
-            root.scale.setScalar(cfg.scale * (e.scale || 1));
-            root.rotation.set(
-              THREE.MathUtils.degToRad(cfg.rotation[0]),
-              THREE.MathUtils.degToRad(cfg.rotation[1] - (e.rotation || 0)),
-              THREE.MathUtils.degToRad(cfg.rotation[2]),
-            );
-            root.traverse((n: any) => {
-              if (n.isMesh && op < 1 && n.material) {
-                n.material = n.material.clone();
-                n.material.transparent = true;
-                n.material.opacity = op;
-                n.material.depthWrite = false;
-              }
-            });
-            tag(root, e);
-            groups.L2.add(root);
-            makeLabel(e);
-          },
-          undefined,
-          () => {
-            if (!disposed) procedural(e, def.twinShape);
-          },
-        );
-      }
-      for (const e of graph.entities) {
-        if (isolatedObject && e.id !== isolatedObject) continue;
-        if (e.kind === "room-boundary" || e.kind === "floor-boundary") {
-          roomSurface(e);
-          continue;
-        }
-        if (!floorVisible(e.floor) && !ghostOthers) continue;
-        if (
-          e.kind === "wall-segment" &&
-          Number.isFinite(e.x2) &&
-          Number.isFinite(e.y2)
-        ) {
-          wallBetween(
-            { x: e.x, y: e.y },
-            { x: e.x2!, y: e.y2! },
-            displayY(e),
-            2.75,
-            ghostFloor(e.floor) ? 0.1 : 0.62,
-          );
-          continue;
-        }
-        if (e.kind === "door-opening") {
-          const door = new THREE.Mesh(
-            new THREE.BoxGeometry(0.72, 2.1, 0.08),
-            new THREE.MeshStandardMaterial({
-              color: 0x9ec6d8,
-              transparent: true,
-              opacity: ghostFloor(e.floor) ? 0.08 : xray ? 0.12 : 0.32,
-            }),
-          );
-          door.position.set(e.x, displayY(e) + 1.05, e.y);
-          door.rotation.y = THREE.MathUtils.degToRad(-(e.rotation || 0));
-          groups.L1.add(door);
-          continue;
-        }
-        if (
-          e.kind === "line" &&
-          Number.isFinite(e.x2) &&
-          Number.isFinite(e.y2)
-        ) {
-          if (
-            e.layer === "L3" &&
-            systemMode !== "ALL" &&
-            entitySystem(e) !== systemMode
-          )
-            continue;
-          const pts = [
-            new THREE.Vector3(e.x, displayY(e) + 0.05, e.y),
-            new THREE.Vector3(
-              e.x2!,
-              Number(e.z2 ?? e.z ?? 0) + floorExtra(e.floor) + 0.05,
-              e.y2!,
-            ),
-          ];
-          groups[e.layer].add(
-            new THREE.Line(
-              new THREE.BufferGeometry().setFromPoints(pts),
-              new THREE.LineBasicMaterial({
-                color: colors[e.layer],
-                transparent: true,
-                opacity: ghostFloor(e.floor) ? 0.1 : 0.8,
-              }),
-            ),
-          );
-          continue;
-        }
-        if (e.layer === "L2") {
-          loadEquipment(e);
-          continue;
-        }
-        if (e.layer === "L4") {
-          addCandidateMarker(e);
-          continue;
-        }
-        if (e.kind === "room-label") {
-          const marker = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.08, 0.08, 0.55, 10),
-            new THREE.MeshBasicMaterial({
-              color: 0x72d6ff,
-              transparent: true,
-              opacity: ghostFloor(e.floor) ? 0.12 : 0.8,
-            }),
-          );
-          marker.position.set(e.x, displayY(e) + 0.3, e.y);
-          marker.userData.entity = e;
-          groups.L1.add(marker);
-          clickable.push(marker);
-        }
-      }
-      for (const link of isolatedObject ? [] : graph.links || []) {
-        if (link.type !== "SAME_TAG") continue;
-        const a = entityById.get(link.from),
-          b = entityById.get(link.to);
-        if (
-          !a ||
-          !b ||
-          (!floorVisible(a.floor) && !ghostOthers) ||
-          (!floorVisible(b.floor) && !ghostOthers)
-        )
-          continue;
-        const pts = [
-          new THREE.Vector3(a.x, displayY(a) + 0.5, a.y),
-          new THREE.Vector3(b.x, displayY(b) + 0.5, b.y),
-        ];
-        const line = new THREE.Line(
-          new THREE.BufferGeometry().setFromPoints(pts),
-          new THREE.LineDashedMaterial({
-            color: 0xa57cff,
-            dashSize: 0.28,
-            gapSize: 0.15,
-            transparent: true,
-            opacity: 0.62,
-          }),
-        );
-        line.computeLineDistances();
-        groups.L3.add(line);
-      }
-      for (const [floor, base] of levels) {
-        if (!floorVisible(floor) && !ghostOthers) continue;
-        const grid = new THREE.GridHelper(32, 32, 0x234b61, 0x0c2430);
-        grid.position.y = base + floorExtra(floor);
-        grid.material.transparent = true;
-        grid.material.opacity = ghostFloor(floor) ? 0.06 : 0.24;
-        scene.add(grid);
-      }
-      const bounds = new THREE.Box3();
-      graph.entities
-        .filter((e) => floorVisible(e.floor) || ghostOthers)
-        .forEach((e) => {
-          bounds.expandByPoint(new THREE.Vector3(e.x, displayY(e), e.y));
-          if (Number.isFinite(e.x2) && Number.isFinite(e.y2))
-            bounds.expandByPoint(
-              new THREE.Vector3(
-                e.x2!,
-                Number(e.z2 ?? e.z ?? 0) + floorExtra(e.floor),
-                e.y2!,
-              ),
-            );
-        });
-      if (!bounds.isEmpty()) {
-        const center = bounds.getCenter(new THREE.Vector3()),
-          size = bounds.getSize(new THREE.Vector3()),
-          span = Math.max(size.x, size.y, size.z, 10);
-        controls.target.copy(center);
-        camera.position.set(
-          center.x + span * 0.9,
-          center.y + span * 0.72 + 5,
-          center.z + span,
-        );
-        controls.update();
-      }
-      const ray = new THREE.Raycaster(),
-        pointer = new THREE.Vector2();
-    const pick = (ev: MouseEvent) => {
-        const rect = renderer.domElement.getBoundingClientRect();
-        pointer.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
-        pointer.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
-        ray.setFromCamera(pointer, camera);
-        const hit = ray.intersectObjects(clickable, true).find(candidate => {
-          for (let ancestor: any = candidate.object; ancestor; ancestor = ancestor.parent) {
-            if (!ancestor.visible) return false;
-          }
-          return true;
-        });
-        let node: any = hit?.object;
-        while (node && !node.userData?.entity) node = node.parent;
-        if (node?.userData?.entity) {
-          pendingMeshPick.current = { entityId: node.userData.entity.id, meshId: hit?.object.userData.inspectionMeshId || "" };
-          setSelected(node.userData.entity);
-          setSelectedMesh(hit?.object.userData.inspectionMeshId || "");
-        }
+      const wall=(a:XY,b:XY,e:Entity)=>{const dx=b.x-a.x,dz=b.y-a.y,len=Math.hypot(dx,dz);if(len<.02)return;const op=xray?.12:.55,m=new THREE.Mesh(new THREE.BoxGeometry(len,2.7,.09),material(colors.L1,op));m.position.set((a.x+b.x)/2,height(e)+1.35,(a.y+b.y)/2);m.rotation.y=-Math.atan2(dz,dx);groups.L1.add(m)};
+      const room=(e:Entity)=>{if(!e.vertices||e.vertices.length<3||!isVisible(e))return;const shape=new THREE.Shape();e.vertices.forEach((p,i)=>i?shape.lineTo(p.x,p.y):shape.moveTo(p.x,p.y));shape.closePath();const floorMesh=new THREE.Mesh(new THREE.ShapeGeometry(shape),material(0x173748,xray?.07:.18));floorMesh.rotation.x=Math.PI/2;floorMesh.position.y=height(e)+.01;groups.L1.add(floorMesh);for(let i=0;i<e.vertices.length;i++)wall(e.vertices[i],e.vertices[(i+1)%e.vertices.length],e)};
+      const fallbackShape=(e:Entity)=>{
+        const def=resolveElectricalComponent(e.name),shape=def?.twinShape||"cabinet",root=new THREE.Group(),op=1;
+        root.position.set(e.x,height(e),e.y);root.rotation.y=THREE.MathUtils.degToRad(-(e.rotation||0));root.scale.setScalar(Math.max(.25,Math.min(1.8,n(e.scale,1)*.72)));
+        let geo:any;if(shape==="transformer")geo=new THREE.BoxGeometry(1.7,1.55,1.25);else if(shape==="generator")geo=new THREE.BoxGeometry(2.2,1.2,1.1);else if(shape==="motor")geo=new THREE.CylinderGeometry(.48,.48,1.15,20);else if(shape==="evse")geo=new THREE.BoxGeometry(.62,1.4,.44);else geo=new THREE.BoxGeometry(1.05,1.8,.62);
+        const mesh=new THREE.Mesh(geo,material(colors.L2,op,0x211000));mesh.position.y=shape==="motor"?.58:shape==="generator"?.6:shape==="evse"?.7:.9;if(shape==="motor")mesh.rotation.z=Math.PI/2;root.add(mesh);tag(root,e);groups.L2.add(root);label(e.name,e.x,height(e),e.y,isSld(e)?"#8fcfff":"#ffd08a");
       };
-      let pointerStart: { x: number; y: number; id: number } | null = null;
-      const down = (ev: PointerEvent) => { pointerStart = { x: ev.clientX, y: ev.clientY, id: ev.pointerId }; };
-      const up = (ev: PointerEvent) => {
-        if (pointerStart?.id === ev.pointerId && Math.hypot(ev.clientX - pointerStart.x, ev.clientY - pointerStart.y) < 6) pick(ev);
-        pointerStart = null;
+      const loader=new GLTFLoader();
+      const equipment=(e:Entity)=>{
+        if(!isVisible(e))return;const def=resolveElectricalComponent(e.name),cfg=def?registry.find(r=>r.componentKey===def.key):null;
+        if(!cfg?.modelUrl.trim()||!["GLB","GLTF"].includes(cfg.format)){fallbackShape(e);return}
+        loader.load(cfg.modelUrl,gltf=>{if(disposed)return;const root=gltf.scene;root.position.set(e.x+cfg.offset[0],height(e)+cfg.offset[1],e.y+cfg.offset[2]);root.scale.setScalar(cfg.scale*n(e.scale,1));root.rotation.set(THREE.MathUtils.degToRad(cfg.rotation[0]),THREE.MathUtils.degToRad(cfg.rotation[1]-(e.rotation||0)),THREE.MathUtils.degToRad(cfg.rotation[2]));tag(root,e);groups.L2.add(root);label(e.name,e.x,height(e),e.y)},undefined,()=>{if(!disposed)fallbackShape(e)});
       };
-      renderer.domElement.addEventListener("pointerdown", down);
-      renderer.domElement.addEventListener("pointerup", up);
-      renderer.domElement.addEventListener("dblclick", pick);
-      const resize = () => {
-        if (!host.clientWidth || !host.clientHeight) return;
-        camera.aspect = host.clientWidth / host.clientHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(host.clientWidth, host.clientHeight);
-      };
-      const ro = new ResizeObserver(resize);
-      ro.observe(host);
-      let f = 0,
-        t = 0;
-      const animate = () => {
-        t += 0.004;
-        if (cinematic) {
-          rim.intensity = 32 + Math.sin(t) * 4;
-          blue.intensity = 25 + Math.cos(t * 0.8) * 3;
+      for(const e of graph.entities){
+        if(!isVisible(e))continue;
+        if(e.kind==="room-boundary"||e.kind==="floor-boundary"){room(e);continue}
+        if(e.kind==="wall-segment"&&Number.isFinite(e.x2)&&Number.isFinite(e.y2)){wall({x:e.x,y:e.y},{x:e.x2!,y:e.y2!},e);continue}
+        if(e.kind==="line"&&Number.isFinite(e.x2)&&Number.isFinite(e.y2)){
+          const pts=[new THREE.Vector3(e.x,height(e)+.08,e.y),new THREE.Vector3(e.x2!,n(e.z2,e.z)+extra(e)+.08,e.y2!)];groups[e.layer].add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:colors[e.layer],transparent:true,opacity:.82})));continue;
         }
-        if (emergency) {
-          rim.intensity = 25 + Math.sin(t * 5) * 15;
+        if(e.layer==="L2"){equipment(e);continue}
+        if(e.layer==="L4"){
+          const marker=new THREE.Mesh(new THREE.TorusGeometry(.34,.025,8,32),new THREE.MeshBasicMaterial({color:colors.L4}));marker.rotation.x=Math.PI/2;marker.position.set(e.x,height(e)+.04,e.y);tag(marker,e);groups.L4.add(marker);continue;
         }
-        for (const [id, model] of inspections.current) {
-          const current = inspection.current;
-          model.apply(id === current.id ? current.amount : 0,
-            id === current.id && current.isolate ? current.mesh : "");
-        }
-        controls.update();
-        renderer.render(scene, camera);
-        f = requestAnimationFrame(animate);
-      };
-      animate();
-      cleanup = () => {
-        runtime.current = null;
-        inspections.current.forEach(model => model.restore()); inspections.current.clear();
-        cancelAnimationFrame(f);
-        ro.disconnect();
-        renderer.domElement.removeEventListener("pointerdown", down);
-        renderer.domElement.removeEventListener("pointerup", up);
-        renderer.domElement.removeEventListener("dblclick", pick);
-        controls.dispose();
-        renderer.dispose();
-        host.replaceChildren();
-      };
+      }
+      for(const link of graph.links||[]){
+        if(!["SAME_TAG","SLD_FEEDS","SOURCE_RELATION"].includes(link.type))continue;const a=entityById.get(link.from),b=entityById.get(link.to);if(!a||!b||!isVisible(a)||!isVisible(b))continue;
+        const pts=[new THREE.Vector3(a.x,height(a)+.65,a.y),new THREE.Vector3(b.x,height(b)+.65,b.y)];const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineDashedMaterial({color:link.type==="SLD_FEEDS"?0x56b9ff:0xa57cff,dashSize:.28,gapSize:.14,transparent:true,opacity:.78}));line.computeLineDistances();groups.L3.add(line);
+      }
+      const visiblePoints=visible.flatMap(e=>[{x:e.x,y:height(e),z:e.y},...(Number.isFinite(e.x2)&&Number.isFinite(e.y2)?[{x:e.x2!,y:n(e.z2,e.z)+extra(e),z:e.y2!}]:[])]);
+      const bounds=new THREE.Box3();visiblePoints.forEach(p=>bounds.expandByPoint(new THREE.Vector3(p.x,p.y,p.z)));
+      if(bounds.isEmpty())bounds.expandByPoint(new THREE.Vector3(-5,0,-5)).expandByPoint(new THREE.Vector3(5,5,5));
+      const center=bounds.getCenter(new THREE.Vector3()),size=bounds.getSize(new THREE.Vector3()),span=Math.max(size.x,size.y,size.z,8);
+      const minX=bounds.min.x-2,minZ=bounds.min.z-2,minY=Math.min(bounds.min.y,0),maxY=Math.max(bounds.max.y+3,4);
+      const axis=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(minX,minY,minZ),new THREE.Vector3(minX,maxY,minZ)]),new THREE.LineBasicMaterial({color:0x49d39a}));scene.add(axis);
+      for(const [name,z] of levels){const y=z+(exploded?(floorIndex.get(name)||0)*2.6:0),grid=new THREE.GridHelper(Math.max(span*1.15,20),20,0x244d61,0x102c39);grid.position.y=y;grid.material.transparent=true;grid.material.opacity=.18;scene.add(grid);label(`${name} · ${z.toFixed(2)} m`,minX+.8,y,minZ,"#7be0b1")}
+      const fit=()=>{const c=bounds.getCenter(new THREE.Vector3()),s=bounds.getSize(new THREE.Vector3()),d=Math.max(s.x,s.y,s.z,8);controls.target.copy(c);camera.position.set(c.x+d*.9,c.y+d*.72+4,c.z+d);camera.near=.05;camera.far=Math.max(1000,d*20);camera.updateProjectionMatrix();controls.update()};fit();
+      runtime.current.fit=fit;
+      const ray=new THREE.Raycaster(),pointer=new THREE.Vector2();
+      const pick=(ev:PointerEvent)=>{const rect=renderer.domElement.getBoundingClientRect();pointer.x=((ev.clientX-rect.left)/rect.width)*2-1;pointer.y=-((ev.clientY-rect.top)/rect.height)*2+1;ray.setFromCamera(pointer,camera);const hit=ray.intersectObjects(clickable,true)[0];let node:any=hit?.object;while(node&&!node.userData?.entity)node=node.parent;if(node?.userData?.entity)setSelected(node.userData.entity)};
+      renderer.domElement.addEventListener("pointerup",pick);
+      const ro=new ResizeObserver(()=>{if(!host.clientWidth||!host.clientHeight)return;camera.aspect=host.clientWidth/host.clientHeight;camera.updateProjectionMatrix();renderer.setSize(host.clientWidth,host.clientHeight)});ro.observe(host);
+      let frame=0;const animate=()=>{controls.update();renderer.render(scene,camera);frame=requestAnimationFrame(animate)};animate();
+      cleanup=()=>{runtime.current=null;cancelAnimationFrame(frame);ro.disconnect();renderer.domElement.removeEventListener("pointerup",pick);controls.dispose();renderer.dispose();host.replaceChildren()};
     })();
-    return () => {
-      disposed = true;
-      cleanup();
-    };
-  }, [
-    graph,
-    active,
-    registry,
-    renderRevision,
-    environment,
-    systemMode,
-    exploded,
-    xray,
-    isolatedFloor,
-    ghostOthers,
-    isolatedObject,
-    labels,
-  ]);
-  if (!graph) return null;
-  const selectedDef = selected
-      ? resolveElectricalComponent(selected.name)
-      : null,
-    selectedCfg = selectedDef
-      ? registry.find((r) => r.componentKey === selectedDef.key)
-      : null;
-  return (
-    <section
-      style={{
-        border: "1px solid #1b3a50",
-        borderRadius: 20,
-        overflow: "hidden",
-        background: "#07111b",
-        marginBottom: 18,
-        boxShadow: "0 20px 60px rgba(0,0,0,.28)",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: 14,
-          alignItems: "center",
-          padding: "14px 16px",
-          borderBottom: "1px solid #17334a",
-          flexWrap: "wrap",
-        }}
-      >
-        <div>
-          <div className="eyebrow">
-            STRATUM SPATIAL VERIFIED · INFRASTRUCTURE VIEW
-          </div>
-          <strong>{graph.sources.map((s) => s.name).join(" · ")}</strong>
-          <div className="muted">
-            parser v{graph.version} · {levels.length} level(s) · {rooms} room(s)
-            · {visibleElectrical}/{recognized || visibleElectrical} visible
-            electrical objects · {mapped} registry models
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Link className="ghost" href="/component-library">
-            3D model registry
-          </Link>
-          <Link className="ghost" href="/compiler">
-            Recompile sources
-          </Link>
-        </div>
+    return()=>{disposed=true;cleanup()};
+  },[graph,registry,mode,environment,systemMode,floor,exploded,xray,labels,visible,levels]);
+
+  useEffect(()=>{runtime.current?.fit?.()},[fitRevision]);
+  useEffect(()=>{
+    const r=runtime.current;if(!r||!selected)return;const y=displayElevation(selected,mode),target=new r.THREE.Vector3(selected.x,y+1,selected.y),span=5;r.controls.target.copy(target);r.camera.position.copy(target).add(new r.THREE.Vector3(span,span*.75,span));r.controls.update();
+  },[selected?.id,mode]);
+
+  if(!graph)return <section className="card" style={{marginBottom:18}}><div className="eyebrow">Spatial viewer</div><h2>No compiled spatial model yet</h2><p className="subtitle">Import a drawing, SLD or DXF first. The viewer will open automatically when the reviewed graph exists.</p><Link className="action" href="/compiler">Import engineering sources</Link></section>;
+
+  const width=fallbackBounds.maxX-fallbackBounds.minX,height2=fallbackBounds.maxY-fallbackBounds.minY;
+  const sx=(x:number)=>((x-fallbackBounds.minX)/width)*92+4,sy=(y:number)=>96-((y-fallbackBounds.minY)/height2)*92;
+  const selectedZ=selected?displayElevation(selected,mode):0;
+  const selectedZKind=selected?(isSld(selected)&&mode==="ELECTRICAL"?"Logical SLD projection":physicalElevationKnown(selected)?"Physical/reviewed elevation":"Unverified elevation"):"";
+
+  return <section style={{border:"1px solid #1b3a50",borderRadius:18,overflow:"hidden",background:"#07111b",marginBottom:18}} aria-label="Spatial viewer">
+    <div style={{padding:"16px 18px",display:"flex",justifyContent:"space-between",gap:14,alignItems:"center",flexWrap:"wrap",borderBottom:"1px solid #17334a"}}>
+      <div><div className="eyebrow">STRATUM Spatial Verified</div><h2 style={{margin:"3px 0"}}>Spatial model</h2><p className="muted" style={{margin:0}}>{graph.sources.length} source(s) · {levels.length} level(s) · {rooms} room(s) · {sldObjects} SLD object(s)</p></div>
+      <div className="button-row"><Link className="ghost" href="/compiler">Edit sources</Link><Link className="ghost" href="/component-library">3D models</Link></div>
+    </div>
+
+    <div style={{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:8,padding:12,borderBottom:"1px solid #17334a"}} role="group" aria-label="Spatial view mode">
+      <button className={mode==="MODEL"?"action":"ghost"} aria-pressed={mode==="MODEL"} onClick={()=>setMode("MODEL")}><b>Model</b><br/><small>Rooms + equipment at physical Z</small></button>
+      <button className={mode==="ELECTRICAL"?"action":"ghost"} aria-pressed={mode==="ELECTRICAL"} onClick={()=>setMode("ELECTRICAL")}><b>Electrical</b><br/><small>SLD topology projected spatially</small></button>
+      <button className={mode==="REVIEW"?"action":"ghost"} aria-pressed={mode==="REVIEW"} onClick={()=>setMode("REVIEW")}><b>Review</b><br/><small>Source confidence + candidates</small></button>
+    </div>
+
+    <div style={{display:"flex",gap:8,padding:"10px 12px",alignItems:"center",flexWrap:"wrap",borderBottom:"1px solid #17334a"}}>
+      <select aria-label="Floor isolation" value={floor} onChange={e=>setFloor(e.target.value)}><option value="ALL">All floors</option>{levels.map(([f])=><option key={f} value={f}>{f}</option>)}</select>
+      <input aria-label="Search objects" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search equipment, room or source" style={{minWidth:220,flex:"1 1 240px"}}/>
+      <button className="ghost" onClick={()=>setFitRevision(v=>v+1)}>Fit model</button>
+      <button className="ghost" onClick={()=>setLabels(v=>!v)}>{labels?"Hide labels":"Show labels"}</button>
+    </div>
+
+    <details style={{borderBottom:"1px solid #17334a"}}><summary style={{padding:"10px 14px",cursor:"pointer"}}>Advanced view controls</summary><div style={{display:"flex",gap:8,padding:"0 12px 12px",flexWrap:"wrap"}}>
+      <button className="ghost" aria-pressed={exploded} onClick={()=>setExploded(v=>!v)}>{exploded?"Collapse building":"Explode building"}</button>
+      <button className="ghost" aria-pressed={xray} onClick={()=>setXray(v=>!v)}>{xray?"Disable X-Ray":"X-Ray architecture"}</button>
+      <select aria-label="Environment mode" value={environment} onChange={e=>setEnvironment(e.target.value as EnvironmentMode)}><option value="ENGINEERING">Engineering</option><option value="CINEMATIC">Cinematic</option><option value="NIGHT">Night Operations</option><option value="EMERGENCY">Emergency Mode</option></select>
+      <select aria-label="System isolation" value={systemMode} onChange={e=>setSystemMode(e.target.value as SystemMode)}>{systemOptions.map(o=><option key={o.id} value={o.id}>{o.label}</option>)}</select>
+    </div></details>
+
+    <div className="compiled-twin-grid" style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) minmax(270px,340px)"}}>
+      <div style={{position:"relative",minHeight:520,background:"#041019"}}>
+        {renderStatus!=="FALLBACK"&&<div ref={mount} style={{height:"min(72vh,760px)",minHeight:520}}/>}
+        {renderStatus==="FALLBACK"&&<div style={{height:"min(72vh,760px)",minHeight:520,padding:14}} role="img" aria-label="2D spatial fallback">
+          <svg viewBox="0 0 100 100" width="100%" height="100%" style={{background:"#06141e",borderRadius:12}}>
+            {(graph.links||[]).filter(l=>["SLD_FEEDS","SAME_TAG","SOURCE_RELATION"].includes(l.type)).map(l=>{const a=graph.entities.find(e=>e.id===l.from),b=graph.entities.find(e=>e.id===l.to);if(!a||!b)return null;return <line key={l.id} x1={sx(a.x)} y1={sy(a.y)} x2={sx(b.x)} y2={sy(b.y)} stroke={l.type==="SLD_FEEDS"?"#57baff":"#9a7cff"} strokeWidth=".35" strokeDasharray="1 1"/>})}
+            {visible.map(e=>e.kind==="line"&&Number.isFinite(e.x2)&&Number.isFinite(e.y2)?<line key={e.id} x1={sx(e.x)} y1={sy(e.y)} x2={sx(e.x2!)} y2={sy(e.y2!)} stroke={e.layer==="L3"?"#62bfff":"#7895a4"} strokeWidth=".28"/>:<g key={e.id} onClick={()=>setSelected(e)} style={{cursor:"pointer"}}><circle cx={sx(e.x)} cy={sy(e.y)} r={e.layer==="L2"?1.25:.75} fill={e.layer==="L2"?"#e5a14d":e.layer==="L4"?"#43d98f":"#7f98a6"}/>{labels&&e.layer==="L2"&&<text x={sx(e.x)+1.7} y={sy(e.y)-1} fill="#d8edf6" fontSize="2.2">{e.name.slice(0,24)}</text>}</g>)}
+          </svg><p className="muted" style={{margin:"8px 0 0"}}>Interactive 2D fallback active. Source placement and selection remain available while this device/browser cannot initialize WebGL.</p>
+        </div>}
+        <div style={{position:"absolute",top:12,right:12,background:"rgba(3,12,18,.86)",border:"1px solid #245069",borderRadius:12,padding:"10px 12px",pointerEvents:"none"}}><div className="eyebrow">INFRASTRUCTURE HUD</div><small>{renderStatus==="WEBGL"?"3D WEBGL":"2D FALLBACK"} · {mode}</small><div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:"4px 12px",marginTop:6,fontSize:12}}><span>VISIBLE</span><b>{visible.length}</b><span>SLD</span><b>{sldObjects}</b><span>UNRESOLVED Z</span><b>{unresolvedZ}</b><span>3D MODELS</span><b>{modelMapped}</b></div></div>
       </div>
-      <div
-        style={{
-          display: "flex",
-          gap: 7,
-          padding: "10px 12px",
-          overflowX: "auto",
-          borderBottom: "1px solid #17334a",
-          alignItems: "center",
-        }}
-      >
-        <button
-          className="ghost"
-          aria-pressed={exploded}
-          onClick={() => setExploded((v) => !v)}
-        >
-          {exploded ? "Collapse building" : "Explode building"}
-        </button>
-        <button
-          className="ghost"
-          aria-pressed={xray}
-          onClick={() => setXray((v) => !v)}
-        >
-          {xray ? "Disable X-Ray" : "X-Ray architecture"}
-        </button>
-        <button
-          className="ghost"
-          aria-pressed={labels}
-          onClick={() => setLabels((v) => !v)}
-        >
-          {labels ? "Hide smart labels" : "Show smart labels"}
-        </button>
-        <select
-          aria-label="Environment mode"
-          value={environment}
-          onChange={(e) => setEnvironment(e.target.value as EnvironmentMode)}
-          style={{
-            background: "#08131d",
-            color: "#c9e3ee",
-            border: "1px solid #28465f",
-            borderRadius: 10,
-            padding: "8px 10px",
-          }}
-        >
-          <option value="CINEMATIC">Presentation · Cinematic</option>
-          <option value="ENGINEERING">Engineering Dark</option>
-          <option value="NIGHT">Night Operations</option>
-          <option value="EMERGENCY">Emergency Mode</option>
-        </select>
-        <select
-          aria-label="System isolation"
-          value={systemMode}
-          onChange={(e) => setSystemMode(e.target.value as SystemMode)}
-          style={{
-            background: "#08131d",
-            color: "#c9e3ee",
-            border: "1px solid #28465f",
-            borderRadius: 10,
-            padding: "8px 10px",
-          }}
-        >
-          {systemOptions.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label="Floor isolation"
-          value={isolatedFloor}
-          onChange={(e) => setIsolatedFloor(e.target.value)}
-          style={{
-            background: "#08131d",
-            color: "#c9e3ee",
-            border: "1px solid #28465f",
-            borderRadius: 10,
-            padding: "8px 10px",
-          }}
-        >
-          <option value="ALL">All floors</option>
-          {levels.map(([f]) => (
-            <option key={f}>{f}</option>
-          ))}
-        </select>
-        {isolatedFloor !== "ALL" && (
-          <button
-            className="ghost"
-            aria-pressed={ghostOthers}
-            onClick={() => setGhostOthers((v) => !v)}
-          >
-            {ghostOthers ? "Hide other floors" : "Ghost other floors"}
-          </button>
-        )}
-      </div>
-      <div
-        style={{
-          display: "flex",
-          gap: 6,
-          padding: "9px 12px",
-          overflowX: "auto",
-          borderBottom: "1px solid #17334a",
-        }}
-      >
-        {(["L0", "L1", "L2", "L3", "L4"] as Layer[]).map((l) => (
-          <button
-            key={l}
-            onClick={() =>
-              setActive((v) =>
-                v.includes(l) ? v.filter((x) => x !== l) : [...v, l],
-              )
-            }
-            style={{
-              flex: "0 0 auto",
-              border: "1px solid #28465f",
-              background: active.includes(l) ? "#0b2d20" : "#08131d",
-              color: active.includes(l) ? "#7ce5ae" : "#7590a5",
-              borderRadius: 10,
-              padding: "8px 10px",
-              cursor: "pointer",
-            }}
-          >
-            <b>{l}</b> {layerNames[l]} · {counts?.[l] || 0}
-          </button>
-        ))}
-      </div>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(0,1fr) minmax(260px,360px)",
-        }}
-        className="compiled-twin-grid"
-      >
-        <div style={{ position: "relative" }}>
-          {webglError && <p role="status">3D rendering is unavailable. Select an imported object from the inventory below.</p>}
-          <div
-            ref={mount}
-            style={{ height: webglError ? 0 : "min(74vh,780px)", minHeight: webglError ? 0 : 500 }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              top: 14,
-              right: 14,
-              pointerEvents: "none",
-              background: "rgba(4,13,20,.78)",
-              backdropFilter: "blur(12px)",
-              border: "1px solid #245069",
-              borderRadius: 14,
-              padding: "12px 14px",
-              minWidth: 190,
-            }}
-          >
-            <div className="eyebrow">INFRASTRUCTURE HUD</div>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr auto",
-                gap: "5px 14px",
-                fontSize: 12,
-                marginTop: 7,
-              }}
-            >
-              <span>VIEW</span>
-              <b>{exploded ? "EXPLODED" : "ASSEMBLED"}</b>
-              <span>SYSTEM</span>
-              <b>{systemMode.replace("_", " ")}</b>
-              <span>ROOMS</span>
-              <b>{rooms}</b>
-              <span>ELECTRICAL</span>
-              <b>{visibleElectrical}</b>
-              <span>3D MODELS</span>
-              <b>{mapped}</b>
-              <span>RELATIONSHIPS</span>
-              <b>{graph.links?.length || 0}</b>
-            </div>
-          </div>
-        </div>
-        <aside
-          style={{
-            padding: 16,
-            borderLeft: "1px solid #17334a",
-            overflow: "auto",
-          }}
-        >
-          <label>Search objects
-            <input aria-label="Search objects" value={search} onChange={e => setSearch(e.target.value)} placeholder="Name, source, floor or identifier" style={{width:"100%"}} />
-          </label>
-          <p role="status">{matchingEntities.length} matching objects</p>
-          <label>Imported object
-            <select aria-label="Imported object" value={selected?.id||""} style={{width:"100%"}} onChange={e=>setSelected(graph.entities.find(x=>x.id===e.target.value)||null)}>
-              <option value="">Select an object</option>
-              {matchingEntities.map(e=><option key={e.id} value={e.id}>{e.name} · {e.source} · page {String(e.meta?.page||"—")}</option>)}
-            </select>
-          </label>
-          <div className="eyebrow">SOURCE-GROUNDED OBJECT</div>
-          {selected ? (
-            <>
-              <h2 style={{ marginBottom: 6 }}>{selected.name}</h2>
-              <div className="subtitle">
-                {selected.kind} · {selected.layer} {layerNames[selected.layer]}
-              </div>
-              <div className="button-row" style={{ margin: "12px 0" }}>
-                <button
-                  className="action"
-                  onClick={() => setFocusRevision((v) => v + 1)}
-                >
-                  Focus equipment
-                </button>
-                <span className="muted">Unregistered candidate · QR verification requires a registered asset.</span>
-              </div>
-              <div className="button-row">
-                <button className="ghost" aria-pressed={isolatedObject === selected.id} onClick={() => setIsolatedObject(isolatedObject === selected.id ? null : selected.id)}>Isolate object</button>
-                <button className="ghost" onClick={() => { setIsolatedObject(null); setPieceExplosion(0); setIsolateMesh(false); setSelectedMesh(""); setSearch(""); setActive(["L0","L1","L2","L3","L4"]); setSystemMode("ALL"); setIsolatedFloor("ALL"); }}>Restore view</button>
-              </div>
-              {selected.layer === "L2" && <label style={{display:"block",marginTop:12}}>Equipment mesh separation · {pieceExplosion}%
-                <input aria-label="Equipment mesh separation" type="range" min="0" max="100" disabled={!canExplodeMesh || webglError} value={pieceExplosion} onChange={e => setPieceExplosion(Number(e.target.value))} style={{width:"100%"}} />
-                <small>Illustrative mesh separation. Pieces are not verified OEM parts; recorded placement stays unchanged.</small>
-              </label>}
-              {selected.layer === "L2" && <div style={{marginTop:12}}>
-                <label>Internal model pieces · {meshDetails.length}
-                  <select aria-label="Internal model piece" value={selectedMesh} onChange={e => setSelectedMesh(e.target.value)} style={{width:"100%"}}>
-                    <option value="">Select a mesh</option>
-                    {meshDetails.map(mesh => <option key={mesh.id} value={mesh.id}>{mesh.name} · {mesh.id}</option>)}
-                  </select>
-                </label>
-                <button className="ghost" disabled={!selectedMesh} aria-pressed={isolateMesh} onClick={() => setIsolateMesh(v => !v)}>Isolate internal piece</button>
-                <button className="ghost" disabled={webglError || !meshDetails.length} onClick={() => {
-                  const r = runtime.current, model = inspections.current.get(selected.id);
-                  if (!r || !model) return;
-                  const box = model.bounds(selectedMesh); if (box.isEmpty()) return;
-                  const center = box.getCenter(new r.THREE.Vector3());
-                  const span = Math.max(box.getSize(new r.THREE.Vector3()).length(), 0.2);
-                  const vertical = r.camera.fov * Math.PI / 180;
-                  const horizontal = 2 * Math.atan(Math.tan(vertical / 2) * r.camera.aspect);
-                  const distance = span / (2 * Math.sin(Math.min(vertical, horizontal) / 2)) * 1.2;
-                  r.controls.target.copy(center); r.camera.position.copy(center).add(new r.THREE.Vector3(1,0.7,1).normalize().multiplyScalar(distance));
-                  r.camera.far = Math.max(600, distance * 4); r.camera.updateProjectionMatrix(); r.controls.update();
-                }}>Fit inspected geometry</button>
-                {meshDetails.filter(mesh => mesh.id === selectedMesh).map(mesh => <p key={mesh.id}>{mesh.triangles.toLocaleString()} triangles · Materials: {mesh.materials.join(", ")} · Model mesh identifier, not an OEM part number.</p>)}
-                {!meshDetails.length && <p className="muted">Mesh inventory requires a successfully rendered equipment model.</p>}
-                {!!meshDetails.length && !canExplodeMesh && <p className="muted">This model hierarchy supports inspection but not rigid mesh separation.</p>}
-              </div>}
-              <div className="passport-facts">
-                <div>
-                  <span>Source</span>
-                  <strong>{selected.source}</strong>
-                </div>
-                <div>
-                  <span>Confidence</span>
-                  <strong>{Math.round(selected.confidence * 100)}%</strong>
-                </div>
-                <div>
-                  <span>Floor</span>
-                  <strong>{selected.floor || "L1"}</strong>
-                </div>
-                <div>
-                  <span>Elevation Z (unverified unless recorded)</span>
-                  <strong>{Number(selected.z || 0).toFixed(2)} m</strong>
-                </div>
-                <div>
-                  <span>Plan X/Y</span>
-                  <strong>
-                    {selected.x.toFixed(2)} / {selected.y.toFixed(2)}
-                  </strong>
-                </div>
-                <div>
-                  <span>Rotation</span>
-                  <strong>{Number(selected.rotation || 0).toFixed(1)}°</strong>
-                </div>
-                <div>
-                  <span>Room / zone</span>
-                  <strong>{selected.zone || "Unresolved"}</strong>
-                </div>
-                {selectedDef && (
-                  <>
-                    <div>
-                      <span>Component class</span>
-                      <strong>{selectedDef.name}</strong>
-                    </div>
-                    <div>
-                      <span>System</span>
-                      <strong>
-                        {entitySystem(selected).replace("_", " ")}
-                      </strong>
-                    </div>
-                    <div>
-                      <span>3D representation</span>
-                      <strong>
-                        {selectedCfg?.modelUrl
-                          ? `${selectedCfg.format} registry model`
-                          : `${selectedDef.twinShape} fallback`}
-                      </strong>
-                    </div>
-                  </>
-                )}
-              </div>
-              <details style={{marginTop:14}}><summary>All source parameters</summary>
-                <dl style={{overflowWrap:"anywhere"}}>{Object.entries(selected.meta || {}).map(([key,value]) => <div key={key}><dt>{key}</dt><dd>{typeof value === "object" ? JSON.stringify(value) : String(value)}</dd></div>)}</dl>
-              </details>
-              <div className="notice" style={{ marginTop: 14 }}>
-                <strong>ASSET DESCRIPTION</strong>
-                <span>{String(selected.meta?.description || selected.meta?.text || `${selected.kind} placed from ${selected.source}`)}</span>
-              </div>
-              <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #17334a" }}>
-                <div className="eyebrow">FIELD ACTIVITY / NEW STATE</div>
-                <select aria-label="New asset state" value={nextState} onChange={e => setNextState(e.target.value)} style={{ width: "100%", marginTop: 8, padding: "9px 10px", background: "#08131d", color: "#d9eef5", border: "1px solid #28465f", borderRadius: 9 }}>
-                  <option>IN_SERVICE</option><option>INSPECTION_DUE</option><option>OUT_OF_SERVICE</option><option>MAINTENANCE</option><option>DECOMMISSIONED</option>
-                </select>
-                <textarea aria-label="Asset activity" value={activity} onChange={e => setActivity(e.target.value)} placeholder="Describe the inspection, repair, measurement, or state change" rows={3} style={{ width: "100%", marginTop: 8, padding: "9px 10px", background: "#08131d", color: "#d9eef5", border: "1px solid #28465f", borderRadius: 9, resize: "vertical" }} />
-                <button className="action" type="button" onClick={saveActivity} style={{ marginTop: 8, width: "100%" }}>Save field update</button>
-                {activityMessage && <div className="muted" style={{ marginTop: 8 }}>{activityMessage}</div>}
-                {activities.length > 0 && <div style={{ display: "grid", gap: 7, marginTop: 10 }}>{activities.slice(0, 4).map(item => <div key={item.id} style={{ padding: "8px 10px", border: "1px solid #23465c", borderRadius: 9 }}><strong>{item.state}</strong><div className="muted">{item.activity}</div><small>{new Date(item.occurredAt).toLocaleString()} · {item.status}</small></div>)}</div>}
-              </div>
-            </>
-          ) : (
-            <p className="subtitle">
-              Click source-placed equipment or room markers. Double-click and
-              then use Focus equipment for a cinematic inspection view.
-            </p>
-          )}
-          <div className="notice" style={{ marginTop: 16 }}>
-            <strong>VISUAL FOUNDATION V2</strong>
-            <span>
-              Exploded floors, floor isolation/ghosting, X-Ray architecture,
-              system isolation, smart equipment labels, environment modes and
-              focus navigation are now bound to the reconstructed engineering
-              graph.
-            </span>
-          </div>
-          <div className="notice" style={{ marginTop: 10 }}>
-            <strong>DIR BOUNDARY</strong>
-            <span>
-              Visual effects never become the engineering source of truth.
-              Validation and approval still precede asset registration and DIR
-              finalization.
-            </span>
-          </div>
-        </aside>
-      </div>
-      <style jsx>{`
-        @media (max-width: 820px) {
-          .compiled-twin-grid {
-            grid-template-columns: 1fr !important;
-          }
-          .compiled-twin-grid aside {
-            border-left: 0 !important;
-            border-top: 1px solid #17334a;
-          }
-        }
-      `}</style>
-    </section>
-  );
+
+      <aside style={{padding:15,borderLeft:"1px solid #17334a",overflow:"auto"}}>
+        <label>Imported object<select aria-label="Imported object" value={selected?.id||""} onChange={e=>setSelected(graph.entities.find(x=>x.id===e.target.value)||null)} style={{width:"100%"}}><option value="">Select an object</option>{matching.map(e=><option key={e.id} value={e.id}>{e.name} · {e.floor||"UNRESOLVED"}</option>)}</select></label>
+        {selected?<><div className="eyebrow" style={{marginTop:14}}>SELECTED OBJECT</div><h2 style={{margin:"4px 0"}}>{selected.name}</h2><p className="subtitle">{selected.layer} {layerNames[selected.layer]} · {selected.kind}</p>
+          <div className="passport-facts"><div><span>Floor</span><strong>{selected.floor||"UNRESOLVED"}</strong></div><div><span>Z placement</span><strong>{selectedZ.toFixed(2)} m</strong></div><div><span>Z authority</span><strong>{selectedZKind}</strong></div><div><span>Plan X / Y</span><strong>{selected.x.toFixed(2)} / {selected.y.toFixed(2)}</strong></div><div><span>Source</span><strong>{selected.source}</strong></div><div><span>Confidence</span><strong>{Math.round(selected.confidence*100)}%</strong></div>{isSld(selected)&&<div><span>SLD depth</span><strong>{metaNumber(selected,"sldLogicalDepth")??0}</strong></div>}</div>
+          {isSld(selected)&&<div className="notice" style={{marginTop:12}}><strong>SLD → SPATIAL PROJECTION</strong><span>The vertical separation in Electrical mode expresses logical power hierarchy. It is not an as-built physical elevation until field/design evidence establishes Z.</span></div>}
+          {!physicalElevationKnown(selected)&&!isSld(selected)&&<div className="notice" style={{marginTop:12}}><strong>Z NEEDS REVIEW</strong><span>This object has source placement, but physical elevation is not yet established. Review floor/elevation before treating Z as physical placement.</span></div>}
+          <button className="action" style={{width:"100%",marginTop:12}} onClick={()=>setFitRevision(v=>v+1)}>Fit full model</button>
+          <details style={{marginTop:12}}><summary>Source details</summary><dl>{Object.entries(selected.meta||{}).map(([k,v])=><div key={k}><dt>{k}</dt><dd style={{overflowWrap:"anywhere"}}>{typeof v==="object"?JSON.stringify(v):String(v)}</dd></div>)}</dl></details>
+        </>:<><div className="eyebrow" style={{marginTop:14}}>HOW TO USE</div><p className="subtitle">1. Choose Model for physical placement. 2. Choose Electrical for SLD topology. 3. Select an object to inspect Z and source authority.</p></>}
+        <div className="notice" style={{marginTop:14}}><strong>TRUTH BOUNDARY</strong><span>Observed/source-derived geometry never silently overwrites Verified infrastructure state. SLD logical Z is a visualization aid, not physical truth.</span></div>
+      </aside>
+    </div>
+    <style jsx>{`@media(max-width:820px){.compiled-twin-grid{grid-template-columns:1fr!important}.compiled-twin-grid aside{border-left:0!important;border-top:1px solid #17334a}}select,input{background:#08131d;color:#d8edf6;border:1px solid #28465f;border-radius:9px;padding:9px 10px}`}</style>
+  </section>;
 }
