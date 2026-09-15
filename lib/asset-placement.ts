@@ -1,6 +1,5 @@
 import {resolveElectricalComponent} from './electrical-component-library';
 import type {ElectricalModelConfig} from './electrical-model-registry';
-import {inferredFloorElevation} from './spatial-projection';
 
 export type PlacementEntity={name:string;floor?:string;z?:number;meta?:Record<string,unknown>};
 export type DimensionAuthority='SOURCE_SPEC'|'MODEL_REGISTRY'|'STRATUM_NOMINAL';
@@ -24,6 +23,15 @@ const FLOOR_KEYS=new Set(['utility-transformer','pad-mount-transformer','utility
 const PANEL_KEYS=new Set(['distribution-panel','panelboard','load-center','lighting-control','fire-alarm','security-panel','access-control','metering-cabinet','power-meter','energy-meter']);
 const RECEPTACLE_KEYS=new Set(['duplex-receptacle','gfci','ig-outlet','industrial-receptacle']);
 
+function floorElevation(floor?:string|null){
+ const normalized=String(floor||'').trim().toUpperCase();
+ const basement=normalized.match(/^B(\d+)$/);if(basement)return-4*Number(basement[1]);
+ const level=normalized.match(/^L(\d+)$/);if(level)return(Math.max(1,Number(level[1]))-1)*4;
+ if(normalized==='GROUND'||normalized==='GROUND FLOOR')return 0;
+ if(normalized==='ROOF')return 12;
+ if(normalized==='PENTHOUSE')return 16;
+ return 0;
+}
 function tuple(value:unknown):[number,number,number]|null{
  if(!Array.isArray(value)||value.length!==3)return null;
  const n=value.map(Number);return n.every(item=>Number.isFinite(item)&&item>0)?[n[0],n[1],n[2]]:null;
@@ -36,11 +44,15 @@ function sourceDimensions(entity:PlacementEntity):[number,number,number]|null{
 }
 function reviewedZ(entity:PlacementEntity){return entity.meta?.elevationKnown===true||entity.meta?.physicalElevationKnown===true||entity.meta?.zPlacementAuthority==='MEASURED_OR_REVIEWED'}
 
+export function nominalDimensionsFor(name:string):[number,number,number]{
+ const component=resolveElectricalComponent(name);return NOMINAL[component?.twinShape||'cabinet']||NOMINAL.cabinet;
+}
+
 export function resolveAssetPlacement(entity:PlacementEntity,registry?:ElectricalModelConfig|null):AssetPlacement{
  const component=resolveElectricalComponent(entity.name);
  const source=sourceDimensions(entity);
  const registryDimensions=tuple(registry?.dimensionsMeters);
- const nominal=NOMINAL[component?.twinShape||'cabinet']||NOMINAL.cabinet;
+ const nominal=nominalDimensionsFor(entity.name);
  const dims=source||registryDimensions||nominal;
  const dimensions=source
   ?{width:dims[0],height:dims[1],depth:dims[2],authority:'SOURCE_SPEC' as const,source:String(entity.meta?.dimensionsSource||entity.meta?.oemSpecSource||'Source/OEM asset metadata'),confidence:.95}
@@ -48,7 +60,7 @@ export function resolveAssetPlacement(entity:PlacementEntity,registry?:Electrica
    ?{width:dims[0],height:dims[1],depth:dims[2],authority:'MODEL_REGISTRY' as const,source:registry?.dimensionsSource||registry?.source||'3D model registry',confidence:registry?.dimensionsConfidence??.85}
    :{width:dims[0],height:dims[1],depth:dims[2],authority:'STRATUM_NOMINAL' as const,source:'STRATUM nominal visualization profile; replace with OEM dimensions',confidence:.35};
 
- const floorZ=inferredFloorElevation(entity.floor)??0;
+ const floorZ=floorElevation(entity.floor);
  if(reviewedZ(entity)){
   const base=Number.isFinite(Number(entity.z))?Number(entity.z):floorZ;
   return{dimensions,baseZ:base,topZ:base+dimensions.height,zAuthority:'MEASURED_OR_REVIEWED',zConfidence:.98,physicalTruth:false};
@@ -59,8 +71,8 @@ export function resolveAssetPlacement(entity:PlacementEntity,registry?:Electrica
  }
  if(PANEL_KEYS.has(key)){
   const accessible:[number,number]=[.38,1.22];
-  const center=Math.max(accessible[0],Math.min(accessible[1],1.22));
-  const base=Math.max(floorZ, floorZ+center-dimensions.height/2);
+  const center=floorZ+1.22;
+  const base=Math.max(floorZ,center-dimensions.height/2);
   return{dimensions,baseZ:base,topZ:base+dimensions.height,zAuthority:'HISTORICAL_RECOMMENDATION',zConfidence:.48,recommendation:{kind:'OPERABLE_PART_REACH_CONTEXT',rangeMeters:[floorZ+accessible[0],floorZ+accessible[1]],constraintMaxMeters:floorZ+2,source:'ADA 2010 Standards §308; NEC 240.24(A) / Schneider installation guidance',note:'Accessibility range applies where required. Breaker handle highest position is limited to 2.0 m by NEC 240.24(A); this is not an exact installed base elevation.'},physicalTruth:false};
  }
  if(RECEPTACLE_KEYS.has(key)){
