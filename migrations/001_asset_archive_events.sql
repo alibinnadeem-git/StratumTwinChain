@@ -26,11 +26,11 @@ COMMENT ON COLUMN asset_archive_events.previous_event_id IS
 CREATE OR REPLACE FUNCTION stratum_prevent_asset_physical_delete()
 RETURNS trigger
 LANGUAGE plpgsql
-AS $$
+AS '
 BEGIN
-  RAISE EXCEPTION 'STRATUM Assets are durable identities and cannot be physically deleted; append an ARCHIVE event instead';
+  RAISE EXCEPTION ''STRATUM Assets are durable identities and cannot be physically deleted; append an ARCHIVE event instead'';
 END;
-$$;
+';
 
 DROP TRIGGER IF EXISTS stratum_prevent_asset_physical_delete ON assets;
 CREATE TRIGGER stratum_prevent_asset_physical_delete

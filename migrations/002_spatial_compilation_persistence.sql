@@ -48,11 +48,11 @@ COMMENT ON TABLE spatial_compilation_reviews IS
 CREATE OR REPLACE FUNCTION stratum_prevent_spatial_compilation_mutation()
 RETURNS trigger
 LANGUAGE plpgsql
-AS $$
+AS '
 BEGIN
-  RAISE EXCEPTION 'Spatial compilation snapshots are append-only; save a new revision instead';
+  RAISE EXCEPTION ''Spatial compilation snapshots are append-only; save a new revision instead'';
 END;
-$$;
+';
 
 DROP TRIGGER IF EXISTS stratum_prevent_spatial_compilation_update ON spatial_compilations;
 CREATE TRIGGER stratum_prevent_spatial_compilation_update

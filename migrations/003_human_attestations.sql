@@ -47,11 +47,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS human_attestations_idempotency_idx
   ON human_attestations(organization_id,lifecycle_event_id,actor_user_id,attestation_type,statement_sha256);
 
 CREATE OR REPLACE FUNCTION reject_human_attestation_mutation()
-RETURNS trigger LANGUAGE plpgsql AS $$
+RETURNS trigger LANGUAGE plpgsql AS '
 BEGIN
-  RAISE EXCEPTION 'human_attestations is append-only; create a new attestation instead';
+  RAISE EXCEPTION ''human_attestations is append-only; create a new attestation instead'';
 END;
-$$;
+';
 
 DROP TRIGGER IF EXISTS human_attestations_no_update ON human_attestations;
 CREATE TRIGGER human_attestations_no_update
