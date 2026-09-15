@@ -12,12 +12,13 @@ const metric=enrichSpatialProjection(cadGraph);
 const panel=metric.entities.find(entity=>entity.id==='a');
 const transformer=metric.entities.find(entity=>entity.id==='b');
 const room=metric.entities.find(entity=>entity.id==='room');
-assert.equal(panel?.meta?.cadMetricXY,true);assert.equal(panel?.meta?.coordinateUnits,'m');
+assert.equal(panel?.meta?.cadMetricXY,true);assert.equal(panel?.meta?.planCoordinateUnits,'m');assert.equal(panel?.meta?.coordinateUnits,'m_xy');
+assert.equal(panel?.meta?.zReviewRequired,true);assert.equal(panel?.meta?.zPlacementAuthority,'HISTORICAL_RECOMMENDATION');
 assert.ok(Math.abs(Number(transformer?.x)-30.48)<1e-6,'100 ft X span becomes 30.48 m');
 assert.ok(Math.abs(Number(transformer?.y)-3.048)<1e-6,'10 ft Y span becomes 3.048 m');
 assert.ok(Math.abs(Number(room?.vertices?.[2]?.x)-30.48)<1e-6,'room geometry uses the same metric X scale');
 assert.ok(Math.abs(Number(room?.vertices?.[2]?.y)-3.048)<1e-6,'room geometry uses the same metric Y scale');
-console.log('✓ DXF X/Y source scale becomes one metric spatial frame for geometry and equipment');
+console.log('✓ DXF X/Y source scale becomes a metric plan frame while equipment Z remains separately reviewable');
 
 const registry=[{componentKey:'panelboard',format:'GLB',modelUrl:'/panel.glb',scale:1,rotation:[0,0,0],offset:[0,0,0],dimensionsMeters:[1.1,1.9,.28],dimensionsSource:'OEM panel schedule',dimensionsConfidence:.9}];
 const sld=enrichSpatialProjection({version:'fixture',createdAt:new Date().toISOString(),entities:[
@@ -38,7 +39,7 @@ console.log('✓ SLD equipment receives deterministic logical depth, feeder link
 
 const oem=resolveAssetPlacement({name:'PANELBOARD LP-1',floor:'L2',meta:{assetDimensionsMeters:[1.2,2.1,.55],dimensionsSource:'OEM submittal'}});
 assert.equal(oem.dimensions.authority,'SOURCE_SPEC');assert.equal(oem.dimensions.height,2.1);assert.equal(oem.zAuthority,'HISTORICAL_RECOMMENDATION');assert.equal(oem.physicalTruth,false);
-assert.ok(oem.recommendation?.rangeMeters&&oem.recommendation.constraintMaxMeters);
+assert.ok(oem.recommendation?.rangeMeters&&oem.recommendation.constraintMaxMeters);assert.equal(oem.recommendation?.evidenceClass,'CODE_CONSTRAINT');
 console.log('✓ OEM/source dimensions outrank registry/nominal geometry while web/code placement remains recommendation-only');
 
 const floorStanding=resolveAssetPlacement({name:'DRY TYPE TRANSFORMER T1',floor:'L2',meta:{}});
