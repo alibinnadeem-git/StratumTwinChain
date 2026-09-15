@@ -49,7 +49,12 @@ function tuple(value:unknown):[number,number,number]|null{
 }
 function sourceDimensions(entity:PlacementEntity):[number,number,number]|null{
  const meta=entity.meta||{};
- for(const key of ['assetDimensionsMeters','dimensionsMeters','oemDimensionsMeters','manufacturerDimensionsMeters']){const found=tuple(meta[key]);if(found)return found;}
+ // assetDimensionsMeters is also the projection engine's derived output. It is only
+ // source-authoritative when an upstream record explicitly marked it SOURCE_SPEC.
+ if(meta.assetDimensionAuthority==='SOURCE_SPEC'){
+  const explicit=tuple(meta.assetDimensionsMeters);if(explicit)return explicit;
+ }
+ for(const key of ['dimensionsMeters','oemDimensionsMeters','manufacturerDimensionsMeters']){const found=tuple(meta[key]);if(found)return found;}
  const width=Number(meta.widthMeters??meta.assetWidthMeters),height=Number(meta.heightMeters??meta.assetHeightMeters),depth=Number(meta.depthMeters??meta.assetDepthMeters);
  return [width,height,depth].every(item=>Number.isFinite(item)&&item>0)?[width,height,depth]:null;
 }
@@ -66,7 +71,7 @@ export function resolveAssetPlacement(entity:PlacementEntity,registry?:Electrica
  const nominal=nominalDimensionsFor(entity.name);
  const dims=source||registryDimensions||nominal;
  const dimensions=source
-  ?{width:dims[0],height:dims[1],depth:dims[2],authority:'SOURCE_SPEC' as const,source:String(entity.meta?.dimensionsSource||entity.meta?.oemSpecSource||'Source/OEM asset metadata'),confidence:.95}
+  ?{width:dims[0],height:dims[1],depth:dims[2],authority:'SOURCE_SPEC' as const,source:String(entity.meta?.dimensionsSource||entity.meta?.oemSpecSource||entity.meta?.assetDimensionSource||'Source/OEM asset metadata'),confidence:.95}
   :registryDimensions
    ?{width:dims[0],height:dims[1],depth:dims[2],authority:'MODEL_REGISTRY' as const,source:registry?.dimensionsSource||registry?.source||'3D model registry',confidence:registry?.dimensionsConfidence??.85}
    :{width:dims[0],height:dims[1],depth:dims[2],authority:'STRATUM_NOMINAL' as const,source:'STRATUM nominal visualization profile; replace with OEM dimensions',confidence:.35};
