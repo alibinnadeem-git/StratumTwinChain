@@ -2,8 +2,10 @@
 
 import {useEffect} from 'react';
 import {enrichSpatialProjection} from '@/lib/spatial-projection';
+import {DEFAULT_ELECTRICAL_MODEL_REGISTRY,ELECTRICAL_MODEL_REGISTRY_STORAGE_KEY,normalizeElectricalModelRegistry} from '@/lib/electrical-model-registry';
 
 const STORAGE_KEY='stratum_compiled_graph';
+const REGISTRY_EVENT='stratum:model-registry-updated';
 
 export default function SpatialProjectionEngine(){
  useEffect(()=>{
@@ -13,7 +15,9 @@ export default function SpatialProjectionEngine(){
    try{
     const raw=localStorage.getItem(STORAGE_KEY);if(!raw)return;
     const graph=JSON.parse(raw);if(!graph||!Array.isArray(graph.entities))return;
-    const enriched=enrichSpatialProjection(graph);
+    const storedRegistry=localStorage.getItem(ELECTRICAL_MODEL_REGISTRY_STORAGE_KEY);
+    const registry=storedRegistry?normalizeElectricalModelRegistry(JSON.parse(storedRegistry)):DEFAULT_ELECTRICAL_MODEL_REGISTRY;
+    const enriched=enrichSpatialProjection(graph,registry);
     const next=JSON.stringify(enriched);
     if(next===raw)return;
     applying=true;
@@ -25,8 +29,9 @@ export default function SpatialProjectionEngine(){
   };
   apply();
   window.addEventListener('stratum:graph-updated',apply);
+  window.addEventListener(REGISTRY_EVENT,apply);
   window.addEventListener('storage',apply);
-  return()=>{window.removeEventListener('stratum:graph-updated',apply);window.removeEventListener('storage',apply)};
+  return()=>{window.removeEventListener('stratum:graph-updated',apply);window.removeEventListener(REGISTRY_EVENT,apply);window.removeEventListener('storage',apply)};
  },[]);
  return null;
 }
