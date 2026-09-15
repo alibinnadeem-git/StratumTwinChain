@@ -19,22 +19,27 @@ assert.ok(Math.abs(Number(room?.vertices?.[2]?.x)-30.48)<1e-6,'room geometry use
 assert.ok(Math.abs(Number(room?.vertices?.[2]?.y)-3.048)<1e-6,'room geometry uses the same metric Y scale');
 console.log('✓ DXF X/Y source scale becomes one metric spatial frame for geometry and equipment');
 
+const registry=[{componentKey:'panelboard',format:'GLB',modelUrl:'/panel.glb',scale:1,rotation:[0,0,0],offset:[0,0,0],dimensionsMeters:[1.1,1.9,.28],dimensionsSource:'OEM panel schedule',dimensionsConfidence:.9}];
 const sld=enrichSpatialProjection({version:'fixture',createdAt:new Date().toISOString(),entities:[
  {id:'source',source:'E-001 Single Line Diagram.pdf',layer:'L2',kind:'text-asset-candidate',name:'UTILITY SERVICE',x:0,y:0,z:0,floor:'L1',confidence:.8,meta:{page:1}},
  {id:'xfmr',source:'E-001 Single Line Diagram.pdf',layer:'L2',kind:'text-asset-candidate',name:'TRANSFORMER T1',x:2,y:0,z:0,floor:'L1',confidence:.8,meta:{page:1}},
  {id:'msb',source:'E-001 Single Line Diagram.pdf',layer:'L2',kind:'text-asset-candidate',name:'MAIN SWITCHBOARD MSB',x:4,y:0,z:0,floor:'L1',confidence:.8,meta:{page:1}},
  {id:'panel',source:'E-001 Single Line Diagram.pdf',layer:'L2',kind:'text-asset-candidate',name:'PANELBOARD LP-1',x:6,y:0,z:0,floor:'L1',confidence:.8,meta:{page:1}}
-],links:[],stats:{L0:1,L1:0,L2:4,L3:0,L4:0}});
+],links:[],stats:{L0:1,L1:0,L2:4,L3:0,L4:0}},registry);
 assert.deepEqual(sld.entities.map(entity=>entity.meta?.sldLogicalDepth),[0,1,2,4]);
 assert.ok((sld.links||[]).some(link=>link.type==='SLD_FEEDS'&&link.from==='source'&&link.to==='xfmr'));
 assert.ok((sld.links||[]).some(link=>link.type==='SLD_FEEDS'&&link.to==='panel'));
 assert.ok(sld.entities.every(entity=>entity.meta?.sldTruthBoundary==='LOGICAL_Z_NEVER_ESTABLISHES_PHYSICAL_ELEVATION'));
-console.log('✓ SLD equipment receives deterministic logical depth and review-only feeder links');
+const registryPanel=sld.entities.find(entity=>entity.id==='panel');
+assert.deepEqual(registryPanel?.meta?.assetDimensionsMeters,[1.1,1.9,.28]);
+assert.equal(registryPanel?.meta?.assetDimensionAuthority,'MODEL_REGISTRY');
+assert.ok(Number(registryPanel?.scale)>1,'registry height drives visualization scale above nominal panel height');
+console.log('✓ SLD equipment receives deterministic logical depth, feeder links and model-registry dimensions');
 
 const oem=resolveAssetPlacement({name:'PANELBOARD LP-1',floor:'L2',meta:{assetDimensionsMeters:[1.2,2.1,.55],dimensionsSource:'OEM submittal'}});
 assert.equal(oem.dimensions.authority,'SOURCE_SPEC');assert.equal(oem.dimensions.height,2.1);assert.equal(oem.zAuthority,'HISTORICAL_RECOMMENDATION');assert.equal(oem.physicalTruth,false);
 assert.ok(oem.recommendation?.rangeMeters&&oem.recommendation.constraintMaxMeters);
-console.log('✓ OEM/source dimensions outrank nominal geometry while web/code placement remains recommendation-only');
+console.log('✓ OEM/source dimensions outrank registry/nominal geometry while web/code placement remains recommendation-only');
 
 const floorStanding=resolveAssetPlacement({name:'DRY TYPE TRANSFORMER T1',floor:'L2',meta:{}});
 assert.equal(floorStanding.baseZ,4);assert.equal(floorStanding.zAuthority,'FLOOR_STANDING_PROFILE');assert.equal(floorStanding.physicalTruth,false);
