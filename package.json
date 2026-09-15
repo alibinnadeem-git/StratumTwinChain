@@ -11,6 +11,7 @@
     "qa:asset-archive": "node scripts/qa-asset-archive.mjs",
     "qa:command-center": "node scripts/qa-command-center.mjs",
     "qa:spatial-persistence": "node scripts/qa-spatial-persistence.mjs",
+    "qa:spatial-viewer": "node --experimental-strip-types scripts/qa-spatial-viewer.mjs",
     "qa:title-block": "node --experimental-strip-types scripts/qa-title-block.mjs",
     "qa:auto-alignment": "node --experimental-strip-types scripts/qa-auto-sheet-alignment.mjs",
     "qa:room-reconstruction": "node --experimental-strip-types scripts/qa-room-reconstruction.mjs",
