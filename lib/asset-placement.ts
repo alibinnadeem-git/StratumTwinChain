@@ -5,24 +5,10 @@ export type PlacementEntity={name:string;floor?:string;z?:number;meta?:Record<st
 export type DimensionAuthority='SOURCE_SPEC'|'MODEL_REGISTRY'|'WEB_OEM_REFERENCE'|'STRATUM_NOMINAL';
 export type ZAuthority='MEASURED_OR_REVIEWED'|'FLOOR_STANDING_PROFILE'|'HISTORICAL_RECOMMENDATION'|'FLOOR_LABEL_ONLY'|'UNRESOLVED';
 export type PlacementEvidenceClass='SOURCE_SPEC'|'OEM_INSTALLATION_GUIDANCE'|'CODE_CONSTRAINT'|'ACCESSIBILITY_GUIDANCE'|'DESIGN_GUIDE'|'TYPE_PROFILE'|'VISUALIZATION_HEURISTIC';
-export type PlacementRecommendation={
- kind:string;
- valueMeters?:number;
- rangeMeters?:[number,number];
- constraintMaxMeters?:number;
- source:string;
- sourceUrl?:string;
- evidenceClass:PlacementEvidenceClass;
- note:string;
-};
+export type PlacementRecommendation={kind:string;valueMeters?:number;rangeMeters?:[number,number];constraintMaxMeters?:number;source:string;sourceUrl?:string;evidenceClass:PlacementEvidenceClass;note:string};
 export type AssetPlacement={
  dimensions:{width:number;height:number;depth:number;authority:DimensionAuthority;source:string;confidence:number};
- baseZ:number;
- topZ:number;
- zAuthority:ZAuthority;
- zConfidence:number;
- recommendation?:PlacementRecommendation;
- physicalTruth:false;
+ baseZ:number;topZ:number;zAuthority:ZAuthority;zConfidence:number;recommendation?:PlacementRecommendation;physicalTruth:false;
 };
 
 const NOMINAL:Record<string,[number,number,number]>={
@@ -54,8 +40,6 @@ function tuple(value:unknown):[number,number,number]|null{
 function finite(value:unknown){const n=Number(value);return Number.isFinite(n)?n:null}
 function sourceDimensions(entity:PlacementEntity):[number,number,number]|null{
  const meta=entity.meta||{};
- // assetDimensionsMeters is also the projection engine's derived output. It is only
- // source-authoritative when an upstream record explicitly marked it SOURCE_SPEC.
  if(meta.assetDimensionAuthority==='SOURCE_SPEC'){
   const explicit=tuple(meta.assetDimensionsMeters);if(explicit)return explicit;
  }
@@ -73,20 +57,20 @@ function modelText(entity:PlacementEntity){const meta=entity.meta||{};return [en
 function explicitMountingType(entity:PlacementEntity){return [entity.meta?.mountingType,entity.meta?.installationType].filter(Boolean).join(' ').toLowerCase()}
 function isPedestalMounted(entity:PlacementEntity){const t=`${explicitMountingType(entity)} ${entity.name.toLowerCase()}`;return /\bpedestal\b|\bbollard\b|floor[- ]mounted|post[- ]mounted|pad[- ]mounted/.test(t)}
 function isWallMounted(entity:PlacementEntity){const t=`${explicitMountingType(entity)} ${entity.name.toLowerCase()}`;return /wall[- ]mounted|surface[- ]mounted|\bwall connector\b/.test(t)}
-function isOutdoor(entity:PlacementEntity){const t=contextText(entity);return /\boutdoor\b|\bexterior\b/.test(t)}
+function isOutdoor(entity:PlacementEntity){return /\boutdoor\b|\bexterior\b/.test(contextText(entity))}
 function isTeslaWallConnector(entity:PlacementEntity){
  const maker=manufacturerText(entity),model=modelText(entity),all=contextText(entity);
- return (maker.includes('tesla')&&/wall connector|1734412|1457768/.test(model))||/tesla[^\n]*wall connector|wall connector[^\n]*tesla/.test(all);
+ return (maker.includes('tesla')&&/wall connector|1734412|1457768/.test(model))||/tesla.*wall connector|wall connector.*tesla/.test(all);
 }
 function isCurrentTeslaWallConnector(entity:PlacementEntity){const t=contextText(entity);return isTeslaWallConnector(entity)&&/universal|gen\s*3|gen3|1734412|1457768/.test(t)}
 function isChargePointHomeFlex(entity:PlacementEntity){
  const maker=manufacturerText(entity),model=modelText(entity),all=contextText(entity);
- return (maker.includes('chargepoint')&&/home flex|cph50/.test(model))||/chargepoint[^\n]*(home flex|cph50)|(home flex|cph50)[^\n]*chargepoint/.test(all);
+ return (maker.includes('chargepoint')&&/home flex|cph50/.test(model))||/chargepoint.*(home flex|cph50)|(home flex|cph50).*chargepoint/.test(all);
 }
 function webOemDimensions(entity:PlacementEntity):{dims:[number,number,number];source:string;sourceUrl:string;confidence:number}|null{
  if(isCurrentTeslaWallConnector(entity)){
   const universal=/universal|1734412/.test(contextText(entity));
-  return{dims:[.155,.345,universal?.15:.11],source:`Tesla ${universal?'Universal ':''}Wall Connector official product specifications`,sourceUrl:TESLA_SPEC_URL,confidence:.88};
+  return{dims:[.155,.345,universal ? .15 : .11],source:`Tesla ${universal?'Universal ':''}Wall Connector official product specifications`,sourceUrl:TESLA_SPEC_URL,confidence:.88};
  }
  if(isChargePointHomeFlex(entity))return{dims:[.1794,.2843,.1321],source:'ChargePoint Home Flex CPH50 official datasheet',sourceUrl:CHARGEPOINT_SPEC_URL,confidence:.9};
  return null;
