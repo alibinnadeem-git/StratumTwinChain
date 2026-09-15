@@ -12,8 +12,8 @@ test('DXF plan scale becomes metric while equipment Z remains separately reviewa
   const panel=(graph.entities||[]).find((entity:any)=>entity.name==='PANELBOARD LP-2'&&entity.layer==='L2');
   const transformer=(graph.entities||[]).find((entity:any)=>entity.name==='DRY TYPE TRANSFORMER T1'&&entity.layer==='L2');
   return panel&&transformer?{
-   panel:{metric:panel.meta?.cadMetricXY,units:panel.meta?.coordinateUnits,planUnits:panel.meta?.planCoordinateUnits,z:panel.z,floor:panel.floor,authority:panel.meta?.zPlacementAuthority,review:panel.meta?.zReviewRequired},
-   transformer:{z:transformer.z,authority:transformer.meta?.zPlacementAuthority,review:transformer.meta?.zReviewRequired}
+   panel:{metric:panel.meta?.cadMetricXY,units:panel.meta?.coordinateUnits,planUnits:panel.meta?.planCoordinateUnits,z:Number(Number(panel.z).toFixed(6)),floor:panel.floor,authority:panel.meta?.zPlacementAuthority,review:panel.meta?.zReviewRequired},
+   transformer:{z:Number(Number(transformer.z).toFixed(6)),authority:transformer.meta?.zPlacementAuthority,review:transformer.meta?.zReviewRequired}
   }:null;
  })).toEqual({
   panel:{metric:true,units:'m_xy',planUnits:'m',z:4.695,floor:'L2',authority:'HISTORICAL_RECOMMENDATION',review:true},
