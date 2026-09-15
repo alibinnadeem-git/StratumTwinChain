@@ -38,6 +38,34 @@ jobs:
         run: npm run qa:plc
       - name: PoVI proposer entropy profile conformance
         run: npm run qa:vrf
+      - name: Asset archive and restore safety conformance
+        run: npm run qa:asset-archive
+      - name: Command center tenant and truth-boundary conformance
+        run: npm run qa:command-center
+      - name: Spatial persistence and human-review conformance
+        run: npm run qa:spatial-persistence
+      - name: Database and server-backed persistence readiness conformance
+        run: npm run qa:database-readiness
+      - name: Metric Spatial viewer, Z placement and SLD projection conformance
+        run: npm run qa:spatial-viewer
+      - name: Spatial asset click and DIR Passport conformance
+        run: npm run qa:spatial-asset-passport
+      - name: PDF title-block intelligence conformance
+        run: npm run qa:title-block
+      - name: Automatic sheet alignment conformance
+        run: npm run qa:auto-alignment
+      - name: Room reconstruction and HITL conformance
+        run: npm run qa:room-reconstruction
+      - name: Field scan tenant identity conformance
+        run: npm run qa:field-scan
+      - name: Physical identity LOOKUP_ONLY conformance
+        run: npm run qa:physical-identity
+      - name: Asset Passport truth-boundary conformance
+        run: npm run qa:asset-passport
+      - name: Typed human attestation conformance
+        run: npm run qa:human-attestations
+      - name: Offline field queue and replay conformance
+        run: npm run qa:offline-field
       - run: npm run qa:ui
       - run: npm run typecheck
       - run: npm run build

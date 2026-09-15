@@ -1,0 +1,60 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {normalizeScanValue} from '../lib/scan-code.ts';
+
+assert.deepEqual(normalizeScanValue(' STR-AST-0009281 '),{query:'STR-AST-0009281',kind:'RAW'});
+console.log('✓ raw asset identity is normalized without changing its value');
+assert.deepEqual(normalizeScanValue('https://example.test/passport/abc-123'),{query:'abc-123',kind:'URL'});
+console.log('✓ Passport URL resolves to its asset identity');
+assert.deepEqual(normalizeScanValue('https://example.test/verify?q=serial-77'),{query:'serial-77',kind:'URL'});
+console.log('✓ public verification URL resolves its q identity');
+assert.deepEqual(normalizeScanValue('stratum://asset/qr-token-1'),{query:'qr-token-1',kind:'STRATUM_URI'});
+console.log('✓ STRATUM asset URI resolves to its identity');
+assert.equal(normalizeScanValue('https://example.test/unrelated/path'),null);
+assert.equal(normalizeScanValue('x'.repeat(513)),null);
+console.log('✓ unrelated URLs and oversized raw identities fail closed');
+
+const resolver=fs.readFileSync('app/api/assets/resolve/route.ts','utf8');
+const scanner=fs.readFileSync('components/FieldScanner.tsx','utf8');
+const page=fs.readFileSync('app/scan/page.tsx','utf8');
+const pkg=JSON.parse(fs.readFileSync('package.json','utf8'));
+assert.match(resolver,/requireSession\(\)/);
+assert.match(resolver,/a\.organization_id=\$2/);
+assert.match(resolver,/session\.organizationId/);
+assert.doesNotMatch(resolver,/findAsset/);
+assert.match(resolver,/tenantScoped:true/);
+assert.match(resolver,/FIELD_IDENTITY_RESOLUTION_DOES_NOT_ESTABLISH_VERIFIED_STATE/);
+assert.match(resolver,/identityAssurance:lookupOnlyAssurance\(lookupMatch\)/);
+assert.match(resolver,/asset_archive_events/);
+console.log('✓ field resolver is authenticated and organization-scoped with no reference fallback');
+console.log('✓ resolver surfaces administrative archive state and lookup-only assurance without verification authority');
+
+assert.equal(pkg.dependencies['@zxing/browser'],'^0.2.1');
+assert.match(scanner,/BarcodeDetector/);
+assert.match(scanner,/import\('@zxing\/browser'\)/);
+assert.match(scanner,/BrowserMultiFormatReader/);
+assert.match(scanner,/startCompatibilityDecoder/);
+assert.match(scanner,/compatibilityControlsRef\.current\?\.stop\(\)/);
+assert.match(scanner,/handleDetectedCode\(raw\)/);
+assert.match(scanner,/identify\(raw,'CAMERA_CODE'\)/);
+assert.ok(scanner.indexOf('if(Detector){')<scanner.lastIndexOf('await startCompatibilityDecoder(attempt)'));
+console.log('✓ native BarcodeDetector remains first choice and compatibility decoding is available as a browser fallback');
+console.log('✓ native and fallback camera decoders converge on the same normalized CAMERA_CODE lookup path');
+
+assert.match(scanner,/normalizeScanValue/);
+assert.match(scanner,/\/api\/assets\/resolve\?q=/);
+assert.match(scanner,/administratively_archived/);
+assert.match(scanner,/Archived assets cannot start a new inspection/);
+assert.match(scanner,/QR\/barcode recognition establishes registry lookup only/);
+assert.match(scanner,/Printed codes can be copied or replayed/);
+assert.match(scanner,/does not establish physical identity, Verified state, DIR finality, PoVI finality, or physical truth/);
+assert.match(scanner,/router\.push\(`\/inspection\?q=/);
+assert.doesNotMatch(scanner,/fetch\(['"`]\/api\/(?:chain|verify|approvals|attestations)/);
+assert.match(page,/FieldScanner/);
+assert.match(page,/Scan first\. Verify separately\./);
+console.log('✓ scanner resolves tenant registry identity before controlled inspection handoff');
+console.log('✓ archived asset inspection is blocked');
+console.log('✓ camera decoder choice cannot bypass tenant resolution or create trust/finality authority');
+console.log('✓ dedicated /scan surface keeps printed-code identity lookup separate from physical verification');
+
+console.log('\nField scan, cross-browser decoder fallback, tenant identity and trust-boundary contract passed.');

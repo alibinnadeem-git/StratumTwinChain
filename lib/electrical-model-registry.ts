@@ -8,6 +8,10 @@ export type ElectricalModelConfig={
   scale:number;
   rotation:[number,number,number];
   offset:[number,number,number];
+  /** Physical width, height and depth in meters when backed by an OEM/spec source. */
+  dimensionsMeters?:[number,number,number];
+  dimensionsSource?:string;
+  dimensionsConfidence?:number;
   lod?:'LOW'|'MEDIUM'|'HIGH';
   source?:string;
   notes?:string;
@@ -35,6 +39,9 @@ export function normalizeElectricalModelRegistry(input:unknown):ElectricalModelC
     const tuple=(x:any):[number,number,number]=>Array.isArray(x)&&x.length===3?[
       Number(x[0])||0,Number(x[1])||0,Number(x[2])||0
     ]:[0,0,0];
+    const dimensions=Array.isArray(value.dimensionsMeters)&&value.dimensionsMeters.length===3&&value.dimensionsMeters.every((item:any)=>Number(item)>0)
+      ?[Number(value.dimensionsMeters[0]),Number(value.dimensionsMeters[1]),Number(value.dimensionsMeters[2])] as [number,number,number]
+      :undefined;
     return {
       ...base,
       format:['GLB','GLTF','USD','USDZ'].includes(value.format)?value.format:base.format,
@@ -42,6 +49,9 @@ export function normalizeElectricalModelRegistry(input:unknown):ElectricalModelC
       scale:Number(value.scale)>0?Number(value.scale):1,
       rotation:tuple(value.rotation),
       offset:tuple(value.offset),
+      dimensionsMeters:dimensions,
+      dimensionsSource:typeof value.dimensionsSource==='string'?value.dimensionsSource:undefined,
+      dimensionsConfidence:Number.isFinite(Number(value.dimensionsConfidence))?Math.max(0,Math.min(1,Number(value.dimensionsConfidence))):undefined,
       lod:['LOW','MEDIUM','HIGH'].includes(value.lod)?value.lod:'MEDIUM',
       source:typeof value.source==='string'?value.source:base.source,
       notes:typeof value.notes==='string'?value.notes:''
