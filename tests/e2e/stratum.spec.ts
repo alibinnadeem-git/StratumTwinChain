@@ -21,27 +21,38 @@ test.describe('STRATUM Spatial Verified route and responsive UAT',()=>{
  }
 });
 
-test('command center exposes the canonical Redbook product and implementation discipline',async({page})=>{
+test('command center is task-first while Redbook detail remains available on demand',async({page})=>{
  await page.goto('/');
  await expect(page.getByText('STRATUM Spatial Verified',{exact:false}).first()).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Choose a task and keep moving.'})).toBeVisible();
+ const launcher=page.getByRole('region',{name:'What do you need to do?'});
+ await expect(launcher).toBeVisible();
+ await expect(launcher.getByRole('link',{name:/Start from a drawing/i})).toBeVisible();
+ await expect(launcher.getByRole('link',{name:/Review the model/i})).toBeVisible();
+ await expect(launcher.getByRole('link',{name:/Scan & inspect an asset/i})).toBeVisible();
+ await expect(launcher.getByRole('link',{name:/Find an asset/i})).toBeVisible();
+ await expect(page.getByText(/Redbook implementation order/i)).toBeHidden();
+ await page.getByText('Trust & architecture details',{exact:true}).click();
  await expect(page.getByText(/Redbook implementation order/i)).toBeVisible();
  await expect(page.getByText('P0 · PARTIAL',{exact:true})).toBeVisible();
  await expect(page.getByText('P1 · IN PROGRESS',{exact:true})).toBeVisible();
 });
 
-test('primary navigation reaches canonical Spatial workspaces',async({page})=>{
+test('primary navigation exposes tasks first and advanced workspaces through More tools',async({page})=>{
  await page.goto('/');
  const nav=page.getByRole('navigation',{name:'Primary navigation'});
  await expect(nav).toBeVisible();
- await nav.getByRole('link',{name:'Spatial Compiler'}).click();
+ await expect(nav.getByRole('link',{name:'Component Library'})).toBeHidden();
+ await nav.getByRole('link',{name:'Start from drawing'}).click();
  await expect(page).toHaveURL(/\/compiler$/);
  await expect(page.getByRole('heading',{name:/Engineering sources in\. Traceable Spatial model out\./i})).toBeVisible();
- await nav.getByRole('link',{name:'STRATUM Spatial Verified'}).click();
+ await nav.getByRole('link',{name:'Review model'}).click();
  await expect(page).toHaveURL(/\/spatial$/);
+ await nav.getByText('More tools',{exact:true}).click();
+ await expect(nav.getByRole('link',{name:'Component Library'})).toBeVisible();
+ await expect(nav.getByRole('link',{name:'DIR Explorer'})).toHaveAttribute('href','/dir');
  await nav.getByRole('link',{name:'Component Library'}).click();
  await expect(page).toHaveURL(/\/component-library$/);
- await nav.getByRole('link',{name:'DIR Explorer'}).click();
- await expect(page).toHaveURL(/\/dir$/);
 });
 
 test('legacy /twin remains a compatibility route and lands on Spatial',async({page})=>{
