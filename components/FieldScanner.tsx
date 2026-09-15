@@ -7,6 +7,7 @@ import {normalizeScanValue} from '@/lib/scan-code';
 import type {IdentityCaptureMethod,PhysicalIdentityAssurance} from '@/lib/physical-identity';
 
 type DetectorCtor=new (options?:{formats?:string[]})=>{detect:(source:ImageBitmapSource)=>Promise<Array<{rawValue?:string}>>};
+type ScannerControls={stop:()=>void};
 type ResolvedAsset={
  id:string;asset_code:string;asset_type:string;name:string;serial_number:string|null;location_label:string|null;status:string;
  project_id:string;project_code:string;project_name:string;site_name:string;system_name:string|null;
@@ -19,6 +20,7 @@ export default function FieldScanner(){
   const videoRef=useRef<HTMLVideoElement|null>(null);
   const streamRef=useRef<MediaStream|null>(null);
   const rafRef=useRef<number|null>(null);
+  const compatibilityControlsRef=useRef<ScannerControls|null>(null);
   const router=useRouter();
   const [scanning,setScanning]=useState(false);
   const [starting,setStarting]=useState(false);
@@ -34,6 +36,8 @@ export default function FieldScanner(){
     generation.current++;setStarting(false);
     if(rafRef.current!==null)cancelAnimationFrame(rafRef.current);
     rafRef.current=null;
+    try{compatibilityControlsRef.current?.stop();}catch{}
+    compatibilityControlsRef.current=null;
     streamRef.current?.getTracks().forEach(t=>t.stop());
     streamRef.current=null;
     setScanning(false);
@@ -59,6 +63,32 @@ export default function FieldScanner(){
     }finally{setResolving(false);}
   }
 
+  function handleDetectedCode(raw:string){
+    const normalized=normalizeScanValue(raw);
+    if(!normalized){setMessage('A code was detected, but its payload is not a supported STRATUM identity format.');stop();return;}
+    setValue(normalized.query);stop();void identify(raw,'CAMERA_CODE');
+  }
+
+  async function startCompatibilityDecoder(attempt:number){
+    const video=videoRef.current;
+    if(!video||attempt!==generation.current)return;
+    try{
+      const {BrowserMultiFormatReader}=await import('@zxing/browser');
+      if(attempt!==generation.current)return;
+      const reader=new BrowserMultiFormatReader();
+      const controls=await reader.decodeFromVideoElement(video,(result)=>{
+        if(!result||attempt!==generation.current)return;
+        const raw=result.getText().trim();
+        if(raw)handleDetectedCode(raw);
+      });
+      if(attempt!==generation.current){controls.stop();return;}
+      compatibilityControlsRef.current=controls;
+      setMessage('Camera active. Compatibility QR / barcode decoder is running. Point it at a STRATUM code.');
+    }catch{
+      if(attempt===generation.current)setMessage('Camera is active, but automatic code recognition is unavailable. Read the visible code or enter it below.');
+    }
+  }
+
   async function start(){
     setAsset(null);setAssurance(null);
     if(!navigator.mediaDevices?.getUserMedia){setMessage('Camera scanning is unavailable in this browser. Enter the asset code or serial number below.');return;}
@@ -70,23 +100,31 @@ export default function FieldScanner(){
       if(videoRef.current){videoRef.current.srcObject=stream;await videoRef.current.play();}
       setStarting(false);setScanning(true);setMessage('Camera active. Point it at a STRATUM QR or equipment barcode.');
       const Detector=(window as unknown as {BarcodeDetector?:DetectorCtor}).BarcodeDetector;
-      if(!Detector){setMessage('Camera is active, but automatic QR recognition is not supported by this browser. Use the visible code or enter it below.');return;}
-      const detector=new Detector({formats:['qr_code','code_128','code_39','ean_13','data_matrix']});
-      const tick=async()=>{
-        if(!streamRef.current||attempt!==generation.current)return;
-        if(!videoRef.current||videoRef.current.readyState<2){rafRef.current=requestAnimationFrame(tick);return;}
+      if(Detector){
         try{
-          const results=await detector.detect(videoRef.current);
-          const raw=results?.[0]?.rawValue?.trim();
-          if(raw){
-            const normalized=normalizeScanValue(raw);
-            if(!normalized){setMessage('A code was detected, but its payload is not a supported STRATUM identity format.');stop();return;}
-            setValue(normalized.query);stop();void identify(raw,'CAMERA_CODE');return;
-          }
-        }catch{}
-        rafRef.current=requestAnimationFrame(tick);
-      };
-      rafRef.current=requestAnimationFrame(tick);
+          const detector=new Detector({formats:['qr_code','code_128','code_39','ean_13','data_matrix']});
+          const tick=async()=>{
+            if(!streamRef.current||attempt!==generation.current)return;
+            if(!videoRef.current||videoRef.current.readyState<2){rafRef.current=requestAnimationFrame(tick);return;}
+            try{
+              const results=await detector.detect(videoRef.current);
+              const raw=results?.[0]?.rawValue?.trim();
+              if(raw){handleDetectedCode(raw);return;}
+            }catch{
+              rafRef.current=null;
+              await startCompatibilityDecoder(attempt);
+              return;
+            }
+            rafRef.current=requestAnimationFrame(tick);
+          };
+          rafRef.current=requestAnimationFrame(tick);
+          return;
+        }catch{
+          await startCompatibilityDecoder(attempt);
+          return;
+        }
+      }
+      await startCompatibilityDecoder(attempt);
     }catch(err){
       const name=err instanceof DOMException?err.name:'CameraError';
       setMessage(name==='NotAllowedError'?'Camera permission was denied. Allow camera access in the browser, or enter the asset code manually.':'Could not start the camera. Enter the asset code or serial number manually.');
