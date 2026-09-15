@@ -15,6 +15,7 @@
     "qa:auto-alignment": "node --experimental-strip-types scripts/qa-auto-sheet-alignment.mjs",
     "qa:room-reconstruction": "node --experimental-strip-types scripts/qa-room-reconstruction.mjs",
     "qa:field-scan": "node --experimental-strip-types scripts/qa-field-scan.mjs",
+    "qa:physical-identity": "node scripts/qa-physical-identity.mjs",
     "qa:asset-passport": "node scripts/qa-asset-passport.mjs",
     "qa:human-attestations": "node scripts/qa-human-attestations.mjs",
     "qa:offline-field": "node scripts/qa-offline-field.mjs",
