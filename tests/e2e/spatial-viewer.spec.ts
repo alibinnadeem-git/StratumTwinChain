@@ -24,7 +24,11 @@ test('DXF plan scale becomes metric while equipment Z remains separately reviewa
  await expect(page.getByRole('button',{name:/Model/i})).toBeVisible();
  await expect(page.getByRole('button',{name:/Electrical/i})).toBeVisible();
  await expect(page.getByRole('button',{name:/Review/i})).toBeVisible();
- await page.getByLabel('Imported object').selectOption({label:/PANELBOARD LP-2/});
+ const imported=page.getByLabel('Imported object');
+ const panelOption=imported.locator('option').filter({hasText:'PANELBOARD LP-2'}).first();
+ const panelValue=await panelOption.getAttribute('value');
+ expect(panelValue).toBeTruthy();
+ await imported.selectOption(panelValue!);
  await expect(page.getByText(/4\.70 m/)).toBeVisible();
  await expect(page.getByText(/Z NEEDS REVIEW/)).toBeVisible();
 });
