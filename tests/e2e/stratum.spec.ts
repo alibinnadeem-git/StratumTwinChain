@@ -49,8 +49,17 @@ test('legacy /twin remains a compatibility route and lands on Spatial',async({pa
  await expect(page).toHaveURL(/\/spatial$/);
 });
 
-test('Spatial viewer exposes the simple Model Electrical Review journey',async({page})=>{
+test('Spatial viewer exposes the simple Model Electrical Review journey when a graph is loaded',async({page})=>{
  await page.goto('/spatial');
+ await page.evaluate(()=>{
+  localStorage.setItem('stratum_compiled_graph',JSON.stringify({
+   version:'fixture',createdAt:new Date().toISOString(),
+   sources:[{name:'E1.dxf',ext:'dxf',sha256:'mode-fixture',discipline:'Electrical',floor:'L1',elevation:0}],
+   entities:[{id:'panel',source:'E1.dxf',layer:'L2',kind:'cad-block',name:'PANELBOARD LP-1',x:0,y:0,z:0,floor:'L1',confidence:.9,meta:{sourceSha256:'mode-fixture'}}],
+   links:[],stats:{L0:1,L1:0,L2:1,L3:0,L4:0}
+  }));
+ });
+ await page.reload();
  const modes=page.getByRole('group',{name:'Spatial view mode'});
  await expect(modes).toBeVisible();
  await expect(modes.getByRole('button',{name:/Model/i})).toBeVisible();
@@ -79,12 +88,11 @@ test('compiled Spatial model preserves source placement while recommended equipm
  const dxf=`0\nSECTION\n2\nENTITIES\n0\nINSERT\n8\nE-EQUIP\n2\nPANELBOARD LP-2\n10\n100\n20\n200\n30\n0\n41\n1.25\n42\n1.25\n50\n90\n0\nTEXT\n8\nA-ROOM\n1\nELECTRICAL ROOM 201\n10\n102\n20\n202\n0\nENDSEC\n0\nEOF\n`;
  await sourceUpload(page).setInputFiles({name:'E2-Level-2-Power.dxf',mimeType:'application/dxf',buffer:Buffer.from(dxf)});
  await expect(page.getByText(/L2 @ 4m/).first()).toBeVisible();
- const sourceEntity=await expect.poll(()=>page.evaluate(()=>{
+ await expect.poll(()=>page.evaluate(()=>{
   const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
   const entity=(graph.entities||[]).find((item:any)=>item.name==='PANELBOARD LP-2'&&item.layer==='L2');
-  return entity?{floor:entity.floor,z:entity.z,rotation:entity.rotation,scale:entity.scale,source:entity.source,authority:entity.meta?.zPlacementAuthority,review:entity.meta?.zReviewRequired}:null;
+  return entity?{floor:entity.floor,z:Number(Number(entity.z).toFixed(6)),rotation:entity.rotation,scale:entity.scale,source:entity.source,authority:entity.meta?.zPlacementAuthority,review:entity.meta?.zReviewRequired}:null;
  })).toEqual({floor:'L2',z:4.695,rotation:90,scale:1.25,source:'E2-Level-2-Power.dxf',authority:'HISTORICAL_RECOMMENDATION',review:true});
- void sourceEntity;
  await page.goto('/spatial');
  await expect(page.getByLabel('Floor isolation')).toContainText('L2');
  await expect(page.getByLabel('Imported object')).toContainText('PANELBOARD LP-2');
