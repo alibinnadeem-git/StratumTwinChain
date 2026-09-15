@@ -4,6 +4,7 @@ import Link from 'next/link';
 import {useEffect,useRef,useState} from 'react';
 import {useRouter} from 'next/navigation';
 import {normalizeScanValue} from '@/lib/scan-code';
+import type {IdentityCaptureMethod,PhysicalIdentityAssurance} from '@/lib/physical-identity';
 
 type DetectorCtor=new (options?:{formats?:string[]})=>{detect:(source:ImageBitmapSource)=>Promise<Array<{rawValue?:string}>>};
 type ResolvedAsset={
@@ -11,6 +12,8 @@ type ResolvedAsset={
  project_id:string;project_code:string;project_name:string;site_name:string;system_name:string|null;
  administratively_archived?:boolean;administrative_state?:string;archive_reason?:string|null;archive_occurred_at?:string|null;
 };
+
+const matchLabel=(value:PhysicalIdentityAssurance['lookupMatch'])=>({ASSET_ID:'Asset ID',ASSET_CODE:'Asset code',SERIAL_NUMBER:'Serial number',QR_TOKEN:'QR token'}[value]);
 
 export default function FieldScanner(){
   const videoRef=useRef<HTMLVideoElement|null>(null);
@@ -23,6 +26,8 @@ export default function FieldScanner(){
   const generation=useRef(0);
   const [value,setValue]=useState('');
   const [asset,setAsset]=useState<ResolvedAsset|null>(null);
+  const [assurance,setAssurance]=useState<PhysicalIdentityAssurance|null>(null);
+  const [captureMethod,setCaptureMethod]=useState<IdentityCaptureMethod>('MANUAL_ENTRY');
   const [message,setMessage]=useState('Scan a STRATUM QR / barcode or enter an asset code or serial number.');
 
   const stop=()=>{
@@ -36,18 +41,18 @@ export default function FieldScanner(){
 
   useEffect(()=>()=>stop(),[]);
 
-  async function identify(input=value){
+  async function identify(input=value,method:IdentityCaptureMethod='MANUAL_ENTRY'){
     const normalized=normalizeScanValue(input);
-    setAsset(null);
+    setAsset(null);setAssurance(null);setCaptureMethod(method);
     if(!normalized){setMessage('This QR / code format is not recognized. Use a STRATUM asset code, serial, QR token, Passport URL, or public verification URL.');return;}
     setValue(normalized.query);setResolving(true);setMessage('Resolving asset inside your active organization…');
     try{
       const response=await fetch(`/api/assets/resolve?q=${encodeURIComponent(normalized.query)}`,{cache:'no-store',credentials:'same-origin'});
       const body=await response.json();
       if(!response.ok)throw Object.assign(new Error(body.error||'Asset lookup failed'),{status:response.status});
-      setAsset(body.asset);
+      setAsset(body.asset);setAssurance(body.identityAssurance||null);
       if(body.asset?.administratively_archived)setMessage('Asset identified, but it is administratively archived. Inspection is blocked until it is restored by an authorized administrator.');
-      else setMessage('Asset identified in your organization. Opening it does not establish Verified state; continue to the controlled inspection or Passport as needed.');
+      else setMessage('Registry identity resolved. Physical identity remains unverified until an independent field assurance step is completed.');
     }catch(error:any){
       if(error?.status===401)setMessage('Sign in before resolving field assets. Public verification remains available separately.');
       else setMessage(error instanceof Error?error.message:'Asset lookup failed');
@@ -55,7 +60,7 @@ export default function FieldScanner(){
   }
 
   async function start(){
-    setAsset(null);
+    setAsset(null);setAssurance(null);
     if(!navigator.mediaDevices?.getUserMedia){setMessage('Camera scanning is unavailable in this browser. Enter the asset code or serial number below.');return;}
     const attempt=++generation.current;setStarting(true);
     try{
@@ -76,7 +81,7 @@ export default function FieldScanner(){
           if(raw){
             const normalized=normalizeScanValue(raw);
             if(!normalized){setMessage('A code was detected, but its payload is not a supported STRATUM identity format.');stop();return;}
-            setValue(normalized.query);stop();void identify(normalized.query);return;
+            setValue(normalized.query);stop();void identify(raw,'CAMERA_CODE');return;
           }
         }catch{}
         rafRef.current=requestAnimationFrame(tick);
@@ -103,10 +108,10 @@ export default function FieldScanner(){
     <div className="phone-card"><small>Scanner status</small><strong>{asset?.name||'Ready to identify equipment'}</strong><span>{message}</span></div>
     <button type="button" disabled={starting||resolving} onClick={scanning?stop:start}>{scanning?'Stop camera':starting?'Starting camera…':'Open scanner'}</button>
     <div style={{display:'grid',gap:8,marginTop:10}}>
-      <input aria-label="Asset code or serial" value={value} onChange={e=>{setValue(e.target.value);setAsset(null)}} placeholder="Asset code / serial / QR value" style={{width:'100%',padding:'11px 12px',borderRadius:9,border:'1px solid #244c67',background:'#07131f',color:'#fff'}}/>
-      <button type="button" onClick={()=>identify()} disabled={!value.trim()||resolving} style={{opacity:(!value.trim()||resolving)?0.55:1}}>{resolving?'Resolving…':'Identify asset'}</button>
+      <input aria-label="Asset code or serial" value={value} onChange={e=>{setValue(e.target.value);setAsset(null);setAssurance(null);setCaptureMethod('MANUAL_ENTRY')}} placeholder="Asset code / serial / QR value" style={{width:'100%',padding:'11px 12px',borderRadius:9,border:'1px solid #244c67',background:'#07131f',color:'#fff'}}/>
+      <button type="button" onClick={()=>identify(value,'MANUAL_ENTRY')} disabled={!value.trim()||resolving} style={{opacity:(!value.trim()||resolving)?0.55:1}}>{resolving?'Resolving…':'Identify asset'}</button>
     </div>
-    {asset&&<div className="phone-card" style={{marginTop:10}}><small>{asset.administratively_archived?'ADMINISTRATIVELY ARCHIVED':'LIVE TENANT ASSET'}</small><strong>{asset.asset_code} · {asset.name}</strong><span>{asset.site_name} · {asset.location_label||'Location pending'}</span>{asset.administratively_archived&&<span>{asset.archive_reason||'Archived by an authorized administrator.'}</span>}<div className="button-row" style={{marginTop:10}}><Link className="action" href={`/assets/${encodeURIComponent(asset.id)}`}>Open Passport</Link><Link className="action" href={`/verify?q=${encodeURIComponent(asset.asset_code)}`}>Public verification</Link></div><button type="button" onClick={continueInspection} disabled={Boolean(asset.administratively_archived)} style={{width:'100%',marginTop:8,opacity:asset.administratively_archived?0.55:1}}>Continue inspection</button></div>}
-    <p className="muted" style={{fontSize:11,marginTop:10}}>QR/barcode recognition establishes identity lookup only. It does not establish Verified state, DIR finality, PoVI finality, or physical truth.</p>
+    {asset&&<div className="phone-card" style={{marginTop:10}}><small>{asset.administratively_archived?'ADMINISTRATIVELY ARCHIVED':'LIVE TENANT ASSET'}</small><strong>{asset.asset_code} · {asset.name}</strong><span>{asset.site_name} · {asset.location_label||'Location pending'}</span>{asset.administratively_archived&&<span>{asset.archive_reason||'Archived by an authorized administrator.'}</span>}{assurance&&<div className="notice" style={{marginTop:10}}><strong>IDENTITY ASSURANCE · {assurance.level}</strong><span>{matchLabel(assurance.lookupMatch)} matched · {captureMethod==='CAMERA_CODE'?'camera-detected code':'manual/input value'} · physical binding {assurance.physicalBinding.toLowerCase()}.</span><span>{assurance.warning}</span><span>Challenge-response: {assurance.challengeResponse}. NFC / secure hardware challenge is not active in this version.</span></div>}<div className="button-row" style={{marginTop:10}}><Link className="action" href={`/assets/${encodeURIComponent(asset.id)}`}>Open Passport</Link><Link className="action" href={`/verify?q=${encodeURIComponent(asset.asset_code)}`}>Public verification</Link></div><button type="button" onClick={continueInspection} disabled={Boolean(asset.administratively_archived)} style={{width:'100%',marginTop:8,opacity:asset.administratively_archived?0.55:1}}>Continue inspection</button></div>}
+    <p className="muted" style={{fontSize:11,marginTop:10}}>QR/barcode recognition establishes registry lookup only. Printed codes can be copied or replayed. A successful scan does not establish physical identity, Verified state, DIR finality, PoVI finality, or physical truth.</p>
   </div>;
 }
