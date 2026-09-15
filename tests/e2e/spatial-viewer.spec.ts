@@ -20,10 +20,11 @@ test('DXF plan scale becomes metric while equipment Z remains separately reviewa
   transformer:{z:4,authority:'FLOOR_STANDING_PROFILE',review:true}
  });
  await page.goto('/spatial');
- await expect(page.getByRole('group',{name:'Spatial view mode'})).toBeVisible();
- await expect(page.getByRole('button',{name:/Model/i})).toBeVisible();
- await expect(page.getByRole('button',{name:/Electrical/i})).toBeVisible();
- await expect(page.getByRole('button',{name:/Review/i})).toBeVisible();
+ const modes=page.getByRole('group',{name:'Spatial view mode'});
+ await expect(modes).toBeVisible();
+ await expect(modes.getByRole('button',{name:/^Model\b/i})).toBeVisible();
+ await expect(modes.getByRole('button',{name:/^Electrical\b/i})).toBeVisible();
+ await expect(modes.getByRole('button',{name:/^Review\b/i})).toBeVisible();
  const imported=page.getByLabel('Imported object');
  const panelOption=imported.locator('option').filter({hasText:'PANELBOARD LP-2'}).first();
  const panelValue=await panelOption.getAttribute('value');
