@@ -15,3 +15,19 @@ test('password setup rejects malformed credentials before persistence',async({re
  const issue=await request.post('/api/auth/password-setup/request',{data:{email:''}});
  expect(issue.status()).toBe(400);
 });
+
+test('signed-out administration fails closed without demo administrator identity',async({page})=>{
+ await page.goto('/admin');
+ await expect(page.getByRole('heading',{name:'Sign in required'})).toBeVisible();
+ await expect(page.getByRole('link',{name:'Sign in'})).toBeVisible();
+ await expect(page.getByText('No reference or demo administrator identity is substituted.')).toBeVisible();
+ await expect(page.getByText('SUPER ADMIN',{exact:true})).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'Provision member'})).toHaveCount(0);
+});
+
+test('tenant member provisioning requires authenticated SUPER_ADMIN before database work',async({request})=>{
+ const response=await request.post('/api/admin/members',{data:{email:'new.member@example.com',displayName:'New Member',role:'VIEWER'}});
+ expect(response.status()).toBe(401);
+ const body=await response.json();
+ expect(body.error).toBe('Unauthorized');
+});
