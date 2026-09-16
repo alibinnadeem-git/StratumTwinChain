@@ -8,6 +8,7 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "qa:ui": "node scripts/qa-ui.mjs",
+    "qa:auth-provisioning": "node scripts/qa-auth-provisioning.mjs",
     "qa:asset-archive": "node scripts/qa-asset-archive.mjs",
     "qa:command-center": "node scripts/qa-command-center.mjs",
     "qa:spatial-persistence": "node scripts/qa-spatial-persistence.mjs",
