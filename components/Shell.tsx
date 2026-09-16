@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type {ReactNode} from 'react';
-import {demoSession} from '@/lib/auth/session';
+import {readSession} from '@/lib/server/auth';
 
 const primaryTasks=[
  ['/','Home'],
@@ -18,7 +18,19 @@ const moreGroups=[
  {label:'Platform',links:[['/admin','Admin & RBAC']]}
 ] as const;
 
-export default function Shell({children}:{children:ReactNode}){
+function initials(email:string){
+ const local=(email.split('@')[0]||'').trim();
+ const parts=local.split(/[._-]+/).filter(Boolean);
+ const value=parts.length>1?`${parts[0]?.[0]||''}${parts[1]?.[0]||''}`:local.slice(0,2);
+ return value.toUpperCase()||'U';
+}
+
+export default async function Shell({children}:{children:ReactNode}){
+ const session=await readSession();
+ const identity=session
+  ? {avatar:initials(session.email),primary:session.email,secondary:session.role.replaceAll('_',' ')}
+  : {avatar:'—',primary:'Signed out',secondary:'REFERENCE MODE'};
+
  return <div className="shell">
   <aside className="sidebar">
    <div className="sidebar-head"><Link href="/" className="brand">STRATUM <span>Spatial Verified</span></Link><div className="network-pill"><i/> Trust records active</div></div>
@@ -26,7 +38,7 @@ export default function Shell({children}:{children:ReactNode}){
     <div className="primary-task-nav"><small>Tasks</small>{primaryTasks.map(([href,label])=><Link href={href} key={href}>{label}</Link>)}</div>
     <details className="nav-more"><summary>More tools</summary><div className="nav-more-body">{moreGroups.map(group=><div className="nav-group" key={group.label}><small>{group.label}</small>{group.links.map(([href,label])=><Link href={href} key={`${group.label}-${href}`}>{label}</Link>)}</div>)}</div></details>
    </nav>
-   <div className="usercard"><div className="avatar">AB</div><div><strong>{demoSession.user.name}</strong><small>{demoSession.role.replaceAll('_',' ')}</small></div></div>
+   <div className="usercard"><div className="avatar">{identity.avatar}</div><div><strong>{identity.primary}</strong><small>{identity.secondary}</small></div></div>
   </aside>
   <main className="main">{children}</main>
  </div>
