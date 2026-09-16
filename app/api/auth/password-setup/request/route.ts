@@ -21,6 +21,8 @@ export async function POST(req:NextRequest){
 
   const session=await readSession();
   const bootstrapSecret=process.env.STRATUM_AUTH_BOOTSTRAP_SECRET||'';
+  const bootstrapEmail=(process.env.STRATUM_AUTH_BOOTSTRAP_EMAIL||'').trim().toLowerCase();
+  const bootstrapOrganizationId=(process.env.STRATUM_AUTH_BOOTSTRAP_ORGANIZATION_ID||'').trim();
   const providedSecret=req.headers.get('x-stratum-bootstrap-secret')||'';
 
   const result=await tx(async client=>{
@@ -37,6 +39,29 @@ export async function POST(req:NextRequest){
    if(!authenticatedAdmin){
     if(!bootstrapOpen)throw Object.assign(new Error('First-user bootstrap is closed'),{status:403});
     if(!bootstrapSecret||!providedSecret||!sameSecret(providedSecret,bootstrapSecret))throw Object.assign(new Error('Bootstrap authorization required'),{status:403});
+    if(!bootstrapEmail||!bootstrapOrganizationId)throw Object.assign(new Error('Bootstrap account and organization are not configured'),{status:503});
+    if(email!==bootstrapEmail)throw Object.assign(new Error('Bootstrap account is not authorized'),{status:403});
+
+    const organization=await client.query<{id:string}>(`SELECT id FROM organizations WHERE id=$1 LIMIT 1`,[bootstrapOrganizationId]);
+    if(!organization.rows[0])throw Object.assign(new Error('Configured bootstrap organization does not exist'),{status:503});
+
+    const existing=await client.query<{id:string;is_active:boolean}>(`
+      SELECT id,is_active FROM users WHERE lower(email::text)=lower($1) LIMIT 1
+    `,[email]);
+    let bootstrapUser=existing.rows[0];
+    if(!bootstrapUser){
+     const created=await client.query<{id:string;is_active:boolean}>(`
+       INSERT INTO users(email,is_active) VALUES($1,true) RETURNING id,is_active
+     `,[email]);
+     bootstrapUser=created.rows[0];
+    }
+    if(!bootstrapUser?.is_active)throw Object.assign(new Error('Eligible account not found'),{status:404});
+
+    await client.query(`
+      INSERT INTO memberships(organization_id,user_id,role)
+      VALUES($1,$2,'SUPER_ADMIN')
+      ON CONFLICT (organization_id,user_id) DO UPDATE SET role='SUPER_ADMIN'
+    `,[bootstrapOrganizationId,bootstrapUser.id]);
    }
 
    const target=authenticatedAdmin
@@ -49,17 +74,17 @@ export async function POST(req:NextRequest){
     : await client.query<{id:string;organization_id:string;role:string;password_hash:string|null;is_active:boolean}>(`
        SELECT u.id,m.organization_id,m.role,u.password_hash,u.is_active
        FROM users u JOIN memberships m ON m.user_id=u.id
-       WHERE lower(u.email::text)=lower($1) AND m.role='SUPER_ADMIN'
-       ORDER BY m.organization_id
+       WHERE lower(u.email::text)=lower($1) AND m.organization_id=$2 AND m.role='SUPER_ADMIN'
        LIMIT 1
-      `,[email]);
+      `,[email,bootstrapOrganizationId]);
    const user=target.rows[0];
    if(!user||!user.is_active)throw Object.assign(new Error('Eligible account not found'),{status:404});
    if(user.password_hash)throw Object.assign(new Error('Account is already provisioned'),{status:409});
 
-   if(authenticatedAdmin){
-    if(session!.organizationId!==user.organization_id)throw Object.assign(new Error('Cross-organization provisioning is not allowed'),{status:403});
-   }else if(user.role!=='SUPER_ADMIN'){
+   if(authenticatedAdmin&&session!.organizationId!==user.organization_id){
+    throw Object.assign(new Error('Cross-organization provisioning is not allowed'),{status:403});
+   }
+   if(!authenticatedAdmin&&user.role!=='SUPER_ADMIN'){
     throw Object.assign(new Error('Bootstrap may provision only the initial SUPER_ADMIN'),{status:403});
    }
 
