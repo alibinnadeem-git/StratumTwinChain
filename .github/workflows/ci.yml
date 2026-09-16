@@ -42,6 +42,8 @@ jobs:
         run: npm run qa:asset-archive
       - name: Command center tenant and truth-boundary conformance
         run: npm run qa:command-center
+      - name: One-time account provisioning safety conformance
+        run: npm run qa:auth-provisioning
       - name: Spatial persistence and human-review conformance
         run: npm run qa:spatial-persistence
       - name: Legacy direct Spatial ingest remains disabled
