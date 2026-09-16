@@ -10,7 +10,8 @@ for(const required of [
 ])if(!migration.includes(required))throw new Error(`Password setup migration invariant missing: ${required}`);
 
 for(const required of [
- 'randomBytes(32)','createHash(\'sha256\')','timingSafeEqual','STRATUM_AUTH_BOOTSTRAP_SECRET','passwordedAdmin','bootstrapOpen','First-user bootstrap is closed','Bootstrap may provision only the initial SUPER_ADMIN','Cross-organization provisioning is not allowed','Account is already provisioned','TOKEN_TTL_MINUTES=30','cache-control\':\'no-store'
+ 'randomBytes(32)','createHash(\'sha256\')','timingSafeEqual','STRATUM_AUTH_BOOTSTRAP_SECRET','passwordedAdmin','bootstrapOpen','First-user bootstrap is closed','Bootstrap may provision only the initial SUPER_ADMIN','Cross-organization provisioning is not allowed','Account is already provisioned','TOKEN_TTL_MINUTES=30','cache-control\':\'no-store',
+ 'm.organization_id=$2',"m.role='SUPER_ADMIN'",'session!.organizationId'
 ])if(!request.includes(required))throw new Error(`Password setup issuance invariant missing: ${required}`);
 
 for(const forbidden of ['password_hash=','gen_salt(','INSERT INTO assets','INSERT INTO lifecycle_events','ledger_records','PoVI']){
@@ -29,4 +30,4 @@ for(const required of ['One-time setup token','minLength={12}','maxLength={128}'
  if(!page.includes(required))throw new Error(`Password setup UI invariant missing: ${required}`);
 }
 
-console.log('One-time account provisioning is hashed, expiring, single-use, org-scoped, bootstrap-fail-closed, and isolated from infrastructure truth');
+console.log('One-time account provisioning is hashed, expiring, single-use, SQL-org-scoped, bootstrap-fail-closed, and isolated from infrastructure truth');
