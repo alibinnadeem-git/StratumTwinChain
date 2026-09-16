@@ -3,6 +3,7 @@ import fs from 'node:fs';
 const migration=fs.readFileSync('migrations/004_user_password_setup_tokens.sql','utf8');
 const request=fs.readFileSync('app/api/auth/password-setup/request/route.ts','utf8');
 const complete=fs.readFileSync('app/api/auth/password-setup/complete/route.ts','utf8');
+const authSource=fs.readFileSync('lib/server/auth.ts','utf8');
 const page=fs.readFileSync('app/set-password/page.tsx','utf8');
 const envExample=fs.readFileSync('.env.example','utf8');
 const adminPage=fs.readFileSync('app/admin/page.tsx','utf8');
@@ -29,6 +30,22 @@ for(const required of [
 for(const forbidden of ['INSERT INTO assets','INSERT INTO lifecycle_events','UPDATE assets','UPDATE lifecycle_events','ledger_records']){
  if(complete.includes(forbidden))throw new Error(`Password setup must not mutate infrastructure truth: ${forbidden}`);
 }
+
+for(const required of [
+ 'type SessionClaims=Session&{sessionVersion:number}',
+ 'canonicalSession(session.userId,session.organizationId)',
+ 'u.session_version',
+ 'm.organization_id=$2',
+ 'u.is_active=true',
+ 'sessionVersion:current.session_version',
+ "typeof payload.sessionVersion==='number'",
+ 'current.session_version!==sessionVersion',
+ 'email:current.email',
+ 'role:current.role',
+ 'lower(u.email::text)=lower($1)',
+ 'UPDATE users SET last_login_at=now()'
+])if(!authSource.includes(required))throw new Error(`Authentication/session invariant missing: ${required}`);
+if(authSource.includes('return payload as unknown as Session'))throw new Error('JWT role/email claims must not be trusted without current database membership and session-version validation');
 
 for(const required of ['One-time setup token','minLength={12}','maxLength={128}',"/api/auth/password-setup/complete"]){
  if(!page.includes(required))throw new Error(`Password setup UI invariant missing: ${required}`);
@@ -58,4 +75,4 @@ for(const required of ["fetch('/api/admin/members'",'Issue one-time setup link',
 }
 if(adminInvite.includes('localStorage'))throw new Error('Admin member provisioning must not simulate invitations in localStorage');
 
-console.log('Account provisioning is hashed, expiring, single-use, tenant-scoped, bootstrap-fail-closed, truthful in administration UI, excludes ordinary SUPER_ADMIN minting, and remains isolated from infrastructure truth');
+console.log('Account provisioning is hashed, expiring, single-use, tenant-scoped, bootstrap-fail-closed, active-user-only, session-version-revocable, truthful in administration UI, excludes ordinary SUPER_ADMIN minting, and remains isolated from infrastructure truth');
