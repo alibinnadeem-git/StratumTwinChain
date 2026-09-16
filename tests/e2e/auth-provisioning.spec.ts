@@ -4,8 +4,8 @@ test('one-time account setup screen is usable without implying authentication',a
  await page.goto('/set-password?token=example-one-time-token-value-1234567890');
  await expect(page.getByRole('heading',{name:'Configure your account password'})).toBeVisible();
  await expect(page.getByLabel('One-time setup token')).toHaveValue('example-one-time-token-value-1234567890');
- await expect(page.getByPlaceholder('New password')).toHaveAttribute('minlength','12');
- await expect(page.getByPlaceholder('Confirm new password')).toHaveAttribute('minlength','12');
+ await expect(page.getByPlaceholder('New password',{exact:true})).toHaveAttribute('minlength','12');
+ await expect(page.getByPlaceholder('Confirm new password',{exact:true})).toHaveAttribute('minlength','12');
  await expect(page.getByRole('button',{name:'Configure password'})).toBeEnabled();
 });
 
