@@ -5,6 +5,9 @@ const request=fs.readFileSync('app/api/auth/password-setup/request/route.ts','ut
 const complete=fs.readFileSync('app/api/auth/password-setup/complete/route.ts','utf8');
 const page=fs.readFileSync('app/set-password/page.tsx','utf8');
 const envExample=fs.readFileSync('.env.example','utf8');
+const adminPage=fs.readFileSync('app/admin/page.tsx','utf8');
+const adminInvite=fs.readFileSync('components/AdminInvite.tsx','utf8');
+const memberProvisioning=fs.readFileSync('app/api/admin/members/route.ts','utf8');
 
 for(const required of [
  'user_password_setup_tokens','token_hash text NOT NULL UNIQUE','expires_at timestamptz NOT NULL','used_at timestamptz',"created_via IN ('BOOTSTRAP','SUPER_ADMIN')"
@@ -35,4 +38,24 @@ for(const required of ['STRATUM_AUTH_BOOTSTRAP_SECRET=','STRATUM_AUTH_BOOTSTRAP_
  if(!envExample.includes(required))throw new Error(`Bootstrap deployment configuration missing from .env.example: ${required}`);
 }
 
-console.log('One-time account provisioning is hashed, expiring, single-use, explicitly configured for the first SUPER_ADMIN, SQL-org-scoped, bootstrap-fail-closed, and isolated from infrastructure truth');
+for(const required of [
+ 'readSession()','can(session.role,\'ORG_MANAGE\')','session.organizationId','LIVE TENANT','Sign in required','does not substitute reference or demo organization data','Organization members'
+])if(!adminPage.includes(required))throw new Error(`Admin tenant-truth invariant missing: ${required}`);
+if(adminPage.includes('demoSession'))throw new Error('Admin page must never substitute demoSession for authenticated tenant identity');
+
+for(const required of [
+ "requireSession(['SUPER_ADMIN'])",'session.organizationId','ALLOWED_ROLES','Multi-organization account provisioning is not supported','Existing membership role changes require the explicit role-management workflow','randomBytes(32)',"createHash('sha256')",'user_password_setup_tokens','created_by_user_id',"'SUPER_ADMIN'",'cache-control\':\'no-store'
+])if(!memberProvisioning.includes(required))throw new Error(`Tenant member provisioning invariant missing: ${required}`);
+const allowedRoleMatch=memberProvisioning.match(/const ALLOWED_ROLES=\[([^\]]+)\]/);
+if(!allowedRoleMatch)throw new Error('Unable to inspect tenant member provisioning role allow-list');
+if(allowedRoleMatch[1].includes('SUPER_ADMIN'))throw new Error('Ordinary tenant member provisioning must never mint SUPER_ADMIN');
+for(const forbidden of ['INSERT INTO assets','UPDATE assets','INSERT INTO lifecycle_events','UPDATE lifecycle_events','ledger_records','validator_governance','PoVI']){
+ if(memberProvisioning.includes(forbidden))throw new Error(`Tenant member provisioning must remain isolated from infrastructure truth: ${forbidden}`);
+}
+
+for(const required of ["fetch('/api/admin/members'",'Issue one-time setup link','One-time setup link','not stored in local browser persistence','does not approve work','STRATUM Spatial Verified account setup']){
+ if(!adminInvite.includes(required))throw new Error(`Admin provisioning UI invariant missing: ${required}`);
+}
+if(adminInvite.includes('localStorage'))throw new Error('Admin member provisioning must not simulate invitations in localStorage');
+
+console.log('Account provisioning is hashed, expiring, single-use, tenant-scoped, bootstrap-fail-closed, truthful in administration UI, excludes ordinary SUPER_ADMIN minting, and remains isolated from infrastructure truth');
