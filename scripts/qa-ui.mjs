@@ -41,7 +41,14 @@ for(const file of sourceFiles){
  if(/\bblockchain\b/i.test(text)&&!rel.startsWith('app/api/'))warnings.push(`${rel}: public-facing "blockchain" wording remains`);
 }
 
+const shellPath=path.join(root,'components','Shell.tsx');
+const shell=fs.readFileSync(shellPath,'utf8');
+if(/demoSession/.test(shell))errors.push('components/Shell.tsx: shell must not display demo identity as authenticated user');
+for(const required of ['readSession','Signed out','REFERENCE MODE']){
+ if(!shell.includes(required))errors.push(`components/Shell.tsx: session-aware identity invariant missing: ${required}`);
+}
+
 console.log(`QA scanned ${sourceFiles.length} source files and ${routePatterns.length} routes.`);
 if(warnings.length){console.warn('\nWarnings:');for(const w of warnings)console.warn(`- ${w}`);}
 if(errors.length){console.error('\nQA failures:');for(const e of errors)console.error(`- ${e}`);process.exit(1);}
-console.log('QA passed: no broken hard-coded internal routes or inert buttons detected.');
+console.log('QA passed: no broken hard-coded internal routes, inert buttons, or false signed-out identity claims detected.');
