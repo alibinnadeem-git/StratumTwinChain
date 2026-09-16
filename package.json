@@ -24,6 +24,7 @@
     "qa:asset-passport": "node scripts/qa-asset-passport.mjs",
     "qa:human-attestations": "node scripts/qa-human-attestations.mjs",
     "qa:offline-field": "node scripts/qa-offline-field.mjs",
+    "qa:reality-validation": "node scripts/qa-reality-validation.mjs",
     "qa:redbook": "node scripts/redbook-conformance.mjs",
     "qa:genesis": "node scripts/genesis-conformance.mjs",
     "qa:genesis-trust": "node scripts/genesis-trust-conformance.mjs",
