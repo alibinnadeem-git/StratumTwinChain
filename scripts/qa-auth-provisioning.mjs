@@ -4,14 +4,15 @@ const migration=fs.readFileSync('migrations/004_user_password_setup_tokens.sql',
 const request=fs.readFileSync('app/api/auth/password-setup/request/route.ts','utf8');
 const complete=fs.readFileSync('app/api/auth/password-setup/complete/route.ts','utf8');
 const page=fs.readFileSync('app/set-password/page.tsx','utf8');
+const envExample=fs.readFileSync('.env.example','utf8');
 
 for(const required of [
  'user_password_setup_tokens','token_hash text NOT NULL UNIQUE','expires_at timestamptz NOT NULL','used_at timestamptz',"created_via IN ('BOOTSTRAP','SUPER_ADMIN')"
 ])if(!migration.includes(required))throw new Error(`Password setup migration invariant missing: ${required}`);
 
 for(const required of [
- 'randomBytes(32)','createHash(\'sha256\')','timingSafeEqual','STRATUM_AUTH_BOOTSTRAP_SECRET','passwordedAdmin','bootstrapOpen','First-user bootstrap is closed','Bootstrap may provision only the initial SUPER_ADMIN','Cross-organization provisioning is not allowed','Account is already provisioned','TOKEN_TTL_MINUTES=30','cache-control\':\'no-store',
- 'm.organization_id=$2',"m.role='SUPER_ADMIN'",'session!.organizationId'
+ 'randomBytes(32)','createHash(\'sha256\')','timingSafeEqual','STRATUM_AUTH_BOOTSTRAP_SECRET','STRATUM_AUTH_BOOTSTRAP_EMAIL','STRATUM_AUTH_BOOTSTRAP_ORGANIZATION_ID','passwordedAdmin','bootstrapOpen','First-user bootstrap is closed','Bootstrap account and organization are not configured','Bootstrap account is not authorized','Configured bootstrap organization does not exist','Bootstrap may provision only the initial SUPER_ADMIN','Cross-organization provisioning is not allowed','Account is already provisioned','TOKEN_TTL_MINUTES=30','cache-control\':\'no-store',
+ 'm.organization_id=$2',"m.role='SUPER_ADMIN'",'session!.organizationId','INSERT INTO users(email,is_active)','INSERT INTO memberships(organization_id,user_id,role)',"ON CONFLICT (organization_id,user_id) DO UPDATE SET role='SUPER_ADMIN'"
 ])if(!request.includes(required))throw new Error(`Password setup issuance invariant missing: ${required}`);
 
 for(const forbidden of ['password_hash=','gen_salt(','INSERT INTO assets','INSERT INTO lifecycle_events','ledger_records','PoVI']){
@@ -30,4 +31,8 @@ for(const required of ['One-time setup token','minLength={12}','maxLength={128}'
  if(!page.includes(required))throw new Error(`Password setup UI invariant missing: ${required}`);
 }
 
-console.log('One-time account provisioning is hashed, expiring, single-use, SQL-org-scoped, bootstrap-fail-closed, and isolated from infrastructure truth');
+for(const required of ['STRATUM_AUTH_BOOTSTRAP_SECRET=','STRATUM_AUTH_BOOTSTRAP_EMAIL=','STRATUM_AUTH_BOOTSTRAP_ORGANIZATION_ID=']){
+ if(!envExample.includes(required))throw new Error(`Bootstrap deployment configuration missing from .env.example: ${required}`);
+}
+
+console.log('One-time account provisioning is hashed, expiring, single-use, explicitly configured for the first SUPER_ADMIN, SQL-org-scoped, bootstrap-fail-closed, and isolated from infrastructure truth');
