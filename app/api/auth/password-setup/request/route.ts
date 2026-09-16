@@ -39,13 +39,20 @@ export async function POST(req:NextRequest){
     if(!bootstrapSecret||!providedSecret||!sameSecret(providedSecret,bootstrapSecret))throw Object.assign(new Error('Bootstrap authorization required'),{status:403});
    }
 
-   const target=await client.query<{id:string;organization_id:string;role:string;password_hash:string|null;is_active:boolean}>(`
-     SELECT u.id,m.organization_id,m.role,u.password_hash,u.is_active
-     FROM users u JOIN memberships m ON m.user_id=u.id
-     WHERE lower(u.email::text)=lower($1)
-     ORDER BY CASE WHEN m.role='SUPER_ADMIN' THEN 0 ELSE 1 END
-     LIMIT 1
-   `,[email]);
+   const target=authenticatedAdmin
+    ? await client.query<{id:string;organization_id:string;role:string;password_hash:string|null;is_active:boolean}>(`
+       SELECT u.id,m.organization_id,m.role,u.password_hash,u.is_active
+       FROM users u JOIN memberships m ON m.user_id=u.id
+       WHERE lower(u.email::text)=lower($1) AND m.organization_id=$2
+       LIMIT 1
+      `,[email,session!.organizationId])
+    : await client.query<{id:string;organization_id:string;role:string;password_hash:string|null;is_active:boolean}>(`
+       SELECT u.id,m.organization_id,m.role,u.password_hash,u.is_active
+       FROM users u JOIN memberships m ON m.user_id=u.id
+       WHERE lower(u.email::text)=lower($1) AND m.role='SUPER_ADMIN'
+       ORDER BY m.organization_id
+       LIMIT 1
+      `,[email]);
    const user=target.rows[0];
    if(!user||!user.is_active)throw Object.assign(new Error('Eligible account not found'),{status:404});
    if(user.password_hash)throw Object.assign(new Error('Account is already provisioned'),{status:409});
