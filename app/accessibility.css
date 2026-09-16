@@ -1,0 +1,41 @@
+/* STRATUM Spatial Verified accessibility foundation.
+   This file is intentionally small and global: consequential controls must remain
+   keyboard-visible, touch-usable, and motion-safe across every workspace. */
+
+.skip-link{
+ position:fixed;
+ left:16px;
+ top:12px;
+ z-index:10000;
+ padding:10px 14px;
+ border-radius:10px;
+ background:#eef6ff;
+ color:#050b12;
+ font-weight:900;
+ transform:translateY(-180%);
+ transition:transform .12s ease;
+}
+.skip-link:focus-visible{transform:translateY(0)}
+
+:where(a,button,input,select,textarea,summary,[tabindex]):focus-visible{
+ outline:3px solid #ffca5c;
+ outline-offset:3px;
+ box-shadow:0 0 0 1px #050b12;
+}
+
+:where(button,.action,.ghost,.mini-btn,.nav a,.nav-more summary){
+ min-height:44px;
+}
+:where(button,.action,.ghost,.mini-btn){
+ min-width:44px;
+}
+
+@media (prefers-reduced-motion: reduce){
+ html:focus-within{scroll-behavior:auto}
+ *,*::before,*::after{
+  animation-duration:.001ms!important;
+  animation-iteration-count:1!important;
+  transition-duration:.001ms!important;
+  scroll-behavior:auto!important;
+ }
+}
