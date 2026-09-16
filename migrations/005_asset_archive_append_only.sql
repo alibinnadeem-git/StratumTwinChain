@@ -3,11 +3,11 @@ BEGIN;
 CREATE OR REPLACE FUNCTION stratum_prevent_asset_archive_event_mutation()
 RETURNS trigger
 LANGUAGE plpgsql
-AS '
+AS $stratum$
 BEGIN
-  RAISE EXCEPTION ''STRATUM asset archive history is append-only; append a new ARCHIVE or RESTORE event instead'';
+  RAISE EXCEPTION 'STRATUM asset archive history is append-only; append a new ARCHIVE or RESTORE event instead';
 END;
-';
+$stratum$;
 
 DROP TRIGGER IF EXISTS stratum_prevent_asset_archive_event_update ON asset_archive_events;
 CREATE TRIGGER stratum_prevent_asset_archive_event_update
