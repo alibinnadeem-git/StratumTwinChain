@@ -32,14 +32,15 @@ export default async function Shell({children}:{children:ReactNode}){
   : {avatar:'—',primary:'Signed out',secondary:'REFERENCE MODE'};
 
  return <div className="shell">
+  <a className="skip-link" href="#main-content">Skip to main content</a>
   <aside className="sidebar">
    <div className="sidebar-head"><Link href="/" className="brand">STRATUM <span>Spatial Verified</span></Link><div className="network-pill"><i/> Trust records active</div></div>
    <nav className="nav" aria-label="Primary navigation">
     <div className="primary-task-nav"><small>Tasks</small>{primaryTasks.map(([href,label])=><Link href={href} key={href}>{label}</Link>)}</div>
     <details className="nav-more"><summary>More tools</summary><div className="nav-more-body">{moreGroups.map(group=><div className="nav-group" key={group.label}><small>{group.label}</small>{group.links.map(([href,label])=><Link href={href} key={`${group.label}-${href}`}>{label}</Link>)}</div>)}</div></details>
    </nav>
-   <div className="usercard"><div className="avatar">{identity.avatar}</div><div><strong>{identity.primary}</strong><small>{identity.secondary}</small></div></div>
+   <div className="usercard"><div className="avatar" aria-hidden="true">{identity.avatar}</div><div><strong>{identity.primary}</strong><small>{identity.secondary}</small></div></div>
   </aside>
-  <main className="main">{children}</main>
+  <main id="main-content" className="main" tabIndex={-1}>{children}</main>
  </div>
 }
