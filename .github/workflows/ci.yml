@@ -70,6 +70,8 @@ jobs:
         run: npm run qa:human-attestations
       - name: Offline field queue and replay conformance
         run: npm run qa:offline-field
+      - name: Reality Validation Observed/Verified truth-boundary conformance
+        run: npm run qa:reality-validation
       - run: npm run qa:ui
       - run: npm run typecheck
       - run: npm run build
