@@ -76,11 +76,19 @@ console.log('✓ project/OEM source mounting metadata outranks public web guidan
 const projectionSource=fs.readFileSync('lib/spatial-projection.ts','utf8');
 const placementSource=fs.readFileSync('lib/asset-placement.ts','utf8');
 const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
+const spatialExperience=fs.readFileSync('components/SpatialExperience.tsx','utf8');
 const spatialPage=fs.readFileSync('app/spatial/page.tsx','utf8');
 assert.match(viewer,/ViewMode="MODEL"\|"ELECTRICAL"\|"REVIEW"/);assert.match(viewer,/2D spatial fallback/);assert.match(viewer,/SLD → SPATIAL PROJECTION/);
-assert.match(spatialPage,/MODEL · ELECTRICAL · REVIEW/);assert.match(spatialPage,/Registered asset operations/);
+assert.match(viewer,/graph\.entities\.length===0/,'zero-entity graphs must not render an empty project stage');
+assert.match(spatialPage,/MODEL · ELECTRICAL · REVIEW/);assert.match(spatialPage,/<SpatialExperience /);
+assert.doesNotMatch(spatialPage,/<CompiledGraphViewer|<TwinWorkspace/,'the route must not stack two viewers');
+assert.match(spatialExperience,/state\.hasImportedModel/);
+assert.match(spatialExperience,/IMPORTED PROJECT MODEL/);
+assert.match(spatialExperience,/DEMONSTRATION DATA/);
+assert.match(spatialExperience,/was not generated from those files/);
+assert.match(spatialExperience,/entities\.length>0/,'project mode requires at least one compiled entity');
 assert.match(projectionSource,/NEVER_ESTABLISH_PHYSICAL_TRUTH/);assert.match(placementSource,/physicalTruth:false/);
 assert.doesNotMatch(projectionSource,/finalizeDIR|PoVI finality|VERIFIED\s*=\s*true/i);
-console.log('✓ simplified Spatial UX and truth boundaries are release-gated');
+console.log('✓ single-source Spatial UX, empty-model gate and truth boundaries are release-gated');
 
 console.log('\nSpatial viewer, metric Z placement, EVSE evidence and SLD projection contract passed.');
