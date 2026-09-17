@@ -34,6 +34,8 @@ function assignZones(entities:GraphEntity[]){const rooms=entities.filter(e=>e.ki
 function buildLinks(entities:GraphEntity[]){const links:GraphLink[]=[];const seen=new Map<string,GraphEntity[]>();for(const e of entities.filter(x=>x.layer==='L2'||x.layer==='L3')){const key=cleanTag(e.name);if(key.length<2)continue;const arr=seen.get(key)||[];arr.push(e);seen.set(key,arr)}for(const [key,arr] of seen){if(arr.length<2)continue;for(let i=1;i<arr.length;i++)links.push({id:`tag-${key}-${i}`,from:arr[0].id,to:arr[i].id,type:'SAME_TAG',confidence:.82})}for(const e of entities.filter(x=>x.layer==='L4')){const from=String(e.meta?.derivedFrom||'');if(from)links.push({id:`asset-${e.id}`,from,to:e.id,type:'DERIVED_ASSET',confidence:.99})}return links}
 
 async function parsePdf(file:File,level:{floor:string;elevation:number},onProgress?:(page:number,total:number)=>void):Promise<{entities:GraphEntity[];summary:string;pages:number;vectors:number;textItems:number}>{
+ const PromiseWithResolvers=Promise as any;
+ if(typeof PromiseWithResolvers.withResolvers!=='function')PromiseWithResolvers.withResolvers=()=>{let resolve:any,reject:any;const promise=new Promise((ok,fail)=>{resolve=ok;reject=fail});return{promise,resolve,reject}};
  const pdfjs:any=await import('pdfjs-dist/legacy/build/pdf.mjs');try{pdfjs.GlobalWorkerOptions.workerSrc=new URL('pdfjs-dist/build/pdf.worker.min.mjs',import.meta.url).toString()}catch{}
  const doc=await pdfjs.getDocument({data:new Uint8Array(await file.arrayBuffer()),wasmUrl:'/pdfjs/wasm/'}).promise;const raw:{str:string;x:number;y:number;page:number}[]=[];const polygons:{vertices:XY[];page:number;confidence:number}[]=[];const pageFloors=new Map<number,string>();let vectors=0;
  try {
