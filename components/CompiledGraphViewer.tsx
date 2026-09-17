@@ -218,7 +218,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
     const r=runtime.current;if(!r||!selected)return;const y=displayElevation(selected,mode),target=new r.THREE.Vector3(selected.x,y+1,selected.y),span=5;r.controls.target.copy(target);r.camera.position.copy(target).add(new r.THREE.Vector3(span,span*.75,span));r.controls.update();
   },[selected?.id,mode]);
 
-  if(!graph)return <section className="card" style={{marginBottom:18}}><div className="eyebrow">Spatial viewer</div><h2>No compiled spatial model yet</h2><p className="subtitle">Import a drawing, SLD or DXF first. The viewer will open automatically when the reviewed graph exists.</p><Link className="action" href="/compiler">Import engineering sources</Link></section>;
+  if(!graph||!Array.isArray(graph.entities)||graph.entities.length===0)return <section className="card" style={{marginBottom:18}}><div className="eyebrow">Spatial viewer</div><h2>No compiled spatial objects yet</h2><p className="subtitle">Import and successfully extract a drawing, SLD or DXF first. A source fingerprint by itself does not unlock the project viewer.</p><Link className="action" href="/compiler">Review engineering sources</Link></section>;
 
   const width=fallbackBounds.maxX-fallbackBounds.minX,height2=fallbackBounds.maxY-fallbackBounds.minY;
   const sx=(x:number)=>((x-fallbackBounds.minX)/width)*92+4,sy=(y:number)=>96-((y-fallbackBounds.minY)/height2)*92;
