@@ -72,4 +72,16 @@ assert.match(runner,/pg_advisory_lock/);
 assert.equal(packageJson.scripts['db:migrate'],'node scripts/apply-database-migrations.mjs');
 console.log('✓ migration runner is plan-only by default, checksum-locked and explicit-apply only');
 
+
+const tenantBootstrap=fs.readFileSync('scripts/bootstrap-production-organization.mjs','utf8');
+const packageAfterBootstrap=JSON.parse(fs.readFileSync('package.json','utf8'));
+assert.match(tenantBootstrap,/process\.argv\.includes\('--apply'\)/);
+assert.match(tenantBootstrap,/STRATUM_AUTH_BOOTSTRAP_ORGANIZATION_ID/);
+assert.match(tenantBootstrap,/STRATUM_BOOTSTRAP_ORGANIZATION_NAME/);
+assert.match(tenantBootstrap,/INSERT INTO organizations\(id,name\)/);
+assert.doesNotMatch(tenantBootstrap,/INSERT\s+INTO\s+(users|memberships|assets|lifecycle_events|evidence)\b/i);
+assert.match(tenantBootstrap,/No user, password, membership, asset, evidence, DIR or PoVI record was created/);
+assert.equal(packageAfterBootstrap.scripts['db:bootstrap-organization'],'node scripts/bootstrap-production-organization.mjs');
+console.log('✓ production tenant bootstrap is explicit, deterministic and does not mint accounts or infrastructure truth');
+
 console.log('\nProduction database bootstrap migration contract passed.');
