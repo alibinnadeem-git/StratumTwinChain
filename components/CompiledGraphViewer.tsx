@@ -3,6 +3,8 @@
 import Link from "next/link";
 import {useEffect,useMemo,useRef,useState} from "react";
 import {resolveElectricalComponent} from "@/lib/electrical-component-library";
+import {resolveAssetPlacement} from "@/lib/asset-placement";
+import {fitProceduralObjectToMeters,normalizeObjectToMeters} from "@/lib/three-model-normalization";
 import {resolveRegisteredSpatialAsset,spatialAssetDirState,type RegisteredSpatialAsset} from "@/lib/spatial-asset-link";
 import {
   DEFAULT_ELECTRICAL_MODEL_REGISTRY,
@@ -167,16 +169,46 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       const wall=(a:XY,b:XY,e:Entity)=>{const dx=b.x-a.x,dz=b.y-a.y,len=Math.hypot(dx,dz);if(len<.02)return;const op=xray?.12:.55,m=new THREE.Mesh(new THREE.BoxGeometry(len,2.7,.09),material(colors.L1,op));m.position.set((a.x+b.x)/2,height(e)+1.35,(a.y+b.y)/2);m.rotation.y=-Math.atan2(dz,dx);groups.L1.add(m)};
       const room=(e:Entity)=>{if(!e.vertices||e.vertices.length<3||!isVisible(e))return;const shape=new THREE.Shape();e.vertices.forEach((p,i)=>i?shape.lineTo(p.x,p.y):shape.moveTo(p.x,p.y));shape.closePath();const floorMesh=new THREE.Mesh(new THREE.ShapeGeometry(shape),material(0x173748,xray?.07:.18));floorMesh.rotation.x=Math.PI/2;floorMesh.position.y=height(e)+.01;groups.L1.add(floorMesh);for(let i=0;i<e.vertices.length;i++)wall(e.vertices[i],e.vertices[(i+1)%e.vertices.length],e)};
       const fallbackShape=(e:Entity)=>{
-        const def=resolveElectricalComponent(e.name),shape=def?.twinShape||"cabinet",root=new THREE.Group(),op=1;
-        root.position.set(e.x,height(e),e.y);root.rotation.y=THREE.MathUtils.degToRad(-(e.rotation||0));root.scale.setScalar(Math.max(.25,Math.min(1.8,n(e.scale,1)*.72)));
+        const def=resolveElectricalComponent(e.name),shape=def?.twinShape||"cabinet",cfg=def?registry.find(r=>r.componentKey===def.key):null;
+        const placement=resolveAssetPlacement({name:e.name,floor:e.floor,z:e.z,meta:e.meta},cfg);
+        const target:[number,number,number]=[placement.dimensions.width,placement.dimensions.height,placement.dimensions.depth];
+        const root=new THREE.Group(),op=1;
         let geo:any;if(shape==="transformer")geo=new THREE.BoxGeometry(1.7,1.55,1.25);else if(shape==="generator")geo=new THREE.BoxGeometry(2.2,1.2,1.1);else if(shape==="motor")geo=new THREE.CylinderGeometry(.48,.48,1.15,20);else if(shape==="evse")geo=new THREE.BoxGeometry(.62,1.4,.44);else geo=new THREE.BoxGeometry(1.05,1.8,.62);
-        const mesh=new THREE.Mesh(geo,material(colors.L2,op,0x211000));mesh.position.y=shape==="motor"?.58:shape==="generator"?.6:shape==="evse"?.7:.9;if(shape==="motor")mesh.rotation.z=Math.PI/2;root.add(mesh);tag(root,e);groups.L2.add(root);label(e.name,e.x,height(e),e.y,isSld(e)?"#8fcfff":"#ffd08a");
+        const mesh=new THREE.Mesh(geo,material(colors.L2,op,0x211000));if(shape==="motor")mesh.rotation.z=Math.PI/2;root.add(mesh);
+        try{fitProceduralObjectToMeters(root,target)}catch{}
+        root.position.set(e.x,height(e),e.y);root.rotation.y=THREE.MathUtils.degToRad(-(e.rotation||0));
+        root.userData.dimensionAuthority=placement.dimensions.authority;root.userData.targetDimensionsMeters=target;
+        tag(root,e);groups.L2.add(root);label(e.name,e.x,height(e),e.y,isSld(e)?"#8fcfff":"#ffd08a");
       };
       const loader=new GLTFLoader();
       const equipment=(e:Entity)=>{
-        if(!isVisible(e))return;const def=resolveElectricalComponent(e.name),cfg=def?registry.find(r=>r.componentKey===def.key):null;
+        if(!isVisible(e))return;
+        const def=resolveElectricalComponent(e.name),cfg=def?registry.find(r=>r.componentKey===def.key):null;
         if(!cfg?.modelUrl.trim()||!["GLB","GLTF"].includes(cfg.format)){fallbackShape(e);return}
-        loader.load(cfg.modelUrl,gltf=>{if(disposed)return;const root=gltf.scene;root.position.set(e.x+cfg.offset[0],height(e)+cfg.offset[1],e.y+cfg.offset[2]);root.scale.setScalar(cfg.scale*n(e.scale,1));root.rotation.set(THREE.MathUtils.degToRad(cfg.rotation[0]),THREE.MathUtils.degToRad(cfg.rotation[1]-(e.rotation||0)),THREE.MathUtils.degToRad(cfg.rotation[2]));tag(root,e);groups.L2.add(root);label(e.name,e.x,height(e),e.y)},undefined,()=>{if(!disposed)fallbackShape(e)});
+        const placement=resolveAssetPlacement({name:e.name,floor:e.floor,z:e.z,meta:e.meta},cfg);
+        const target:[number,number,number]=[placement.dimensions.width,placement.dimensions.height,placement.dimensions.depth];
+        loader.load(cfg.modelUrl,gltf=>{
+          if(disposed)return;
+          try{
+            const model=gltf.scene;
+            model.position.set(0,0,0);model.scale.set(1,1,1);
+            model.rotation.set(THREE.MathUtils.degToRad(cfg.rotation[0]),THREE.MathUtils.degToRad(cfg.rotation[1]),THREE.MathUtils.degToRad(cfg.rotation[2]));
+            const normalized=normalizeObjectToMeters(model,target,.05);
+            const root=new THREE.Group();
+            root.position.set(e.x+cfg.offset[0],height(e)+cfg.offset[1],e.y+cfg.offset[2]);
+            root.rotation.y=THREE.MathUtils.degToRad(-(e.rotation||0));
+            root.userData.dimensionAuthority=placement.dimensions.authority;
+            root.userData.targetDimensionsMeters=target;
+            root.userData.normalization={scalar:normalized.scalar,ratioSpread:normalized.ratioSpread,reviewRequired:normalized.reviewRequired};
+            if(normalized.reviewRequired)console.warn("STRATUM model dimension mismatch requires review",{component:e.name,target,intrinsic:normalized.intrinsic,ratios:normalized.ratios,ratioSpread:normalized.ratioSpread});
+            root.add(model);tag(root,e);groups.L2.add(root);label(e.name,e.x,height(e),e.y);
+            const renderedBox=new THREE.Box3().setFromObject(root);if(!renderedBox.isEmpty())bounds.union(renderedBox);
+            runtime.current?.fit?.();
+          }catch(error){
+            console.warn("STRATUM meter normalization failed; procedural envelope fallback active",e.name,error);
+            fallbackShape(e);
+          }
+        },undefined,()=>{if(!disposed)fallbackShape(e)});
       };
       for(const e of graph.entities){
         if(!isVisible(e))continue;

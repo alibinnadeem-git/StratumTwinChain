@@ -5,6 +5,8 @@ export type ElectricalComponent={
   aliases:string[];
   twinShape:'transformer'|'cabinet'|'panel'|'breaker'|'meter'|'busduct'|'receptacle'|'junction'|'conduit'|'tray'|'light'|'motor'|'generator'|'battery'|'ground'|'rack'|'sensor'|'evse'|'solar';
   trackAsAsset:boolean;
+  manufacturer?:string;
+  modelFamily?:string;
 };
 
 export const ELECTRICAL_CATEGORIES=[
@@ -90,6 +92,11 @@ export const ELECTRICAL_COMPONENTS:ElectricalComponent[]=[
  {key:'solar-inverter',name:'Solar Inverter',category:'Renewable & EV Infrastructure',aliases:['solar inverter','pv inverter'],twinShape:'cabinet',trackAsAsset:true},
  {key:'combiner',name:'PV Combiner Box',category:'Renewable & EV Infrastructure',aliases:['combiner box','pv combiner'],twinShape:'junction',trackAsAsset:true},
  {key:'pv-array',name:'PV Array',category:'Renewable & EV Infrastructure',aliases:['pv array','solar array','solar panel'],twinShape:'solar',trackAsAsset:true},
+ {key:'evse-kempower-satellite-v2',name:'Kempower Satellite V2',category:'Renewable & EV Infrastructure',aliases:['kempower satellite v2','kempower satellite','kempower charger'],twinShape:'evse',trackAsAsset:true,manufacturer:'Kempower',modelFamily:'Satellite V2'},
+ {key:'evse-alpitronic-hyc400-s2',name:'Alpitronic HYC400 Series 2',category:'Renewable & EV Infrastructure',aliases:['alpitronic hyc400 series 2','alpitronic hyc400s2','alpitronic hyc400','alpitronic hypercharger','hypercharger hyc400'],twinShape:'evse',trackAsAsset:true,manufacturer:'Alpitronic',modelFamily:'HYC400 Series 2'},
+ {key:'evse-delta-dc-wallbox-50',name:'Delta DC Wallbox 50 kW',category:'Renewable & EV Infrastructure',aliases:['delta dc wallbox 50kw','delta dc wallbox 50','delta dc wallbox','delta ev charger'],twinShape:'evse',trackAsAsset:true,manufacturer:'Delta Electronics',modelFamily:'DC Wallbox 50 kW'},
+ {key:'evse-abb-terra-360',name:'ABB Terra 360',category:'Renewable & EV Infrastructure',aliases:['abb terra 360','terra 360 charger','terra 360'],twinShape:'evse',trackAsAsset:true,manufacturer:'ABB',modelFamily:'Terra 360'},
+ {key:'evse-tesla-supercharger-v3',name:'Tesla Supercharger V3',category:'Renewable & EV Infrastructure',aliases:['tesla supercharger v3','tesla supercharger','tesla charger'],twinShape:'evse',trackAsAsset:true,manufacturer:'Tesla',modelFamily:'Supercharger V3'},
  {key:'evse',name:'EV Charging Station',category:'Renewable & EV Infrastructure',aliases:['ev charger','ev charging station','evse'],twinShape:'evse',trackAsAsset:true},
  {key:'charging-panel',name:'EV Charging Distribution Panel',category:'Renewable & EV Infrastructure',aliases:['charging distribution panel','ev panel'],twinShape:'panel',trackAsAsset:true},
 
