@@ -15,6 +15,7 @@
     "qa:spatial-persistence": "node scripts/qa-spatial-persistence.mjs",
     "qa:legacy-spatial-ingest": "node scripts/qa-legacy-spatial-ingest.mjs",
     "qa:database-readiness": "node --experimental-strip-types scripts/qa-database-readiness.mjs",
+    "qa:database-bootstrap": "node --experimental-strip-types scripts/qa-database-bootstrap.mjs",
     "qa:spatial-viewer": "node --experimental-strip-types scripts/qa-spatial-viewer.mjs",
     "qa:spatial-asset-passport": "node --experimental-strip-types scripts/qa-spatial-asset-passport.mjs",
     "qa:title-block": "node --experimental-strip-types scripts/qa-title-block.mjs",
