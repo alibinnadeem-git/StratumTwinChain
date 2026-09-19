@@ -21,7 +21,9 @@ assert.equal(unbound,null,'similar or incomplete labels must not borrow another 
 
 const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
 const page=fs.readFileSync('app/spatial/page.tsx','utf8');
-assert.match(page,/CompiledGraphViewer registeredAssets=\{assets\}/);
+const experience=fs.readFileSync('components/SpatialExperience.tsx','utf8');
+assert.match(page,/SpatialExperience assets=\{assets\}/,'the route must pass registered assets into the single-source Spatial experience');
+assert.match(experience,/CompiledGraphViewer registeredAssets=\{assets\}/,'imported project mode must pass registered assets into the interactive viewer');
 assert.match(viewer,/ASSET PASSPORT PREVIEW/);assert.match(viewer,/DIR FINALIZED/);assert.match(viewer,/NO FINALIZED DIR/);assert.match(viewer,/Open Asset Passport/);
 assert.match(viewer,/NOT YET LINKED TO A REGISTERED ASSET/);assert.match(viewer,/DIR finality secures the immutable record; it does not by itself establish physical truth/);
 assert.doesNotMatch(viewer,/DIR.*physical truth established|physical truth.*DIR FINALIZED/i);
