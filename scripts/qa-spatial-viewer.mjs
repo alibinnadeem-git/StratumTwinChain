@@ -2,6 +2,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {enrichSpatialProjection} from '../lib/spatial-projection.ts';
 import {resolveAssetPlacement} from '../lib/asset-placement.ts';
+import {planUniformMeterScale} from '../lib/model-scale.ts';
+
+const mmModel=planUniformMeterScale([1700,1600,1250],[1.7,1.6,1.25]);
+assert.ok(Math.abs(mmModel.scalar-.001)<1e-12);assert.equal(mmModel.reviewRequired,false);assert.ok(mmModel.maxRelativeError<1e-12);
+const mismatchModel=planUniformMeterScale([1,1,1],[2,1,.5]);
+assert.equal(mismatchModel.reviewRequired,true,'material axis-ratio disagreement must be review-gated instead of silently stretching manufacturer geometry');
+console.log('✓ detailed 3D models normalize to a meter world with uniform scaling and mismatch review');
 
 const cadGraph={version:'fixture',createdAt:new Date().toISOString(),entities:[
  {id:'a',source:'E1.dxf',layer:'L2',kind:'cad-block',name:'PANELBOARD LP-1',x:-10,y:-7,z:0,floor:'L1',confidence:.9,meta:{rawX:100,rawY:0,unitName:'ft',unitToMeters:.3048}},
@@ -78,6 +85,11 @@ const placementSource=fs.readFileSync('lib/asset-placement.ts','utf8');
 const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
 const spatialExperience=fs.readFileSync('components/SpatialExperience.tsx','utf8');
 const spatialPage=fs.readFileSync('app/spatial/page.tsx','utf8');
+assert.match(viewer,/normalizeObjectToMeters/);assert.match(viewer,/fitProceduralObjectToMeters/);
+assert.doesNotMatch(viewer,/root\.scale\.setScalar\(cfg\.scale\s*\*\s*n\(e\.scale,1\)\)/,'registry GLBs must not use arbitrary display scalar as physical size');
+const twinWorkspace=fs.readFileSync('components/TwinWorkspace.tsx','utf8');
+assert.match(twinWorkspace,/normalizeObjectToMeters/);assert.match(twinWorkspace,/fitProceduralObjectToMeters/);
+assert.doesNotMatch(twinWorkspace,/model\.scale\.setScalar\(cfg\.scale\)/,'reference viewer registry GLBs must use meter normalization');
 assert.match(viewer,/ViewMode="MODEL"\|"ELECTRICAL"\|"REVIEW"/);assert.match(viewer,/2D spatial fallback/);assert.match(viewer,/SLD → SPATIAL PROJECTION/);
 assert.match(viewer,/graph\.entities\.length===0/,'zero-entity graphs must not render an empty project stage');
 assert.match(spatialPage,/MODEL · ELECTRICAL · REVIEW/);assert.match(spatialPage,/<SpatialExperience /);
