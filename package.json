@@ -38,7 +38,8 @@
     "qa:vrf": "node scripts/vrf-proposer-conformance.mjs",
     "qa:e2e": "playwright test",
     "prebuild": "node scripts/prepare-pdf-assets.mjs",
-    "predev": "node scripts/prepare-pdf-assets.mjs"
+    "predev": "node scripts/prepare-pdf-assets.mjs",
+    "db:migrate": "node scripts/apply-database-migrations.mjs"
   },
   "dependencies": {
     "@zxing/browser": "^0.2.1",
