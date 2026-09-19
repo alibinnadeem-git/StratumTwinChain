@@ -1,0 +1,65 @@
+name: Recover production 3D models
+
+on:
+  push:
+    branches:
+      - fix/meter-scale-normalization-sept19
+    paths:
+      - .github/workflows/recover-production-models.yml
+
+permissions:
+  contents: write
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/meter-scale-normalization-sept19
+          fetch-depth: 0
+      - name: Recover exact live GLBs
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://stratumspatialverified.vercel.app"
+          files=(
+            "models/equipment/pad-mount-transformer.glb"
+            "models/equipment/dry-type-transformer.glb"
+            "models/equipment/oil-filled-transformer.glb"
+            "models/equipment/main-switchboard.glb"
+            "models/equipment/motor-control-center.glb"
+            "models/equipment/industrial-electric-motor.glb"
+            "models/equipment/end-suction-pump.glb"
+            "models/equipment/enclosed-diesel-generator.glb"
+            "models/equipment/automatic-transfer-switch.glb"
+            "models/equipment/uninterruptible-power-supply.glb"
+            "models/equipment/battery-cabinet.glb"
+            "models/oem/kempower-satellite-v2.glb"
+            "models/oem/alpitronic-hyc400-s2.glb"
+            "models/oem/delta-dc-wallbox-50kw.glb"
+            "models/oem/abb-terra-360.glb"
+            "models/oem/tesla-supercharger-v3-community.glb"
+          )
+          for rel in "${files[@]}"; do
+            mkdir -p "public/$(dirname "$rel")"
+            curl --fail --location --silent --show-error "$base/$rel" -o "public/$rel"
+            magic="$(xxd -p -l 4 "public/$rel")"
+            test "$magic" = "676c5446" || { echo "Invalid GLB: $rel ($magic)" >&2; exit 1; }
+            bytes="$(wc -c < "public/$rel" | tr -d ' ')"
+            sha="$(sha256sum "public/$rel" | awk '{print $1}')"
+            echo "$rel bytes=$bytes sha256=$sha"
+          done
+      - name: Commit recovered production assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "STRATUM recovery bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add public/models/equipment public/models/oem
+          if git diff --cached --quiet; then
+            echo "Production GLBs already match Git."
+            exit 0
+          fi
+          git commit -m "[model-recovery] Recover exact 16-model production GLBs"
+          git push origin HEAD:fix/meter-scale-normalization-sept19
