@@ -39,7 +39,8 @@
     "qa:e2e": "playwright test",
     "prebuild": "node scripts/prepare-pdf-assets.mjs",
     "predev": "node scripts/prepare-pdf-assets.mjs",
-    "db:migrate": "node scripts/apply-database-migrations.mjs"
+    "db:migrate": "node scripts/apply-database-migrations.mjs",
+    "db:bootstrap-organization": "node scripts/bootstrap-production-organization.mjs"
   },
   "dependencies": {
     "@zxing/browser": "^0.2.1",
