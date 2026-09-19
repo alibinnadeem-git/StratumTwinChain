@@ -1,4 +1,4 @@
-import {ELECTRICAL_COMPONENTS} from './electrical-component-library';
+import {ELECTRICAL_COMPONENTS} from './electrical-component-library.ts';
 
 export type ElectricalModelFormat='GLB'|'GLTF'|'USD'|'USDZ';
 export type ElectricalModelConfig={
