@@ -60,4 +60,16 @@ assert.match(core,/Registration alone is not physical verification/i);
 assert.match(core,/Cryptographic anchoring does not independently establish physical truth/i);
 console.log('✓ database bootstrap preserves STRATUM truth boundaries');
 
+
+const runner=fs.readFileSync('scripts/apply-database-migrations.mjs','utf8');
+const packageJson=JSON.parse(fs.readFileSync('package.json','utf8'));
+assert.match(runner,/process\.argv\.includes\('--apply'\)/);
+assert.match(runner,/Plan only\. Re-run with --apply and DATABASE_URL/i);
+assert.match(runner,/DATABASE_URL is required when --apply is used/);
+assert.match(runner,/stratum_schema_migrations/);
+assert.match(runner,/Applied migration checksum changed/);
+assert.match(runner,/pg_advisory_lock/);
+assert.equal(packageJson.scripts['db:migrate'],'node scripts/apply-database-migrations.mjs');
+console.log('✓ migration runner is plan-only by default, checksum-locked and explicit-apply only');
+
 console.log('\nProduction database bootstrap migration contract passed.');
