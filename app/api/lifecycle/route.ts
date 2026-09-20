@@ -123,7 +123,26 @@ export async function GET(req:Request){
  try{
   const session=await requireSession();
   const assetId=z.string().uuid().parse(new URL(req.url).searchParams.get('assetId'));
-  const result=await query(`SELECT le.id,le.event_type,le.status,le.occurred_at,le.canonical_payload->'payload' AS payload FROM lifecycle_events le JOIN assets a ON a.id=le.asset_id WHERE le.asset_id=$1 AND le.organization_id=$2 AND a.organization_id=$2 ORDER BY le.occurred_at DESC,le.id DESC LIMIT 100`,[assetId,session.organizationId]);
-  return NextResponse.json({events:result.rows});
+  const result=await query<any>(`
+    SELECT le.id::text,le.project_id::text,le.event_type,le.status,le.occurred_at,
+      le.canonical_payload->'payload' AS payload,le.payload_sha256,le.performed_by::text,
+      (SELECT count(*)::int FROM evidence ev WHERE ev.lifecycle_event_id=le.id AND ev.organization_id=le.organization_id) evidence_count,
+      (SELECT count(DISTINCT apv.approver_user_id)::int FROM approvals apv WHERE apv.lifecycle_event_id=le.id AND apv.organization_id=le.organization_id AND apv.decision='APPROVED') approved_count,
+      COALESCE((SELECT ap.approvals_required FROM approval_policies ap WHERE ap.organization_id=le.organization_id AND ap.project_id=le.project_id AND ap.is_active=true LIMIT 1),1)::int approvals_required,
+      COALESCE((SELECT ap.allowed_roles FROM approval_policies ap WHERE ap.organization_id=le.organization_id AND ap.project_id=le.project_id AND ap.is_active=true LIMIT 1),ARRAY['INSPECTOR','PROJECT_MANAGER','ORG_ADMIN','SUPER_ADMIN']::text[]) allowed_roles,
+      (SELECT apv.decision FROM approvals apv WHERE apv.lifecycle_event_id=le.id AND apv.organization_id=le.organization_id AND apv.approver_user_id=$3 LIMIT 1) current_user_decision,
+      le.ledger_network,le.ledger_tx_hash,le.ledger_block_height::text,le.anchored_at
+    FROM lifecycle_events le
+    JOIN assets a ON a.id=le.asset_id
+    WHERE le.asset_id=$1 AND le.organization_id=$2 AND a.organization_id=$2
+    ORDER BY le.occurred_at DESC,le.id DESC
+    LIMIT 100
+  `,[assetId,session.organizationId,session.userId]);
+  const events=result.rows.map(row=>({
+   ...row,
+   can_approve:row.status==='SUBMITTED'&&row.performed_by!==session.userId&&Array.isArray(row.allowed_roles)&&row.allowed_roles.includes(session.role)&&!row.current_user_decision,
+   separation_of_duties_blocked:row.status==='SUBMITTED'&&row.performed_by===session.userId,
+  }));
+  return NextResponse.json({events});
  }catch(error:any){return NextResponse.json({error:error.message},{status:error.status||400});}
 }
