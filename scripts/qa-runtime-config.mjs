@@ -29,28 +29,28 @@ try{
  assert.equal(db?.source,'POSTGRES_URL');
  assert.equal(db?.retargeted,true);
  assert.equal(db?.targetDatabase,'stratum_spatial_verified');
- assert.equal(new URL(db!.url).pathname,'/stratum_spatial_verified');
- assert.equal(new URL(db!.url).searchParams.get('sslmode'),'require');
+ assert.equal(new URL(db.url).pathname,'/stratum_spatial_verified');
+ assert.equal(new URL(db.url).searchParams.get('sslmode'),'require');
  const derived=resolveAuthRuntime();
  assert.ok(derived);
  assert.equal(derived?.source,'DERIVED_FROM_POSTGRES_URL');
  assert.equal(derived?.derived,true);
  assert.equal(derived?.key.length,32);
  const derivedAgain=resolveAuthRuntime();
- assert.deepEqual([...derived!.key],[...derivedAgain!.key]);
+ assert.deepEqual([...derived.key],[...derivedAgain!.key]);
  console.log('✓ managed Neon URL retargets to isolated Spatial database and yields stable domain-separated session key');
 
  process.env.STRATUM_DATABASE_NAME='spatial_custom';
  db=resolveDatabaseRuntime();
  assert.equal(db?.targetDatabase,'spatial_custom');
- assert.equal(new URL(db!.url).pathname,'/spatial_custom');
+ assert.equal(new URL(db.url).pathname,'/spatial_custom');
  console.log('✓ explicit STRATUM database-name override is honored');
 
  clear();
  process.env.NEON_DATABASE_URL='postgresql://user:abcdefghijklmnopqrstuvwxyz012345@ep-other.us-east-1.aws.neon.tech/neondb';
  db=resolveDatabaseRuntime();
  assert.equal(db?.source,'NEON_DATABASE_URL');
- assert.equal(new URL(db!.url).pathname,'/stratum_spatial_verified');
+ assert.equal(new URL(db.url).pathname,'/stratum_spatial_verified');
  console.log('✓ NEON_DATABASE_URL is supported');
 
  clear();
@@ -66,7 +66,7 @@ try{
  const direct=resolveAuthRuntime();
  assert.equal(direct?.source,'AUTH_SECRET');
  assert.equal(direct?.derived,false);
- assert.equal(new TextDecoder().decode(direct!.key),'A'.repeat(48));
+ assert.equal(new TextDecoder().decode(direct.key),'A'.repeat(48));
  console.log('✓ dedicated AUTH_SECRET wins when configured');
 
  const health=fs.readFileSync('app/api/health/route.ts','utf8');
