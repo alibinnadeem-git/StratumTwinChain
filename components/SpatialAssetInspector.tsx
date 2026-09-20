@@ -144,6 +144,7 @@ export default function SpatialAssetInspector({
      </select>
     </label>
     <button className="action" type="button" disabled={!linkId} onClick={()=>persistBinding(registeredAssets.find(item=>item.id===linkId)||null)}>Link selected asset</button>
+    <Link className="ghost" href={'/assets/new?name='+encodeURIComponent(selected.name)+'&type='+encodeURIComponent(String(selected.meta?.componentKey||selected.kind||'EQUIPMENT'))}>Register this object as a new asset</Link>
    </div>:<p className="muted">No live registered assets are available in the active organization yet.</p>}
   </>}
 
