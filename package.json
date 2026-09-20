@@ -42,7 +42,8 @@
     "prebuild": "node scripts/prepare-pdf-assets.mjs",
     "predev": "node scripts/prepare-pdf-assets.mjs",
     "db:migrate": "node scripts/apply-database-migrations.mjs",
-    "db:bootstrap-organization": "node scripts/bootstrap-production-organization.mjs"
+    "db:bootstrap-organization": "node scripts/bootstrap-production-organization.mjs",
+    "db:bootstrap-super-admin": "node scripts/bootstrap-first-super-admin.mjs"
   },
   "dependencies": {
     "@zxing/browser": "^0.2.1",
