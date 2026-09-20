@@ -1,6 +1,7 @@
 import {query} from '@/lib/server/db';
 import {DATABASE_READINESS_SQL,REQUIRED_DATABASE_TABLES,summarizeDatabaseReadiness,type DatabaseReadiness} from '@/lib/server/database-readiness';
 import {resolveAuthRuntime,resolveDatabaseRuntime} from '@/lib/server/runtime-config';
+import {dirRpcConfigured} from '@/lib/server/chain';
 
 type ReadinessProbeStatus='UNCONFIGURED'|'READY'|'INCOMPLETE_SCHEMA'|'UNREACHABLE';
 
@@ -9,6 +10,7 @@ export async function GET(){
  const authRuntime=resolveAuthRuntime();
  const databaseConfigured=Boolean(databaseRuntime);
  const authConfigured=Boolean(authRuntime);
+ const chainRpcConfigured=dirRpcConfigured();
  let databaseReachable=false;
  let probeStatus:ReadinessProbeStatus=databaseConfigured?'UNREACHABLE':'UNCONFIGURED';
  let schema:DatabaseReadiness|null=null;
@@ -23,7 +25,7 @@ export async function GET(){
    probeStatus='UNREACHABLE';
   }
  }
- const liveDataReady=authConfigured&&databaseReachable&&Boolean(schema?.coreReady&&schema.lifecycleReady&&schema.dirRuntimeReady);
+ const liveDataReady=authConfigured&&chainRpcConfigured&&databaseReachable&&Boolean(schema?.coreReady&&schema.lifecycleReady&&schema.dirRuntimeReady);
  const mode=!databaseConfigured&&!authConfigured?'REFERENCE':liveDataReady?'LIVE_READY':'LIVE_INCOMPLETE';
  return Response.json({
   ok:true,
@@ -39,6 +41,7 @@ export async function GET(){
   databaseReachable,
   databaseProbeStatus:probeStatus,
   authConfigured,
+  chainRpcConfigured,
   authSecretSource:authRuntime?.source||null,
   authSecretDerived:Boolean(authRuntime?.derived),
   schema,
