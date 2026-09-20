@@ -37,7 +37,7 @@ try{
  assert.equal(derived?.derived,true);
  assert.equal(derived?.key.length,32);
  const derivedAgain=resolveAuthRuntime();
- assert.deepEqual([...derived.key],[...derivedAgain!.key]);
+ assert.deepEqual([...derived.key],[...derivedAgain.key]);
  console.log('✓ managed Neon URL retargets to isolated Spatial database and yields stable domain-separated session key');
 
  process.env.STRATUM_DATABASE_NAME='spatial_custom';
