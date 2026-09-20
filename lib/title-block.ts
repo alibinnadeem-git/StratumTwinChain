@@ -44,7 +44,7 @@ function labeledField(items:PositionedSheetText[],labels:RegExp,predicate:(value
 
 const sheetPattern=/^[A-Z]{1,4}(?:[-.]?[A-Z]{0,2})?[-.]?\d{1,3}(?:[.-]\d{1,3})?[A-Z]?$/i;
 const revisionPattern=/^(?:[A-Z]|\d{1,3}|P\d{1,2}|R\d{1,2})$/i;
-const datePattern=/^(?:\d{1,2}[\/-]\d{1,2}[\/-](?:\d{2}|\d{4})|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|SEPT|OCT|NOV|DEC)[A-Z]*[ .-]+\d{1,2}[, .-]+\d{2,4}|\d{4}-\d{2}-\d{2})$/i;
+const datePattern=/^(?:\d{1,2}[\/-]\d{1,2}[\/-](?:\d{2}|\d{4})|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|SEPT|OCT|NOV|DEC)[A-Z]*[ .-]+\d{1,2}[, .-]+\d{2,4}|\d{1,2}[ .-]+(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|SEPT|OCT|NOV|DEC)[A-Z.]*[ .-]+\d{2,4}|\d{4}-\d{2}-\d{2})$/i;
 const architecturalScalePattern=/^(?:\d+\s+)?(?:\d+\/\d+|\d+(?:\.\d+)?)?\s*["”]\s*=\s*\d+(?:\.\d+)?\s*['’](?:\s*-\s*\d+(?:\.\d+)?\s*["”])?$/i;
 const metricScalePattern=/^1\s*:\s*\d{1,5}(?:\.\d+)?$/i;
 const ntsPattern=/^(?:NTS|NOT TO SCALE)$/i;
