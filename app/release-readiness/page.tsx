@@ -2,6 +2,7 @@ import Link from 'next/link';
 import {query} from '@/lib/server/db';
 import {DATABASE_READINESS_SQL,REQUIRED_DATABASE_TABLES,summarizeDatabaseReadiness,type DatabaseReadiness} from '@/lib/server/database-readiness';
 import {resolveAuthRuntime,resolveDatabaseRuntime} from '@/lib/server/runtime-config';
+import {dirRpcConfigured} from '@/lib/server/chain';
 
 export const dynamic='force-dynamic';
 
@@ -29,7 +30,8 @@ export default async function ReleaseReadinessPage(){
 
  const databaseReady=Boolean(databaseRuntime&&databaseReachable&&schema?.coreReady&&schema?.lifecycleReady&&schema?.dirRuntimeReady);
  const authReady=Boolean(authRuntime);
- const runtimeReady=databaseReady&&authReady;
+ const chainReady=dirRpcConfigured();
+ const runtimeReady=databaseReady&&authReady&&chainReady;
  const release=process.env.VERCEL_GIT_COMMIT_SHA||'local';
  const releaseShort=release==='local'?release:release.slice(0,12);
 
@@ -53,6 +55,7 @@ export default async function ReleaseReadinessPage(){
     <div><span>Spatial persistence</span><strong>{schema?.spatialPersistenceReady?'READY':databaseRuntime?'NOT READY':'—'}</strong></div>
     <div><span>DIR / PoVI runtime</span><strong>{schema?.dirRuntimeReady?'READY':databaseRuntime?'NOT READY':'—'}</strong></div>
     <div><span>Authentication</span><strong>{authReady?'READY':'NOT BOUND'}</strong></div>
+    <div><span>DIR RPC</span><strong>{chainReady?'CONNECTED':'NOT BOUND'}</strong></div>
    </div>
    {!runtimeReady&&<div className="notice" style={{marginTop:14}}><strong>RELEASE BLOCKER</strong><span>Bind the canonical production database and complete every required schema capability, including the DIR/PoVI runtime. STRATUM intentionally fails closed instead of inventing a tenant session or using reference data as live production state.</span></div>}
   </section>
