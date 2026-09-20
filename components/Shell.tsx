@@ -15,7 +15,7 @@ const moreGroups=[
  {label:'Engineering',links:[['/compiler','Spatial Compiler'],['/spatial','STRATUM Spatial Verified'],['/component-library','Component Library']]},
  {label:'Operations',links:[['/workflows','Field Work & Commissioning'],['/maintenance','Maintenance'],['/predictive','Predictive Intelligence'],['/simulation','Simulation'],['/evidence','Evidence']]},
  {label:'Trust & handover',links:[['/handover','Digital Handover'],['/provenance','Provenance Explorer'],['/verify','Verify Record'],['/dir','DIR Explorer']]},
- {label:'Platform',links:[['/admin','Admin & RBAC']]}
+ {label:'Platform',links:[['/admin','Admin & RBAC'],['/release-readiness','Release readiness'],['/release-uat','Physical-device UAT']]}
 ] as const;
 
 function initials(email:string){
