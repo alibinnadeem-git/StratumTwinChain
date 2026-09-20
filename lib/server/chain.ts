@@ -10,6 +10,7 @@ export type DirRpcStatus={
  poviConformant:boolean;
  activeValidatorCount:number|null;
  requiredQuorum:number|null;
+ validators:Array<{id?:string;name?:string;address?:string;endpoint?:string|null}>;
  limitations:string[];
  error?:string;
 };
@@ -55,7 +56,7 @@ export function dirRpcConfigured(){return Boolean((process.env.STRATUM_CHAIN_RPC
 
 export async function probeDirRpc():Promise<DirRpcStatus>{
  const rpc=(process.env.STRATUM_CHAIN_RPC_URL||'').trim().replace(/\/$/,'');
- if(!rpc)return{configured:false,reachable:false,connected:false,chainId:null,height:null,engineReady:false,poviConformant:false,activeValidatorCount:null,requiredQuorum:null,limitations:[]};
+ if(!rpc)return{configured:false,reachable:false,connected:false,chainId:null,height:null,engineReady:false,poviConformant:false,activeValidatorCount:null,requiredQuorum:null,validators:[],limitations:[]};
  try{
   const response=await fetch(`${rpc}/v1/status`,{
    headers:process.env.STRATUM_CHAIN_API_KEY?{'authorization':`Bearer ${process.env.STRATUM_CHAIN_API_KEY}`}:{},
@@ -74,12 +75,13 @@ export async function probeDirRpc():Promise<DirRpcStatus>{
    poviConformant:Boolean(body.povi?.poviConformant),
    activeValidatorCount:Number.isFinite(Number(body.povi?.activeValidatorCount))?Number(body.povi.activeValidatorCount):null,
    requiredQuorum:Number.isFinite(Number(body.povi?.requiredQuorum))?Number(body.povi.requiredQuorum):null,
+   validators:Array.isArray(body.validators)?body.validators.map((value:any)=>({id:value.id,name:value.name,address:value.address,endpoint:value.endpoint??null})):[],
    limitations:Array.isArray(body.povi?.limitations)?body.povi.limitations.map(String):[],
   };
  }catch(error){
   return{
    configured:true,reachable:false,connected:false,chainId:null,height:null,engineReady:false,poviConformant:false,
-   activeValidatorCount:null,requiredQuorum:null,limitations:[],
+   activeValidatorCount:null,requiredQuorum:null,validators:[],limitations:[],
    error:error instanceof Error?error.message:'DIR RPC probe failed'
   };
  }
