@@ -4,23 +4,10 @@ import AssetArchiveControls from '@/components/AssetArchiveControls';
 import HumanAttestationPanel from '@/components/HumanAttestationPanel';
 import {assetArchiveHistory,assetLifecycle,liveAsset,publicEvidence} from '@/lib/server/live-views';
 import {readSession} from '@/lib/server/auth';
-import {findAsset,evidence as demoEvidence} from '@/lib/data';
-import {calculateAssetReadiness} from '@/lib/twin-intelligence';
 
 export const dynamic='force-dynamic';
 const date=(d:Date|string|null|undefined)=>d?new Date(d).toLocaleString('en-US',{year:'numeric',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'—';
 const short=(s:string|null|undefined,n=18)=>s?s.length>n*2?`${s.slice(0,n)}…${s.slice(-n)}`:s:'—';
-
-function demoToPassport(identifier:string){
- const d=findAsset(identifier);if(!d)return null;
- const p=(d.project||'').toString();
- return {
-  id:d.id,asset_code:d.id,asset_type:d.type,name:d.name,model:d.model||null,serial_number:d.serial||null,location_label:d.location||null,status:d.status,qr_token:d.qrToken,specifications:d.specs||{},installed_at:d.installedAt||null,commissioned_at:d.commissionedAt||null,warranty_expires_at:d.warranty||null,project_code:p,project_name:p,site_name:d.site,system_name:d.system,manufacturer_name:d.manufacturer,latest_event_id:d.tx||null,latest_event_type:d.stages?.slice().reverse().find(s=>s.status==='verified')?.stage||'REGISTER_ASSET',latest_event_status:d.block?'VERIFIED':'PENDING',ledger_network:'stratum-devnet-1',ledger_tx_hash:d.tx||null,ledger_block_height:d.block||null,anchored_at:d.commissionedAt||d.installedAt||null,
-  archived:false,archive_action:null,archive_reason:null,archive_occurred_at:null,archive_schema_ready:false,
-  __demo:true,
-  __stages:d.stages||[]
- } as any;
-}
 
 export default async function AssetDetail({params}:{params:Promise<{id:string}>}){
  const {id}=await params;const identifier=decodeURIComponent(id);
@@ -30,24 +17,18 @@ export default async function AssetDetail({params}:{params:Promise<{id:string}>}
   if(asset)[events,evidence,archiveEvents]=await Promise.all([assetLifecycle(asset.id),publicEvidence(asset.id),assetArchiveHistory(asset.id)]);
  }catch(error){
   backendOnline=false;
-  console.error('Asset passport backend unavailable; reference mode may be used.',error);
-  asset=demoToPassport(identifier);
-  referenceMode=Boolean(asset);
-  if(asset){
-   events=asset.__stages.map((s:any,i:number)=>({id:`demo-${i}`,event_type:s.stage,status:s.status==='verified'?'VERIFIED':s.status==='pending'?'SUBMITTED':'PLANNED',occurred_at:s.date||null,payload_sha256:null,evidence_package_sha256:null,performed_by_name:s.actor||null,approved_by_name:null,ledger_block_height:s.block||null}));
-   evidence=demoEvidence.filter(e=>e.assetId===asset.id).map(e=>({id:e.id,kind:e.kind,sha256:e.hash,visibility:e.privacy,captured_at:null}));
-  }
+  console.error('Asset passport backend unavailable; no reference asset substituted.',error);
  }
 
- if(!asset)return <><div className="page-head"><div><div className="eyebrow">Asset Passport</div><h1 className="title">Asset not found</h1><p className="subtitle">This asset identifier does not exist in the active organization. Reference equipment is never substituted for a live tenant miss.</p></div></div><div className="card"><div className="button-row"><Link className="action" href="/assets">Return to Asset Passports</Link><Link className="ghost" href="/scan">Scan equipment</Link><Link className="ghost" href="/spatial">Open STRATUM Spatial Verified</Link></div></div></>;
+ if(!asset)return <><div className="page-head"><div><div className="eyebrow">Asset Passport</div><h1 className="title">{backendOnline?'Asset not found':'Live registry unavailable'}</h1><p className="subtitle">{backendOnline?'This asset identifier does not exist in the active organization.':'The production tenant registry could not be loaded. STRATUM does not substitute demonstration equipment for live tenant state.'}</p></div></div><div className="card"><div className="button-row"><Link className="action" href="/assets">Return to Asset Passports</Link><Link className="ghost" href="/scan">Scan equipment</Link><Link className="ghost" href="/spatial">Open STRATUM Spatial Verified</Link></div></div></>;
 
  const session=await readSession();
- const liveTenant=!referenceMode&&!asset.__demo;
+ const liveTenant=backendOnline;
  const canManage=Boolean(session&&(session.role==='SUPER_ADMIN'||session.role==='ORG_ADMIN'))&&liveTenant;
  const appBase=(process.env.NEXT_PUBLIC_APP_URL||'https://stratumspatialverified.vercel.app').replace(/\/$/,'');
  const qrIdentity=asset.qr_token||asset.asset_code;
  const qr=`${appBase}/verify?q=${encodeURIComponent(qrIdentity)}`;
- const readiness=referenceMode&&findAsset(identifier)?calculateAssetReadiness(findAsset(identifier)!):null;
+ const readiness:any=null;
  const dirFinalized=Boolean(asset.ledger_block_height&&asset.ledger_tx_hash);
  const verifiedEvents=events.filter((event:any)=>event.status==='VERIFIED').length;
  const submittedEvents=events.filter((event:any)=>event.status==='SUBMITTED').length;
