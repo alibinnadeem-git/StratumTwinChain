@@ -1,16 +1,42 @@
 export type RegisteredSpatialAsset={
- id:string;asset_code:string;asset_type?:string;name:string;model:string|null;serial_number:string|null;location_label:string|null;status:string;project_name?:string;site_name?:string;system_name:string|null;manufacturer_name:string|null;latest_event_type:string|null;ledger_network:string|null;ledger_tx_hash:string|null;ledger_block_height:string|null;
+ id:string;
+ project_id?:string;
+ asset_code:string;
+ asset_type?:string;
+ name:string;
+ model:string|null;
+ serial_number:string|null;
+ location_label:string|null;
+ status:string;
+ qr_token?:string|null;
+ project_code?:string;
+ project_name?:string;
+ site_name?:string;
+ system_name:string|null;
+ manufacturer_name:string|null;
+ latest_event_id?:string|null;
+ latest_event_type:string|null;
+ latest_event_status?:string|null;
+ ledger_network:string|null;
+ ledger_tx_hash:string|null;
+ ledger_block_height:string|null;
+ anchored_at?:string|Date|null;
 };
 
 export type SpatialAssetEntity={id:string;name:string;layer:string;meta?:Record<string,unknown>};
-export type SpatialAssetBinding={asset:RegisteredSpatialAsset;method:'EXPLICIT_ID'|'EXPLICIT_CODE'|'EXPLICIT_SERIAL'|'IDENTIFIER_IN_LABEL';confidence:number};
+export type SpatialAssetBinding={
+ asset:RegisteredSpatialAsset;
+ method:'EXPLICIT_ID'|'EXPLICIT_CODE'|'EXPLICIT_SERIAL'|'IDENTIFIER_IN_LABEL'|'EXACT_NORMALIZED_NAME';
+ confidence:number;
+};
 
 const text=(value:unknown)=>typeof value==='string'?value.trim():'';
 const upper=(value:string)=>value.trim().toUpperCase();
-const escaped=(value:string)=>value.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+const normalizeName=(value:string)=>value.toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim();
+const escaped=(value:string)=>value.replace(/[.*+?^$\\{\\}()|[\\]\\\\]/g,'\\\\$&');
 const containsIdentifier=(label:string,identifier:string)=>{
  const id=identifier.trim();if(!id)return false;
- return new RegExp(`(^|[^A-Z0-9])${escaped(id.toUpperCase())}([^A-Z0-9]|$)`).test(label.toUpperCase());
+ return new RegExp(`(^|[^A-Z0-9])\${escaped(id.toUpperCase())}([^A-Z0-9]|$)`).test(label.toUpperCase());
 };
 const firstMeta=(entity:SpatialAssetEntity,keys:string[])=>{for(const key of keys){const value=text(entity.meta?.[key]);if(value)return value}return''};
 
@@ -30,11 +56,28 @@ export function resolveRegisteredSpatialAsset(entity:SpatialAssetEntity|null|und
  const serialMatches=assets.filter(item=>item.serial_number&&containsIdentifier(entity.name,item.serial_number));
  if(serialMatches.length===1)return{asset:serialMatches[0],method:'IDENTIFIER_IN_LABEL',confidence:.96};
 
+ // Exact normalized equipment names are safe enough to use only when unique.
+ // We intentionally do not do fuzzy/substring name matching because that can bind
+ // a generic source label such as "PANELBOARD" to the wrong tenant asset.
+ const normalized=normalizeName(entity.name);
+ if(normalized){
+  const exactNameMatches=assets.filter(item=>normalizeName(item.name)===normalized);
+  if(exactNameMatches.length===1)return{asset:exactNameMatches[0],method:'EXACT_NORMALIZED_NAME',confidence:.9};
+ }
+
  return null;
 }
 
 export function spatialAssetDirState(binding:SpatialAssetBinding|null){
  const asset=binding?.asset;
  const finalized=Boolean(asset?.ledger_block_height&&asset?.ledger_tx_hash);
- return{finalized,blockHeight:asset?.ledger_block_height||null,transaction:asset?.ledger_tx_hash||null,network:asset?.ledger_network||null};
+ return{
+  finalized,
+  blockHeight:asset?.ledger_block_height||null,
+  transaction:asset?.ledger_tx_hash||null,
+  network:asset?.ledger_network||null,
+  latestEventType:asset?.latest_event_type||null,
+  latestEventStatus:asset?.latest_event_status||null,
+  anchoredAt:asset?.anchored_at||null,
+ };
 }
