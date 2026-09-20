@@ -130,6 +130,7 @@ export async function GET(req:Request){
       (SELECT count(DISTINCT apv.approver_user_id)::int FROM approvals apv WHERE apv.lifecycle_event_id=le.id AND apv.organization_id=le.organization_id AND apv.decision='APPROVED') approved_count,
       COALESCE((SELECT ap.approvals_required FROM approval_policies ap WHERE ap.organization_id=le.organization_id AND ap.project_id=le.project_id AND ap.is_active=true LIMIT 1),1)::int approvals_required,
       COALESCE((SELECT ap.allowed_roles FROM approval_policies ap WHERE ap.organization_id=le.organization_id AND ap.project_id=le.project_id AND ap.is_active=true LIMIT 1),ARRAY['INSPECTOR','PROJECT_MANAGER','ORG_ADMIN','SUPER_ADMIN']::text[]) allowed_roles,
+      COALESCE((SELECT ap.require_evidence FROM approval_policies ap WHERE ap.organization_id=le.organization_id AND ap.project_id=le.project_id AND ap.is_active=true LIMIT 1),true) require_evidence,
       (SELECT apv.decision FROM approvals apv WHERE apv.lifecycle_event_id=le.id AND apv.organization_id=le.organization_id AND apv.approver_user_id=$3 LIMIT 1) current_user_decision,
       le.ledger_network,le.ledger_tx_hash,le.ledger_block_height::text,le.anchored_at
     FROM lifecycle_events le
