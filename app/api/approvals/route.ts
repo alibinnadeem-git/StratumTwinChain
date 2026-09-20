@@ -38,17 +38,21 @@ export async function POST(req:Request){
    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[body.lifecycleEventId]);
 
    const eventResult=await client.query<any>(`
-     SELECT le.*,
-       COALESCE(array_agg(ev.sha256 ORDER BY ev.sha256) FILTER (WHERE ev.id IS NOT NULL),ARRAY[]::text[]) evidence_hashes,
-       count(ev.id)::int evidence_count
-     FROM lifecycle_events le
-     LEFT JOIN evidence ev ON ev.lifecycle_event_id=le.id AND ev.organization_id=le.organization_id
-     WHERE le.id=$1 AND le.organization_id=$2
-     GROUP BY le.id
-     FOR UPDATE OF le
+     SELECT *
+     FROM lifecycle_events
+     WHERE id=$1 AND organization_id=$2
+     LIMIT 1
+     FOR UPDATE
    `,[body.lifecycleEventId,session.organizationId]);
    const event=eventResult.rows[0];
    if(!event)throw httpError('Lifecycle event not found',404);
+   const evidenceResult=await client.query<{sha256:string}>(`
+     SELECT sha256 FROM evidence
+     WHERE lifecycle_event_id=$1 AND organization_id=$2
+     ORDER BY sha256
+   `,[body.lifecycleEventId,session.organizationId]);
+   event.evidence_hashes=evidenceResult.rows.map(row=>row.sha256);
+   event.evidence_count=evidenceResult.rows.length;
 
    if(event.status==='VERIFIED'||event.status==='FINALIZED'){
     const receipt=await client.query<any>(`SELECT network,tx_hash,block_height::text,anchored_at FROM ledger_records WHERE organization_id=$1 AND lifecycle_event_id=$2 LIMIT 1`,[session.organizationId,body.lifecycleEventId]);
