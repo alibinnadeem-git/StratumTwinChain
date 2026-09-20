@@ -1,6 +1,7 @@
 import {cookies} from 'next/headers';
 import {SignJWT,jwtVerify} from 'jose';
 import {query} from './db';
+import {resolveAuthRuntime} from './runtime-config';
 
 export type SessionRole='SUPER_ADMIN'|'ORG_ADMIN'|'PROJECT_MANAGER'|'TECHNICIAN'|'CLIENT'|'INSPECTOR'|'VIEWER';
 export type Session={userId:string;email:string;organizationId:string;role:SessionRole};
@@ -9,9 +10,9 @@ type SessionClaims=Session&{sessionVersion:number};
 const COOKIE='stratum_session';
 
 function key(){
- const secret=process.env.AUTH_SECRET;
- if(!secret||secret.length<32)throw new Error('AUTH_SECRET must be at least 32 characters');
- return new TextEncoder().encode(secret);
+ const runtime=resolveAuthRuntime();
+ if(!runtime)throw new Error('No supported session signing secret is configured');
+ return runtime.key;
 }
 
 async function canonicalSession(userId:string,organizationId:string){

@@ -35,6 +35,18 @@ ok('title-block result cannot enable alignment',labeled.alignmentEligible===fals
 ok('parsed drawing scale cannot become geometry authority',labeled.geometryScaleAuthority===false);
 ok('strong labeled fixture has useful confidence',labeled.confidence>=.7);
 
+const audiPacific=extractSheetIdentity({page:1,sourceName:'Audi Pacific E4.0.pdf',sourceSha256:'c6b4c02f0b97d6eef947ff57f6863eddd16a6f769c13777af42e113905ded35c',pageWidthPoints:3024,pageHeightPoints:2160,items:[
+ {text:'FIRST FLOOR - POWER PLAN',x:.72,y:.8,width:.22,height:.04},
+ {text:'E4.0',x:.9,y:.9,width:.06,height:.03},
+ {text:'19 Dec. 2023',x:.81,y:.87,width:.1,height:.02},
+ {text:'Audi Pacific',x:.64,y:.76,width:.12,height:.03},
+]});
+ok('Audi Pacific title resolves electrical sheet number',audiPacific.sheetNumber.value==='E4.0');
+ok('Audi Pacific day-first issue date is recognized',audiPacific.issueDate.value==='19 Dec. 2023');
+ok('Audi Pacific power-plan title resolves discipline',audiPacific.discipline.value==='Electrical');
+ok('Audi Pacific first-floor title resolves L1 candidate',audiPacific.floor.value==='L1');
+ok('real drawing identity remains review-only and non-authoritative',audiPacific.reviewRequired===true&&audiPacific.alignmentEligible===false&&audiPacific.geometryScaleAuthority===false);
+
 const standalone=extractSheetIdentity({page:1,sourceName:'architectural.pdf',sourceSha256:'b'.repeat(64),pageWidthPoints:700,pageHeightPoints:1000,items:[
  {text:'A101',x:.88,y:.86,width:.07,height:.03},
  {text:'FIRST FLOOR ARCHITECTURAL PLAN',x:.62,y:.8,width:.28,height:.04},

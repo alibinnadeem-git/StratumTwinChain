@@ -23,6 +23,13 @@ await writeFile(moduleUrl, ts.transpileModule(source, {compilerOptions: {
 }}).outputText);
 try {
   const c = await import(moduleUrl.href);
+  assert.equal(c.inferPdfPageFloor(['FIRST FLOOR - POWER PLAN']),'L1');
+  assert.equal(c.inferPdfPageFloor(['SECOND FLOOR – LIGHTING PLAN']),'L2');
+  assert.equal(c.inferPdfPageFloor(['LEVEL 3 ELECTRICAL POWER PLAN']),'L3');
+  assert.equal(c.inferPdfPageFloor(['ROOF PLAN']),'ROOF');
+  assert.equal(c.inferPdfPageFloor(['FIRST FLOOR - POWER PLAN','SECOND FLOOR PLAN']),'UNRESOLVED');
+  assert.equal(c.inferPdfPageFloor(['GENERAL NOTES']),'UNRESOLVED');
+  console.log('✓ real-world PDF floor-plan titles resolve only when source hints agree');
   const label = {id:'pdf-1-0', source:'same.pdf', floor:'L1', layer:'L1', kind:'room-label',
     name:'Electrical room', x:0,y:0,z:0,confidence:.7,meta:{page:1}};
   const asset = {...label,id:'pdf-1-1',layer:'L2',kind:'text-asset-candidate',name:'Panel A'};
