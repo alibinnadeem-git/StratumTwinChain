@@ -33,10 +33,9 @@ export type SpatialAssetBinding={
 const text=(value:unknown)=>typeof value==='string'?value.trim():'';
 const upper=(value:string)=>value.trim().toUpperCase();
 const normalizeName=(value:string)=>value.toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim();
-const escaped=(value:string)=>value.replace(/[.*+?^$\\{\\}()|[\\]\\\\]/g,'\\\\$&');
 const containsIdentifier=(label:string,identifier:string)=>{
- const id=identifier.trim();if(!id)return false;
- return new RegExp(`(^|[^A-Z0-9])\${escaped(id.toUpperCase())}([^A-Z0-9]|$)`).test(label.toUpperCase());
+ const id=normalizeName(identifier);if(!id)return false;
+ return (' '+normalizeName(label)+' ').includes(' '+id+' ');
 };
 const firstMeta=(entity:SpatialAssetEntity,keys:string[])=>{for(const key of keys){const value=text(entity.meta?.[key]);if(value)return value}return''};
 
