@@ -85,6 +85,29 @@ export async function probeDirRpc():Promise<DirRpcStatus>{
  }
 }
 
+
+export type DirExplorerSnapshot={
+ state:{chain_id:string;height:string;latest_block_hash:string;genesis_hash:string;updated_at:string}|null;
+ blocks:Array<{
+  height:string;block_hash:string;prev_hash:string;tx_hash:string;proposer_validator_id:string;finalized_at:string;votes_json:unknown;
+  record_id:string|null;event_type:string|null;asset_id:string|null;evidence_hash:string|null;payload_hash:string|null;
+ }>;
+};
+
+export async function fetchDirExplorer(limit=25):Promise<DirExplorerSnapshot>{
+ const rpc=(process.env.STRATUM_CHAIN_RPC_URL||'').trim().replace(/\/$/,'');
+ if(!rpc)throw Object.assign(new Error('DIR RPC is not configured'),{status:503});
+ const url=new URL(rpc+'/v1/explorer');url.searchParams.set('limit',String(Math.max(1,Math.min(100,limit))));
+ const response=await fetch(url,{
+  headers:process.env.STRATUM_CHAIN_API_KEY?{'authorization':`Bearer ${process.env.STRATUM_CHAIN_API_KEY}`}:{},
+  cache:'no-store',
+  signal:AbortSignal.timeout(4500),
+ });
+ if(!response.ok)throw Object.assign(new Error(`STRATUM DIR explorer failed: ${response.status}`),{status:503});
+ const body=await response.json() as DirExplorerSnapshot;
+ return{state:body.state||null,blocks:Array.isArray(body.blocks)?body.blocks:[]};
+}
+
 export function getLedger():LedgerAdapter{
  const rpc=(process.env.STRATUM_CHAIN_RPC_URL||'').trim();
  if(rpc)return new StratumChainRpcAdapter(rpc,process.env.STRATUM_CHAIN_ID||'stratum-devnet-1',process.env.STRATUM_CHAIN_API_KEY);
