@@ -66,4 +66,15 @@ assert.match(readiness,/table_schema='public'/);
 assert.doesNotMatch(readiness,/INSERT|UPDATE|DELETE|ALTER|DROP|TRUNCATE/i);
 console.log('✓ database readiness probe is read-only schema inspection');
 
+const liveViews=fs.readFileSync('lib/server/live-views.ts','utf8');
+const chainRuntime=fs.readFileSync('lib/server/chain.ts','utf8');
+assert.match(liveViews,/fetchDirExplorer\(25\)/,'DIR explorer must read from Validator A authority');
+assert.doesNotMatch(liveViews,/sv_chain_(state|transactions|blocks|votes)/,'application live views must not read duplicate validator chain tables');
+assert.match(chainRuntime,/\/v1\/explorer/);
+assert.match(chainRuntime,/\/stratum\/povi\/v1\/records/);
+assert.match(chainRuntime,/required 3-of-3 PoVI compatibility quorum/);
+console.log('✓ application tenant database and validator chain authority are explicitly separated');
+
+
+
 console.log('\nDatabase and server-backed persistence readiness contract passed.');
