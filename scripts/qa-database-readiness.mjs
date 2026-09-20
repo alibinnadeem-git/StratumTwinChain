@@ -10,6 +10,7 @@ assert.equal(full.evidenceReady,true);
 assert.equal(full.archiveReady,true);
 assert.equal(full.spatialPersistenceReady,true);
 assert.equal(full.attestationsReady,true);
+assert.equal(full.dirRuntimeReady,true);
 assert.equal(full.missingTables.length,0);
 console.log('✓ complete canonical table set reports all database capabilities ready');
 
@@ -26,6 +27,7 @@ const lifecycleMissing=summarizeDatabaseReadiness(withoutLifecycle);
 assert.equal(lifecycleMissing.lifecycleReady,false);
 assert.equal(lifecycleMissing.evidenceReady,false);
 assert.equal(lifecycleMissing.attestationsReady,false);
+assert.equal(lifecycleMissing.dirRuntimeReady,false);
 assert.equal(lifecycleMissing.spatialPersistenceReady,true);
 console.log('✓ lifecycle absence blocks lifecycle-dependent capabilities while independent Spatial persistence remains measurable');
 
@@ -41,6 +43,9 @@ assert.ok(DATABASE_CAPABILITY_TABLES.spatialPersistence.includes('spatial_compil
 assert.ok(DATABASE_CAPABILITY_TABLES.spatialPersistence.includes('spatial_compilation_reviews'));
 assert.ok(DATABASE_CAPABILITY_TABLES.attestations.includes('human_attestations'));
 assert.ok(DATABASE_CAPABILITY_TABLES.archive.includes('asset_archive_events'));
+assert.ok(DATABASE_CAPABILITY_TABLES.dirRuntime.includes('sv_chain_transactions'));
+assert.ok(DATABASE_CAPABILITY_TABLES.dirRuntime.includes('sv_chain_blocks'));
+assert.ok(DATABASE_CAPABILITY_TABLES.dirRuntime.includes('approval_policies'));
 console.log('✓ post-baseline Spatial, attestation and archive migrations are part of readiness');
 
 const health=fs.readFileSync('app/api/health/route.ts','utf8');
