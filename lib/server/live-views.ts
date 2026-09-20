@@ -1,5 +1,6 @@
 import {query} from './db';
 import {requireSession} from './auth';
+import {fetchDirExplorer} from './chain';
 
 export type LiveAssetRow={
   id:string;
@@ -137,9 +138,5 @@ export async function publicEvidence(assetId:string){
 }
 
 export async function recentChain(){
-  const [state,blocks]=await Promise.all([
-    query<any>(`SELECT chain_id,height::text,latest_block_hash,genesis_hash,updated_at FROM sv_chain_state WHERE chain_id=$1`,[process.env.STRATUM_CHAIN_ID||'stratum-devnet-1']),
-    query<any>(`SELECT b.height::text,b.block_hash,b.prev_hash,b.tx_hash,b.proposer_validator_id,b.finalized_at,b.votes_json,t.record_id,t.event_type,t.asset_id,t.evidence_hash,t.payload_hash FROM sv_chain_blocks b LEFT JOIN sv_chain_transactions t ON t.chain_id=b.chain_id AND t.tx_hash=b.tx_hash WHERE b.chain_id=$1 ORDER BY b.height DESC LIMIT 25`,[process.env.STRATUM_CHAIN_ID||'stratum-devnet-1'])
-  ]);
-  return {state:state.rows[0]||null,blocks:blocks.rows};
+  return fetchDirExplorer(25);
 }
