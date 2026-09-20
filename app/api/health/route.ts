@@ -23,7 +23,7 @@ export async function GET(){
    probeStatus='UNREACHABLE';
   }
  }
- const liveDataReady=authConfigured&&databaseReachable&&Boolean(schema?.coreReady&&schema.lifecycleReady);
+ const liveDataReady=authConfigured&&databaseReachable&&Boolean(schema?.coreReady&&schema.lifecycleReady&&schema.dirRuntimeReady);
  const mode=!databaseConfigured&&!authConfigured?'REFERENCE':liveDataReady?'LIVE_READY':'LIVE_INCOMPLETE';
  return Response.json({
   ok:true,
