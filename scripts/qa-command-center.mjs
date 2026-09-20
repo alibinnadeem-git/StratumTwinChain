@@ -19,7 +19,7 @@ const checks=[
  ['home page has an explicit unavailable-backend reference mode',page.includes('REFERENCE_UNAVAILABLE')&&page.includes('Live service unavailable')&&page.includes('Reference data is shown temporarily')],
  ['authenticated path uses tenant snapshot and active tenant assets',page.includes('commandCenterSnapshot()')&&page.includes('liveAssets()')],
  ['live empty tenant remains explicitly empty',page.includes('No active STRATUM Assets')&&page.includes('has no active registered assets yet')],
- ['task-first home exposes drawing, model, scan and asset work',launcher.includes('Start from a drawing')&&launcher.includes('Review the model')&&launcher.includes('Scan & inspect an asset')&&launcher.includes('Find an asset')],
+ ['task-first home exposes drawing, model, scan and asset work',launcher.includes('Import project sources')&&launcher.includes('Review Spatial & assets')&&launcher.includes('Update equipment in the field')&&launcher.includes('Passport & DIR history')],
  ['primary navigation keeps advanced tools progressively disclosed',shell.includes('primaryTasks')&&shell.includes('More tools')&&shell.includes('nav-more')],
  ['command center does not claim PoVI verification from demo or DIR presence',!page.includes('POVI_VERIFIED')],
  ['compact reference passport has no unconditional VERIFIED seal',!referencePassport.includes('✓ VERIFIED')&&!referencePassport.includes('STRATUM Verified Asset Passport')],
