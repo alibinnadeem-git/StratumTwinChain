@@ -3,7 +3,7 @@ BEGIN;
 -- Application-side DIR governance support.
 -- Canonical PoVI consensus state (sv_chain_*) is intentionally NOT stored in the
 -- STRATUM Spatial Verified application database. Validator A/B/C remain the
--- authority for chain state; this database stores tenant records, approvals and
+-- authority for chain state and this database stores tenant records, approvals and
 -- finalized ledger references only.
 
 CREATE UNIQUE INDEX IF NOT EXISTS approvals_one_decision_per_approver
