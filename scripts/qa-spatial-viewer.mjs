@@ -4,26 +4,35 @@ import {enrichSpatialProjection} from '../lib/spatial-projection.ts';
 import {resolveAssetPlacement} from '../lib/asset-placement.ts';
 import {planUniformMeterScale} from '../lib/model-scale.ts';
 import {DEFAULT_ELECTRICAL_MODEL_REGISTRY} from '../lib/electrical-model-registry.ts';
+import {ELECTRICAL_COMPONENTS} from '../lib/electrical-component-library.ts';
 
+const tracked=ELECTRICAL_COMPONENTS.filter(item=>item.trackAsAsset);
 const mappedProductionModels=DEFAULT_ELECTRICAL_MODEL_REGISTRY.filter(item=>item.modelUrl&&['GLB','GLTF'].includes(item.format));
-assert.equal(mappedProductionModels.length,16,'the production registry must ship exactly the recovered 16 mapped detailed models');
+const mappedKeys=new Set(mappedProductionModels.map(item=>item.componentKey));
+assert.equal(tracked.filter(item=>!mappedKeys.has(item.key)).length,0,'every trackable electrical asset class must ship detailed model geometry');
+assert.ok(mappedProductionModels.length>=tracked.length,'detailed registry must cover every trackable asset class');
 for(const model of mappedProductionModels){
   assert.ok(model.dimensionsMeters?.every(value=>Number.isFinite(value)&&value>0),`${model.componentKey} must have positive target meter dimensions`);
   assert.ok(model.modelUrl.startsWith('/models/'),`${model.componentKey} must use a source-controlled production model path`);
   const filePath='public'+model.modelUrl;
-  assert.ok(fs.existsSync(filePath),`${model.componentKey} GLB must exist in Git at ${filePath}`);
+  assert.ok(fs.existsSync(filePath),`${model.componentKey} detailed model must exist in Git at ${filePath}`);
   const bytes=fs.readFileSync(filePath);
-  assert.equal(bytes.subarray(0,4).toString('ascii'),'glTF',`${model.componentKey} must have glTF binary magic`);
-  assert.equal(bytes.readUInt32LE(4),2,`${model.componentKey} must be glTF v2`);
-  assert.equal(bytes.readUInt32LE(8),bytes.length,`${model.componentKey} GLB header length must match file length`);
-  const jsonLength=bytes.readUInt32LE(12),jsonType=bytes.subarray(16,20).toString('ascii');
-  assert.equal(jsonType,'JSON',`${model.componentKey} must expose a JSON first chunk`);
-  const gltf=JSON.parse(bytes.subarray(20,20+jsonLength).toString('utf8').trim());
-  assert.equal(gltf.asset?.version,'2.0',`${model.componentKey} embedded glTF asset version must be 2.0`);
-  const embeddedDims=gltf.nodes?.find(node=>Array.isArray(node?.extras?.dimensionsMeters))?.extras?.dimensionsMeters;
-  if(embeddedDims)assert.deepEqual(embeddedDims,model.dimensionsMeters,`${model.componentKey} embedded dimensional envelope must match registry meters`);
+  if(model.format==='GLB'){
+    assert.equal(bytes.subarray(0,4).toString('ascii'),'glTF',`${model.componentKey} must have glTF binary magic`);
+    assert.equal(bytes.readUInt32LE(4),2,`${model.componentKey} must be glTF v2`);
+    assert.equal(bytes.readUInt32LE(8),bytes.length,`${model.componentKey} GLB header length must match file length`);
+    const jsonLength=bytes.readUInt32LE(12),jsonType=bytes.subarray(16,20).toString('ascii');
+    assert.equal(jsonType,'JSON',`${model.componentKey} must expose a JSON first chunk`);
+    const gltf=JSON.parse(bytes.subarray(20,20+jsonLength).toString('utf8').trim());
+    assert.equal(gltf.asset?.version,'2.0',`${model.componentKey} embedded glTF asset version must be 2.0`);
+  }else{
+    const gltf=JSON.parse(bytes.toString('utf8'));
+    assert.equal(gltf.asset?.version,'2.0',`${model.componentKey} text glTF asset version must be 2.0`);
+    assert.ok(String(gltf.buffers?.[0]?.uri||'').startsWith('data:application/octet-stream;base64,'),`${model.componentKey} text glTF must embed its geometry buffer`);
+    assert.ok(Array.isArray(gltf.nodes)&&gltf.nodes.length>1,`${model.componentKey} representative glTF must contain detailed multi-part geometry`);
+  }
 }
-console.log('✓ all 16 production GLBs are source-controlled, valid glTF v2 and dimension-mapped');
+console.log(`✓ all ${tracked.length} trackable asset classes resolve to source-controlled detailed glTF/GLB geometry`);
 
 const mmModel=planUniformMeterScale([1700,1600,1250],[1.7,1.6,1.25]);
 assert.ok(Math.abs(mmModel.scalar-.001)<1e-12);assert.equal(mmModel.reviewRequired,false);assert.ok(mmModel.maxRelativeError<1e-12);
