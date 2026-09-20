@@ -1,10 +1,10 @@
 import Link from 'next/link';
 
 const tasks=[
- {href:'/compiler',step:'1',title:'Start from a drawing',description:'Upload a PDF or DXF and review the Spatial model that STRATUM creates.',action:'Upload & review'},
- {href:'/spatial',step:'2',title:'Review the model',description:'Check rooms, equipment, electrical relationships and anything that still needs human review.',action:'Open model'},
- {href:'/scan',step:'3',title:'Scan & inspect an asset',description:'Scan the asset code, confirm the correct equipment, then capture field evidence.',action:'Start scan'},
- {href:'/assets',step:'4',title:'Find an asset',description:'Open an Asset Passport to see identity, lifecycle, evidence and trust history in one place.',action:'Find asset'}
+ {href:'/compiler',step:'1',title:'Import project sources',description:'Upload PDF, CAD, BIM, imagery or 3D sources. Review only the exceptions STRATUM cannot safely resolve.',action:'Import & review'},
+ {href:'/spatial',step:'2',title:'Review Spatial & assets',description:'Inspect the compiled model, link equipment to registered assets, and see activity, QR identity and DIR state on click.',action:'Open Spatial'},
+ {href:'/scan',step:'3',title:'Update equipment in the field',description:'Scan the printed asset QR, confirm the equipment, then capture inspection or maintenance evidence.',action:'Scan asset'},
+ {href:'/assets',step:'4',title:'Passport & DIR history',description:'Open an Asset Passport for lifecycle history, evidence, printable QR and finalized DIR details.',action:'Open passports'}
 ] as const;
 
 export default function TaskLauncher(){

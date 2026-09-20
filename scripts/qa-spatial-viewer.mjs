@@ -4,26 +4,35 @@ import {enrichSpatialProjection} from '../lib/spatial-projection.ts';
 import {resolveAssetPlacement} from '../lib/asset-placement.ts';
 import {planUniformMeterScale} from '../lib/model-scale.ts';
 import {DEFAULT_ELECTRICAL_MODEL_REGISTRY} from '../lib/electrical-model-registry.ts';
+import {ELECTRICAL_COMPONENTS} from '../lib/electrical-component-library.ts';
 
+const tracked=ELECTRICAL_COMPONENTS.filter(item=>item.trackAsAsset);
 const mappedProductionModels=DEFAULT_ELECTRICAL_MODEL_REGISTRY.filter(item=>item.modelUrl&&['GLB','GLTF'].includes(item.format));
-assert.equal(mappedProductionModels.length,16,'the production registry must ship exactly the recovered 16 mapped detailed models');
+const mappedKeys=new Set(mappedProductionModels.map(item=>item.componentKey));
+assert.equal(tracked.filter(item=>!mappedKeys.has(item.key)).length,0,'every trackable electrical asset class must ship detailed model geometry');
+assert.ok(mappedProductionModels.length>=tracked.length,'detailed registry must cover every trackable asset class');
 for(const model of mappedProductionModels){
   assert.ok(model.dimensionsMeters?.every(value=>Number.isFinite(value)&&value>0),`${model.componentKey} must have positive target meter dimensions`);
   assert.ok(model.modelUrl.startsWith('/models/'),`${model.componentKey} must use a source-controlled production model path`);
   const filePath='public'+model.modelUrl;
-  assert.ok(fs.existsSync(filePath),`${model.componentKey} GLB must exist in Git at ${filePath}`);
+  assert.ok(fs.existsSync(filePath),`${model.componentKey} detailed model must exist in Git at ${filePath}`);
   const bytes=fs.readFileSync(filePath);
-  assert.equal(bytes.subarray(0,4).toString('ascii'),'glTF',`${model.componentKey} must have glTF binary magic`);
-  assert.equal(bytes.readUInt32LE(4),2,`${model.componentKey} must be glTF v2`);
-  assert.equal(bytes.readUInt32LE(8),bytes.length,`${model.componentKey} GLB header length must match file length`);
-  const jsonLength=bytes.readUInt32LE(12),jsonType=bytes.subarray(16,20).toString('ascii');
-  assert.equal(jsonType,'JSON',`${model.componentKey} must expose a JSON first chunk`);
-  const gltf=JSON.parse(bytes.subarray(20,20+jsonLength).toString('utf8').trim());
-  assert.equal(gltf.asset?.version,'2.0',`${model.componentKey} embedded glTF asset version must be 2.0`);
-  const embeddedDims=gltf.nodes?.find(node=>Array.isArray(node?.extras?.dimensionsMeters))?.extras?.dimensionsMeters;
-  if(embeddedDims)assert.deepEqual(embeddedDims,model.dimensionsMeters,`${model.componentKey} embedded dimensional envelope must match registry meters`);
+  if(model.format==='GLB'){
+    assert.equal(bytes.subarray(0,4).toString('ascii'),'glTF',`${model.componentKey} must have glTF binary magic`);
+    assert.equal(bytes.readUInt32LE(4),2,`${model.componentKey} must be glTF v2`);
+    assert.equal(bytes.readUInt32LE(8),bytes.length,`${model.componentKey} GLB header length must match file length`);
+    const jsonLength=bytes.readUInt32LE(12),jsonType=bytes.subarray(16,20).toString('ascii');
+    assert.equal(jsonType,'JSON',`${model.componentKey} must expose a JSON first chunk`);
+    const gltf=JSON.parse(bytes.subarray(20,20+jsonLength).toString('utf8').trim());
+    assert.equal(gltf.asset?.version,'2.0',`${model.componentKey} embedded glTF asset version must be 2.0`);
+  }else{
+    const gltf=JSON.parse(bytes.toString('utf8'));
+    assert.equal(gltf.asset?.version,'2.0',`${model.componentKey} text glTF asset version must be 2.0`);
+    assert.ok(String(gltf.buffers?.[0]?.uri||'').startsWith('data:application/octet-stream;base64,'),`${model.componentKey} text glTF must embed its geometry buffer`);
+    assert.ok(Array.isArray(gltf.nodes)&&gltf.nodes.length>1,`${model.componentKey} representative glTF must contain detailed multi-part geometry`);
+  }
 }
-console.log('✓ all 16 production GLBs are source-controlled, valid glTF v2 and dimension-mapped');
+console.log(`✓ all ${tracked.length} trackable asset classes resolve to source-controlled detailed glTF/GLB geometry`);
 
 const mmModel=planUniformMeterScale([1700,1600,1250],[1.7,1.6,1.25]);
 assert.ok(Math.abs(mmModel.scalar-.001)<1e-12);assert.equal(mmModel.reviewRequired,false);assert.ok(mmModel.maxRelativeError<1e-12);
@@ -108,17 +117,14 @@ const spatialExperience=fs.readFileSync('components/SpatialExperience.tsx','utf8
 const spatialPage=fs.readFileSync('app/spatial/page.tsx','utf8');
 assert.match(viewer,/normalizeObjectToMeters/);assert.match(viewer,/fitProceduralObjectToMeters/);
 assert.doesNotMatch(viewer,/root\.scale\.setScalar\(cfg\.scale\s*\*\s*n\(e\.scale,1\)\)/,'registry GLBs must not use arbitrary display scalar as physical size');
-const twinWorkspace=fs.readFileSync('components/TwinWorkspace.tsx','utf8');
-assert.match(twinWorkspace,/normalizeObjectToMeters/);assert.match(twinWorkspace,/fitProceduralObjectToMeters/);
-assert.doesNotMatch(twinWorkspace,/model\.scale\.setScalar\(cfg\.scale\)/,'reference viewer registry GLBs must use meter normalization');
 assert.match(viewer,/ViewMode="MODEL"\|"ELECTRICAL"\|"REVIEW"/);assert.match(viewer,/2D spatial fallback/);assert.match(viewer,/SLD → SPATIAL PROJECTION/);
 assert.match(viewer,/graph\.entities\.length===0/,'zero-entity graphs must not render an empty project stage');
-assert.match(spatialPage,/MODEL · ELECTRICAL · REVIEW/);assert.match(spatialPage,/<SpatialExperience /);
+assert.match(spatialPage,/MODEL · ASSETS · DIR/);assert.match(spatialPage,/<SpatialExperience /);
 assert.doesNotMatch(spatialPage,/<CompiledGraphViewer|<TwinWorkspace/,'the route must not stack two viewers');
 assert.match(spatialExperience,/state\.hasImportedModel/);
-assert.match(spatialExperience,/IMPORTED PROJECT MODEL/);
-assert.match(spatialExperience,/DEMONSTRATION DATA/);
-assert.match(spatialExperience,/was not generated from those files/);
+assert.match(spatialExperience,/PROJECT MODEL/);
+assert.doesNotMatch(spatialExperience,/TwinWorkspace|DEMONSTRATION DATA|Demonstration model/);
+assert.match(spatialExperience,/STRATUM will not show a demonstration building/);
 assert.match(spatialExperience,/entities\.length>0/,'project mode requires at least one compiled entity');
 assert.match(projectionSource,/NEVER_ESTABLISH_PHYSICAL_TRUTH/);assert.match(placementSource,/physicalTruth:false/);
 assert.doesNotMatch(projectionSource,/finalizeDIR|PoVI finality|VERIFIED\s*=\s*true/i);

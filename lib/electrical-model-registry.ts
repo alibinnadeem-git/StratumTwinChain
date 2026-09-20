@@ -42,6 +42,60 @@ const PRODUCTION_MODEL_DEFAULTS:Record<string,Partial<ElectricalModelConfig>>={
   'evse-tesla-supercharger-v3':{modelUrl:'/models/oem/tesla-supercharger-v3-community.glb',dimensionsMeters:[.82,1.73,.23],dimensionsConfidence:.8,dimensionsSource:'Model-space bounds; field dimensions require project verification',source:'Sketchfab community model via TeslaHub',sourceUrl:'https://sketchfab.com/3d-models/tesla-super-charger-low-poly-b9fc975778f542babbb2e861d32b1acd',license:'CC BY 4.0',attribution:'“Tesla Super Charger (low-poly)” by Suyog modak, modified for TeslaHub and reused under CC BY 4.0.',geometryStatus:'LICENSED_COMMUNITY',notes:'Licensed community visualization, not proprietary Tesla CAD. Verify field dimensions before engineering use.'},
 };
 
+
+function representative(
+  modelUrl:string,
+  dimensionsMeters:[number,number,number],
+  dimensionsSource:string,
+  notes:string,
+  format:ElectricalModelFormat='GLTF',
+):Partial<ElectricalModelConfig>{
+ return{
+  format,modelUrl,dimensionsMeters,dimensionsConfidence:.45,dimensionsSource,
+  source:'STRATUM representative equipment family pack',
+  license:'STRATUM-authored geometry',
+  geometryStatus:'DIMENSIONAL_VISUALIZATION',
+  notes
+ };
+}
+
+const REPRESENTATIVE_FAMILY_DEFAULTS:Record<string,Partial<ElectricalModelConfig>>={
+ 'utility-transformer':representative('/models/equipment/pad-mount-transformer.glb',[1.45,1.54,1.391],'Representative utility transformer envelope; replace with utility/OEM data','Uses the detailed pad-mounted transformer family as a visual proxy.','GLB'),
+ 'utility-switchgear':representative('/models/equipment/main-switchboard.glb',[2.4,2.12,.72],'Representative utility switchgear lineup; replace with utility/OEM data','Detailed multi-section metal-enclosed equipment family visualization.','GLB'),
+ 'metering-cabinet':representative('/models/equipment/panelboard-representative.gltf',[.65,1.2,.22],'Representative metering cabinet envelope; replace with utility schedule','Detailed wall/floor enclosure family; meter arrangement remains project-specific.'),
+ 'service-entrance':representative('/models/equipment/main-switchboard.glb',[2.4,2.12,.72],'Representative service-entrance lineup; replace with approved equipment schedule','Detailed switchboard-family visualization for service equipment.','GLB'),
+ 'distribution-panel':representative('/models/equipment/panelboard-representative.gltf',[.65,1.2,.22],'Representative distribution panel envelope; replace with OEM submittal','Detailed panel enclosure with door, breaker rows and operating handle.'),
+ panelboard:representative('/models/equipment/panelboard-representative.gltf',[.65,1.2,.22],'Representative panelboard envelope; replace with OEM submittal','Detailed panel enclosure with visible breaker rows.'),
+ 'lv-switchboard':representative('/models/equipment/main-switchboard.glb',[2.4,2.12,.72],'Representative LV switchboard lineup; replace with OEM submittal','Detailed multi-section switchboard family visualization.','GLB'),
+ busduct:representative('/models/equipment/busway-representative.gltf',[3,.9,.85],'Representative busway segment envelope; length is project-configurable','Detailed busway section with joints, tap box and hangers.'),
+ acb:representative('/models/equipment/breaker-enclosure-representative.gltf',[.45,.75,.22],'Representative breaker enclosure; breaker frame/rating remains project data','Detailed circuit-breaker enclosure family visualization.'),
+ mccb:representative('/models/equipment/breaker-enclosure-representative.gltf',[.38,.62,.2],'Representative MCCB enclosure; replace with OEM dimensions','Detailed circuit-breaker enclosure family visualization.'),
+ 'fused-switch':representative('/models/equipment/breaker-enclosure-representative.gltf',[.45,.75,.22],'Representative fused-switch enclosure; replace with OEM dimensions','Detailed switching enclosure family visualization.'),
+ spd:representative('/models/equipment/breaker-enclosure-representative.gltf',[.32,.48,.18],'Representative SPD enclosure; replace with OEM dimensions','Detailed protective-device enclosure family visualization.'),
+ 'isolation-transformer':representative('/models/equipment/dry-type-transformer.glb',[1.35,1.485,.882],'Representative isolation transformer envelope; replace with OEM data','Uses detailed dry-type transformer family geometry.','GLB'),
+ autotransformer:representative('/models/equipment/dry-type-transformer.glb',[1.35,1.485,.882],'Representative autotransformer envelope; replace with OEM data','Uses detailed dry-type transformer family geometry.','GLB'),
+ 'instrument-transformer':representative('/models/equipment/oil-filled-transformer.glb',[1.1,1.4,.8],'Representative CT/PT assembly envelope; replace with utility/OEM data','Transformer-family visualization; CT/PT arrangement remains source-specific.','GLB'),
+ 'load-center':representative('/models/equipment/panelboard-representative.gltf',[.5,.9,.18],'Representative load-center envelope; replace with OEM data','Detailed panel enclosure family visualization.'),
+ disconnect:representative('/models/equipment/breaker-enclosure-representative.gltf',[.45,.75,.22],'Representative safety-switch enclosure; replace with OEM data','Detailed disconnect enclosure with operating handle.'),
+ 'motor-starter':representative('/models/equipment/panelboard-representative.gltf',[.55,.9,.25],'Representative motor-starter enclosure; replace with OEM data','Detailed starter/control enclosure family visualization.'),
+ 'lighting-control':representative('/models/equipment/panelboard-representative.gltf',[.65,1.2,.22],'Representative lighting-control enclosure; replace with OEM data','Detailed control-panel family visualization.'),
+ vfd:representative('/models/equipment/inverter-representative.gltf',[.55,.85,.25],'Representative VFD envelope; replace with drive submittal','Detailed power-electronics enclosure with display, status and ventilation.'),
+ 'soft-starter':representative('/models/equipment/inverter-representative.gltf',[.55,.85,.25],'Representative soft-starter envelope; replace with OEM data','Detailed motor-control electronics enclosure family visualization.'),
+ 'dc-power':representative('/models/equipment/uninterruptible-power-supply.glb',[.96,1.84,.793],'Representative DC power cabinet; replace with OEM data','Uses detailed power-conversion cabinet family geometry.','GLB'),
+ 'data-cabinet':representative('/models/equipment/data-rack-representative.gltf',[.8,2,1],'Representative 42U-style data rack envelope; replace with approved rack schedule','Detailed rack with frame and equipment faces.'),
+ 'fire-alarm':representative('/models/equipment/panelboard-representative.gltf',[.5,.8,.18],'Representative fire-alarm control enclosure; replace with OEM data','Detailed control-panel enclosure family; device face remains representative.'),
+ 'security-panel':representative('/models/equipment/panelboard-representative.gltf',[.45,.7,.18],'Representative security-panel enclosure; replace with OEM data','Detailed control-panel enclosure family visualization.'),
+ 'access-control':representative('/models/equipment/panelboard-representative.gltf',[.45,.7,.18],'Representative access-control enclosure; replace with OEM data','Detailed control-panel enclosure family visualization.'),
+ intercom:representative('/models/equipment/data-rack-representative.gltf',[.8,2,1],'Representative PA/intercom rack; replace with approved equipment schedule','Detailed communications-rack family visualization.'),
+ 'solar-inverter':representative('/models/equipment/inverter-representative.gltf',[.55,.85,.25],'Representative solar inverter envelope; replace with OEM data','Detailed inverter enclosure with display, status and ventilation.'),
+ combiner:representative('/models/equipment/breaker-enclosure-representative.gltf',[.5,.7,.22],'Representative PV combiner enclosure; replace with OEM data','Detailed outdoor electrical-enclosure family visualization.'),
+ 'pv-array':representative('/models/equipment/pv-array-representative.gltf',[3.4,2.1,2.1],'Representative four-module PV array segment; project geometry controls total array size','Detailed tilted module/rail visualization for spatial context.'),
+ evse:representative('/models/oem/delta-dc-wallbox-50kw.glb',[.65,1.02,.25],'Representative EVSE envelope; bind manufacturer/model for authoritative dimensions','Uses a detailed DC wallbox family only as a generic EVSE visual proxy.','GLB'),
+ 'charging-panel':representative('/models/equipment/panelboard-representative.gltf',[.65,1.2,.22],'Representative EV distribution panel; replace with OEM data','Detailed panelboard family visualization.'),
+ 'power-meter':representative('/models/equipment/power-meter-representative.gltf',[.24,.32,.14],'Representative multifunction power meter envelope; replace with OEM data','Detailed meter face with display and controls.'),
+ 'energy-meter':representative('/models/equipment/power-meter-representative.gltf',[.24,.32,.14],'Representative energy meter envelope; replace with OEM data','Detailed meter face with display and controls.'),
+};
+
 export const DEFAULT_ELECTRICAL_MODEL_REGISTRY:ElectricalModelConfig[]=ELECTRICAL_COMPONENTS.map(component=>({
   componentKey:component.key,
   format:'GLB',
@@ -53,7 +107,8 @@ export const DEFAULT_ELECTRICAL_MODEL_REGISTRY:ElectricalModelConfig[]=ELECTRICA
   source:'STRATUM procedural fallback',
   geometryStatus:'PROCEDURAL',
   notes:'',
-  ...PRODUCTION_MODEL_DEFAULTS[component.key],
+  ...(REPRESENTATIVE_FAMILY_DEFAULTS[component.key]||{}),
+  ...(PRODUCTION_MODEL_DEFAULTS[component.key]||{}),
 }));
 
 function tuple(value:unknown):[number,number,number]{

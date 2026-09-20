@@ -3,7 +3,7 @@
 import Link from "next/link";
 import {useEffect,useState} from "react";
 import CompiledGraphViewer from "@/components/CompiledGraphViewer";
-import TwinWorkspace,{type TwinAsset} from "@/components/TwinWorkspace";
+import {type RegisteredSpatialAsset} from "@/lib/spatial-asset-link";
 
 type ExperienceState={
   ready:boolean;
@@ -24,10 +24,7 @@ function inspectCompiledGraph():ExperienceState{
   }
 }
 
-export default function SpatialExperience({
-  assets,
-  referenceModelUrl,
-}:{assets:TwinAsset[];referenceModelUrl?:string}){
+export default function SpatialExperience({assets}:{assets:RegisteredSpatialAsset[]}){
   const [state,setState]=useState<ExperienceState>({ready:false,hasImportedModel:false,sourceCount:0});
 
   useEffect(()=>{
@@ -43,34 +40,25 @@ export default function SpatialExperience({
 
   if(!state.ready)return <section className="card" aria-live="polite">
     <div className="eyebrow">Spatial workspace</div>
-    <h2>Preparing the viewer…</h2>
+    <h2>Preparing the project workspace…</h2>
   </section>;
 
   if(state.hasImportedModel)return <section id="spatial-model" aria-label="Imported project spatial model">
     <div className="notice" style={{marginBottom:12,borderColor:"#2d7252"}}>
-      <strong>IMPORTED PROJECT MODEL</strong>
-      <span>This view is generated from your compiled engineering sources. Demonstration geometry is not mixed into project data.</span>
+      <strong>PROJECT MODEL</strong>
+      <span>This view is generated from your compiled engineering sources. Click equipment to inspect its registered asset, activity, QR identity and DIR state.</span>
     </div>
     <CompiledGraphViewer registeredAssets={assets}/>
   </section>;
 
-  return <section id="spatial-model" aria-label="Demonstration spatial workspace">
-    <div className="card" style={{marginBottom:12,borderColor:state.sourceCount?"#8b6530":"#245069"}}>
-      <div className="eyebrow">{state.sourceCount?"Compilation needs attention":"Reference workspace"}</div>
-      <h2 style={{margin:"4px 0"}}>{state.sourceCount?"Uploaded sources produced no spatial objects":"Demonstration model"}</h2>
-      <p className="subtitle" style={{margin:"6px 0 12px"}}>
-        {state.sourceCount
-          ?`${state.sourceCount} source file(s) were recorded, but no L1–L4 entities were compiled. The reference workspace below is for product demonstration only and was not generated from those files.`
-          :"The reference workspace below demonstrates navigation, object selection and asset interaction. It is not project evidence or an imported model."}
-      </p>
-      <div className="button-row">
-        <Link className="action" href="/compiler">{state.sourceCount?"Review source extraction":"Import engineering sources"}</Link>
-      </div>
-    </div>
-    <div className="notice" style={{marginBottom:12}}>
-      <strong>DEMONSTRATION DATA</strong>
-      <span>Reference geometry is isolated from imported project sources and cannot be registered or finalized as project truth.</span>
-    </div>
-    <TwinWorkspace assets={assets} referenceModelUrl={referenceModelUrl}/>
+  return <section className="card" aria-label="Spatial source required" style={{marginBottom:18}}>
+    <div className="eyebrow">{state.sourceCount?"Compilation needs attention":"Start with project sources"}</div>
+    <h2 style={{margin:"4px 0"}}>{state.sourceCount?"No spatial objects were produced yet":"Import before viewing Spatial"}</h2>
+    <p className="subtitle" style={{margin:"6px 0 12px"}}>
+      {state.sourceCount
+        ?state.sourceCount+" source file(s) are recorded, but no usable L1–L4 spatial objects exist yet. Review extraction and unresolved items before opening a model."
+        :"Upload PDF, CAD, BIM, image or 3D project sources first. STRATUM will not show a demonstration building in place of your project."}
+    </p>
+    <div className="button-row"><Link className="action" href="/compiler">{state.sourceCount?"Review source extraction":"Import engineering sources"}</Link></div>
   </section>;
 }

@@ -5,6 +5,7 @@ export const DATABASE_CAPABILITY_TABLES={
  archive:['organizations','users','memberships','projects','sites','assets','asset_archive_events'],
  spatialPersistence:['organizations','users','memberships','projects','sites','assets','spatial_compilations','spatial_compilation_reviews'],
  attestations:['organizations','users','memberships','projects','sites','assets','lifecycle_events','human_attestations'],
+ dirRuntime:['organizations','users','memberships','projects','sites','assets','lifecycle_events','approvals','ledger_records','approval_policies'],
 } as const;
 
 export const REQUIRED_DATABASE_TABLES=[...new Set(Object.values(DATABASE_CAPABILITY_TABLES).flat())].sort();
@@ -28,6 +29,7 @@ export type DatabaseReadiness={
  archiveReady:boolean;
  spatialPersistenceReady:boolean;
  attestationsReady:boolean;
+ dirRuntimeReady:boolean;
  fullSchemaReady:boolean;
 };
 
@@ -44,11 +46,12 @@ export function summarizeDatabaseReadiness(tableNames:string[]):DatabaseReadines
  const archiveReady=capabilityReady(present,'archive');
  const spatialPersistenceReady=capabilityReady(present,'spatialPersistence');
  const attestationsReady=capabilityReady(present,'attestations');
+ const dirRuntimeReady=capabilityReady(present,'dirRuntime');
  return{
   requiredTableCount:REQUIRED_DATABASE_TABLES.length,
   presentTableCount:REQUIRED_DATABASE_TABLES.length-missingTables.length,
   missingTables,
-  coreReady,lifecycleReady,evidenceReady,archiveReady,spatialPersistenceReady,attestationsReady,
+  coreReady,lifecycleReady,evidenceReady,archiveReady,spatialPersistenceReady,attestationsReady,dirRuntimeReady,
   fullSchemaReady:missingTables.length===0,
  };
 }

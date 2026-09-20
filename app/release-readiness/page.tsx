@@ -2,6 +2,7 @@ import Link from 'next/link';
 import {query} from '@/lib/server/db';
 import {DATABASE_READINESS_SQL,REQUIRED_DATABASE_TABLES,summarizeDatabaseReadiness,type DatabaseReadiness} from '@/lib/server/database-readiness';
 import {resolveAuthRuntime,resolveDatabaseRuntime} from '@/lib/server/runtime-config';
+import {probeDirRpc} from '@/lib/server/chain';
 
 export const dynamic='force-dynamic';
 
@@ -27,9 +28,11 @@ export default async function ReleaseReadinessPage(){
   }
  }
 
- const databaseReady=Boolean(databaseRuntime&&databaseReachable&&schema?.coreReady&&schema?.lifecycleReady);
+ const databaseReady=Boolean(databaseRuntime&&databaseReachable&&schema?.coreReady&&schema?.lifecycleReady&&schema?.dirRuntimeReady);
  const authReady=Boolean(authRuntime);
- const runtimeReady=databaseReady&&authReady;
+ const dirRpc=await probeDirRpc();
+ const chainReady=dirRpc.configured&&dirRpc.reachable&&dirRpc.connected&&dirRpc.engineReady&&dirRpc.activeValidatorCount===3&&dirRpc.requiredQuorum===3;
+ const runtimeReady=databaseReady&&authReady&&chainReady;
  const release=process.env.VERCEL_GIT_COMMIT_SHA||'local';
  const releaseShort=release==='local'?release:release.slice(0,12);
 
@@ -51,9 +54,14 @@ export default async function ReleaseReadinessPage(){
     <div><span>Core schema</span><strong>{schema?.coreReady?'READY':databaseRuntime?'NOT READY':'—'}</strong></div>
     <div><span>Lifecycle schema</span><strong>{schema?.lifecycleReady?'READY':databaseRuntime?'NOT READY':'—'}</strong></div>
     <div><span>Spatial persistence</span><strong>{schema?.spatialPersistenceReady?'READY':databaseRuntime?'NOT READY':'—'}</strong></div>
+    <div><span>DIR / PoVI runtime</span><strong>{schema?.dirRuntimeReady?'READY':databaseRuntime?'NOT READY':'—'}</strong></div>
     <div><span>Authentication</span><strong>{authReady?'READY':'NOT BOUND'}</strong></div>
+    <div><span>DIR RPC</span><strong>{!dirRpc.configured?'NOT BOUND':dirRpc.reachable?'REACHABLE':'UNREACHABLE'}</strong></div>
+    <div><span>PoVI engine</span><strong>{dirRpc.engineReady?'READY':'NOT READY'}</strong></div>
+    <div><span>Validator quorum</span><strong>{dirRpc.activeValidatorCount??'—'} validators · {dirRpc.requiredQuorum??'—'} required</strong></div>
+    <div><span>DIR height</span><strong>{dirRpc.height??'—'}</strong></div>
    </div>
-   {!runtimeReady&&<div className="notice" style={{marginTop:14}}><strong>RELEASE BLOCKER</strong><span>Bind an approved production database credential to the Vercel project. STRATUM intentionally fails closed instead of inventing a tenant session or using reference data as live production state.</span></div>}
+   {!runtimeReady&&<div className="notice" style={{marginTop:14}}><strong>RELEASE BLOCKER</strong><span>Complete the canonical database schema and connect a reachable Validator A PoVI RPC reporting three active validators with a three-signature quorum. STRATUM intentionally fails closed instead of inventing a tenant session or using reference data as live production state.</span></div>}
   </section>
 
   <section className="card" style={{marginTop:16}}>

@@ -10,13 +10,13 @@ console.log('✓ live Asset Passport lookup is scoped to the authenticated organ
 
 const tryBlock=page.slice(page.indexOf('try{'),page.indexOf('if\(!asset\)return'));
 assert.doesNotMatch(tryBlock,/if\(!asset\).*demoToPassport/s);
-assert.match(page,/Reference equipment is never substituted for a live tenant miss/);
-console.log('✓ a live tenant miss cannot silently substitute reference equipment');
+assert.match(page,/No reference asset was substituted/);
+assert.doesNotMatch(page,/demoToPassport|Reference continuous handover|REFERENCE MODE · LIVE TENANT BACKEND UNAVAILABLE/);
+console.log('✓ a live tenant miss/backend failure cannot silently substitute reference equipment');
 
-assert.match(page,/REFERENCE MODE · LIVE TENANT BACKEND UNAVAILABLE/);
 assert.match(page,/LIVE TENANT/);
-assert.match(page,/referenceMode/);
-console.log('✓ reference mode and live tenant mode are explicitly distinguished');
+assert.doesNotMatch(page,/referenceMode/);
+console.log('✓ Asset Passport is a single live-tenant path with no duplicate reference mode');
 
 assert.doesNotMatch(page,/Verified in DIR/i);
 assert.match(page,/DIR FINALIZED/);

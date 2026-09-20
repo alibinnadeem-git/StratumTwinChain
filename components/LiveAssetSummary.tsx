@@ -8,7 +8,7 @@ function stamp(value:Date|string|null|undefined){
 }
 
 export default function LiveAssetSummary({asset}:{asset:LiveAssetRow}){
-  const verifyUrl=`https://stratumspatialverified.vercel.app/verify?q=${encodeURIComponent(asset.asset_code)}`;
+  const verifyUrl=`https://stratumspatialverified.vercel.app/verify?q=${encodeURIComponent(asset.qr_token)}`;
   const hasDir=Boolean(asset.ledger_block_height);
   return <div className="passport card">
     <div className="passport-head">
@@ -39,6 +39,6 @@ export default function LiveAssetSummary({asset}:{asset:LiveAssetRow}){
       </div>
       <p className="muted" style={{marginBottom:0}}>A DIR record is cryptographic/provenance evidence. It is not, by itself, a claim that the physical asset is correct or currently matches the field.</p>
     </div>
-    <div className="passport-actions"><Link className="action" href={`/assets/${encodeURIComponent(asset.id)}`}>Open full passport</Link><Link className="ghost" href={`/verify?q=${encodeURIComponent(asset.asset_code)}`}>Verify record</Link></div>
+    <div className="passport-actions"><Link className="action" href={`/assets/${encodeURIComponent(asset.id)}`}>Open full passport</Link><Link className="ghost" href={`/assets/${encodeURIComponent(asset.id)}/qr`}>Print QR</Link><Link className="ghost" href={`/verify?q=${encodeURIComponent(asset.qr_token)}`}>Verify record</Link></div>
   </div>;
 }

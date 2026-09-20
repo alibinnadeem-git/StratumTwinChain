@@ -10,6 +10,7 @@ assert.equal(full.evidenceReady,true);
 assert.equal(full.archiveReady,true);
 assert.equal(full.spatialPersistenceReady,true);
 assert.equal(full.attestationsReady,true);
+assert.equal(full.dirRuntimeReady,true);
 assert.equal(full.missingTables.length,0);
 console.log('✓ complete canonical table set reports all database capabilities ready');
 
@@ -26,6 +27,7 @@ const lifecycleMissing=summarizeDatabaseReadiness(withoutLifecycle);
 assert.equal(lifecycleMissing.lifecycleReady,false);
 assert.equal(lifecycleMissing.evidenceReady,false);
 assert.equal(lifecycleMissing.attestationsReady,false);
+assert.equal(lifecycleMissing.dirRuntimeReady,false);
 assert.equal(lifecycleMissing.spatialPersistenceReady,true);
 console.log('✓ lifecycle absence blocks lifecycle-dependent capabilities while independent Spatial persistence remains measurable');
 
@@ -41,6 +43,9 @@ assert.ok(DATABASE_CAPABILITY_TABLES.spatialPersistence.includes('spatial_compil
 assert.ok(DATABASE_CAPABILITY_TABLES.spatialPersistence.includes('spatial_compilation_reviews'));
 assert.ok(DATABASE_CAPABILITY_TABLES.attestations.includes('human_attestations'));
 assert.ok(DATABASE_CAPABILITY_TABLES.archive.includes('asset_archive_events'));
+assert.ok(DATABASE_CAPABILITY_TABLES.dirRuntime.includes('approval_policies'));
+assert.ok(DATABASE_CAPABILITY_TABLES.dirRuntime.includes('ledger_records'));
+assert.ok(!DATABASE_CAPABILITY_TABLES.dirRuntime.some(table=>table.startsWith('sv_chain_')),'validator chain tables must not be duplicated into the Spatial application database');
 console.log('✓ post-baseline Spatial, attestation and archive migrations are part of readiness');
 
 const health=fs.readFileSync('app/api/health/route.ts','utf8');
@@ -60,5 +65,16 @@ assert.match(readiness,/information_schema\.tables/);
 assert.match(readiness,/table_schema='public'/);
 assert.doesNotMatch(readiness,/INSERT|UPDATE|DELETE|ALTER|DROP|TRUNCATE/i);
 console.log('✓ database readiness probe is read-only schema inspection');
+
+const liveViews=fs.readFileSync('lib/server/live-views.ts','utf8');
+const chainRuntime=fs.readFileSync('lib/server/chain.ts','utf8');
+assert.match(liveViews,/fetchDirExplorer\(25\)/,'DIR explorer must read from Validator A authority');
+assert.doesNotMatch(liveViews,/sv_chain_(state|transactions|blocks|votes)/,'application live views must not read duplicate validator chain tables');
+assert.match(chainRuntime,/\/v1\/explorer/);
+assert.match(chainRuntime,/\/stratum\/povi\/v1\/records/);
+assert.match(chainRuntime,/required 3-of-3 PoVI compatibility quorum/);
+console.log('✓ application tenant database and validator chain authority are explicitly separated');
+
+
 
 console.log('\nDatabase and server-backed persistence readiness contract passed.');
