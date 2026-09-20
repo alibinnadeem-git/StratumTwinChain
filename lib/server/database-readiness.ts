@@ -5,7 +5,7 @@ export const DATABASE_CAPABILITY_TABLES={
  archive:['organizations','users','memberships','projects','sites','assets','asset_archive_events'],
  spatialPersistence:['organizations','users','memberships','projects','sites','assets','spatial_compilations','spatial_compilation_reviews'],
  attestations:['organizations','users','memberships','projects','sites','assets','lifecycle_events','human_attestations'],
- dirRuntime:['organizations','users','memberships','projects','sites','assets','lifecycle_events','approvals','ledger_records','approval_policies','sv_chain_state','sv_chain_transactions','sv_chain_votes','sv_chain_blocks'],
+ dirRuntime:['organizations','users','memberships','projects','sites','assets','lifecycle_events','approvals','ledger_records','approval_policies'],
 } as const;
 
 export const REQUIRED_DATABASE_TABLES=[...new Set(Object.values(DATABASE_CAPABILITY_TABLES).flat())].sort();
