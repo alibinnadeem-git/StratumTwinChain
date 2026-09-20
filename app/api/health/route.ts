@@ -1,7 +1,7 @@
 import {query} from '@/lib/server/db';
 import {DATABASE_READINESS_SQL,REQUIRED_DATABASE_TABLES,summarizeDatabaseReadiness,type DatabaseReadiness} from '@/lib/server/database-readiness';
 import {resolveAuthRuntime,resolveDatabaseRuntime} from '@/lib/server/runtime-config';
-import {dirRpcConfigured} from '@/lib/server/chain';
+import {probeDirRpc} from '@/lib/server/chain';
 
 type ReadinessProbeStatus='UNCONFIGURED'|'READY'|'INCOMPLETE_SCHEMA'|'UNREACHABLE';
 
@@ -10,7 +10,8 @@ export async function GET(){
  const authRuntime=resolveAuthRuntime();
  const databaseConfigured=Boolean(databaseRuntime);
  const authConfigured=Boolean(authRuntime);
- const chainRpcConfigured=dirRpcConfigured();
+ const dirRpc=await probeDirRpc();
+ const chainRpcConfigured=dirRpc.configured;
  let databaseReachable=false;
  let probeStatus:ReadinessProbeStatus=databaseConfigured?'UNREACHABLE':'UNCONFIGURED';
  let schema:DatabaseReadiness|null=null;
@@ -25,7 +26,8 @@ export async function GET(){
    probeStatus='UNREACHABLE';
   }
  }
- const liveDataReady=authConfigured&&chainRpcConfigured&&databaseReachable&&Boolean(schema?.coreReady&&schema.lifecycleReady&&schema.dirRuntimeReady);
+ const chainReady=dirRpc.configured&&dirRpc.reachable&&dirRpc.connected&&dirRpc.engineReady&&dirRpc.activeValidatorCount===3&&dirRpc.requiredQuorum===3;
+ const liveDataReady=authConfigured&&chainReady&&databaseReachable&&Boolean(schema?.coreReady&&schema.lifecycleReady&&schema.dirRuntimeReady);
  const mode=!databaseConfigured&&!authConfigured?'REFERENCE':liveDataReady?'LIVE_READY':'LIVE_INCOMPLETE';
  return Response.json({
   ok:true,
@@ -42,6 +44,7 @@ export async function GET(){
   databaseProbeStatus:probeStatus,
   authConfigured,
   chainRpcConfigured,
+  dirRpc,
   authSecretSource:authRuntime?.source||null,
   authSecretDerived:Boolean(authRuntime?.derived),
   schema,
