@@ -13,7 +13,7 @@ export default async function NewAssetPage({searchParams}:{searchParams:Promise<
   query<{id:string;project_code:string;name:string}>('SELECT id::text,project_code,name FROM projects WHERE organization_id=$1 ORDER BY name',[session.organizationId]),
   query<{id:string;project_id:string;name:string}>('SELECT id::text,project_id::text,name FROM sites WHERE organization_id=$1 ORDER BY name',[session.organizationId]),
   query<{id:string;project_id:string;name:string}>('SELECT id::text,project_id::text,name FROM systems WHERE organization_id=$1 ORDER BY name',[session.organizationId]),
-  query<{id:string;name:string}>('SELECT id::text,name FROM manufacturers WHERE organization_id=$1 OR organization_id IS NULL ORDER BY name',[session.organizationId]),
+  query<{id:string;name:string}>('SELECT id::text,name FROM manufacturers ORDER BY name'),
  ]);
  const search=await searchParams;
  return <>
