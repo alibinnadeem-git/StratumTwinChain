@@ -1,11 +1,14 @@
 import {query} from '@/lib/server/db';
 import {DATABASE_READINESS_SQL,REQUIRED_DATABASE_TABLES,summarizeDatabaseReadiness,type DatabaseReadiness} from '@/lib/server/database-readiness';
+import {resolveAuthRuntime,resolveDatabaseRuntime} from '@/lib/server/runtime-config';
 
 type ReadinessProbeStatus='UNCONFIGURED'|'READY'|'INCOMPLETE_SCHEMA'|'UNREACHABLE';
 
 export async function GET(){
- const databaseConfigured=Boolean(process.env.DATABASE_URL);
- const authConfigured=Boolean(process.env.AUTH_SECRET&&process.env.AUTH_SECRET.length>=32);
+ const databaseRuntime=resolveDatabaseRuntime();
+ const authRuntime=resolveAuthRuntime();
+ const databaseConfigured=Boolean(databaseRuntime);
+ const authConfigured=Boolean(authRuntime);
  let databaseReachable=false;
  let probeStatus:ReadinessProbeStatus=databaseConfigured?'UNREACHABLE':'UNCONFIGURED';
  let schema:DatabaseReadiness|null=null;
@@ -30,9 +33,14 @@ export async function GET(){
   mode,
   liveDataReady,
   databaseConfigured,
+  databaseConnectionSource:databaseRuntime?.source||null,
+  databaseTarget:databaseRuntime?.targetDatabase||null,
+  databaseRetargeted:Boolean(databaseRuntime?.retargeted),
   databaseReachable,
   databaseProbeStatus:probeStatus,
   authConfigured,
+  authSecretSource:authRuntime?.source||null,
+  authSecretDerived:Boolean(authRuntime?.derived),
   schema,
   truthBoundary:'HEALTH_READINESS_NEVER_ESTABLISHES_VERIFIED_STATE_OR_POVI_FINALITY',
  });
