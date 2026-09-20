@@ -4,6 +4,9 @@ BEGIN;
 -- This migration adds protocol/runtime structure only. It creates no finalized DIR,
 -- validator vote, block, approval decision, asset, evidence or physical-truth claim.
 
+CREATE UNIQUE INDEX IF NOT EXISTS approvals_one_decision_per_approver
+  ON approvals(organization_id,lifecycle_event_id,approver_user_id);
+
 CREATE TABLE IF NOT EXISTS approval_policies (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
