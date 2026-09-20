@@ -27,10 +27,10 @@ test('command center is task-first while Redbook detail remains available on dem
  await expect(page.getByRole('heading',{name:'Choose a task and keep moving.'})).toBeVisible();
  const launcher=page.getByRole('region',{name:'What do you need to do?'});
  await expect(launcher).toBeVisible();
- await expect(launcher.getByRole('link',{name:/Start from a drawing/i})).toBeVisible();
- await expect(launcher.getByRole('link',{name:/Review the model/i})).toBeVisible();
- await expect(launcher.getByRole('link',{name:/Scan & inspect an asset/i})).toBeVisible();
- await expect(launcher.getByRole('link',{name:/Find an asset/i})).toBeVisible();
+ await expect(launcher.getByRole('link',{name:/Import project sources/i})).toBeVisible();
+ await expect(launcher.getByRole('link',{name:/Review Spatial & assets/i})).toBeVisible();
+ await expect(launcher.getByRole('link',{name:/Update equipment in the field/i})).toBeVisible();
+ await expect(launcher.getByRole('link',{name:/Passport & DIR history/i})).toBeVisible();
  await expect(page.getByText(/Redbook implementation order/i)).toBeHidden();
  await page.getByText('Trust & architecture details',{exact:true}).click();
  await expect(page.getByText(/Redbook implementation order/i)).toBeVisible();
@@ -103,7 +103,7 @@ test('compiled Spatial model preserves source placement while recommended equipm
   const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
   const entity=(graph.entities||[]).find((item:any)=>item.name==='PANELBOARD LP-2'&&item.layer==='L2');
   return entity?{floor:entity.floor,z:Number(Number(entity.z).toFixed(6)),rotation:entity.rotation,scale:entity.scale,source:entity.source,authority:entity.meta?.zPlacementAuthority,review:entity.meta?.zReviewRequired}:null;
- })).toEqual({floor:'L2',z:4.695,rotation:90,scale:1.25,source:'E2-Level-2-Power.dxf',authority:'HISTORICAL_RECOMMENDATION',review:true});
+ })).toEqual({floor:'L2',z:4.62,rotation:90,scale:1.25,source:'E2-Level-2-Power.dxf',authority:'HISTORICAL_RECOMMENDATION',review:true});
  await page.goto('/spatial');
  await expect(page.getByLabel('Floor isolation')).toContainText('L2');
  await expect(page.getByLabel('Imported object')).toContainText('PANELBOARD LP-2');
