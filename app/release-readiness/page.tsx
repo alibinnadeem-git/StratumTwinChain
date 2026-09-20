@@ -27,7 +27,7 @@ export default async function ReleaseReadinessPage(){
   }
  }
 
- const databaseReady=Boolean(databaseRuntime&&databaseReachable&&schema?.coreReady&&schema?.lifecycleReady);
+ const databaseReady=Boolean(databaseRuntime&&databaseReachable&&schema?.coreReady&&schema?.lifecycleReady&&schema?.dirRuntimeReady);
  const authReady=Boolean(authRuntime);
  const runtimeReady=databaseReady&&authReady;
  const release=process.env.VERCEL_GIT_COMMIT_SHA||'local';
@@ -51,9 +51,10 @@ export default async function ReleaseReadinessPage(){
     <div><span>Core schema</span><strong>{schema?.coreReady?'READY':databaseRuntime?'NOT READY':'—'}</strong></div>
     <div><span>Lifecycle schema</span><strong>{schema?.lifecycleReady?'READY':databaseRuntime?'NOT READY':'—'}</strong></div>
     <div><span>Spatial persistence</span><strong>{schema?.spatialPersistenceReady?'READY':databaseRuntime?'NOT READY':'—'}</strong></div>
+    <div><span>DIR / PoVI runtime</span><strong>{schema?.dirRuntimeReady?'READY':databaseRuntime?'NOT READY':'—'}</strong></div>
     <div><span>Authentication</span><strong>{authReady?'READY':'NOT BOUND'}</strong></div>
    </div>
-   {!runtimeReady&&<div className="notice" style={{marginTop:14}}><strong>RELEASE BLOCKER</strong><span>Bind an approved production database credential to the Vercel project. STRATUM intentionally fails closed instead of inventing a tenant session or using reference data as live production state.</span></div>}
+   {!runtimeReady&&<div className="notice" style={{marginTop:14}}><strong>RELEASE BLOCKER</strong><span>Bind the canonical production database and complete every required schema capability, including the DIR/PoVI runtime. STRATUM intentionally fails closed instead of inventing a tenant session or using reference data as live production state.</span></div>}
   </section>
 
   <section className="card" style={{marginTop:16}}>
