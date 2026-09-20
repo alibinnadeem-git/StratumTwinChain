@@ -52,6 +52,8 @@ jobs:
         run: npm run qa:database-bootstrap
       - name: Managed database and auth runtime conformance
         run: npm run qa:runtime-config
+      - name: Physical-device release UAT safety conformance
+        run: npm run qa:release-uat
       - name: Database and server-backed persistence readiness conformance
         run: npm run qa:database-readiness
       - name: Metric Spatial viewer, Z placement and SLD projection conformance
