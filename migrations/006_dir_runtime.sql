@@ -85,7 +85,7 @@ CREATE INDEX IF NOT EXISTS idx_sv_chain_blocks_hash ON sv_chain_blocks(chain_id,
 COMMENT ON TABLE approval_policies IS
   'Tenant/project approval policy. Policy configuration never establishes physical truth or DIR finality by itself.';
 COMMENT ON TABLE sv_chain_transactions IS
-  'DIR/PoVI transaction index. PROPOSED or FINALIZED status must come from the governed consensus/finality path; table insertion alone confers no authority.';
+  'DIR/PoVI transaction index. PROPOSED or FINALIZED status must come from the governed consensus/finality path and table insertion alone confers no authority.';
 COMMENT ON TABLE sv_chain_votes IS
   'Validator vote evidence for the canonical DIR runtime. A stored vote is not sufficient finality outside the verified PoVI proof rules.';
 COMMENT ON TABLE sv_chain_blocks IS
