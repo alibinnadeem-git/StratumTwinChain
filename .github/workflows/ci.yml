@@ -50,6 +50,8 @@ jobs:
         run: npm run qa:legacy-spatial-ingest
       - name: Production database bootstrap migration conformance
         run: npm run qa:database-bootstrap
+      - name: Managed database and auth runtime conformance
+        run: npm run qa:runtime-config
       - name: Database and server-backed persistence readiness conformance
         run: npm run qa:database-readiness
       - name: Metric Spatial viewer, Z placement and SLD projection conformance
