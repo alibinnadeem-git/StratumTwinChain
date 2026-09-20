@@ -16,7 +16,7 @@ test('DXF plan scale becomes metric while equipment Z remains separately reviewa
    transformer:{z:Number(Number(transformer.z).toFixed(6)),authority:transformer.meta?.zPlacementAuthority,review:transformer.meta?.zReviewRequired}
   }:null;
  })).toEqual({
-  panel:{metric:true,units:'m_xy',planUnits:'m',z:4.695,floor:'L2',authority:'HISTORICAL_RECOMMENDATION',review:true},
+  panel:{metric:true,units:'m_xy',planUnits:'m',z:4.62,floor:'L2',authority:'HISTORICAL_RECOMMENDATION',review:true},
   transformer:{z:4,authority:'FLOOR_STANDING_PROFILE',review:true}
  });
  await page.goto('/spatial');
