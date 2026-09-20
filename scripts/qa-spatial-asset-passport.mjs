@@ -20,12 +20,17 @@ const unbound=resolveRegisteredSpatialAsset({id:'cad-x',name:'PANELBOARD LP',lay
 assert.equal(unbound,null,'similar or incomplete labels must not borrow another asset identity or DIR');
 
 const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
+const inspector=fs.readFileSync('components/SpatialAssetInspector.tsx','utf8');
 const page=fs.readFileSync('app/spatial/page.tsx','utf8');
 const experience=fs.readFileSync('components/SpatialExperience.tsx','utf8');
 assert.match(page,/SpatialExperience assets=\{assets\}/,'the route must pass registered assets into the single-source Spatial experience');
 assert.match(experience,/CompiledGraphViewer registeredAssets=\{assets\}/,'imported project mode must pass registered assets into the interactive viewer');
-assert.match(viewer,/ASSET PASSPORT PREVIEW/);assert.match(viewer,/DIR FINALIZED/);assert.match(viewer,/NO FINALIZED DIR/);assert.match(viewer,/Open Asset Passport/);
-assert.match(viewer,/NOT YET LINKED TO A REGISTERED ASSET/);assert.match(viewer,/DIR finality secures the immutable record; it does not by itself establish physical truth/);
-assert.doesNotMatch(viewer,/DIR.*physical truth established|physical truth.*DIR FINALIZED/i);
+assert.match(viewer,/SpatialAssetInspector/,'the interactive viewer must use the shared asset inspector');
+assert.match(inspector,/ASSET PASSPORT/);assert.match(inspector,/DIR FINALIZED/);assert.match(inspector,/NO FINALIZED DIR/);assert.match(inspector,/Open Passport/);
+assert.match(inspector,/AssetActivityPanel/,'asset click must expose server lifecycle activity');
+assert.match(inspector,/Print QR label/,'asset click must expose printable registry QR');
+assert.match(inspector,/Link selected asset/,'unbound project equipment must support explicit tenant asset binding');
+assert.match(inspector,/NOT LINKED TO A REGISTERED ASSET/);
+assert.doesNotMatch(inspector,/DIR.*physical truth established|physical truth.*DIR FINALIZED/i);
 
 console.log('✓ spatial asset clicks bind only exact tenant identities and expose DIR-backed Passport context without upgrading physical truth');
