@@ -43,9 +43,9 @@ assert.ok(DATABASE_CAPABILITY_TABLES.spatialPersistence.includes('spatial_compil
 assert.ok(DATABASE_CAPABILITY_TABLES.spatialPersistence.includes('spatial_compilation_reviews'));
 assert.ok(DATABASE_CAPABILITY_TABLES.attestations.includes('human_attestations'));
 assert.ok(DATABASE_CAPABILITY_TABLES.archive.includes('asset_archive_events'));
-assert.ok(DATABASE_CAPABILITY_TABLES.dirRuntime.includes('sv_chain_transactions'));
-assert.ok(DATABASE_CAPABILITY_TABLES.dirRuntime.includes('sv_chain_blocks'));
 assert.ok(DATABASE_CAPABILITY_TABLES.dirRuntime.includes('approval_policies'));
+assert.ok(DATABASE_CAPABILITY_TABLES.dirRuntime.includes('ledger_records'));
+assert.ok(!DATABASE_CAPABILITY_TABLES.dirRuntime.some(table=>table.startsWith('sv_chain_')),'validator chain tables must not be duplicated into the Spatial application database');
 console.log('✓ post-baseline Spatial, attestation and archive migrations are part of readiness');
 
 const health=fs.readFileSync('app/api/health/route.ts','utf8');
