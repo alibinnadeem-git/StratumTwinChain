@@ -128,7 +128,7 @@ export default function ReleaseUatClient(){
   {row('QR decoder',qrDecoder)}
   {row('Camera',camera)}
   <div className="button-row" style={{marginTop:18}}>
-   <button className="action" type="button" onClick={runCamera}>Run camera test + submit evidence</button>
+   <button className="action" type="button" onClick={runCamera} disabled={webgl.status==='pending'||qrDecoder.status==='pending'}>{webgl.status==='pending'||qrDecoder.status==='pending'?'Preparing device checks…':'Run camera test + submit evidence'}</button>
   </div>
   <video ref={videoRef} muted playsInline style={{width:1,height:1,opacity:.01,position:'absolute',pointerEvents:'none'}}/>
   <div className="notice" style={{marginTop:14}}>
