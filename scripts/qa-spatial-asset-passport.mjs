@@ -23,6 +23,10 @@ const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
 const inspector=fs.readFileSync('components/SpatialAssetInspector.tsx','utf8');
 const page=fs.readFileSync('app/spatial/page.tsx','utf8');
 const experience=fs.readFileSync('components/SpatialExperience.tsx','utf8');
+const activity=fs.readFileSync('components/AssetActivityPanel.tsx','utf8');
+const approvals=fs.readFileSync('app/api/approvals/route.ts','utf8');
+const lifecycle=fs.readFileSync('app/api/lifecycle/route.ts','utf8');
+const printableQr=fs.readFileSync('components/PrintableAssetQr.tsx','utf8');
 assert.match(page,/SpatialExperience assets=\{assets\}/,'the route must pass registered assets into the single-source Spatial experience');
 assert.match(experience,/CompiledGraphViewer registeredAssets=\{assets\}/,'imported project mode must pass registered assets into the interactive viewer');
 assert.match(viewer,/SpatialAssetInspector/,'the interactive viewer must use the shared asset inspector');
@@ -32,5 +36,13 @@ assert.match(inspector,/Print QR label/,'asset click must expose printable regis
 assert.match(inspector,/Link selected asset/,'unbound project equipment must support explicit tenant asset binding');
 assert.match(inspector,/NOT LINKED TO A REGISTERED ASSET/);
 assert.doesNotMatch(inspector,/DIR.*physical truth established|physical truth.*DIR FINALIZED/i);
+assert.match(activity,/\/api\/approvals/,'asset activity must retain the governed approval handoff');
+assert.match(activity,/crypto\.subtle\.generateKey/,'approval UI must sign the lifecycle payload in-browser');
+assert.match(activity,/Approve & advance DIR/,'pending lifecycle activity must expose an explicit approval action');
+assert.match(activity,/Inspection & evidence/,'activity view must preserve evidence workflow continuity');
+assert.match(lifecycle,/can_approve/);assert.match(lifecycle,/approvals_required/);assert.match(lifecycle,/require_evidence/);
+assert.match(approvals,/Separation of duties/);assert.match(approvals,/approvalsRequired/);assert.match(approvals,/getLedger\(\)\.anchor/);
+assert.match(approvals,/DIR_FINALITY_SECURES_THE_RECORD_AND_DOES_NOT_INDEPENDENTLY_ESTABLISH_PHYSICAL_TRUTH/);
+assert.match(printableQr,/window\.print\(\)/);assert.match(printableQr,/qrToken/);assert.match(printableQr,/Scan to open the asset verification record/);
 
-console.log('✓ spatial asset clicks bind only exact tenant identities and expose DIR-backed Passport context without upgrading physical truth');
+console.log('✓ spatial asset clicks bind exact tenant identities and preserve activity, governed approval, DIR finality and printable QR continuity');
