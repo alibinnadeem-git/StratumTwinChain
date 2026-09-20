@@ -152,6 +152,7 @@ export default function SpatialAssetInspector({
    <div><span>Floor</span><strong>{selected.floor||'UNRESOLVED'}</strong></div>
    <div><span>Plan X / Y</span><strong>{selected.x.toFixed(2)} / {selected.y.toFixed(2)}</strong></div>
    <div><span>Z</span><strong>{z.toFixed(2)} m</strong></div>
+   <div><span>Z placement</span><strong>{selected.meta?.elevationKnown===true||selected.meta?.physicalElevationKnown===true||selected.meta?.zPlacementAuthority==='MEASURED_OR_REVIEWED'?'Measured / reviewed':'Unverified elevation'}</strong></div>
    <div><span>Source</span><strong>{selected.source}</strong></div>
    <div><span>Confidence</span><strong>{Math.round(selected.confidence*100)}%</strong></div>
    <div><span>Zone</span><strong>{selected.zone||'Unresolved'}</strong></div>
