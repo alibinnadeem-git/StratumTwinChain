@@ -1,20 +1,44 @@
 import {MockStratumDevnetAdapter,LedgerAdapter,LedgerRecord,AnchorReceipt} from '../ledger';
 
+export type DirRpcStatus={
+ configured:boolean;
+ reachable:boolean;
+ connected:boolean;
+ chainId:string|null;
+ height:number|null;
+ engineReady:boolean;
+ poviConformant:boolean;
+ activeValidatorCount:number|null;
+ requiredQuorum:number|null;
+ limitations:string[];
+ error?:string;
+};
+
 class StratumChainRpcAdapter implements LedgerAdapter{
  constructor(private rpc:string,private chainId:string,private apiKey?:string){}
  async anchor(record:LedgerRecord):Promise<AnchorReceipt>{
-  const res=await fetch(`${this.rpc.replace(/\/$/,'')}/stratum/verified/v1/records`,{
+  const res=await fetch(`${this.rpc.replace(/\/$/,'')}/stratum/povi/v1/records`,{
    method:'POST',
    headers:{'content-type':'application/json',...(this.apiKey?{'authorization':`Bearer ${this.apiKey}`}:{})},
    body:JSON.stringify(record),
    cache:'no-store'
   });
-  if(!res.ok)throw Object.assign(new Error(`STRATUM DIR anchor failed: ${res.status}`),{status:503});
-  const j=await res.json() as {txHash:string;blockHeight:number;timestamp:string};
+  if(!res.ok)throw Object.assign(new Error(`STRATUM DIR/PoVI anchor failed: ${res.status}`),{status:503});
+  const j=await res.json() as {
+   txHash:string;blockHeight:number;timestamp:string;network?:string;
+   protocolVersion?:string;quorum?:number;validatorVotes?:string[];
+  };
   if(!j.txHash||!Number.isInteger(Number(j.blockHeight))||Number(j.blockHeight)<0||!j.timestamp){
    throw Object.assign(new Error('STRATUM DIR RPC returned an incomplete finality receipt'),{status:502});
   }
-  return{network:this.chainId,txHash:j.txHash,blockHeight:Number(j.blockHeight),timestamp:j.timestamp};
+  if(j.protocolVersion!=='POVI/1'){
+   throw Object.assign(new Error('STRATUM DIR RPC did not return a PoVI/1 finality receipt'),{status:502});
+  }
+  const votes=Array.isArray(j.validatorVotes)?new Set(j.validatorVotes).size:0;
+  if(Number(j.quorum)!==3||votes<3){
+   throw Object.assign(new Error('STRATUM DIR RPC did not prove the required 3-of-3 PoVI compatibility quorum'),{status:502});
+  }
+  return{network:j.network||this.chainId,txHash:j.txHash,blockHeight:Number(j.blockHeight),timestamp:j.timestamp};
  }
  async verify(recordId:string,evidenceHash:string){
   const u=new URL(`${this.rpc.replace(/\/$/,'')}/stratum/verified/v1/records/${encodeURIComponent(recordId)}`);
@@ -28,6 +52,38 @@ class StratumChainRpcAdapter implements LedgerAdapter{
 }
 
 export function dirRpcConfigured(){return Boolean((process.env.STRATUM_CHAIN_RPC_URL||'').trim())}
+
+export async function probeDirRpc():Promise<DirRpcStatus>{
+ const rpc=(process.env.STRATUM_CHAIN_RPC_URL||'').trim().replace(/\/$/,'');
+ if(!rpc)return{configured:false,reachable:false,connected:false,chainId:null,height:null,engineReady:false,poviConformant:false,activeValidatorCount:null,requiredQuorum:null,limitations:[]};
+ try{
+  const response=await fetch(`${rpc}/v1/status`,{
+   headers:process.env.STRATUM_CHAIN_API_KEY?{'authorization':`Bearer ${process.env.STRATUM_CHAIN_API_KEY}`}:{},
+   cache:'no-store',
+   signal:AbortSignal.timeout(4500),
+  });
+  if(!response.ok)throw new Error(`HTTP ${response.status}`);
+  const body=await response.json() as any;
+  return{
+   configured:true,
+   reachable:true,
+   connected:Boolean(body.connected),
+   chainId:typeof body.chainId==='string'?body.chainId:null,
+   height:Number.isFinite(Number(body.height))?Number(body.height):null,
+   engineReady:Boolean(body.povi?.engineReady),
+   poviConformant:Boolean(body.povi?.poviConformant),
+   activeValidatorCount:Number.isFinite(Number(body.povi?.activeValidatorCount))?Number(body.povi.activeValidatorCount):null,
+   requiredQuorum:Number.isFinite(Number(body.povi?.requiredQuorum))?Number(body.povi.requiredQuorum):null,
+   limitations:Array.isArray(body.povi?.limitations)?body.povi.limitations.map(String):[],
+  };
+ }catch(error){
+  return{
+   configured:true,reachable:false,connected:false,chainId:null,height:null,engineReady:false,poviConformant:false,
+   activeValidatorCount:null,requiredQuorum:null,limitations:[],
+   error:error instanceof Error?error.message:'DIR RPC probe failed'
+  };
+ }
+}
 
 export function getLedger():LedgerAdapter{
  const rpc=(process.env.STRATUM_CHAIN_RPC_URL||'').trim();
