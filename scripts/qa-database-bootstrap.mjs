@@ -84,4 +84,26 @@ assert.match(tenantBootstrap,/No user, password, membership, asset, evidence, DI
 assert.equal(packageAfterBootstrap.scripts['db:bootstrap-organization'],'node scripts/bootstrap-production-organization.mjs');
 console.log('✓ production tenant bootstrap is explicit, deterministic and does not mint accounts or infrastructure truth');
 
+
+const superAdminBootstrap=fs.readFileSync('scripts/bootstrap-first-super-admin.mjs','utf8');
+const packageAfterSuperAdmin=JSON.parse(fs.readFileSync('package.json','utf8'));
+assert.match(superAdminBootstrap,/process\.argv\.includes\('--apply'\)/);
+assert.match(superAdminBootstrap,/STRATUM_AUTH_BOOTSTRAP_ORGANIZATION_ID/);
+assert.match(superAdminBootstrap,/STRATUM_BOOTSTRAP_SUPER_ADMIN_EMAIL/);
+assert.match(superAdminBootstrap,/randomBytes\(32\)/);
+assert.match(superAdminBootstrap,/createHash\('sha256'\)/);
+assert.match(superAdminBootstrap,/role='SUPER_ADMIN'/);
+assert.match(superAdminBootstrap,/VALUES\(\$1,\$2,'SUPER_ADMIN'\)/);
+assert.match(superAdminBootstrap,/created_via[\s\S]*'BOOTSTRAP'/);
+assert.match(superAdminBootstrap,/created_by_user_id[\s\S]*NULL/);
+assert.match(superAdminBootstrap,/existing account already has a membership/i);
+assert.match(superAdminBootstrap,/different SUPER_ADMIN already exists/i);
+assert.doesNotMatch(superAdminBootstrap,/gen_salt\(|crypt\(/i);
+assert.doesNotMatch(superAdminBootstrap,/BOOTSTRAP_SUPER_ADMIN_PASSWORD|SUPER_ADMIN_PASSWORD/i);
+assert.doesNotMatch(superAdminBootstrap,/INSERT\s+INTO\s+(assets|evidence|lifecycle_events|ledger_records|sv_chain_blocks|sv_chain_transactions)\b/i);
+assert.match(superAdminBootstrap,/Only its SHA-256 hash is stored/i);
+assert.match(superAdminBootstrap,/No password, infrastructure evidence, DIR or PoVI authority was created/i);
+assert.equal(packageAfterSuperAdmin.scripts['db:bootstrap-super-admin'],'node scripts/bootstrap-first-super-admin.mjs');
+console.log('✓ first SUPER_ADMIN bootstrap is one-time-token based, fail-closed and cannot silently elevate an existing identity');
+
 console.log('\nProduction database bootstrap migration contract passed.');
