@@ -4,7 +4,7 @@ const tinyPng=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQ
 
 function syntheticElectricalPdf(lines:string[]){
  const escape=(value:string)=>value.replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)');
- const stream=lines.map((line,index)=>`BT /F1 12 Tf 72 ${740-index*46} Td (${escape(line)}) Tj ET`).join('\n')+'\n';
+ const stream=lines.map((line,index)=>`BT /F1 12 Tf 72 ${740-index*46} Td (${escape(line)}) Tj ET`).join('\n')+'\n70 755 m 70 500 l S\n';
  const bodies=[
   '<< /Type /Catalog /Pages 2 0 R >>',
   '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
@@ -27,12 +27,13 @@ test('content-only electrical SLD upload populates the Spatial model',async({pag
  await expect(page.getByText('project-power-sheet.pdf',{exact:true})).toBeVisible();
  await expect.poll(async()=>page.evaluate(()=>{
   const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
-  const sld=(graph.entities||[]).filter((entity:any)=>entity.layer==='L2'&&entity.meta?.sldCandidate===true);
-  return {sources:graph.sources?.length||0,names:sld.map((entity:any)=>entity.name),classes:sld.map((entity:any)=>entity.meta?.electricalComponentHint)};
+  const sld=(graph.entities||[]).filter((entity:any)=>entity.layer==='L2'&&entity.meta?.sldCandidate===true),feeders=(graph.entities||[]).filter((entity:any)=>entity.kind==='sld-feeder-candidate'),vectorTagged=sld.filter((entity:any)=>entity.meta?.sldVectorComponent!==undefined);
+  return {sources:graph.sources?.length||0,names:sld.map((entity:any)=>entity.name),classes:sld.map((entity:any)=>entity.meta?.electricalComponentHint),vectorReady:feeders.length>0&&vectorTagged.length>=3};
  }),{timeout:15000}).toMatchObject({
   sources:expect.any(Number),
   names:expect.arrayContaining(['UTILITY SERVICE 12KV','XFMR-1','SWBD-1','MDP-1','CB-12']),
-  classes:expect.arrayContaining(['UTILITY_SOURCE','TRANSFORMER','SWITCHBOARD','BREAKER'])
+  classes:expect.arrayContaining(['UTILITY_SOURCE','TRANSFORMER','SWITCHBOARD','BREAKER']),
+  vectorReady:true
  });
  await page.getByRole('link',{name:'Open Spatial'}).last().click();
  await expect(page).toHaveURL(/\/spatial$/);
