@@ -101,7 +101,6 @@ export default function SpatialAssetInspector({
 
   <div className={`placement-trust ${zReviewed?'reviewed':'needs-review'}`} role="status">
    <div><span>Z placement</span><strong>{zReviewed?'Measured / reviewed':'Unverified elevation'}</strong></div>
-   {!zReviewed&&<b>Z NEEDS REVIEW</b>}
   </div>
 
   {asset?<>
