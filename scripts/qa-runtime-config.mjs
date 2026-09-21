@@ -58,6 +58,23 @@ try{
  assert.deepEqual([...derived.key],[...derivedAgain.key]);
  console.log('✓ managed Neon URL retargets to isolated Spatial database and yields stable domain-separated session key');
 
+ clear();
+ process.env.DATABASE_URL='postgresql://user:A1b2C3d4E5f6G7h8@ep-test.us-east-1.aws.neon.tech/neondb?sslmode=require';
+ db=resolveDatabaseRuntime();
+ const neonDerived=resolveAuthRuntime();
+ assert.ok(neonDerived);
+ assert.equal(neonDerived?.source,'DERIVED_FROM_DATABASE_URL');
+ assert.equal(neonDerived?.derived,true);
+ assert.equal(neonDerived?.key.length,32);
+ console.log('✓ 16-character Neon-issued credential can derive a domain-separated 256-bit session key');
+
+ clear();
+ process.env.DATABASE_URL='postgresql://user:A1b2C3d4E5f6G7h8@postgres.example.test/app';
+ assert.equal(resolveAuthRuntime(),null);
+ console.log('✓ short non-Neon database credentials cannot become session-signing material');
+
+ clear();
+ process.env.POSTGRES_URL='postgresql://user:abcdefghijklmnopqrstuvwxyz012345@ep-test.us-east-1.aws.neon.tech/neondb?sslmode=require';
  process.env.STRATUM_DATABASE_NAME='spatial_custom';
  db=resolveDatabaseRuntime();
  assert.equal(db?.targetDatabase,'spatial_custom');
