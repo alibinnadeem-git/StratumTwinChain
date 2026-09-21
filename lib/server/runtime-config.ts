@@ -50,18 +50,18 @@ export function resolveDatabaseRuntime():DatabaseRuntimeConfig|null{
  for(const source of DATABASE_KEYS){
   const value=(readDatabaseEnv(source)||'').trim();
   if(!value)continue;
-  if(source==='DATABASE_URL'){
-   let database:string|null=null;
-   try{database=decodeURIComponent(new URL(value).pathname.replace(/^\//,''))||null}catch{}
-   return{url:value,source,targetDatabase:database,retargeted:false};
-  }
   try{
    const parsed=new URL(value);
    const target=targetDatabaseName();
-   if(/^postgres(?:ql)?:$/i.test(parsed.protocol)&&/\.neon\.tech$/i.test(parsed.hostname)){
+   const current=decodeURIComponent(parsed.pathname.replace(/^\//,''))||null;
+   const neonPostgres=/^postgres(?:ql)?:$/i.test(parsed.protocol)&&/\.neon\.tech$/i.test(parsed.hostname);
+   const explicitTarget=Boolean((process.env.STRATUM_DATABASE_NAME||'').trim());
+   const neonDefaultDatabase=!current||current==='neondb';
+   if(neonPostgres&&(source!=='DATABASE_URL'||explicitTarget||neonDefaultDatabase)){
     parsed.pathname=`/${encodeURIComponent(target)}`;
-    return{url:parsed.toString(),source,targetDatabase:target,retargeted:true};
+    return{url:parsed.toString(),source,targetDatabase:target,retargeted:current!==target};
    }
+   if(source==='DATABASE_URL')return{url:value,source,targetDatabase:current,retargeted:false};
   }catch{}
   return{url:value,source,targetDatabase:null,retargeted:false};
  }
