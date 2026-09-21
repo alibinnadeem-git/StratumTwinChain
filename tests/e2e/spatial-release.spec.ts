@@ -65,16 +65,28 @@ test('portable Spatial recovery exports protected history and restores the worki
  expect(download.suggestedFilename()).toMatch(/^stratum-spatial-recovery-.*\.json$/);
  const downloadPath=await download.path();
  expect(downloadPath).toBeTruthy();
- await page.evaluate(()=>{
-  localStorage.removeItem('stratum_compiled_graph');
-  localStorage.removeItem('stratum_compiled_graph_last_good_v2');
-  localStorage.removeItem('stratum_compiled_graph_previous_v2');
+ const preImport=await page.evaluate(()=>{
+  const graph={
+   version:'pre-import-newer',createdAt:'2026-09-21T07:20:00.000Z',
+   sources:[{name:'newer-plan.pdf',ext:'pdf',sha256:'b'.repeat(64),discipline:'Electrical',floor:'L1',elevation:0}],
+   entities:[{id:'newer-panel',source:'newer-plan.pdf',layer:'L2',kind:'text-asset-candidate',name:'PANEL-LP1',x:4,y:5,z:0,confidence:.91}],
+   links:[],stats:{L0:1,L1:0,L2:1,L3:0,L4:0}
+  };
+  localStorage.setItem('stratum_compiled_graph',JSON.stringify(graph));
+  localStorage.setItem('stratum_compiled_graph_last_good_v2',JSON.stringify(graph));
   window.dispatchEvent(new Event('stratum:graph-updated'));
+  return graph;
  });
  await page.locator('section[aria-label="Portable Spatial recovery"] input[type=file]').setInputFiles(downloadPath!);
  await expect(page.getByRole('status').filter({hasText:'Recovery bundle restored'})).toBeVisible();
- const restored=await page.evaluate(()=>JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}'));
- expect(restored).toEqual(seeded);
+ const recovered=await page.evaluate(()=>{
+  const restored=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
+  const preImportKeys=Object.keys(localStorage).filter(key=>key.startsWith('stratum_spatial_preimport_'));
+  const preImportGraphs=preImportKeys.map(key=>JSON.parse(localStorage.getItem(key)||'{}'));
+  return{restored,preImportGraphs};
+ });
+ expect(recovered.restored).toEqual(seeded);
+ expect(recovered.preImportGraphs).toContainEqual(preImport);
 });
 
 test('manual plan annotations persist deletion and restore without resurrecting removed marks',async({page})=>{
