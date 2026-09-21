@@ -89,7 +89,7 @@ export default function CompilerWorkspace(){
    {message&&<div className="notice" role="status"><strong>{busy?'PARSING':'IMPORT'}</strong><span>{message}</span></div>}
 
    {files.length>0&&<div className="import-results">
-    {files.map((f,i)=><div className="file-row" key={`${f.name}-${i}`}><div className="file-icon">{f.ext.toUpperCase()}</div><div><strong>{f.name}</strong><small>{f.discipline} · {f.floor} @ {f.elevation}m{f.unitName?` · ${f.unitName}`:''}</small><small>{f.summary}</small></div><span className={f.state==='parsed'?'proof':'pending'}>{f.state.toUpperCase()}</span></div>)}
+    {files.map((f,i)=><div className="file-row" key={`${f.name}-${i}`}><div className="file-icon">{f.ext.toUpperCase()}</div><div><strong>{f.name}</strong><small>{f.discipline} · {f.floor} @ {f.elevation}m{f.unitName?` · units ${f.unitName}`:''}</small><small>{f.summary}</small></div><span className={f.state==='parsed'?'proof':'pending'}>{f.state.toUpperCase()}</span></div>)}
    </div>}
 
    <div className="import-summary">
