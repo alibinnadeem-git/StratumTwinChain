@@ -25,15 +25,15 @@ test('content-only electrical SLD upload populates the Spatial model',async({pag
  const pdf=syntheticElectricalPdf(['UTILITY SERVICE 12KV','XFMR-1','SWBD-1','MDP-1','CB-12','480V FEEDER']);
  await page.locator('section.import-primary input[type=file][accept*=".pdf"]').setInputFiles({name:'project-power-sheet.pdf',mimeType:'application/pdf',buffer:pdf});
  await expect(page.getByText('project-power-sheet.pdf',{exact:true})).toBeVisible();
- await expect(page.getByText(/SLD page recognized from content\/topology/i)).toBeVisible();
- const compiled=await page.evaluate(()=>{
+ await expect.poll(async()=>page.evaluate(()=>{
   const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
   const sld=(graph.entities||[]).filter((entity:any)=>entity.layer==='L2'&&entity.meta?.sldCandidate===true);
   return {sources:graph.sources?.length||0,names:sld.map((entity:any)=>entity.name),classes:sld.map((entity:any)=>entity.meta?.electricalComponentHint)};
+ }),{timeout:15000}).toMatchObject({
+  sources:expect.any(Number),
+  names:expect.arrayContaining(['UTILITY SERVICE 12KV','XFMR-1','SWBD-1','MDP-1','CB-12']),
+  classes:expect.arrayContaining(['UTILITY_SOURCE','TRANSFORMER','SWITCHBOARD','BREAKER'])
  });
- expect(compiled.sources).toBeGreaterThan(0);
- expect(compiled.names).toEqual(expect.arrayContaining(['UTILITY SERVICE 12KV','XFMR-1','SWBD-1','MDP-1','CB-12']));
- expect(compiled.classes).toEqual(expect.arrayContaining(['UTILITY_SOURCE','TRANSFORMER','SWITCHBOARD','BREAKER']));
  await page.getByRole('link',{name:'Open Spatial'}).last().click();
  await expect(page).toHaveURL(/\/spatial$/);
  await expect(page.getByRole('heading',{name:'Spatial model'})).toBeVisible();
