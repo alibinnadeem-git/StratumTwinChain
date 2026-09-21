@@ -58,6 +58,8 @@ jobs:
         run: npm run qa:database-readiness
       - name: Metric Spatial viewer, Z placement and SLD projection conformance
         run: npm run qa:spatial-viewer
+      - name: SLD content recognition and Spatial ingest conformance
+        run: npm run qa:sld-spatial
       - name: Spatial asset click and DIR Passport conformance
         run: npm run qa:spatial-asset-passport
       - name: PDF title-block intelligence conformance
