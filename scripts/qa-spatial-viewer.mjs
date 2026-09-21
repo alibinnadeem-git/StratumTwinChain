@@ -78,6 +78,17 @@ assert.equal(registryPanel?.meta?.assetDimensionAuthority,'MODEL_REGISTRY');
 assert.ok(Number(registryPanel?.scale)>1,'registry height drives visualization scale above nominal panel height');
 console.log('✓ SLD equipment receives deterministic logical depth, feeder links and model-registry dimensions');
 
+const genericSld=enrichSpatialProjection({version:'fixture',createdAt:new Date().toISOString(),entities:[
+ {id:'source-g',source:'Electrical Package.pdf',layer:'L2',kind:'text-asset-candidate',name:'UTILITY SERVICE 13.8kV',x:0,y:0,z:0,floor:'L1',confidence:.8,meta:{page:4}},
+ {id:'xfmr-g',source:'Electrical Package.pdf',layer:'L2',kind:'text-asset-candidate',name:'XFMR T1 1500 KVA',x:2,y:0,z:0,floor:'L1',confidence:.8,meta:{page:4}},
+ {id:'msb-g',source:'Electrical Package.pdf',layer:'L2',kind:'text-asset-candidate',name:'SWBD MSB-1',x:4,y:0,z:0,floor:'L1',confidence:.8,meta:{page:4}},
+ {id:'panel-g',source:'Electrical Package.pdf',layer:'L2',kind:'text-asset-candidate',name:'PANEL LP-1',x:6,y:0,z:0,floor:'L1',confidence:.8,meta:{page:4}}
+],links:[],stats:{L0:1,L1:0,L2:4,L3:0,L4:0}},registry);
+assert.equal(genericSld.entities.filter(entity=>entity.meta?.sldSpatialProjection===true).length,4,'generic electrical PDF graph must be recognized from content');
+assert.ok((genericSld.links||[]).filter(link=>link.type==='SLD_FEEDS').length>=3,'generic electrical PDF graph must produce feeder hierarchy');
+assert.deepEqual(genericSld.entities.map(entity=>entity.meta?.sldLogicalDepth),[0,1,2,4]);
+console.log('✓ generic electrical graphs become SLD spatial models from content even without filename/parser hints');
+
 const oem=resolveAssetPlacement({name:'PANELBOARD LP-1',floor:'L2',meta:{oemDimensionsMeters:[1.2,2.1,.55],dimensionsSource:'OEM submittal'}});
 assert.equal(oem.dimensions.authority,'SOURCE_SPEC');assert.equal(oem.dimensions.height,2.1);assert.equal(oem.zAuthority,'HISTORICAL_RECOMMENDATION');assert.equal(oem.physicalTruth,false);
 assert.ok(oem.recommendation?.rangeMeters&&oem.recommendation.constraintMaxMeters);assert.equal(oem.recommendation?.evidenceClass,'CODE_CONSTRAINT');
