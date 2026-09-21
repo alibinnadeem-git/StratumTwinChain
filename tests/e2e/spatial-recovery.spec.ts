@@ -58,3 +58,36 @@ test('a JSON backup can restore a missing model without rebuilding sources',asyn
  await page.goto('/spatial');
  await expect(page.getByText('Imported backup panel',{exact:true})).toBeVisible();
 });
+
+
+test('legacy STRATUM origin can hand off a validated Spatial graph to the current app',async({page})=>{
+ await page.goto('/');
+ await page.evaluate(value=>{
+  localStorage.removeItem('stratum_compiled_graph');
+  window.dispatchEvent(new MessageEvent('message',{
+   origin:'https://stratum-twin-chain.vercel.app',
+   data:{type:'STRATUM_SPATIAL_RECOVERY',version:1,graph:value,sourceOrigin:'https://stratum-twin-chain.vercel.app'}
+  }));
+ },graph('Legacy origin panel'));
+ await expect(page.getByRole('region',{name:'Project workspace status'})).toContainText('MODEL FOUND');
+ const name=await page.evaluate(()=>JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}').entities?.[0]?.name);
+ expect(name).toBe('Legacy origin panel');
+});
+
+test('untrusted origin cannot inject a Spatial graph',async({page})=>{
+ await page.goto('/');
+ await page.evaluate(()=>{
+  localStorage.removeItem('stratum_compiled_graph');
+  localStorage.removeItem('stratum_compiled_graph_last_good_v2');
+  localStorage.removeItem('stratum_compiled_graph_previous_v2');
+ });
+ await page.reload();
+ await page.evaluate(value=>{
+  window.dispatchEvent(new MessageEvent('message',{
+   origin:'https://example.com',
+   data:{type:'STRATUM_SPATIAL_RECOVERY',version:1,graph:value}
+  }));
+ },graph('Injected panel'));
+ const stored=await page.evaluate(()=>localStorage.getItem('stratum_compiled_graph'));
+ expect(stored).toBeNull();
+});
