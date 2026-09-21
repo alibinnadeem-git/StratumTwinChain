@@ -24,7 +24,7 @@ const checks=[
  ['API requires authentication for reads',api.includes('const session=await requireSession();')],
  ['API restricts persistence/review mutations to authorized project roles',api.includes("requireSession(['SUPER_ADMIN','ORG_ADMIN','PROJECT_MANAGER'])")],
  ['API validates project belongs to session organization',api.includes('WHERE id=$1 AND organization_id=$2 FOR SHARE')],
- ['API uses a domain-separated canonical compilation hash',api.includes("domain:'STRATUM/SPATIAL/COMPILATION/1'")&&api.includes('canonicalHash(')],
+ ['API uses a domain-separated canonical compilation hash',api.includes("domain:'STRATUM/SPATIAL/COMPILATION/1'")&&api.includes('canonicalHash(')],\n ['API accepts projected SLD feeder relationships for server snapshots',api.includes("'SLD_FEEDS'")],
  ['API makes identical graph save idempotent',api.includes('graph_sha256=$3')&&api.includes('idempotent:true')],
  ['API creates append-only revisions instead of mutating prior compilations',api.includes('supersedes_compilation_id')&&api.includes('revision=(prior.rows[0]?.revision||0)+1')],
  ['API records explicit human review transitions',api.includes("'ACCEPT_REVIEW_BASELINE','REOPEN_REVIEW'")&&api.includes('INSERT INTO spatial_compilation_reviews')],
