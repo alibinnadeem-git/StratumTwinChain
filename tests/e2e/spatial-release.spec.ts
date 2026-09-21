@@ -4,6 +4,7 @@ const tinyPng=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQ
 
 test('manual plan annotations persist deletion and restore without resurrecting removed marks',async({page})=>{
  await page.goto('/compiler');
+ await page.getByText('Advanced compiler details',{exact:true}).click();
  await page.getByText('Manual annotation',{exact:true}).click();
  await page.getByLabel('Plan image').setInputFiles({name:'annotation-plan.png',mimeType:'image/png',buffer:tinyPng});
  await page.getByLabel('Annotation text').fill('PANEL-LP1');
@@ -35,6 +36,7 @@ test('manual plan annotations persist deletion and restore without resurrecting 
  expect(afterDelete).toEqual({entities:0,marks:0});
 
  await page.reload();
+ await page.getByText('Advanced compiler details',{exact:true}).click();
  await page.getByText('Manual annotation',{exact:true}).click();
  await page.getByLabel('Saved plan').selectOption({label:'annotation-plan.png'});
  await expect(page.getByText('PANEL-LP1 · E-201')).toHaveCount(0);
@@ -62,6 +64,7 @@ test('sheet review requires explicit room confirmation and alignment remains rev
   window.dispatchEvent(new Event('stratum:graph-updated'));
  });
 
+ await page.getByText('Advanced compiler details',{exact:true}).click();
  const review=page.getByRole('region',{name:'Drawing review'});
  await expect(review).toBeVisible();
  await expect(review.getByLabel('Drawing sheet')).toBeHidden();
