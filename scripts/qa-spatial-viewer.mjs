@@ -6,6 +6,7 @@ import {planUniformMeterScale} from '../lib/model-scale.ts';
 import {DEFAULT_ELECTRICAL_MODEL_REGISTRY} from '../lib/electrical-model-registry.ts';
 import {ELECTRICAL_COMPONENTS} from '../lib/electrical-component-library.ts';
 import {analyzeSldText,electricalAssetCandidate,sldElectricalFamily} from '../lib/sld-intelligence.ts';
+import {analyzeSldText,electricalAssetCandidate,sldElectricalFamily} from '../lib/sld-intelligence.ts';
 
 const tracked=ELECTRICAL_COMPONENTS.filter(item=>item.trackAsAsset);
 const mappedProductionModels=DEFAULT_ELECTRICAL_MODEL_REGISTRY.filter(item=>item.modelUrl&&['GLB','GLTF'].includes(item.format));
@@ -79,6 +80,29 @@ assert.equal(registryPanel?.meta?.assetDimensionAuthority,'MODEL_REGISTRY');
 assert.ok(Number(registryPanel?.scale)>1,'registry height drives visualization scale above nominal panel height');
 
 console.log('✓ SLD equipment receives deterministic logical depth, feeder links and model-registry dimensions');
+
+const fieldNotation=['13.2KV UTILITY SERVICE','XFMR T1 1500 KVA','SWBD MSB-1','MCCB CB-1','PANEL LP-1'];
+const fieldEvidence=analyzeSldText(fieldNotation);
+assert.equal(fieldEvidence.isSld,true,'real electrical content must identify an SLD even when filename/title lacks the words SLD or single-line');
+assert.equal(sldElectricalFamily('XFMR T1'),'TRANSFORMER');
+assert.equal(sldElectricalFamily('SWBD MSB-1'),'MAIN_DISTRIBUTION');
+assert.equal(sldElectricalFamily('MCCB CB-1'),'PROTECTION');
+assert.equal(electricalAssetCandidate('UTILITY SERVICE'),true);
+assert.equal(electricalAssetCandidate('PANEL LP-1'),true);
+console.log('✓ field SLD abbreviations and content identify electrical hierarchy without relying on the filename');
+
+const contentOnlySld=enrichSpatialProjection({version:'fixture',createdAt:new Date().toISOString(),entities:[
+ {id:'source2',source:'E-601.pdf',layer:'L2',kind:'text-asset-candidate',name:'13.2KV UTILITY SERVICE',x:0,y:0,z:0,floor:'L1',confidence:.8,meta:{page:1}},
+ {id:'xfmr2',source:'E-601.pdf',layer:'L2',kind:'text-asset-candidate',name:'XFMR T1 1500 KVA',x:2,y:0,z:0,floor:'L1',confidence:.8,meta:{page:1}},
+ {id:'swbd2',source:'E-601.pdf',layer:'L2',kind:'text-asset-candidate',name:'SWBD MSB-1',x:4,y:0,z:0,floor:'L1',confidence:.8,meta:{page:1}},
+ {id:'breaker2',source:'E-601.pdf',layer:'L2',kind:'text-asset-candidate',name:'MCCB CB-1',x:5,y:0,z:0,floor:'L1',confidence:.8,meta:{page:1}},
+ {id:'panel2',source:'E-601.pdf',layer:'L2',kind:'text-asset-candidate',name:'PANEL LP-1',x:6,y:0,z:0,floor:'L1',confidence:.8,meta:{page:1}}
+],links:[],stats:{L0:1,L1:0,L2:5,L3:0,L4:0}},registry);
+assert.ok(contentOnlySld.entities.every(entity=>entity.meta?.sldSpatialProjection===true),'content-only SLD objects must enter Spatial electrical projection');
+assert.ok((contentOnlySld.links||[]).filter(link=>link.type==='SLD_FEEDS').length>=4,'content-only SLD must produce feeder topology');
+assert.deepEqual(contentOnlySld.entities.map(entity=>entity.meta?.sldLogicalDepth),[0,1,2,3,4]);
+console.log('✓ generic-named SLD content becomes a Spatial electrical model and feeder graph');
+
 
 assert.equal(electricalAssetCandidate('XFMR T1'),true);
 assert.equal(electricalAssetCandidate('SWBD MSB-1'),true);
