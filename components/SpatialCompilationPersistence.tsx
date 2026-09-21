@@ -28,6 +28,7 @@ type CompilationResponse={
 };
 
 type LocalGraph={version:string;createdAt:string;sources:unknown[];entities:unknown[];links:unknown[];stats:Record<string,number>};
+const PROJECT_KEY='stratum_spatial_project_id';
 
 function shortHash(value:string|undefined){return value?`${value.slice(0,12)}…${value.slice(-8)}`:'—';}
 function timestamp(value:string|undefined|null){return value?new Date(value).toLocaleString():'—';}
@@ -68,6 +69,7 @@ export default function SpatialCompilationPersistence(){
     if(!selected&&data.projects?.length){
       const first=data.projects[0].id;
       setProjectId(first);
+      try{localStorage.setItem(PROJECT_KEY,first)}catch{}
       return refresh(first);
     }
     setMessage(data.schemaReady
@@ -85,7 +87,7 @@ export default function SpatialCompilationPersistence(){
   },[]); // Explicitly load server state once; compilation saves remain user-triggered.
 
   async function selectProject(next:string){
-    setProjectId(next);setLatest(null);setLoadArmed(false);setReason('');setMessage('Loading project review history…');
+    setProjectId(next);try{if(next)localStorage.setItem(PROJECT_KEY,next);else localStorage.removeItem(PROJECT_KEY)}catch{};setLatest(null);setLoadArmed(false);setReason('');setMessage('Loading project review history…');
     try{await refresh(next)}catch(error){setMessage(error instanceof Error?error.message:'Unable to load project review history.');}
   }
 
@@ -140,7 +142,7 @@ export default function SpatialCompilationPersistence(){
 
   return <section className="card" style={{marginTop:16}} aria-label="Spatial compilation server review">
     <div className="section-head"><div><div className="eyebrow">Server-backed Spatial review</div><h2>Persist the reviewed project graph</h2></div><span className={accepted?'proof':'pending'}>{accepted?'REVIEW BASELINE ACCEPTED':'REVIEW REQUIRED'}</span></div>
-    <p className="muted">A server snapshot preserves source fingerprints, entities, relationships and review provenance across sessions. Saving or accepting a compilation does not create a STRATUM Asset, approve lifecycle evidence, finalize a DIR, establish PoVI finality, or establish physical truth.</p>
+    <p className="muted">When a real tenant project is connected, STRATUM now protects the browser working graph with idempotent append-only server snapshots. Accepting a review baseline remains a separate human action and does not create a STRATUM Asset, DIR finality or physical truth.</p>
 
     <div className="spec-grid">
       <label><span>Project</span><select aria-label="Spatial compilation project" value={projectId} onChange={event=>selectProject(event.target.value)} disabled={busy||!projects.length}><option value="">Select project</option>{projects.map(project=><option value={project.id} key={project.id}>{project.project_code} · {project.name}</option>)}</select></label>
