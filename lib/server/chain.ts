@@ -52,10 +52,19 @@ class StratumChainRpcAdapter implements LedgerAdapter{
  }
 }
 
-export function dirRpcConfigured(){return Boolean((process.env.STRATUM_CHAIN_RPC_URL||'').trim())}
+const DEFAULT_PRODUCTION_DIR_RPC='https://stratumvalidator-a.vercel.app';
+
+function resolveDirRpcUrl(){
+ const configured=(process.env.STRATUM_CHAIN_RPC_URL||'').trim().replace(/\/$/,'');
+ if(configured)return configured;
+ if(process.env.NODE_ENV==='production')return DEFAULT_PRODUCTION_DIR_RPC;
+ return '';
+}
+
+export function dirRpcConfigured(){return Boolean(resolveDirRpcUrl())}
 
 export async function probeDirRpc():Promise<DirRpcStatus>{
- const rpc=(process.env.STRATUM_CHAIN_RPC_URL||'').trim().replace(/\/$/,'');
+ const rpc=resolveDirRpcUrl();
  if(!rpc)return{configured:false,reachable:false,connected:false,chainId:null,height:null,engineReady:false,poviConformant:false,activeValidatorCount:null,requiredQuorum:null,validators:[],limitations:[]};
  try{
   const response=await fetch(`${rpc}/v1/status`,{
@@ -97,7 +106,7 @@ export type DirExplorerSnapshot={
 };
 
 export async function fetchDirExplorer(limit=25):Promise<DirExplorerSnapshot>{
- const rpc=(process.env.STRATUM_CHAIN_RPC_URL||'').trim().replace(/\/$/,'');
+ const rpc=resolveDirRpcUrl();
  if(!rpc)throw Object.assign(new Error('DIR RPC is not configured'),{status:503});
  const url=new URL(rpc+'/v1/explorer');url.searchParams.set('limit',String(Math.max(1,Math.min(100,limit))));
  const response=await fetch(url,{
@@ -111,7 +120,7 @@ export async function fetchDirExplorer(limit=25):Promise<DirExplorerSnapshot>{
 }
 
 export function getLedger():LedgerAdapter{
- const rpc=(process.env.STRATUM_CHAIN_RPC_URL||'').trim();
+ const rpc=resolveDirRpcUrl();
  if(rpc)return new StratumChainRpcAdapter(rpc,process.env.STRATUM_CHAIN_ID||'stratum-devnet-1',process.env.STRATUM_CHAIN_API_KEY);
  if(process.env.NODE_ENV==='production'){
   throw Object.assign(new Error('DIR RPC is not configured for production; finality is unavailable and no mock receipt will be issued'),{status:503});
