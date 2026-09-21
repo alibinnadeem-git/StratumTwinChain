@@ -136,7 +136,7 @@ export function enrichSpatialProjection<T extends SpatialProjectionGraph>(graph:
    if(candidate!==null&&Math.abs(z)<1e-9){z=candidate;meta.elevationKnown=false;meta.physicalElevationKnown=false;meta.zPlacementAuthority='INFERRED_FLOOR_LABEL';meta.inferredZCandidate=candidate;meta.zReviewRequired=true;}
   }
 
-  if(isSld){meta.sldSpatialProjection=true;meta.sldLogicalDepth=sldDepth(entity.name);meta.sldProjectionMethod='DETERMINISTIC_ELECTRICAL_HIERARCHY_V1';meta.sldProjectionReviewRequired=true;meta.sldPhysicalElevationKnown=canUsePhysicalZ({...entity,meta});meta.sldTruthBoundary='LOGICAL_Z_NEVER_ESTABLISHES_PHYSICAL_ELEVATION';}
+  if(isSld){meta.sldSpatialProjection=true;meta.sldLogicalDepth=sldDepth(entity.name);meta.sldProjectionMethod=finite(meta.sldVectorComponent)!==null?'PDF_VECTOR_COMPONENT_PLUS_LOGICAL_DEPTH_V2':'DETERMINISTIC_ELECTRICAL_HIERARCHY_V1';meta.sldProjectionReviewRequired=true;meta.sldPhysicalElevationKnown=canUsePhysicalZ({...entity,meta});meta.sldTruthBoundary='LOGICAL_Z_NEVER_ESTABLISHES_PHYSICAL_ELEVATION';}
   return {...entity,z,scale,meta};
  });
 
@@ -147,15 +147,16 @@ export function enrichSpatialProjection<T extends SpatialProjectionGraph>(graph:
   const ordered=[...nodes].sort((a,b)=>Number(a.meta?.sldLogicalDepth||0)-Number(b.meta?.sldLogicalDepth||0)||a.x-b.x||a.y-b.y||a.id.localeCompare(b.id));
   for(const target of ordered){
    const targetDepth=Number(target.meta?.sldLogicalDepth||0),upstream=ordered.filter(candidate=>Number(candidate.meta?.sldLogicalDepth||0)<targetDepth);if(!upstream.length)continue;
-   upstream.sort((a,b)=>{const ad=targetDepth-Number(a.meta?.sldLogicalDepth||0),bd=targetDepth-Number(b.meta?.sldLogicalDepth||0);if(ad!==bd)return ad-bd;return Math.hypot(target.x-a.x,target.y-a.y)-Math.hypot(target.x-b.x,target.y-b.y)||a.id.localeCompare(b.id)});
-   const from=upstream[0];generated.push({id:`sld-feeds:${from.id}:${target.id}`,from:from.id,to:target.id,type:'SLD_FEEDS',confidence:.72,meta:{inference:'DETERMINISTIC_HIERARCHY_NEAREST_UPSTREAM',reviewRequired:true,physicalTruth:false}});
+   const targetComponent=finite(target.meta?.sldVectorComponent),vectorUpstream=targetComponent===null?[]:upstream.filter(candidate=>finite(candidate.meta?.sldVectorComponent)===targetComponent),candidates=vectorUpstream.length?vectorUpstream:upstream;
+   candidates.sort((a,b)=>{const ad=targetDepth-Number(a.meta?.sldLogicalDepth||0),bd=targetDepth-Number(b.meta?.sldLogicalDepth||0);if(ad!==bd)return ad-bd;return Math.hypot(target.x-a.x,target.y-a.y)-Math.hypot(target.x-b.x,target.y-b.y)||a.id.localeCompare(b.id)});
+   const from=candidates[0],vectorGrounded=vectorUpstream.length>0;generated.push({id:`sld-feeds:${from.id}:${target.id}`,from:from.id,to:target.id,type:'SLD_FEEDS',confidence:vectorGrounded?.9:.72,meta:{inference:vectorGrounded?'PDF_VECTOR_CONNECTED_COMPONENT':'DETERMINISTIC_HIERARCHY_NEAREST_UPSTREAM',reviewRequired:true,physicalTruth:false,...(vectorGrounded?{sourceVectorComponent:targetComponent}: {})}});
   }
  }
 
  const deduped=[...new Map([...retained,...generated].map(link=>[`${link.type}:${link.from}:${link.to}`,link])).values()];
  const changed=entities.some(entity=>JSON.stringify(originalById.get(entity.id))!==JSON.stringify(entity))||JSON.stringify(graph.links||[])!==JSON.stringify(deduped);
  if(!changed)return graph;
- return {...graph,entities,links:deduped,spatialProjection:{version:'6',generatedAt:new Date().toISOString(),cadMetricFrames:cadScales.size,sldFrames:sldFrames.size,sldLinks:generated.length,dimensionRegistryEntries:modelRegistry.filter(item=>item.dimensionsMeters).length,truthBoundary:'METRIC_XY_SLD_LOGICAL_Z_AND_RECOMMENDED_PLACEMENT_NEVER_ESTABLISH_PHYSICAL_TRUTH'}} as T;
+ return {...graph,entities,links:deduped,spatialProjection:{version:'7',generatedAt:new Date().toISOString(),cadMetricFrames:cadScales.size,sldFrames:sldFrames.size,sldLinks:generated.length,sldVectorLinks:generated.filter(link=>link.meta?.inference==='PDF_VECTOR_CONNECTED_COMPONENT').length,dimensionRegistryEntries:modelRegistry.filter(item=>item.dimensionsMeters).length,truthBoundary:'METRIC_XY_SOURCE_VECTOR_SLD_TOPOLOGY_LOGICAL_Z_AND_RECOMMENDED_PLACEMENT_NEVER_ESTABLISH_PHYSICAL_TRUTH'}} as T;
 }
 
 export function projectionSummary(graph:SpatialProjectionGraph){
