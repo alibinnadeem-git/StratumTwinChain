@@ -25,6 +25,7 @@ export default function SpatialWorkspaceStatus({compact=false}:{compact?:boolean
   const [graph,setGraph]=useState(()=>typeof window==='undefined'?null:readCurrentSpatialGraph());
   const [health,setHealth]=useState<Health|null>(null);
   const [message,setMessage]=useState('');
+  const [recoveryReady,setRecoveryReady]=useState(false);
 
   useEffect(()=>{
     const refresh=()=>setGraph(readCurrentSpatialGraph());
@@ -40,6 +41,7 @@ export default function SpatialWorkspaceStatus({compact=false}:{compact?:boolean
     window.addEventListener('stratum:graph-updated',refresh);
     window.addEventListener(SPATIAL_RECOVERY_EVENT,refresh);
     window.addEventListener('message',receiveLegacy);
+    setRecoveryReady(true);
     fetch('/api/health',{cache:'no-store'}).then(r=>r.json()).then(setHealth).catch(()=>setHealth(null));
     return()=>{
       window.removeEventListener('stratum:graph-updated',refresh);
@@ -96,7 +98,7 @@ export default function SpatialWorkspaceStatus({compact=false}:{compact?:boolean
     }catch(error){setMessage(error instanceof Error?error.message:'Backup import failed.');}
   }
 
-  return <section className={compact?'workspace-status compact':'workspace-status'} aria-label="Project workspace status">
+  return <section className={compact?'workspace-status compact':'workspace-status'} aria-label="Project workspace status" data-recovery-ready={recoveryReady?'true':'false'}>
     <div className="workspace-status-main">
       <div>
         <div className="eyebrow">Project workspace</div>
