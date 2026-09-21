@@ -61,3 +61,32 @@ test('SLD becomes review-only spatial electrical hierarchy',async({page})=>{
  expect(projected.depths).toEqual([0,1,2,4]);
  expect(projected.feeders).toBeGreaterThanOrEqual(3);
 });
+
+
+test('generic electrical PDF graph is recognized as SLD from content',async({page})=>{
+ await page.goto('/spatial');
+ await page.evaluate(()=>{
+  localStorage.setItem('stratum_compiled_graph',JSON.stringify({
+   version:'fixture',createdAt:new Date().toISOString(),sources:[{name:'Electrical Package.pdf',ext:'pdf',sha256:'generic-sld',discipline:'Electrical',floor:'L1',elevation:0}],
+   entities:[
+    {id:'source-g',source:'Electrical Package.pdf',layer:'L2',kind:'text-asset-candidate',name:'UTILITY SERVICE 13.8kV',x:-6,y:0,z:0,floor:'L1',confidence:.9,meta:{page:4,sourceSha256:'generic-sld'}},
+    {id:'xfmr-g',source:'Electrical Package.pdf',layer:'L2',kind:'text-asset-candidate',name:'XFMR T1 1500 KVA',x:-2,y:0,z:0,floor:'L1',confidence:.9,meta:{page:4,sourceSha256:'generic-sld'}},
+    {id:'msb-g',source:'Electrical Package.pdf',layer:'L2',kind:'text-asset-candidate',name:'SWBD MSB-1',x:2,y:0,z:0,floor:'L1',confidence:.9,meta:{page:4,sourceSha256:'generic-sld'}},
+    {id:'panel-g',source:'Electrical Package.pdf',layer:'L2',kind:'text-asset-candidate',name:'PANEL LP-1',x:6,y:0,z:0,floor:'L1',confidence:.9,meta:{page:4,sourceSha256:'generic-sld'}}
+   ],links:[],stats:{L0:1,L1:0,L2:4,L3:0,L4:0}
+  }));
+  window.dispatchEvent(new Event('stratum:graph-updated'));
+ });
+ await expect(page.getByText(/4 SLD object\(s\)/i)).toBeVisible();
+ const projected=await page.evaluate(()=>{
+  const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
+  return{
+   projected:(graph.entities||[]).filter((entity:any)=>entity.meta?.sldSpatialProjection===true).length,
+   feeders:(graph.links||[]).filter((link:any)=>link.type==='SLD_FEEDS').length,
+   depths:(graph.entities||[]).map((entity:any)=>entity.meta?.sldLogicalDepth)
+  };
+ });
+ expect(projected.projected).toBe(4);
+ expect(projected.feeders).toBeGreaterThanOrEqual(3);
+ expect(projected.depths).toEqual([0,1,2,4]);
+});
