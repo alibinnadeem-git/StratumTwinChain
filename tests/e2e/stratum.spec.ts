@@ -24,7 +24,7 @@ test.describe('STRATUM Spatial Verified route and responsive UAT',()=>{
 test('command center is task-first while Redbook detail remains available on demand',async({page})=>{
  await page.goto('/');
  await expect(page.getByText('STRATUM Spatial Verified',{exact:false}).first()).toBeVisible();
- await expect(page.getByRole('heading',{name:'Choose a task and keep moving.'})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Continue your project.'})).toBeVisible();
  const launcher=page.getByRole('region',{name:'What are you doing now?'});
  await expect(launcher).toBeVisible();
  await expect(launcher.getByRole('link',{name:/Import project sources/i})).toBeVisible();
