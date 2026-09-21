@@ -99,6 +99,11 @@ export default function SpatialAssetInspector({
    <span className={asset?(dir.finalized?'proof':'status-chip'):'pending'}>{asset?(dir.finalized?'DIR FINALIZED':'DIR PENDING'):'UNLINKED'}</span>
   </div>
 
+  <div className={`placement-trust ${zReviewed?'reviewed':'needs-review'}`} role="status">
+   <div><span>Z placement</span><strong>{zReviewed?'Measured / reviewed':'Unverified elevation'}</strong></div>
+   {!zReviewed&&<b>Z NEEDS REVIEW</b>}
+  </div>
+
   {asset?<>
    <div className="asset-summary-strip">
     <div><span>Identity</span><strong>{asset.serial_number||asset.asset_code}</strong></div>
