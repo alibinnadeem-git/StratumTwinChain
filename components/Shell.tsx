@@ -4,17 +4,17 @@ import {readSession} from '@/lib/server/auth';
 
 const primaryTasks=[
  ['/','Home'],
- ['/compiler','Start from drawing'],
- ['/spatial','Review model'],
- ['/scan','Scan & inspect'],
- ['/assets','Asset Passports']
+ ['/compiler','Import'],
+ ['/spatial','Spatial'],
+ ['/scan','Field'],
+ ['/dir','DIR']
 ] as const;
 
 const moreGroups=[
- {label:'Project',links:[['/projects','Projects'],['/sites','Sites'],['/reality','Reality Capture & Reconciliation']]},
- {label:'Engineering',links:[['/compiler','Spatial Compiler'],['/spatial','STRATUM Spatial Verified'],['/component-library','Component Library']]},
- {label:'Operations',links:[['/workflows','Field Work & Commissioning'],['/maintenance','Maintenance'],['/predictive','Predictive Intelligence'],['/simulation','Simulation'],['/evidence','Evidence']]},
- {label:'Trust & handover',links:[['/handover','Digital Handover'],['/provenance','Provenance Explorer'],['/verify','Verify Record'],['/dir','DIR Explorer']]},
+ {label:'Assets & projects',links:[['/assets','Asset Passports'],['/projects','Projects'],['/sites','Sites']]},
+ {label:'Engineering',links:[['/component-library','Component Library'],['/reality','Reality Capture & Reconciliation'],['/simulation','Simulation']]},
+ {label:'Operations',links:[['/workflows','Field Work & Commissioning'],['/maintenance','Maintenance'],['/predictive','Predictive Intelligence'],['/evidence','Evidence']]},
+ {label:'Trust & handover',links:[['/handover','Digital Handover'],['/provenance','Provenance Explorer'],['/verify','Verify Record']]},
  {label:'Platform',links:[['/admin','Admin & RBAC'],['/release-readiness','Release readiness'],['/release-uat','Physical-device UAT']]}
 ] as const;
 
@@ -34,10 +34,16 @@ export default async function Shell({children}:{children:ReactNode}){
  return <div className="shell">
   <a className="skip-link" href="#main-content">Skip to main content</a>
   <aside className="sidebar">
-   <div className="sidebar-head"><Link href="/" className="brand">STRATUM <span>Spatial Verified</span></Link><div className="network-pill"><i/> Trust records active</div></div>
+   <div className="sidebar-head">
+    <Link href="/" className="brand">STRATUM <span>Spatial Verified</span></Link>
+    <div className="network-pill"><i/>{session?'Tenant session':'Reference mode'}</div>
+   </div>
    <nav className="nav" aria-label="Primary navigation">
-    <div className="primary-task-nav"><small>Tasks</small>{primaryTasks.map(([href,label])=><Link href={href} key={href}>{label}</Link>)}</div>
-    <details className="nav-more"><summary>More tools</summary><div className="nav-more-body">{moreGroups.map(group=><div className="nav-group" key={group.label}><small>{group.label}</small>{group.links.map(([href,label])=><Link href={href} key={`${group.label}-${href}`}>{label}</Link>)}</div>)}</div></details>
+    <div className="primary-task-nav"><small>Work</small>{primaryTasks.map(([href,label])=><Link href={href} key={href}>{label}</Link>)}</div>
+    <details className="nav-more">
+     <summary>More tools</summary>
+     <div className="nav-more-body">{moreGroups.map(group=><div className="nav-group" key={group.label}><small>{group.label}</small>{group.links.map(([href,label])=><Link href={href} key={`${group.label}-${href}`}>{label}</Link>)}</div>)}</div>
+    </details>
    </nav>
    <div className="usercard"><div className="avatar" aria-hidden="true">{identity.avatar}</div><div><strong>{identity.primary}</strong><small>{identity.secondary}</small></div></div>
   </aside>

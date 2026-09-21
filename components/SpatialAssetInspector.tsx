@@ -79,85 +79,112 @@ export default function SpatialAssetInspector({
   }
  }
 
- if(!selected)return <>
-  <div className="eyebrow" style={{marginTop:14}}>HOW TO USE</div>
-  <p className="subtitle">Click equipment to inspect placement, asset identity, current activity and DIR state.</p>
- </>;
+ if(!selected)return <div className="inspector-empty">
+  <div className="eyebrow">Inspect equipment</div>
+  <h3>Click an asset in Spatial</h3>
+  <p className="subtitle">Identity, placement, lifecycle work, evidence and DIR state will appear here.</p>
+ </div>;
 
  const z=Number.isFinite(Number(selected.z))?Number(selected.z):0;
  const qr=asset?verificationUrl(asset):'';
+ const zReviewed=selected.meta?.elevationKnown===true||selected.meta?.physicalElevationKnown===true||selected.meta?.zPlacementAuthority==='MEASURED_OR_REVIEWED';
 
- return <>
-  <div className="eyebrow" style={{marginTop:14}}>{asset?'ASSET PASSPORT':'SPATIAL OBJECT'}</div>
-  <h2 style={{margin:'4px 0'}}>{asset?.name||selected.name}</h2>
-  <p className="subtitle">{asset?(asset.asset_code+' · '+asset.status):(selected.layer+' · '+selected.kind)}</p>
+ return <div className="asset-inspector">
+  <div className="section-head">
+   <div>
+    <div className="eyebrow">{asset?'Registered asset':'Spatial object'}</div>
+    <h2 style={{margin:'4px 0'}}>{asset?.name||selected.name}</h2>
+    <p className="subtitle" style={{margin:0}}>{asset?(asset.asset_code+' · '+asset.status):(selected.layer+' · '+selected.kind)}</p>
+   </div>
+   <span className={asset?(dir.finalized?'proof':'status-chip'):'pending'}>{asset?(dir.finalized?'DIR FINALIZED':'DIR PENDING'):'UNLINKED'}</span>
+  </div>
+
+  <div className={`placement-trust ${zReviewed?'reviewed':'needs-review'}`} role="status">
+   <div><span>Z placement</span><strong>{zReviewed?'Measured / reviewed':'Unverified elevation'}</strong></div>
+  </div>
 
   {asset?<>
-   <div className="passport-facts">
-    <div><span>Manufacturer</span><strong>{asset.manufacturer_name||'Pending'}</strong></div>
-    <div><span>Model</span><strong>{asset.model||'Pending'}</strong></div>
-    <div><span>Serial</span><strong>{asset.serial_number||'—'}</strong></div>
+   <div className="asset-summary-strip">
+    <div><span>Identity</span><strong>{asset.serial_number||asset.asset_code}</strong></div>
     <div><span>Location</span><strong>{asset.location_label||selected.zone||'Pending'}</strong></div>
-    <div><span>Lifecycle</span><strong>{asset.latest_event_type||'No lifecycle event'}</strong></div>
-    <div><span>Binding</span><strong>{binding?.method.replaceAll('_',' ')}</strong></div>
+    <div><span>Latest work</span><strong>{asset.latest_event_type||'No lifecycle event'}</strong></div>
+    <div><span>Trust</span><strong>{dir.finalized?`DIR #${dir.blockHeight}`:'Awaiting finality'}</strong></div>
    </div>
 
-   <div className="notice" style={{marginTop:12,borderColor:dir.finalized?'#2d7252':'#75592e'}}>
-    <strong>{dir.finalized?'DIR FINALIZED':'NO FINALIZED DIR'}</strong>
-    <span>{dir.finalized
-      ?('Immutable record '+dir.blockHeight+' on '+(dir.network||'STRATUM Chain')+'. Latest lifecycle: '+(dir.latestEventType||'recorded')+' '+(dir.latestEventStatus||'')+'.')
-      :'This registered asset has no finalized DIR yet. Lifecycle activity remains reviewable without being silently promoted.'}</span>
-   </div>
-
-   <div style={{display:'grid',gridTemplateColumns:'auto 1fr',gap:12,alignItems:'center',marginTop:12}}>
-    <AssetQR value={qr} size={108}/>
+   <div className={`dir-summary-card ${dir.finalized?'finalized':''}`}>
     <div>
-     <div className="eyebrow">ASSET QR</div>
-     <p className="muted" style={{margin:'4px 0 8px'}}>Print this label, attach it to the equipment, and scan it later to reopen the same asset identity.</p>
-     <div className="button-row">
-      <Link className="action" href={'/assets/'+encodeURIComponent(asset.id)}>Open Passport</Link>
-      <Link className="ghost" href={'/assets/'+encodeURIComponent(asset.id)+'/qr'}>Print QR label</Link>
-      <Link className="ghost" href={'/verify?q='+encodeURIComponent(asset.qr_token||asset.asset_code)}>Verify DIR</Link>
+     <div className="eyebrow">Digital Immutable Record</div>
+     <h3>{dir.finalized?'Finalized lifecycle proof':'No finalized DIR yet'}</h3>
+     <p className="muted">{dir.finalized
+       ?`Finalized on ${dir.network||'STRATUM Chain'} at record #${dir.blockHeight}. This secures the recorded evidence and approval history; it does not independently establish physical truth.`
+       :'Work can be recorded now. Evidence, an independent approval and PoVI finality are still required before a lifecycle record becomes a finalized DIR.'}</p>
+    </div>
+    <Link className={dir.finalized?'ghost':'action'} href="/dir">{dir.finalized?'View DIR proof':'Review DIR status'}</Link>
+   </div>
+
+   <div className="asset-quick-actions" aria-label="Asset quick actions">
+    <Link className="action" href={'/assets/'+encodeURIComponent(asset.id)}>Passport</Link>
+    <Link className="ghost" href={`/inspection?q=${encodeURIComponent(asset.id)}`}>Field evidence</Link>
+    <Link className="ghost" href={'/assets/'+encodeURIComponent(asset.id)+'/qr'}>Print QR</Link>
+    <Link className="ghost" href={'/verify?q='+encodeURIComponent(asset.qr_token||asset.asset_code)}>Verify record</Link>
+   </div>
+
+   <details className="secondary-details">
+    <summary>Asset identity & QR</summary>
+    <div className="asset-identity-panel">
+     <div className="passport-facts">
+      <div><span>Manufacturer</span><strong>{asset.manufacturer_name||'Pending'}</strong></div>
+      <div><span>Model</span><strong>{asset.model||'Pending'}</strong></div>
+      <div><span>Serial</span><strong>{asset.serial_number||'—'}</strong></div>
+      <div><span>Binding</span><strong>{binding?.method.replaceAll('_',' ')}</strong></div>
+     </div>
+     <div className="qr-inline">
+      <AssetQR value={qr} size={96}/>
+      <p className="muted">Scan to reopen this exact asset identity.</p>
      </div>
     </div>
-   </div>
+   </details>
 
    {asset.project_id
     ?<AssetActivityPanel key={asset.id} assetId={asset.id} projectId={asset.project_id}/>
     :<div className="notice" style={{marginTop:12}}><strong>ACTIVITY UNAVAILABLE</strong><span>This asset summary is missing its project identifier. Reload the live asset registry before submitting activity.</span></div>}
 
-   <details style={{marginTop:12}}>
+   <details className="secondary-details">
     <summary>Asset binding</summary>
-    <p className="muted">This is an explicit Spatial-to-registry relationship. Unlinking it removes only the viewer binding; it does not delete the asset, lifecycle records, evidence or DIRs.</p>
+    <p className="muted">This is an explicit Spatial-to-registry relationship. Unlinking removes only the viewer binding; it does not delete the asset, lifecycle records, evidence or DIRs.</p>
     <button className="ghost" type="button" onClick={()=>persistBinding(null)}>Unlink Spatial object</button>
    </details>
   </>:<>
    <div className="notice" style={{marginTop:12}}>
-    <strong>NOT LINKED TO A REGISTERED ASSET</strong>
-    <span>This object came from project geometry. Link it explicitly before showing tenant activity or DIR state.</span>
+    <strong>LINK THIS OBJECT BEFORE USING LIVE ASSET DATA</strong>
+    <span>This geometry came from project sources. STRATUM will not borrow identity, activity or DIR state from a similar asset automatically.</span>
    </div>
-   {registeredAssets.length>0?<div style={{display:'grid',gap:8,marginTop:12}}>
+   {registeredAssets.length>0?<div className="binding-panel">
     <label>Registered asset
      <select value={linkId} onChange={event=>setLinkId(event.target.value)} style={{width:'100%'}}>
       <option value="">Choose an asset</option>
       {registeredAssets.map(item=><option key={item.id} value={item.id}>{item.asset_code} · {item.name}</option>)}
      </select>
     </label>
-    <button className="action" type="button" disabled={!linkId} onClick={()=>persistBinding(registeredAssets.find(item=>item.id===linkId)||null)}>Link selected asset</button>
-    <Link className="ghost" href={'/assets/new?name='+encodeURIComponent(selected.name)+'&type='+encodeURIComponent(String(selected.meta?.componentKey||selected.kind||'EQUIPMENT'))}>Register this object as a new asset</Link>
-   </div>:<div style={{display:'grid',gap:8,marginTop:12}}><p className="muted" style={{margin:0}}>No live registered assets are available in the active organization yet.</p><Link className="action" href={'/assets/new?name='+encodeURIComponent(selected.name)+'&type='+encodeURIComponent(String(selected.meta?.componentKey||selected.kind||'EQUIPMENT'))}>Register this object</Link></div>}
+    <div className="button-row">
+     <button className="action" type="button" disabled={!linkId} onClick={()=>persistBinding(registeredAssets.find(item=>item.id===linkId)||null)}>Link asset</button>
+     <Link className="ghost" href={'/assets/new?name='+encodeURIComponent(selected.name)+'&type='+encodeURIComponent(String(selected.meta?.componentKey||selected.kind||'EQUIPMENT'))}>Register new asset</Link>
+    </div>
+   </div>:<div className="binding-panel"><p className="muted" style={{margin:0}}>No live registered assets are available in the active organization yet.</p><Link className="action" href={'/assets/new?name='+encodeURIComponent(selected.name)+'&type='+encodeURIComponent(String(selected.meta?.componentKey||selected.kind||'EQUIPMENT'))}>Register this object</Link></div>}
   </>}
 
-  <div className="passport-facts" style={{marginTop:12}}>
-   <div><span>Floor</span><strong>{selected.floor||'UNRESOLVED'}</strong></div>
-   <div><span>Plan X / Y</span><strong>{selected.x.toFixed(2)} / {selected.y.toFixed(2)}</strong></div>
-   <div><span>Z</span><strong>{z.toFixed(2)} m</strong></div>
-   <div><span>Z placement</span><strong>{selected.meta?.elevationKnown===true||selected.meta?.physicalElevationKnown===true||selected.meta?.zPlacementAuthority==='MEASURED_OR_REVIEWED'?'Measured / reviewed':'Unverified elevation'}</strong></div>
-   <div><span>Source</span><strong>{selected.source}</strong></div>
-   <div><span>Confidence</span><strong>{Math.round(selected.confidence*100)}%</strong></div>
-   <div><span>Zone</span><strong>{selected.zone||'Unresolved'}</strong></div>
-  </div>
+  <details className="secondary-details placement-details">
+   <summary>Placement & source confidence</summary>
+   <div className="passport-facts" style={{marginTop:10}}>
+    <div><span>Floor</span><strong>{selected.floor||'UNRESOLVED'}</strong></div>
+    <div><span>Plan X / Y</span><strong>{selected.x.toFixed(2)} / {selected.y.toFixed(2)}</strong></div>
+    <div><span>Z</span><strong>{z.toFixed(2)} m</strong></div>
+    <div><span>Source</span><strong>{selected.source}</strong></div>
+    <div><span>Confidence</span><strong>{Math.round(selected.confidence*100)}%</strong></div>
+    <div><span>Zone</span><strong>{selected.zone||'Unresolved'}</strong></div>
+   </div>
+   <details className="proof-details"><summary>Raw source details</summary><dl>{Object.entries(selected.meta||{}).map(([key,value])=><div key={key}><dt>{key}</dt><dd style={{overflowWrap:'anywhere'}}>{typeof value==='object'?JSON.stringify(value):String(value)}</dd></div>)}</dl></details>
+  </details>
   {message&&<p role="status" className="muted">{message}</p>}
-  <details style={{marginTop:12}}><summary>Source details</summary><dl>{Object.entries(selected.meta||{}).map(([key,value])=><div key={key}><dt>{key}</dt><dd style={{overflowWrap:'anywhere'}}>{typeof value==='object'?JSON.stringify(value):String(value)}</dd></div>)}</dl></details>
- </>;
+ </div>;
 }

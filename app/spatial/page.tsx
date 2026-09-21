@@ -27,7 +27,7 @@ export default async function SpatialPage(){
 
  return <>
   <SpatialProjectionEngine/>
-  <div className="page-head"><div><div className="eyebrow">{STRATUM_PRODUCT}</div><h1 className="title">Review the model.</h1><p className="subtitle">Import project sources first, then inspect rooms, equipment, lifecycle activity and DIR state in one Spatial workspace.</p></div><div className="badge">MODEL · ASSETS · DIR</div></div>
+  <div className="page-head"><div><div className="eyebrow">{STRATUM_PRODUCT}</div><h1 className="title">Spatial</h1><p className="subtitle">Review the project model, click equipment, and move from asset identity to field activity and DIR state without changing workspaces.</p></div><div className="badge">MODEL · ASSETS · DIR</div></div>
 
   <SpatialReviewQueue/>
 
