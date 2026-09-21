@@ -51,7 +51,7 @@ assert.match(scanner,/does not establish physical identity, Verified state, DIR 
 assert.match(scanner,/router\.push\(`\/inspection\?q=/);
 assert.doesNotMatch(scanner,/fetch\(['"`]\/api\/(?:chain|verify|approvals|attestations)/);
 assert.match(page,/FieldScanner/);
-assert.match(page,/Scan first\. Verify separately\./);
+assert.match(page,/Scan equipment\./);assert.match(page,/Field trust details/);assert.match(page,/A scan resolves identity only/);
 console.log('✓ scanner resolves tenant registry identity before controlled inspection handoff');
 console.log('✓ archived asset inspection is blocked');
 console.log('✓ camera decoder choice cannot bypass tenant resolution or create trust/finality authority');
