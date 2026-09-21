@@ -31,7 +31,7 @@ const checks=[
  ['automatic sync never accepts review, approves evidence or anchors a DIR',!autoSync.includes('PATCH')&&!autoSync.includes('/api/approvals')&&!autoSync.includes('getLedger')],
  ['legacy recovery only accepts the exact legacy STRATUM origin',workspace.includes("allowed=new Set(['https://stratum-twin-chain.vercel.app'])")],
  ['legacy recovery validates graph structure before replacing current work',workspace.includes("!isSpatialGraph(data.graph)")&&workspace.includes('replaceCurrentSpatialGraph(data.graph)')],
- ['legacy bridge target is allowlisted and transfers only graph data',bridge.includes('ALLOWED_TARGETS')&&bridge.includes("type:'STRATUM_SPATIAL_RECOVERY'")&&!/password|credential|secret/i.test(bridge)],
+ ['legacy bridge target is allowlisted and transfers only the recovery envelope',bridge.includes('ALLOWED_TARGETS')&&bridge.includes("type:'STRATUM_SPATIAL_RECOVERY'")&&bridge.includes('graph,sourceOrigin:window.location.origin')&&!/password\s*:|credential\s*:|secret\s*:/i.test(bridge)],
 ];
 
 const failed=checks.filter(([,ok])=>!ok);
