@@ -41,6 +41,56 @@ test('content-only electrical SLD upload populates the Spatial model',async({pag
  await expect(page.getByText(/SLD object\(s\)/)).toContainText(/[1-9]\d* SLD object\(s\)/);
 });
 
+test('portable Spatial recovery exports protected history and restores the working graph',async({page})=>{
+ await page.goto('/compiler');
+ const seeded=await page.evaluate(()=>{
+  const graph={
+   version:'recovery-test-1',createdAt:'2026-09-21T07:10:00.000Z',
+   sources:[{name:'legacy-sld.pdf',ext:'pdf',sha256:'a'.repeat(64),discipline:'Electrical',floor:'UNRESOLVED',elevation:0}],
+   entities:[{id:'legacy-xfmr',source:'legacy-sld.pdf',layer:'L2',kind:'text-asset-candidate',name:'XFMR-1',x:1,y:2,z:0,confidence:.9,meta:{sldCandidate:true}}],
+   links:[{id:'legacy-link',from:'legacy-xfmr',to:'legacy-xfmr',type:'SOURCE_RELATION',confidence:.7}],
+   stats:{L0:1,L1:0,L2:1,L3:0,L4:0}
+  };
+  localStorage.setItem('stratum_compiled_graph',JSON.stringify(graph));
+  localStorage.setItem('stratum_compiled_graph_last_good_v2',JSON.stringify(graph));
+  localStorage.setItem('stratum_compiled_graph_previous_v2',JSON.stringify({...graph,version:'recovery-test-previous'}));
+  window.dispatchEvent(new Event('stratum:graph-updated'));
+  return graph;
+ });
+ await page.getByText('Advanced compiler details',{exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Move the full browser Spatial workspace safely'})).toBeVisible();
+ const downloadPromise=page.waitForEvent('download');
+ await page.getByRole('button',{name:'Export recovery bundle'}).click();
+ const download=await downloadPromise;
+ expect(download.suggestedFilename()).toMatch(/^stratum-spatial-recovery-.*\.json$/);
+ const downloadPath=await download.path();
+ expect(downloadPath).toBeTruthy();
+ const preImport=await page.evaluate(()=>{
+  const graph={
+   version:'pre-import-newer',createdAt:'2026-09-21T07:20:00.000Z',
+   sources:[{name:'newer-plan.pdf',ext:'pdf',sha256:'b'.repeat(64),discipline:'Electrical',floor:'L1',elevation:0}],
+   entities:[{id:'newer-panel',source:'newer-plan.pdf',layer:'L2',kind:'text-asset-candidate',name:'PANEL-LP1',x:4,y:5,z:0,confidence:.91}],
+   links:[],stats:{L0:1,L1:0,L2:1,L3:0,L4:0}
+  };
+  localStorage.setItem('stratum_compiled_graph',JSON.stringify(graph));
+  localStorage.setItem('stratum_compiled_graph_last_good_v2',JSON.stringify(graph));
+  window.dispatchEvent(new Event('stratum:graph-updated'));
+  return graph;
+ });
+ await page.locator('section[aria-label="Portable Spatial recovery"] input[type=file]').setInputFiles(downloadPath!);
+ await expect(page.getByRole('status').filter({hasText:'Recovery bundle restored'})).toBeVisible();
+ const recovered=await page.evaluate(()=>{
+  const restored=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
+  const preImportKeys=Object.keys(localStorage).filter(key=>key.startsWith('stratum_spatial_preimport_'));
+  const preImportGraphs=preImportKeys.map(key=>JSON.parse(localStorage.getItem(key)||'{}'));
+  return{restored,preImportGraphs};
+ });
+ expect(recovered.restored).toMatchObject(seeded);
+ const preservedPreImport=recovered.preImportGraphs.find((graph:any)=>graph.version===preImport.version);
+ expect(preservedPreImport).toBeTruthy();
+ expect(preservedPreImport).toMatchObject(preImport);
+});
+
 test('manual plan annotations persist deletion and restore without resurrecting removed marks',async({page})=>{
  await page.goto('/compiler');
  await page.getByText('Advanced compiler details',{exact:true}).click();

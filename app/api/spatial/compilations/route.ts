@@ -32,7 +32,7 @@ const Entity=z.object({
 }).passthrough();
 const Link=z.object({
   id:z.string().min(1).max(300),from:z.string().min(1).max(300),to:z.string().min(1).max(300),
-  type:z.enum(['SAME_TAG','DERIVED_ASSET','SOURCE_RELATION']),confidence:z.number().finite().min(0).max(1)
+  type:z.enum(['SAME_TAG','DERIVED_ASSET','SOURCE_RELATION','SLD_FEEDS']),confidence:z.number().finite().min(0).max(1)
 }).passthrough();
 const Graph=z.object({
   version:z.string().min(1).max(40),
