@@ -37,7 +37,7 @@ test('content-only electrical SLD upload populates the Spatial model',async({pag
  await page.getByRole('link',{name:'Open Spatial'}).last().click();
  await expect(page).toHaveURL(/\/spatial$/);
  await expect(page.getByRole('heading',{name:'Spatial model'})).toBeVisible();
- await expect(page.getByText(/SLD object\(s\)/)).toContainText(/[1-9]/);
+ await expect(page.getByText(/SLD object\(s\)/)).toContainText(/[1-9]\d* SLD object\(s\)/);
 });
 
 test('manual plan annotations persist deletion and restore without resurrecting removed marks',async({page})=>{
