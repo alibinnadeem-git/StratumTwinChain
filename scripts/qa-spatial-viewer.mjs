@@ -8,6 +8,7 @@ import {ELECTRICAL_COMPONENTS} from '../lib/electrical-component-library.ts';
 import {analyzeSldText,electricalAssetCandidate,sldElectricalFamily} from '../lib/sld-intelligence.ts';
 import {analyzeSldText,electricalAssetCandidate,sldElectricalFamily} from '../lib/sld-intelligence.ts';
 import {analyzeSldText,electricalAssetCandidate,sldElectricalFamily} from '../lib/sld-intelligence.ts';
+import {analyzeSldText,electricalAssetCandidate,sldElectricalFamily} from '../lib/sld-intelligence.ts';
 
 const tracked=ELECTRICAL_COMPONENTS.filter(item=>item.trackAsAsset);
 const mappedProductionModels=DEFAULT_ELECTRICAL_MODEL_REGISTRY.filter(item=>item.modelUrl&&['GLB','GLTF'].includes(item.format));
@@ -65,11 +66,19 @@ assert.equal(panelAgain?.meta?.zPlacementAuthority,'HISTORICAL_RECOMMENDATION');
 console.log('✓ DXF X/Y becomes a metric plan frame and repeated enrichment cannot promote dimension/Z authority');
 
 const registry=[{componentKey:'panelboard',format:'GLB',modelUrl:'/panel.glb',scale:1,rotation:[0,0,0],offset:[0,0,0],dimensionsMeters:[1.1,1.9,.28],dimensionsSource:'OEM panel schedule',dimensionsConfidence:.9}];
+const sldLabels=['UTILITY SERVICE','XFMR T1','SWBD MDP-1','PANEL LP-1','1600A 480V'];
+const sldEvidence=analyzeSldText(sldLabels);
+assert.equal(sldEvidence.isSld,true,'generic drawing names must still identify SLD content from electrical hierarchy');
+assert.equal(sldElectricalFamily('XFMR T1'),'TRANSFORMER');
+assert.equal(sldElectricalFamily('SWBD MDP-1'),'MAIN_DISTRIBUTION');
+assert.equal(electricalAssetCandidate('MCCB CB-1'),true);
+console.log('✓ common field SLD abbreviations are recognized without depending on the PDF filename');
+
 const sld=enrichSpatialProjection({version:'fixture',createdAt:new Date().toISOString(),entities:[
- {id:'source',source:'E-001 Single Line Diagram.pdf',layer:'L2',kind:'text-asset-candidate',name:'UTILITY SERVICE',x:0,y:0,z:0,floor:'L1',confidence:.8,meta:{page:1}},
- {id:'xfmr',source:'E-001 Single Line Diagram.pdf',layer:'L2',kind:'text-asset-candidate',name:'TRANSFORMER T1',x:2,y:0,z:0,floor:'L1',confidence:.8,meta:{page:1}},
- {id:'msb',source:'E-001 Single Line Diagram.pdf',layer:'L2',kind:'text-asset-candidate',name:'MAIN SWITCHBOARD MSB',x:4,y:0,z:0,floor:'L1',confidence:.8,meta:{page:1}},
- {id:'panel',source:'E-001 Single Line Diagram.pdf',layer:'L2',kind:'text-asset-candidate',name:'PANELBOARD LP-1',x:6,y:0,z:0,floor:'L1',confidence:.8,meta:{page:1}}
+ {id:'source',source:'E-601.pdf',layer:'L2',kind:'text-asset-candidate',name:'UTILITY SERVICE',x:0,y:0,z:0,floor:'L1',confidence:.8,meta:{page:1}},
+ {id:'xfmr',source:'E-601.pdf',layer:'L2',kind:'text-asset-candidate',name:'XFMR T1',x:2,y:0,z:0,floor:'L1',confidence:.8,meta:{page:1}},
+ {id:'msb',source:'E-601.pdf',layer:'L2',kind:'text-asset-candidate',name:'SWBD MDP-1',x:4,y:0,z:0,floor:'L1',confidence:.8,meta:{page:1}},
+ {id:'panel',source:'E-601.pdf',layer:'L2',kind:'text-asset-candidate',name:'PANEL LP-1',x:6,y:0,z:0,floor:'L1',confidence:.8,meta:{page:1}}
 ],links:[],stats:{L0:1,L1:0,L2:4,L3:0,L4:0}},registry);
 assert.deepEqual(sld.entities.map(entity=>entity.meta?.sldLogicalDepth),[0,1,2,4]);
 assert.ok((sld.links||[]).some(link=>link.type==='SLD_FEEDS'&&link.from==='source'&&link.to==='xfmr'));
@@ -81,7 +90,7 @@ assert.equal(registryPanel?.meta?.assetDimensionAuthority,'MODEL_REGISTRY');
 assert.ok(Number(registryPanel?.scale)>1,'registry height drives visualization scale above nominal panel height');
 
 
-console.log('✓ SLD equipment receives deterministic logical depth, feeder links and model-registry dimensions');
+console.log('✓ SLD equipment receives deterministic logical depth, feeder links and model-registry dimensions even when filename/title lacks SLD wording');
 
 const genericSldEvidence=analyzeSldText([
  'UTILITY SERVICE 480V',
