@@ -36,7 +36,7 @@ export async function GET(){
   ok:true,
   service:'stratum-verified',
   network:process.env.STRATUM_CHAIN_ID||'stratum-devnet-1',
-  ledgerAdapter:process.env.STRATUM_CHAIN_RPC_URL?'stratum-rpc':'deterministic-devnet',
+  ledgerAdapter:chainRpcConfigured?'stratum-rpc':'deterministic-devnet',
   mode,
   liveDataReady,
   databaseConfigured,
