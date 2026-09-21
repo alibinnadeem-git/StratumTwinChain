@@ -19,6 +19,7 @@
     "qa:runtime-config": "node --experimental-strip-types scripts/qa-runtime-config.mjs",
     "qa:release-uat": "node scripts/qa-release-uat.mjs",
     "qa:spatial-viewer": "node --experimental-strip-types scripts/qa-spatial-viewer.mjs",
+    "qa:sld-spatial": "node --experimental-strip-types scripts/qa-sld-spatial-ingest.mjs",
     "qa:spatial-asset-passport": "node --experimental-strip-types scripts/qa-spatial-asset-passport.mjs",
     "qa:title-block": "node --experimental-strip-types scripts/qa-title-block.mjs",
     "qa:auto-alignment": "node --experimental-strip-types scripts/qa-auto-sheet-alignment.mjs",
