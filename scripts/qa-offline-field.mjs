@@ -27,7 +27,7 @@ console.log('✓ queue is removed only after lifecycle and all evidence uploads 
 
 assert.match(inspection,/UNSYNCED: inspection is safely queued on this device/);
 assert.match(inspection,/nothing is presented as Verified/);
-assert.match(inspection,/Queued\/local field data is not submitted evidence, approval, a DIR, PoVI finality, or Verified state/);
+assert.match(inspection,/Local or queued field data is not approval, a DIR, PoVI finality, or Verified state/);
 assert.match(inspection,/queueInspection\(item\)/);
 assert.match(inspection,/syncQueuedInspection\(item\)/);
 assert.match(inspection,/router\.push\('\/scan'\)/);

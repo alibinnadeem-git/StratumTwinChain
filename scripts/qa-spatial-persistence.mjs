@@ -4,6 +4,9 @@ const read=path=>fs.readFileSync(new URL(`../${path}`,import.meta.url),'utf8');
 const migration=read('migrations/002_spatial_compilation_persistence.sql');
 const api=read('app/api/spatial/compilations/route.ts');
 const ui=read('components/SpatialCompilationPersistence.tsx');
+const autoSync=read('components/SpatialAutoSync.tsx');
+const recovery=read('lib/spatial-browser-recovery.ts');
+const guard=read('components/SpatialPersistenceGuard.tsx');
 const compilerPage=read('app/compiler/page.tsx');
 
 const forbiddenMutations=[
@@ -23,21 +26,22 @@ const checks=[
  ['API validates project belongs to session organization',api.includes('WHERE id=$1 AND organization_id=$2 FOR SHARE')],
  ['API uses a domain-separated canonical compilation hash',api.includes("domain:'STRATUM/SPATIAL/COMPILATION/1'")&&api.includes('canonicalHash(')],
  ['API makes identical graph save idempotent',api.includes('graph_sha256=$3')&&api.includes('idempotent:true')],
- ['API creates a new append-only revision instead of mutating prior compilation',api.includes('supersedes_compilation_id')&&api.includes('revision=(prior.rows[0]?.revision||0)+1')],
- ['API records explicit review state transitions',api.includes("'ACCEPT_REVIEW_BASELINE','REOPEN_REVIEW'")&&api.includes('INSERT INTO spatial_compilation_reviews')],
- ['API truth boundary says storage does not create or verify assets',api.includes('STORED_COMPILATION_DOES_NOT_CREATE_OR_VERIFY_ASSETS')],
- ['API truth boundary says review acceptance is not PoVI finality',api.includes('REVIEW_ACCEPTANCE_IS_NOT_VERIFIED_STATE_OR_POVI_FINALITY')],
+ ['API creates append-only revisions instead of mutating prior compilations',api.includes('supersedes_compilation_id')&&api.includes('revision=(prior.rows[0]?.revision||0)+1')],
+ ['API records explicit human review transitions',api.includes("'ACCEPT_REVIEW_BASELINE','REOPEN_REVIEW'")&&api.includes('INSERT INTO spatial_compilation_reviews')],
  ['API performs no asset/lifecycle/chain state mutation',forbiddenMutations.every(pattern=>!pattern.test(api))],
- ['UI save is an explicit user action',ui.includes('Save review snapshot')&&ui.includes('onClick={saveSnapshot}')],
- ['UI does not autosave browser compilation to server',!ui.includes("useEffect(()=>saveSnapshot")&&!ui.includes("useEffect(saveSnapshot")],
- ['UI load from server requires a second explicit confirmation',ui.includes('Confirm load')&&ui.includes('loadArmed')],
- ['UI loads only into browser review graph and dispatches graph update',ui.includes("localStorage.setItem('stratum_compiled_graph'")&&ui.includes("stratum:graph-updated")],
- ['UI requires a reason for review decisions',ui.includes('reason.trim()')&&ui.includes('cleaned.length<5')],
- ['UI exposes explicit human accept/reopen controls',ui.includes('Accept as Spatial review baseline')&&ui.includes('Reopen review')],
- ['UI denies asset/DIR/PoVI/physical-truth promotion',ui.includes('does not create a STRATUM Asset')&&ui.includes('finalize a DIR')&&ui.includes('establish PoVI finality')&&ui.includes('establish physical truth')],
- ['compiler page includes server-backed review surface',compilerPage.includes('SpatialCompilationPersistence')],
- ['compiler page states L4 candidates are not durable assets until authorized promotion',compilerPage.includes('L4 compiler candidates remain source-derived review objects')&&compilerPage.includes('does not perform that promotion')],
- ['new persistence path does not call deprecated twin ingest route',!ui.includes('/api/twin/ingest')&&!api.includes('/api/twin/ingest')]
+ ['manual review UI still supports explicit save/load and human accept/reopen',ui.includes('Save review snapshot')&&ui.includes('Confirm load')&&ui.includes('Accept as Spatial review baseline')&&ui.includes('Reopen review')],
+ ['manual server load still requires second confirmation',ui.includes('loadArmed')&&ui.includes('Confirm load')],
+ ['human review decisions still require a reason',ui.includes('reason.trim()')&&ui.includes('cleaned.length<5')],
+ ['project selection is remembered for safe background snapshots',ui.includes("stratum_spatial_project_id")&&ui.includes('localStorage.setItem(PROJECT_KEY')],
+ ['automatic sync only stores the current browser graph as a review snapshot',autoSync.includes('readCurrentSpatialGraph')&&autoSync.includes("method:'POST'")&&autoSync.includes('/api/spatial/compilations')],
+ ['automatic sync requires a real server project and never invents one',autoSync.includes("state:'PROJECT_REQUIRED'")&&autoSync.includes('projects.length===1')],
+ ['automatic sync uses same-origin authenticated calls',autoSync.includes("credentials:'same-origin'")],
+ ['automatic sync never performs review acceptance, approval or DIR finality',!autoSync.includes("method:'PATCH'")&&!autoSync.includes('/api/approvals')&&!autoSync.includes('getLedger')],
+ ['browser recovery keeps a last-good and previous graph copy',recovery.includes('SPATIAL_LAST_GOOD_KEY')&&recovery.includes('SPATIAL_PREVIOUS_KEY')],
+ ['browser recovery adds IndexedDB protection',recovery.includes("indexedDB.open")&&recovery.includes("idbPut('latest'")],
+ ['global persistence guard captures graph updates',guard.includes("stratum:graph-updated")&&guard.includes('protectSpatialGraph')],
+ ['compiler keeps server review controls secondary',compilerPage.includes('<summary>Server sync & review baseline</summary>')],
+ ['new persistence path does not call deprecated twin ingest route',!ui.includes('/api/twin/ingest')&&!autoSync.includes('/api/twin/ingest')&&!api.includes('/api/twin/ingest')]
 ];
 
 const failed=checks.filter(([,ok])=>!ok);
@@ -46,4 +50,4 @@ if(failed.length){
   console.error(`\n${failed.length} Spatial persistence safety check(s) failed.`);
   process.exit(1);
 }
-console.log('\nSpatial compilation persistence and human-review safety contract passed.');
+console.log('\nSpatial persistence, recovery and human-review safety contract passed.');

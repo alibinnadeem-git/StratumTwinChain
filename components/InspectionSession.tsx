@@ -111,16 +111,49 @@ export default function InspectionSession(){
  }
 
  if(!q)return <div className="card"><h2>No asset selected</h2><p className="muted">Scan an asset first.</p><button type="button" onClick={()=>router.push('/scan')}>Open field scanner</button></div>;
- return <div className="grid two" style={{alignItems:'start'}}>
-  <div className="card"><div className="section-head"><div><div className="eyebrow">Field inspection session</div><h2>{asset?.name||'Resolving asset'}</h2></div><span className={online?'proof':'pending'}>{online?'ONLINE':'OFFLINE'}</span></div><p className="subtitle">{asset?`${asset.asset_code} · ${asset.site_name} · ${asset.location_label||'Location pending'}`:message}</p>{asset&&<div className="timeline">
-   <label className="event"><input type="checkbox" checked={draft.locationConfirmed} onChange={e=>setDraft(v=>({...v,locationConfirmed:e.target.checked}))}/><div><strong>Confirm site & location</strong><small>{asset.site_name} · {asset.location_label||'Location pending'}</small></div></label>
-   <label className="event"><input type="checkbox" checked={draft.checklist} onChange={e=>setDraft(v=>({...v,checklist:e.target.checked}))}/><div><strong>Inspection checklist passed</strong><small>Visual condition, labeling, clearances, mounting and workmanship reviewed.</small></div></label>
-   <div className="event"><div style={{width:'100%'}}><strong>Measurements</strong><textarea value={draft.measurements} onChange={e=>setDraft(v=>({...v,measurements:e.target.value}))} placeholder="Voltage, current, torque, IR values, test results…" style={{width:'100%',minHeight:90,marginTop:8}}/></div></div>
-   <div className="event"><div style={{width:'100%'}}><strong>Installation / inspection evidence</strong><input type="file" multiple accept="image/*,.pdf" onChange={addEvidence}/><small>{draft.evidence.length?`${draft.evidence.length} evidence file(s) fingerprinted and persisted locally`:'At least one evidence file is required.'}</small>{draft.evidence.map(x=><div key={x.sha256} style={{display:'flex',gap:8,justifyContent:'space-between',alignItems:'center',marginTop:7,fontSize:12}}><span style={{overflow:'hidden',textOverflow:'ellipsis'}}>{x.name}</span><button type="button" onClick={()=>void removeEvidence(x.sha256)}>Remove</button></div>)}</div></div>
-   <div className="event"><div style={{width:'100%'}}><strong>Crew / technician reference (optional)</strong><input value={draft.crewReference} onChange={e=>setDraft(v=>({...v,crewReference:e.target.value}))} placeholder="Crew, badge or field reference" style={{width:'100%',marginTop:8}}/><small>The server records the authenticated performer. This free-text reference is not a signature or identity proof.</small></div></div>
-   <div className="event"><div style={{width:'100%'}}><strong>Supervisor / inspector reference (optional)</strong><input value={draft.reviewerReference} onChange={e=>setDraft(v=>({...v,reviewerReference:e.target.value}))} placeholder="Supervisor / inspector field reference" style={{width:'100%',marginTop:8}}/><small>This is context only. Approval requires the separate authorized approval workflow.</small></div></div>
-   <div className="event"><div style={{width:'100%'}}><strong>Notes</strong><textarea value={draft.notes} onChange={e=>setDraft(v=>({...v,notes:e.target.value}))} placeholder="Exceptions, observations, corrective actions…" style={{width:'100%',minHeight:70,marginTop:8}}/></div></div>
-  </div>}</div>
-  <div className="card"><div className="eyebrow">Workflow status</div><h2>{draft.submitted?'Synchronized to tenant':draft.queued?'UNSYNCED · queued on device':'Ready when required field steps pass'}</h2><div className="workflow-steps">{[['Asset identified',!!asset],['Location confirmed',draft.locationConfirmed],['Checklist complete',draft.checklist],['Measurements recorded',!!draft.measurements.trim()],['Evidence persisted locally',draft.evidence.length>0],['Lifecycle candidate ready',complete]].map(([t,ok],i)=><div className={`workflow-step ${ok?'done':''}`} key={String(t)}><i>{ok?'✓':i+1}</i><div><strong>{String(t)}</strong><span>{ok?'Complete':'Required'}</span></div></div>)}</div><button type="button" onClick={submit} disabled={submitDisabled} style={{width:'100%',marginTop:16,opacity:submitDisabled?0.55:1}}>{busy?'Working…':draft.submitted?'Synchronized':draft.queued?'Queued — sync required':online?'Submit inspection & create lifecycle candidate':'Queue inspection for sync'}</button>{queuedCount>0&&<button type="button" onClick={()=>void syncAll()} disabled={busy||!online} style={{width:'100%',marginTop:8,opacity:busy||!online?0.55:1}}>Sync queued inspections ({queuedCount})</button>}<div className="notice" style={{marginTop:12}}><strong>{draft.queued?'UNSYNCED':draft.submitted?'SYNCHRONIZED':'STATUS'}</strong><span>{message}</span></div><p className="muted">Queued/local field data is not submitted evidence, approval, a DIR, PoVI finality, or Verified state. Those states only arise through their separate governed server workflows.</p>{asset&&<div className="button-row" style={{marginTop:12}}><button type="button" onClick={()=>router.push(`/assets/${encodeURIComponent(asset.id)}`)}>Open passport</button>{draft.submitted&&<button type="button" onClick={()=>router.push(`/assets/${encodeURIComponent(asset.id)}/attestations`)}>Human attestations</button>}<button type="button" onClick={()=>router.push('/scan')}>Scan another</button></div>}</div>
+
+ return <div className="inspection-simple">
+  <section className="card">
+   <div className="section-head"><div><div className="eyebrow">Inspection</div><h2>{asset?.name||'Resolving asset'}</h2><p className="subtitle">{asset?`${asset.asset_code} · ${asset.site_name} · ${asset.location_label||'Location pending'}`:message}</p></div><span className={online?'proof':'pending'}>{online?'ONLINE':'OFFLINE'}</span></div>
+
+   {asset&&<div className="inspection-required">
+    <label className={`inspection-step ${draft.locationConfirmed?'done':''}`}>
+     <span>1</span><input type="checkbox" checked={draft.locationConfirmed} onChange={e=>setDraft(v=>({...v,locationConfirmed:e.target.checked}))}/>
+     <div><strong>Confirm location</strong><small>{asset.site_name} · {asset.location_label||'Location pending'}</small></div>
+    </label>
+    <label className={`inspection-step ${draft.checklist?'done':''}`}>
+     <span>2</span><input type="checkbox" checked={draft.checklist} onChange={e=>setDraft(v=>({...v,checklist:e.target.checked}))}/>
+     <div><strong>Checklist passed</strong><small>Condition, labeling, clearances, mounting and workmanship reviewed.</small></div>
+    </label>
+    <label className={`inspection-step block ${draft.measurements.trim()?'done':''}`}>
+     <span>3</span><div><strong>Measurements</strong><textarea value={draft.measurements} onChange={e=>setDraft(v=>({...v,measurements:e.target.value}))} placeholder="Voltage, current, torque, IR values, test results…"/></div>
+    </label>
+    <div className={`inspection-step block ${draft.evidence.length?'done':''}`}>
+     <span>4</span><div><strong>Evidence</strong><input aria-label="Inspection evidence" type="file" multiple accept="image/*,.pdf" onChange={addEvidence}/><small>{draft.evidence.length?`${draft.evidence.length} evidence file(s) protected for sync`:'Add at least one photo or PDF.'}</small>{draft.evidence.map(x=><div className="inspection-file" key={x.sha256}><span>{x.name}</span><button type="button" onClick={()=>void removeEvidence(x.sha256)}>Remove</button></div>)}</div>
+    </div>
+   </div>}
+
+   {asset&&<details className="secondary-details">
+    <summary>Optional notes & references</summary>
+    <div className="inspection-optional">
+     <label>Crew / technician reference<input value={draft.crewReference} onChange={e=>setDraft(v=>({...v,crewReference:e.target.value}))} placeholder="Crew, badge or field reference"/></label>
+     <label>Supervisor / inspector reference<input value={draft.reviewerReference} onChange={e=>setDraft(v=>({...v,reviewerReference:e.target.value}))} placeholder="Supervisor / inspector field reference"/></label>
+     <label>Notes<textarea value={draft.notes} onChange={e=>setDraft(v=>({...v,notes:e.target.value}))} placeholder="Exceptions, observations, corrective actions…"/></label>
+     <p className="muted">The server records the authenticated performer. Crew and supervisor references are context only, not signatures or identity proof.</p>
+    </div>
+   </details>}
+
+   <button className="action inspection-submit" type="button" onClick={submit} disabled={submitDisabled}>{busy?'Working…':draft.submitted?'Synchronized':draft.queued?'Queued — sync required':online?'Submit inspection':'Queue for sync'}</button>
+   <div className="notice" role="status"><strong>{draft.queued?'UNSYNCED':draft.submitted?'SYNCHRONIZED':'STATUS'}</strong><span>{message}</span></div>
+
+   <details className="secondary-details">
+    <summary>Progress & sync details</summary>
+    <div className="workflow-steps">{[['Asset identified',!!asset],['Location confirmed',draft.locationConfirmed],['Checklist complete',draft.checklist],['Measurements recorded',!!draft.measurements.trim()],['Evidence protected',draft.evidence.length>0],['Ready to submit',complete]].map(([t,ok],i)=><div className={`workflow-step ${ok?'done':''}`} key={String(t)}><i>{ok?'✓':i+1}</i><div><strong>{String(t)}</strong><span>{ok?'Complete':'Required'}</span></div></div>)}</div>
+    {queuedCount>0&&<button type="button" onClick={()=>void syncAll()} disabled={busy||!online} style={{width:'100%',marginTop:10}}>Sync queued inspections ({queuedCount})</button>}
+    <p className="muted">Local or queued field data is not approval, a DIR, PoVI finality, or Verified state. Those states remain separate governed steps.</p>
+   </details>
+
+   {asset&&<div className="button-row inspection-footer"><button className="ghost" type="button" onClick={()=>router.push(`/assets/${encodeURIComponent(asset.id)}`)}>Passport</button>{draft.submitted&&<button className="ghost" type="button" onClick={()=>router.push(`/assets/${encodeURIComponent(asset.id)}/attestations`)}>Attestations</button>}<button className="ghost" type="button" onClick={()=>router.push('/scan')}>Scan another</button></div>}
+  </section>
  </div>;
 }

@@ -1,6 +1,6 @@
 import {expect,test} from '@playwright/test';
 
-const routes=['/','/spatial','/twin','/compiler','/component-library','/reality','/projects','/sites','/assets','/workflows','/maintenance','/predictive','/simulation','/evidence','/handover','/provenance','/verify','/dir','/admin','/inspection','/passports','/asset-passports','/passport/STR-AST-0009281','/build','/install','/operate','/predictive-maintenance','/reality-reconciliation','/digital-handover','/client-trust','/chain-explorer','/trust','/twin-compiler','/dirs'];
+const routes=['/','/spatial','/twin','/compiler','/scan','/component-library','/reality','/projects','/sites','/assets','/workflows','/maintenance','/predictive','/simulation','/evidence','/handover','/provenance','/verify','/dir','/admin','/inspection','/passports','/asset-passports','/passport/STR-AST-0009281','/build','/install','/operate','/predictive-maintenance','/reality-reconciliation','/digital-handover','/client-trust','/chain-explorer','/trust','/twin-compiler','/dirs'];
 const sourceUpload=(page:import('@playwright/test').Page)=>page.locator('input[type=file][accept*=".dxf"]');
 
 test.describe('STRATUM Spatial Verified route and responsive UAT',()=>{
@@ -21,21 +21,20 @@ test.describe('STRATUM Spatial Verified route and responsive UAT',()=>{
  }
 });
 
-test('command center is task-first while Redbook detail remains available on demand',async({page})=>{
+test('command center is task-first and exposes model recovery before advanced detail',async({page})=>{
  await page.goto('/');
  await expect(page.getByText('STRATUM Spatial Verified',{exact:false}).first()).toBeVisible();
- await expect(page.getByRole('heading',{name:'Choose a task and keep moving.'})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Continue your project.'})).toBeVisible();
+ await expect(page.getByRole('region',{name:'Project workspace status'})).toBeVisible();
  const launcher=page.getByRole('region',{name:'What are you doing now?'});
  await expect(launcher).toBeVisible();
  await expect(launcher.getByRole('link',{name:/Import project sources/i})).toBeVisible();
  await expect(launcher.getByRole('link',{name:/Review Spatial/i})).toBeVisible();
  await expect(launcher.getByRole('link',{name:/Update in the field/i})).toBeVisible();
  await expect(launcher.getByRole('link',{name:/Review DIR & history/i})).toBeVisible();
- await expect(page.getByText(/Redbook implementation order/i)).toBeHidden();
- await page.getByText('Trust & architecture details',{exact:true}).click();
- await expect(page.getByText(/Redbook implementation order/i)).toBeVisible();
- await expect(page.getByText('P0 · PARTIAL',{exact:true})).toBeVisible();
- await expect(page.getByText('P1 · IN PROGRESS',{exact:true})).toBeVisible();
+ await expect(page.getByText('Backup & recovery',{exact:true})).toBeVisible();
+ await expect(page.getByText('Trust details',{exact:true})).toBeVisible();
+ await expect(page.getByText(/Redbook implementation order/i)).toHaveCount(0);
 });
 
 test('primary navigation exposes tasks first and advanced workspaces through More tools',async({page})=>{
@@ -45,7 +44,7 @@ test('primary navigation exposes tasks first and advanced workspaces through Mor
  await expect(nav.getByRole('link',{name:'Component Library'})).toBeHidden();
  await nav.getByRole('link',{name:'Import'}).click();
  await expect(page).toHaveURL(/\/compiler$/);
- await expect(page.getByRole('heading',{name:/Engineering sources in\. Traceable Spatial model out\./i})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Add project sources.'})).toBeVisible();
  await nav.getByRole('link',{name:'Spatial'}).click();
  await expect(page).toHaveURL(/\/spatial$/);
  await nav.getByText('More tools',{exact:true}).click();

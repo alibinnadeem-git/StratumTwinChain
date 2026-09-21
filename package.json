@@ -43,7 +43,13 @@
     "predev": "node scripts/prepare-pdf-assets.mjs",
     "db:migrate": "node scripts/apply-database-migrations.mjs",
     "db:bootstrap-organization": "node scripts/bootstrap-production-organization.mjs",
-    "db:bootstrap-super-admin": "node scripts/bootstrap-first-super-admin.mjs"
+    "db:bootstrap-super-admin": "node scripts/bootstrap-first-super-admin.mjs",
+    "qa:agent-product": "node scripts/agent-product-gate.mjs",
+    "qa:agent-design": "node scripts/agent-design-gate.mjs",
+    "qa:agent-uiux": "node scripts/agent-uiux-gate.mjs",
+    "qa:agent-security": "node scripts/agent-security-gate.mjs",
+    "qa:agent-quality": "node scripts/agent-qa-gate.mjs",
+    "qa:agents": "npm run qa:agent-product && npm run qa:agent-design && npm run qa:agent-uiux && npm run qa:agent-security && npm run qa:agent-quality"
   },
   "dependencies": {
     "@zxing/browser": "^0.2.1",

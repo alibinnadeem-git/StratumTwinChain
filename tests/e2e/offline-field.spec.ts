@@ -29,8 +29,8 @@ test('offline inspection stays UNSYNCED and retries lifecycle/evidence with the 
  await checks.nth(1).check();
  await page.getByPlaceholder(/Voltage, current, torque/i).fill('480 V phase-to-phase; enclosure visually acceptable');
  await page.locator('input[type="file"]').setInputFiles({name:'inspection.txt',mimeType:'text/plain',buffer:tiny});
- await expect(page.locator('small').filter({hasText:/1 evidence file\(s\) fingerprinted and persisted locally/i})).toBeVisible();
- await page.getByRole('button',{name:'Queue inspection for sync'}).click();
+ await expect(page.locator('small').filter({hasText:/1 evidence file\(s\) protected for sync/i})).toBeVisible();
+ await page.getByRole('button',{name:'Queue for sync'}).click();
  await expect(page.getByText(/UNSYNCED: inspection is safely queued on this device/i)).toBeVisible();
  expect(lifecycleRequestIds).toHaveLength(0);
 
@@ -39,11 +39,13 @@ test('offline inspection stays UNSYNCED and retries lifecycle/evidence with the 
  await expect(page.getByText(/remain UNSYNCED/i)).toBeVisible();
  expect(evidenceAttempts).toBe(1);
 
+ await page.getByText('Progress & sync details',{exact:true}).click();
  await page.getByRole('button',{name:/Sync queued inspections \(1\)/}).click();
  await expect.poll(()=>lifecycleRequestIds.length).toBe(2);
  await expect.poll(()=>evidenceAttempts).toBe(2);
  expect(lifecycleRequestIds[0]).toBeTruthy();
  expect(lifecycleRequestIds[1]).toBe(lifecycleRequestIds[0]);
  await expect(page.getByText(/queued inspection\(s\) synchronized/i)).toBeVisible();
- await expect(page.getByRole('heading',{name:'Synchronized to tenant'})).toBeVisible();
+ await expect(page.getByRole('button',{name:'Synchronized'})).toBeDisabled();
+ await expect(page.getByRole('status')).toContainText('SYNCHRONIZED');
 });

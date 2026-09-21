@@ -1,6 +1,13 @@
 import FieldScanner from '@/components/FieldScanner';
 
 export default function ScanPage(){return <>
- <div className="page-head"><div><div className="eyebrow">STRATUM Verified Field</div><h1 className="title">Scan equipment</h1><p className="subtitle">Identify a live STRATUM Asset by QR, barcode, serial number or asset code, then open its Asset Passport or continue into the controlled inspection workflow.</p></div><div className="badge">FIELD · IDENTITY FIRST</div></div>
- <div className="grid two" style={{alignItems:'start'}}><div className="card mobile-preview"><FieldScanner/></div><div className="card"><div className="eyebrow">Field identity boundary</div><h2>Scan first. Verify separately.</h2><p>A camera read only resolves an equipment identity inside the signed-in organization. It does not approve installation, validate evidence, finalize a DIR, establish PoVI finality, or prove physical truth.</p><div className="workflow-steps">{[['1','Scan or enter identity','QR · barcode · serial · asset code'],['2','Resolve tenant asset','Organization-scoped live registry only'],['3','Review Asset Passport','Identity, administrative state and lifecycle context'],['4','Continue inspection','Location, checklist, measurements, evidence and accountable human review']].map(([n,t,d])=><div className="workflow-step" key={n}><i>{n}</i><div><strong>{t}</strong><span>{d}</span></div></div>)}</div></div></div>
+ <div className="page-head"><div><div className="eyebrow">Field</div><h1 className="title">Scan equipment.</h1><p className="subtitle">Scan a QR or enter an asset code. Once STRATUM resolves the asset, continue directly into its Passport or inspection.</p></div><div className="badge">IDENTITY FIRST</div></div>
+
+ <section className="card field-primary"><FieldScanner/></section>
+
+ <details className="secondary-details card">
+  <summary>Field trust details</summary>
+  <p className="muted">A scan resolves identity only. It does not approve installation, validate evidence, finalize a DIR, establish PoVI finality, or prove physical truth.</p>
+ </details>
  </>}
+
