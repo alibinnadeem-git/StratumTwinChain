@@ -205,11 +205,20 @@ export async function restoreSpatialRecoveryBundle(value:unknown,storage:Storage
   const primary=bundle.current||bundle.lastGood||bundle.indexedLatest||bundle.sameOriginBackups[0]?.graph||bundle.previous||bundle.indexedPrevious;
   if(!primary)throw new Error('The STRATUM Spatial Recovery bundle does not contain a recoverable graph.');
 
-  const existing=readCurrentSpatialGraph(storage);
-  if(existing)try{storage.setItem(SPATIAL_PREVIOUS_KEY,JSON.stringify(existing));}catch{}
-  if(bundle.previous)try{storage.setItem(SPATIAL_PREVIOUS_KEY,JSON.stringify(bundle.previous));}catch{}
+  const existingCurrent=readCurrentSpatialGraph(storage);
+  const existingLastGood=parseSpatialGraph(storage.getItem(SPATIAL_LAST_GOOD_KEY));
+  const existingPrevious=parseSpatialGraph(storage.getItem(SPATIAL_PREVIOUS_KEY));
+  const preImport=distinctGraphs([existingCurrent,existingLastGood,existingPrevious]);
+  const preImportStamp=Date.now();
+  preImport.forEach((graph,index)=>{
+    try{storage.setItem(`stratum_spatial_preimport_${preImportStamp}_${index+1}`,JSON.stringify(graph));}catch{}
+  });
+
   storage.setItem(SPATIAL_GRAPH_KEY,JSON.stringify(primary));
   storage.setItem(SPATIAL_LAST_GOOD_KEY,JSON.stringify(bundle.lastGood||primary));
+  if(bundle.previous)try{storage.setItem(SPATIAL_PREVIOUS_KEY,JSON.stringify(bundle.previous));}
+  catch{}
+  else if(existingCurrent)try{storage.setItem(SPATIAL_PREVIOUS_KEY,JSON.stringify(existingCurrent));}catch{}
   for(const backup of bundle.sameOriginBackups){
     if(!/^stratum/i.test(backup.key)||backup.key===SPATIAL_GRAPH_KEY)continue;
     try{storage.setItem(backup.key,JSON.stringify(backup.graph));}catch{}
