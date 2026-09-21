@@ -55,3 +55,7 @@
 .import-summary strong{font-size:18px}
 @media(max-width:700px){.import-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.source-drop{min-height:150px;padding:18px}}
 @media(max-width:420px){.import-summary{grid-template-columns:1fr}}
+
+.bridge-page{min-height:100vh;display:grid;place-items:center;padding:24px;background:#040a10}
+.bridge-card{width:min(620px,100%);display:grid;gap:14px}
+.bridge-card h1{margin:0;font-size:28px}
