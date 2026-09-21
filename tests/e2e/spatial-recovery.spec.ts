@@ -66,6 +66,8 @@ test('a JSON backup can restore a missing model without rebuilding sources',asyn
 
 test('legacy STRATUM origin can hand off a validated Spatial graph to the current app',async({page})=>{
  await page.goto('/');
+ const workspace=page.getByRole('region',{name:'Project workspace status'});
+ await expect(workspace).toHaveAttribute('data-recovery-ready','true');
  await page.evaluate(value=>{
   localStorage.removeItem('stratum_compiled_graph');
   window.dispatchEvent(new MessageEvent('message',{
@@ -73,7 +75,7 @@ test('legacy STRATUM origin can hand off a validated Spatial graph to the curren
    data:{type:'STRATUM_SPATIAL_RECOVERY',version:1,graph:value,sourceOrigin:'https://stratum-twin-chain.vercel.app'}
   }));
  },graph('Legacy origin panel'));
- await expect(page.getByRole('region',{name:'Project workspace status'})).toContainText('MODEL FOUND');
+ await expect(workspace).toContainText('MODEL FOUND');
  const name=await page.evaluate(()=>JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}').entities?.[0]?.name);
  expect(name).toBe('Legacy origin panel');
 });
