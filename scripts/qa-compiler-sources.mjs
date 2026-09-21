@@ -13,11 +13,12 @@ const require = createRequire(import.meta.url);
 let source = await readFile(new URL('components/CompilerWorkspace.tsx', root), 'utf8');
 source = source.slice(source.indexOf('type Layer='), source.indexOf('export default function'));
 const helpers = await readFile(new URL('lib/compiler-source.ts', root), 'utf8');
-source = helpers + '\n' + source;
+const sldHelpers = await readFile(new URL('lib/sld-intelligence.ts', root), 'utf8');
+source = sldHelpers + '\n' + helpers + '\n' + source;
 source = source.replace("new URL('pdfjs-dist/build/pdf.worker.min.mjs',import.meta.url).toString()",
   JSON.stringify(pathToFileURL(require.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs')).href));
 source = source.replace("wasmUrl:'/pdfjs/wasm/'", `wasmUrl:${JSON.stringify(new URL('../node_modules/pdfjs-dist/wasm/',import.meta.url).pathname)}`);
-source += '\nexport {assignZones,withAssetCandidates,parsePdf,buildLinks,classify};';
+source += '\nexport {assignZones,withAssetCandidates,parsePdf,buildLinks,classify,analyzeSldText,electricalAssetCandidate};';
 await writeFile(moduleUrl, ts.transpileModule(source, {compilerOptions: {
   target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext,
 }}).outputText);
@@ -42,6 +43,11 @@ try {
   assert.equal(zoned[3].zone,undefined,'different sheet cannot supply a room');
   assert.notEqual(first[1].id,other[0].id);
   assert.equal(c.classify('5749 Brynhurst - Civil - Bid Set.pdf'),'Civil');
+  assert.equal(c.electricalAssetCandidate('XFMR T1'),true);
+  assert.equal(c.electricalAssetCandidate('SWBD MSB-1'),true);
+  assert.equal(c.electricalAssetCandidate('MCCB-1'),true);
+  const sldEvidence=c.analyzeSldText(['UTILITY SERVICE 13.8kV','XFMR T1 1500 KVA','SWBD MSB-1','MCCB-1','PANEL LP-1']);
+  assert.equal(sldEvidence.isSld,true,'SLD content must be recognizable without a filename hint');
   const derived = c.withAssetCandidates(first).find(e=>e.layer==='L4');
   assert.equal(derived.meta.derivedFrom,first[1].id);
   assert.equal(derived.meta.sourceSha256,'hash-a');
