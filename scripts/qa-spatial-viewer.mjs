@@ -7,6 +7,7 @@ import {DEFAULT_ELECTRICAL_MODEL_REGISTRY} from '../lib/electrical-model-registr
 import {ELECTRICAL_COMPONENTS} from '../lib/electrical-component-library.ts';
 import {analyzeSldText,electricalAssetCandidate,sldElectricalFamily} from '../lib/sld-intelligence.ts';
 import {analyzeSldText,electricalAssetCandidate,sldElectricalFamily} from '../lib/sld-intelligence.ts';
+import {analyzeSldText,electricalAssetCandidate,sldElectricalFamily} from '../lib/sld-intelligence.ts';
 
 const tracked=ELECTRICAL_COMPONENTS.filter(item=>item.trackAsAsset);
 const mappedProductionModels=DEFAULT_ELECTRICAL_MODEL_REGISTRY.filter(item=>item.modelUrl&&['GLB','GLTF'].includes(item.format));
@@ -79,7 +80,31 @@ assert.deepEqual(registryPanel?.meta?.assetDimensionsMeters,[1.1,1.9,.28]);
 assert.equal(registryPanel?.meta?.assetDimensionAuthority,'MODEL_REGISTRY');
 assert.ok(Number(registryPanel?.scale)>1,'registry height drives visualization scale above nominal panel height');
 
+
 console.log('✓ SLD equipment receives deterministic logical depth, feeder links and model-registry dimensions');
+
+const genericSldEvidence=analyzeSldText([
+ 'UTILITY SERVICE 480V',
+ 'XFMR T1 1500 KVA',
+ 'SWBD MDP 4000A',
+ 'MCCB-1',
+ 'PANEL LP-1',
+]);
+assert.equal(genericSldEvidence.isSld,true,'real SLD electrical content must classify without relying on a filename containing SLD');
+assert.equal(sldElectricalFamily('XFMR T1'),'TRANSFORMER');
+assert.equal(sldElectricalFamily('SWBD MDP'),'MAIN_DISTRIBUTION');
+assert.equal(sldElectricalFamily('MCCB-1'),'PROTECTION');
+assert.equal(electricalAssetCandidate('PANEL LP-1'),true);
+const genericNamedSld=enrichSpatialProjection({version:'fixture',createdAt:new Date().toISOString(),entities:[
+ {id:'g-source',source:'upload.pdf',layer:'L2',kind:'text-asset-candidate',name:'UTILITY SERVICE 480V',x:0,y:0,z:0,floor:'L1',confidence:.8,meta:{page:1}},
+ {id:'g-xfmr',source:'upload.pdf',layer:'L2',kind:'text-asset-candidate',name:'XFMR T1 1500 KVA',x:2,y:0,z:0,floor:'L1',confidence:.8,meta:{page:1}},
+ {id:'g-main',source:'upload.pdf',layer:'L2',kind:'text-asset-candidate',name:'SWBD MDP 4000A',x:4,y:0,z:0,floor:'L1',confidence:.8,meta:{page:1}},
+ {id:'g-panel',source:'upload.pdf',layer:'L2',kind:'text-asset-candidate',name:'PANEL LP-1',x:6,y:0,z:0,floor:'L1',confidence:.8,meta:{page:1}},
+],links:[],stats:{L0:1,L1:0,L2:4,L3:0,L4:0}});
+assert.ok(genericNamedSld.entities.every(entity=>entity.meta?.sldSpatialProjection===true),'generic filename SLD must still project from electrical content');
+assert.ok((genericNamedSld.links||[]).some(link=>link.type==='SLD_FEEDS'),'content-detected SLD must generate review-only feeder topology');
+console.log('✓ generic-name SLD content and field abbreviations populate the Spatial electrical model');
+
 
 const fieldNotation=['13.2KV UTILITY SERVICE','XFMR T1 1500 KVA','SWBD MSB-1','MCCB CB-1','PANEL LP-1'];
 const fieldEvidence=analyzeSldText(fieldNotation);
