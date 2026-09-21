@@ -1,6 +1,6 @@
 'use client';
 
-import {useEffect,useMemo,useState} from 'react';
+import {useEffect,useState} from 'react';
 import {findSameOriginRecoveryCandidates,graphSummary,readCurrentSpatialGraph,restoreBestSpatialGraph,type SpatialGraphLike} from '@/lib/spatial-browser-recovery';
 
 const ALLOWED_TARGETS=new Set([
@@ -12,13 +12,11 @@ const ALLOWED_TARGETS=new Set([
 export default function LegacySpatialRecoveryBridge(){
  const [graph,setGraph]=useState<SpatialGraphLike|null>(null);
  const [message,setMessage]=useState('Looking for a Spatial model on this STRATUM address…');
- const target=useMemo(()=>{
-  if(typeof window==='undefined')return '';
-  const raw=new URLSearchParams(window.location.search).get('target')||'';
-  try{return ALLOWED_TARGETS.has(new URL(raw).origin)?new URL(raw).origin:''}catch{return ''}
- },[]);
+ const [target,setTarget]=useState('');
 
  useEffect(()=>{
+  const raw=new URLSearchParams(window.location.search).get('target')||'';
+  try{const origin=new URL(raw).origin;setTarget(ALLOWED_TARGETS.has(origin)?origin:'')}catch{setTarget('')}
   void (async()=>{
    const current=readCurrentSpatialGraph();
    const recovered=current?{graph:current}:await restoreBestSpatialGraph();
@@ -35,7 +33,7 @@ export default function LegacySpatialRecoveryBridge(){
   setMessage('Model sent to the current STRATUM tab. You can close this window.');
  }
 
- return <main className="bridge-page">
+ return <div className="bridge-page">
   <section className="card bridge-card">
    <div className="eyebrow">STRATUM Spatial recovery</div>
    <h1>Recover this browser model</h1>
@@ -46,5 +44,5 @@ export default function LegacySpatialRecoveryBridge(){
    </div>
    <p className="muted">Only a validated Spatial graph is transferred, directly between your browser tabs. No passwords, database credentials, evidence files or DIR secrets are included.</p>
   </section>
- </main>;
+ </div>;
 }
