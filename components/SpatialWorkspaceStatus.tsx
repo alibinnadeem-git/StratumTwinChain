@@ -28,13 +28,23 @@ export default function SpatialWorkspaceStatus({compact=false}:{compact?:boolean
 
   useEffect(()=>{
     const refresh=()=>setGraph(readCurrentSpatialGraph());
+    const receiveLegacy=(event:MessageEvent)=>{
+      const allowed=new Set(['https://stratum-twin-chain.vercel.app']);
+      if(!allowed.has(event.origin))return;
+      const data=event.data as {type?:string;version?:number;graph?:unknown;sourceOrigin?:string}|null;
+      if(!data||data.type!=='STRATUM_SPATIAL_RECOVERY'||data.version!==1||!isSpatialGraph(data.graph))return;
+      replaceCurrentSpatialGraph(data.graph);
+      setMessage(`Recovered ${graphSummary(data.graph).entities} Spatial objects from the earlier STRATUM site.`);
+    };
     refresh();
     window.addEventListener('stratum:graph-updated',refresh);
     window.addEventListener(SPATIAL_RECOVERY_EVENT,refresh);
+    window.addEventListener('message',receiveLegacy);
     fetch('/api/health',{cache:'no-store'}).then(r=>r.json()).then(setHealth).catch(()=>setHealth(null));
     return()=>{
       window.removeEventListener('stratum:graph-updated',refresh);
       window.removeEventListener(SPATIAL_RECOVERY_EVENT,refresh);
+      window.removeEventListener('message',receiveLegacy);
     };
   },[]);
 
@@ -55,6 +65,13 @@ export default function SpatialWorkspaceStatus({compact=false}:{compact?:boolean
     if(!graph){setMessage('No previous browser copy is available on this web address.');return;}
     replaceCurrentSpatialGraph(graph);
     setMessage(`Restored a previous browser copy with ${graphSummary(graph).entities} Spatial objects.`);
+  }
+
+  function recoverLegacy(){
+    const target=encodeURIComponent(window.location.origin);
+    const popup=window.open(`https://stratum-twin-chain.vercel.app/recovery-bridge?target=${target}`,'stratum-spatial-recovery','popup,width=560,height=640');
+    if(!popup)setMessage('The browser blocked the recovery window. Allow pop-ups for this site and try again.');
+    else setMessage('Checking the earlier STRATUM site for a browser-local Spatial model…');
   }
 
   function download(){
@@ -95,6 +112,7 @@ export default function SpatialWorkspaceStatus({compact=false}:{compact?:boolean
     <div className="workspace-actions primary">
       {!graph&&<button className="action" type="button" onClick={()=>void restore()}>Recover model</button>}
       {graph&&<Link className="action" href="/spatial">Open Spatial</Link>}
+      {!graph&&<button className="ghost" type="button" onClick={recoverLegacy}>Recover earlier STRATUM model</button>}
       {!graph&&<Link className="ghost" href="/compiler">Import sources</Link>}
     </div>
 
