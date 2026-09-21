@@ -115,7 +115,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       return true;
     });
   },[graph,floor,mode,systemMode,search]);
-  const inventory=useMemo(()=>visible.filter(e=>e.kind!=="line"&&e.kind!=="wall-segment"),[visible]);
+  const inventory=useMemo(()=>visible.filter(e=>e.kind!=="line"&&e.kind!=="sld-feeder-candidate"&&e.kind!=="wall-segment"),[visible]);
   const rooms=useMemo(()=>graph?.entities.filter(e=>e.kind==="room-boundary").length||0,[graph]);
   const sldObjects=useMemo(()=>graph?.entities.filter(e=>e.layer==="L2"&&isSld(e)).length||0,[graph]);
   const unresolvedZ=useMemo(()=>graph?.entities.filter(e=>e.layer==="L2"&&!physicalElevationKnown(e)&&!isSld(e)).length||0,[graph]);
@@ -213,7 +213,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
         if(!isVisible(e))continue;
         if(e.kind==="room-boundary"||e.kind==="floor-boundary"){room(e);continue}
         if(e.kind==="wall-segment"&&Number.isFinite(e.x2)&&Number.isFinite(e.y2)){wall({x:e.x,y:e.y},{x:e.x2!,y:e.y2!},e);continue}
-        if(e.kind==="line"&&Number.isFinite(e.x2)&&Number.isFinite(e.y2)){
+        if((e.kind==="line"||e.kind==="sld-feeder-candidate")&&Number.isFinite(e.x2)&&Number.isFinite(e.y2)){
           const pts=[new THREE.Vector3(e.x,height(e)+.08,e.y),new THREE.Vector3(e.x2!,n(e.z2,e.z)+extra(e)+.08,e.y2!)];groups[e.layer].add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:colors[e.layer],transparent:true,opacity:.82})));continue;
         }
         if(e.layer==="L2"){equipment(e);continue}
@@ -286,7 +286,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
         {renderStatus==="FALLBACK"&&<div style={{height:"min(72vh,760px)",minHeight:520,padding:14}} role="img" aria-label="2D spatial fallback">
           <svg viewBox="0 0 100 100" width="100%" height="100%" style={{background:"#06141e",borderRadius:12}}>
             {(graph.links||[]).filter(l=>["SLD_FEEDS","SAME_TAG","SOURCE_RELATION"].includes(l.type)).map(l=>{const a=graph.entities.find(e=>e.id===l.from),b=graph.entities.find(e=>e.id===l.to);if(!a||!b)return null;return <line key={l.id} x1={sx(a.x)} y1={sy(a.y)} x2={sx(b.x)} y2={sy(b.y)} stroke={l.type==="SLD_FEEDS"?"#57baff":"#9a7cff"} strokeWidth=".35" strokeDasharray="1 1"/>})}
-            {visible.map(e=>e.kind==="line"&&Number.isFinite(e.x2)&&Number.isFinite(e.y2)?<line key={e.id} x1={sx(e.x)} y1={sy(e.y)} x2={sx(e.x2!)} y2={sy(e.y2!)} stroke={e.layer==="L3"?"#62bfff":"#7895a4"} strokeWidth=".28"/>:<g key={e.id} onClick={()=>setSelected(e)} style={{cursor:"pointer"}}><circle cx={sx(e.x)} cy={sy(e.y)} r={e.layer==="L2"?1.25:.75} fill={e.layer==="L2"?"#e5a14d":e.layer==="L4"?"#43d98f":"#7f98a6"}/>{labels&&e.layer==="L2"&&<text x={sx(e.x)+1.7} y={sy(e.y)-1} fill="#d8edf6" fontSize="2.2">{e.name.slice(0,24)}</text>}</g>)}
+            {visible.map(e=>(e.kind==="line"||e.kind==="sld-feeder-candidate")&&Number.isFinite(e.x2)&&Number.isFinite(e.y2)?<line key={e.id} x1={sx(e.x)} y1={sy(e.y)} x2={sx(e.x2!)} y2={sy(e.y2!)} stroke={e.layer==="L3"?"#62bfff":"#7895a4"} strokeWidth=".28"/>:<g key={e.id} onClick={()=>setSelected(e)} style={{cursor:"pointer"}}><circle cx={sx(e.x)} cy={sy(e.y)} r={e.layer==="L2"?1.25:.75} fill={e.layer==="L2"?"#e5a14d":e.layer==="L4"?"#43d98f":"#7f98a6"}/>{labels&&e.layer==="L2"&&<text x={sx(e.x)+1.7} y={sy(e.y)-1} fill="#d8edf6" fontSize="2.2">{e.name.slice(0,24)}</text>}</g>)}
           </svg><p className="muted" style={{margin:"8px 0 0"}}>Interactive 2D fallback active. Source placement and selection remain available while this device/browser cannot initialize WebGL.</p>
         </div>}
         <div style={{position:"absolute",top:12,right:12,background:"rgba(3,12,18,.86)",border:"1px solid #245069",borderRadius:12,padding:"10px 12px",pointerEvents:"none"}}><div className="eyebrow">INFRASTRUCTURE HUD</div><small>{renderStatus==="WEBGL"?"3D WEBGL":"2D FALLBACK"} · {mode}</small><div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:"4px 12px",marginTop:6,fontSize:12}}><span>VISIBLE</span><b>{visible.length}</b><span>SLD</span><b>{sldObjects}</b><span>UNRESOLVED Z</span><b>{unresolvedZ}</b><span>3D MODELS</span><b>{modelMapped}</b></div></div>
