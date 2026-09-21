@@ -14,11 +14,11 @@ export type SpatialProjectionGraph={entities:SpatialProjectionEntity[];links?:Sp
 
 type CadScale={metersPerX:number;metersPerY:number;minDisplayX:number;minDisplayY:number};
 const SLD_PATTERN=/single\s*line|one\s*line|one-line|single-line|\bsld\b|riser|power\s*diagram|electrical\s*diagram/i;
-const SOURCE_PATTERN=/utility|service|source|incoming|generator|genset|solar|\bpv\b|battery|\bups\b/i;
-const TRANSFORMER_PATTERN=/transformer|\bxfmr\b/i;
-const MAIN_PATTERN=/switchgear|switchboard|main\s*(?:distribution|board)|\bmsb\b|\bmdb\b/i;
-const DISTRIBUTION_PATTERN=/\bats\b|transfer\s*switch|\bmcc\b|\bpdu\b|distribution|busway|bus\s*duct|breaker/i;
-const PANEL_PATTERN=/panelboard|\bpanel\b|load\s*center/i;
+const SOURCE_PATTERN=/utility|service|source|incoming|generator|genset|\bgen[-_ ]?[a-z0-9]+\b|solar|\bpv(?:[-_ ]?[a-z0-9]+)?\b|battery|\bbess\b|\bess\b|\bups\b/i;
+const TRANSFORMER_PATTERN=/transformer|\bxfmr\b|\bxfr\b/i;
+const MAIN_PATTERN=/switchgear|switchboard|main\s*(?:distribution|board)|\bswgr\b|\bswbd\b|\bmsb\b|\bmdb\b|\bmdp\b/i;
+const DISTRIBUTION_PATTERN=/\bats\b|transfer\s*switch|\bmcc\b|\bpdu\b|distribution|busway|bus\s*duct|breaker|\bmccb\b|\bacb\b|\bmcb\b|\bcb[-_ ]?[a-z0-9]+\b/i;
+const PANEL_PATTERN=/panelboard|\bpanel\b|load\s*center|\bpnl\b/i;
 const LOAD_PATTERN=/disconnect|\bvfd\b|inverter|charger|evse|motor|load|receptacle|outlet|equipment/i;
 
 export function inferredFloorElevation(floor?:string|null):number|null{
@@ -95,7 +95,7 @@ export function enrichSpatialProjection<T extends SpatialProjectionGraph>(graph:
   return {...entity,x:tx(entity.x),y:ty(entity.y),...(Number.isFinite(entity.x2)?{x2:tx(Number(entity.x2))}:{}),...(Number.isFinite(entity.y2)?{y2:ty(Number(entity.y2))}:{}),vertices:entity.vertices?.map(point=>({x:tx(point.x),y:ty(point.y)})),meta:{...(entity.meta||{}),cadMetricXY:true,coordinateUnits:'m',planScaleMethod:'DXF_RAW_XY_AND_INSUNITS',metersPerDisplayUnitX:cadScale.metersPerX,metersPerDisplayUnitY:cadScale.metersPerY,...(explicitCadZ?{zPlacementAuthority:'SOURCE_CAD_Z',physicalElevationKnown:true}:{})}};
  });
  const sldFrames=new Set<string>();
- for(const entity of metricEntities){if(entity.layer==='L2'&&SLD_PATTERN.test(titleFor(entity,titleBlocks)))sldFrames.add(sourceFrame(entity))}
+ for(const entity of metricEntities){const contentRecognized=entity.meta?.sldCandidate===true||entity.meta?.sldFeederCandidate===true;if((entity.layer==='L2'||entity.layer==='L3')&&(contentRecognized||SLD_PATTERN.test(titleFor(entity,titleBlocks))))sldFrames.add(sourceFrame(entity))}
 
  const entities=metricEntities.map(entity=>{
   const meta={...(entity.meta||{})};
