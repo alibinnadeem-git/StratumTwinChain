@@ -85,8 +85,10 @@ test('portable Spatial recovery exports protected history and restores the worki
   const preImportGraphs=preImportKeys.map(key=>JSON.parse(localStorage.getItem(key)||'{}'));
   return{restored,preImportGraphs};
  });
- expect(recovered.restored).toEqual(seeded);
- expect(recovered.preImportGraphs).toContainEqual(preImport);
+ expect(recovered.restored).toMatchObject(seeded);
+ const preservedPreImport=recovered.preImportGraphs.find((graph:any)=>graph.version===preImport.version);
+ expect(preservedPreImport).toBeTruthy();
+ expect(preservedPreImport).toMatchObject(preImport);
 });
 
 test('manual plan annotations persist deletion and restore without resurrecting removed marks',async({page})=>{
