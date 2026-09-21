@@ -23,7 +23,7 @@ function syntheticElectricalPdf(lines:string[]){
 test('content-only electrical SLD upload populates the Spatial model',async({page})=>{
  await page.goto('/compiler');
  const pdf=syntheticElectricalPdf(['UTILITY SERVICE 12KV','XFMR-1','SWBD-1','MDP-1','CB-12','480V FEEDER']);
- await page.locator('input[type=file][accept*=".pdf"]').setInputFiles({name:'project-power-sheet.pdf',mimeType:'application/pdf',buffer:pdf});
+ await page.locator('section.import-primary input[type=file][accept*=".pdf"]').setInputFiles({name:'project-power-sheet.pdf',mimeType:'application/pdf',buffer:pdf});
  await expect(page.getByText('project-power-sheet.pdf',{exact:true})).toBeVisible();
  await expect(page.getByText(/SLD page recognized from content\/topology/i)).toBeVisible();
  const compiled=await page.evaluate(()=>{
