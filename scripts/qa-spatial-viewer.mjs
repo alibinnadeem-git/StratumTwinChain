@@ -5,6 +5,7 @@ import {resolveAssetPlacement} from '../lib/asset-placement.ts';
 import {planUniformMeterScale} from '../lib/model-scale.ts';
 import {DEFAULT_ELECTRICAL_MODEL_REGISTRY} from '../lib/electrical-model-registry.ts';
 import {ELECTRICAL_COMPONENTS} from '../lib/electrical-component-library.ts';
+import {analyzeSldText,electricalAssetCandidate,sldElectricalFamily} from '../lib/sld-intelligence.ts';
 
 const tracked=ELECTRICAL_COMPONENTS.filter(item=>item.trackAsAsset);
 const mappedProductionModels=DEFAULT_ELECTRICAL_MODEL_REGISTRY.filter(item=>item.modelUrl&&['GLB','GLTF'].includes(item.format));
@@ -76,7 +77,25 @@ const registryPanel=sld.entities.find(entity=>entity.id==='panel');
 assert.deepEqual(registryPanel?.meta?.assetDimensionsMeters,[1.1,1.9,.28]);
 assert.equal(registryPanel?.meta?.assetDimensionAuthority,'MODEL_REGISTRY');
 assert.ok(Number(registryPanel?.scale)>1,'registry height drives visualization scale above nominal panel height');
+
 console.log('✓ SLD equipment receives deterministic logical depth, feeder links and model-registry dimensions');
+
+assert.equal(electricalAssetCandidate('XFMR T1'),true);
+assert.equal(electricalAssetCandidate('SWBD MSB-1'),true);
+assert.equal(electricalAssetCandidate('MCCB-1'),true);
+assert.equal(sldElectricalFamily('MDP-1'),'MAIN_DISTRIBUTION');
+const inferredSld=analyzeSldText(['UTILITY SERVICE 13.8kV','XFMR T1 1500 KVA','SWBD MSB-1','MCCB-1','PANEL LP-1']);
+assert.equal(inferredSld.isSld,true,'real SLD abbreviations and power ratings should identify an SLD page without relying on its filename');
+const genericNamedSld=enrichSpatialProjection({version:'fixture',createdAt:new Date().toISOString(),entities:[
+ {id:'source2',source:'Electrical Package.pdf',layer:'L2',kind:'text-asset-candidate',name:'UTILITY SERVICE',x:0,y:0,z:0,floor:'L1',confidence:.8,meta:{page:4}},
+ {id:'xfmr2',source:'Electrical Package.pdf',layer:'L2',kind:'text-asset-candidate',name:'XFMR T1',x:2,y:0,z:0,floor:'L1',confidence:.8,meta:{page:4}},
+ {id:'msb2',source:'Electrical Package.pdf',layer:'L2',kind:'text-asset-candidate',name:'SWBD MSB-1',x:4,y:0,z:0,floor:'L1',confidence:.8,meta:{page:4}},
+ {id:'panel2',source:'Electrical Package.pdf',layer:'L2',kind:'text-asset-candidate',name:'PANEL LP-1',x:6,y:0,z:0,floor:'L1',confidence:.8,meta:{page:4}}
+],links:[],stats:{L0:1,L1:0,L2:4,L3:0,L4:0}},registry);
+assert.equal(genericNamedSld.entities.filter(entity=>entity.meta?.sldSpatialProjection===true).length,4);
+assert.ok((genericNamedSld.links||[]).some(link=>link.type==='SLD_FEEDS'),'generic filenames must still project SLD topology when content is sufficient');
+console.log('✓ content-based SLD detection handles generic filenames, abbreviations and backward-compatible graphs');
+
 
 const oem=resolveAssetPlacement({name:'PANELBOARD LP-1',floor:'L2',meta:{oemDimensionsMeters:[1.2,2.1,.55],dimensionsSource:'OEM submittal'}});
 assert.equal(oem.dimensions.authority,'SOURCE_SPEC');assert.equal(oem.dimensions.height,2.1);assert.equal(oem.zAuthority,'HISTORICAL_RECOMMENDATION');assert.equal(oem.physicalTruth,false);
