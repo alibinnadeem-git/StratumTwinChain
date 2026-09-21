@@ -12,6 +12,8 @@ export const SPATIAL_GRAPH_KEY='stratum_compiled_graph';
 export const SPATIAL_LAST_GOOD_KEY='stratum_compiled_graph_last_good_v2';
 export const SPATIAL_PREVIOUS_KEY='stratum_compiled_graph_previous_v2';
 export const SPATIAL_RECOVERY_EVENT='stratum:recovery-updated';
+export const SPATIAL_RECOVERY_BUNDLE_FORMAT='STRATUM_SPATIAL_RECOVERY';
+export const SPATIAL_RECOVERY_BUNDLE_VERSION=1;
 
 const DB_NAME='stratum-spatial-recovery-v1';
 const STORE='graphs';
@@ -29,6 +31,40 @@ export function graphSummary(graph:SpatialGraphLike|null){
     links:Array.isArray(graph?.links)?graph!.links!.length:0,
     createdAt:typeof graph?.createdAt==='string'?graph.createdAt:null,
   };
+}
+
+export type SpatialRecoveryBundle={
+  format:typeof SPATIAL_RECOVERY_BUNDLE_FORMAT;
+  version:number;
+  exportedAt:string;
+  current:SpatialGraphLike|null;
+  lastGood:SpatialGraphLike|null;
+  previous:SpatialGraphLike|null;
+  sameOriginBackups:{key:string;graph:SpatialGraphLike}[];
+  indexedLatest:SpatialGraphLike|null;
+  indexedPrevious:SpatialGraphLike|null;
+  summary:{
+    distinctGraphs:number;
+    totalSources:number;
+    totalEntities:number;
+    totalLinks:number;
+  };
+};
+
+function distinctGraphs(graphs:(SpatialGraphLike|null)[]){
+  const unique:SpatialGraphLike[]=[];const seen=new Set<string>();
+  for(const graph of graphs){if(!graph)continue;const serialized=JSON.stringify(graph);if(seen.has(serialized))continue;seen.add(serialized);unique.push(graph)}
+  return unique;
+}
+
+export function isSpatialRecoveryBundle(value:unknown):value is SpatialRecoveryBundle{
+  if(!value||typeof value!=='object')return false;
+  const bundle=value as Partial<SpatialRecoveryBundle>;
+  if(bundle.format!==SPATIAL_RECOVERY_BUNDLE_FORMAT||bundle.version!==SPATIAL_RECOVERY_BUNDLE_VERSION)return false;
+  const fields=[bundle.current,bundle.lastGood,bundle.previous,bundle.indexedLatest,bundle.indexedPrevious];
+  if(fields.some(item=>item!==null&&item!==undefined&&!isSpatialGraph(item)))return false;
+  if(!Array.isArray(bundle.sameOriginBackups)||bundle.sameOriginBackups.some(item=>!item||typeof item.key!=='string'||!isSpatialGraph(item.graph)))return false;
+  return true;
 }
 
 export function parseSpatialGraph(raw:string|null):SpatialGraphLike|null{
@@ -139,6 +175,54 @@ export async function restoreBestSpatialGraph(){
   window.dispatchEvent(new Event('stratum:graph-updated'));
   window.dispatchEvent(new Event(SPATIAL_RECOVERY_EVENT));
   return{graph,source:localCandidate?'same-origin-backup' as const:'indexeddb' as const};
+}
+
+export async function createSpatialRecoveryBundle(storage:Storage=localStorage):Promise<SpatialRecoveryBundle>{
+  const current=readCurrentSpatialGraph(storage);
+  const lastGood=parseSpatialGraph(storage.getItem(SPATIAL_LAST_GOOD_KEY));
+  const previous=parseSpatialGraph(storage.getItem(SPATIAL_PREVIOUS_KEY));
+  const sameOriginBackups=findSameOriginRecoveryCandidates(storage).map(item=>({key:item.key,graph:item.graph}));
+  const indexedLatest=await readIndexedRecovery('latest');
+  const indexedPrevious=await readIndexedRecovery('previous');
+  const unique=distinctGraphs([current,lastGood,previous,indexedLatest,indexedPrevious,...sameOriginBackups.map(item=>item.graph)]);
+  return{
+    format:SPATIAL_RECOVERY_BUNDLE_FORMAT,
+    version:SPATIAL_RECOVERY_BUNDLE_VERSION,
+    exportedAt:new Date().toISOString(),
+    current,lastGood,previous,sameOriginBackups,indexedLatest,indexedPrevious,
+    summary:{
+      distinctGraphs:unique.length,
+      totalSources:unique.reduce((sum,graph)=>sum+graphSummary(graph).sources,0),
+      totalEntities:unique.reduce((sum,graph)=>sum+graphSummary(graph).entities,0),
+      totalLinks:unique.reduce((sum,graph)=>sum+graphSummary(graph).links,0),
+    }
+  };
+}
+
+export async function restoreSpatialRecoveryBundle(value:unknown,storage:Storage=localStorage){
+  if(!isSpatialRecoveryBundle(value))throw new Error('This file is not a valid STRATUM Spatial Recovery bundle.');
+  const bundle=value as SpatialRecoveryBundle;
+  const primary=bundle.current||bundle.lastGood||bundle.indexedLatest||bundle.sameOriginBackups[0]?.graph||bundle.previous||bundle.indexedPrevious;
+  if(!primary)throw new Error('The STRATUM Spatial Recovery bundle does not contain a recoverable graph.');
+
+  const existing=readCurrentSpatialGraph(storage);
+  if(existing)try{storage.setItem(SPATIAL_PREVIOUS_KEY,JSON.stringify(existing));}catch{}
+  if(bundle.previous)try{storage.setItem(SPATIAL_PREVIOUS_KEY,JSON.stringify(bundle.previous));}catch{}
+  storage.setItem(SPATIAL_GRAPH_KEY,JSON.stringify(primary));
+  storage.setItem(SPATIAL_LAST_GOOD_KEY,JSON.stringify(bundle.lastGood||primary));
+  for(const backup of bundle.sameOriginBackups){
+    if(!/^stratum/i.test(backup.key)||backup.key===SPATIAL_GRAPH_KEY)continue;
+    try{storage.setItem(backup.key,JSON.stringify(backup.graph));}catch{}
+  }
+  try{
+    if(bundle.indexedPrevious)await idbPut('previous',bundle.indexedPrevious);
+    else if(bundle.previous)await idbPut('previous',bundle.previous);
+    if(bundle.indexedLatest)await idbPut('latest',bundle.indexedLatest);
+    else await idbPut('latest',bundle.lastGood||primary);
+  }catch{}
+  window.dispatchEvent(new Event('stratum:graph-updated'));
+  window.dispatchEvent(new Event(SPATIAL_RECOVERY_EVENT));
+  return{graph:primary,summary:bundle.summary};
 }
 
 export function replaceCurrentSpatialGraph(graph:SpatialGraphLike){
