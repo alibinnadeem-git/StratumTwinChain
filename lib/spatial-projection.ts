@@ -1,6 +1,7 @@
 import {nominalDimensionsFor,resolveAssetPlacement} from './asset-placement.ts';
 import {resolveElectricalComponent} from './electrical-component-library.ts';
 import type {ElectricalModelConfig} from './electrical-model-registry.ts';
+import {analyzeSldText} from './sld-intelligence.ts';
 
 export type SpatialProjectionEntity={
  id:string;source:string;layer:string;kind:string;name:string;x:number;y:number;z?:number;x2?:number;y2?:number;z2?:number;floor?:string;vertices?:{x:number;y:number}[];scale?:number;confidence:number;meta?:Record<string,unknown>;
@@ -95,7 +96,19 @@ export function enrichSpatialProjection<T extends SpatialProjectionGraph>(graph:
   return {...entity,x:tx(entity.x),y:ty(entity.y),...(Number.isFinite(entity.x2)?{x2:tx(Number(entity.x2))}:{}),...(Number.isFinite(entity.y2)?{y2:ty(Number(entity.y2))}:{}),vertices:entity.vertices?.map(point=>({x:tx(point.x),y:ty(point.y)})),meta:{...(entity.meta||{}),cadMetricXY:true,coordinateUnits:'m',planScaleMethod:'DXF_RAW_XY_AND_INSUNITS',metersPerDisplayUnitX:cadScale.metersPerX,metersPerDisplayUnitY:cadScale.metersPerY,...(explicitCadZ?{zPlacementAuthority:'SOURCE_CAD_Z',physicalElevationKnown:true}:{})}};
  });
  const sldFrames=new Set<string>();
- for(const entity of metricEntities){const contentRecognized=entity.meta?.sldCandidate===true||entity.meta?.sldFeederCandidate===true;if((entity.layer==='L2'||entity.layer==='L3')&&(contentRecognized||SLD_PATTERN.test(titleFor(entity,titleBlocks))))sldFrames.add(sourceFrame(entity))}
+ const frameEntities=new Map<string,SpatialProjectionEntity[]>();
+ for(const entity of metricEntities){
+  if(entity.layer!=='L2'&&entity.layer!=='L3')continue;
+  const frame=sourceFrame(entity),items=frameEntities.get(frame)||[];
+  items.push(entity);
+  frameEntities.set(frame,items);
+ }
+ for(const [frame,items] of frameEntities){
+  const titleMatch=items.some(entity=>SLD_PATTERN.test(titleFor(entity,titleBlocks)));
+  const parserHint=items.some(entity=>entity.meta?.sldCandidate===true||entity.meta?.sldFeederCandidate===true);
+  const contentHint=analyzeSldText(items.filter(entity=>entity.layer==='L2').map(entity=>entity.name)).isSld;
+  if(titleMatch||parserHint||contentHint)sldFrames.add(frame);
+ }
 
  const entities=metricEntities.map(entity=>{
   const meta={...(entity.meta||{})};
