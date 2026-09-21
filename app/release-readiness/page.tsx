@@ -45,6 +45,23 @@ export default async function ReleaseReadinessPage(){
   </section>
 
   <section className="card" style={{marginTop:16}}>
+   <div className="section-head"><div><div className="eyebrow">Release review agents</div><h2>Product · Design · UI/UX · Security · QA</h2></div><span className="verified">CI ENFORCED</span></div>
+   <div className="simple-kpis">
+    <div><span>Product</span><strong style={{fontSize:14}}>Task flow</strong></div>
+    <div><span>Design</span><strong style={{fontSize:14}}>Hierarchy</strong></div>
+    <div><span>UI / UX</span><strong style={{fontSize:14}}>Simplicity</strong></div>
+    <div><span>Security</span><strong style={{fontSize:14}}>Fail closed</strong></div>
+   </div>
+   <div className="simple-kpis" style={{marginTop:9}}>
+    <div><span>QA</span><strong style={{fontSize:14}}>Browser matrix</strong></div>
+    <div><span>Recovery</span><strong style={{fontSize:14}}>Model persistence</strong></div>
+    <div><span>Truth boundary</span><strong style={{fontSize:14}}>No silent promotion</strong></div>
+    <div><span>Release</span><strong style={{fontSize:14}}>Merge blocked on failure</strong></div>
+   </div>
+   <p className="muted">These are explicit automated release gates in CI. They do not claim independent human judgment; they make each review responsibility auditable and block merges when its checks fail.</p>
+  </section>
+
+  <section className="card" style={{marginTop:16}}>
    <div className="section-head"><div><div className="eyebrow">Production runtime</div><h2>Database and authentication</h2></div><span className={statusClass(runtimeReady)}>{runtimeReady?'READY':'BLOCKED'}</span></div>
    <div className="spec-grid">
     <div><span>Database binding</span><strong>{databaseRuntime?'CONFIGURED':'NOT BOUND'}</strong></div>
