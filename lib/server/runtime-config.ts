@@ -84,7 +84,9 @@ export function resolveAuthRuntime():AuthRuntimeConfig|null{
  try{
   const parsed=new URL(database.url);
   const password=decodeURIComponent(parsed.password||'');
-  if(password.length<24)return null;
+  const neonCredential=/\.neon\.tech$/i.test(parsed.hostname);
+  const minimumPasswordLength=neonCredential?16:24;
+  if(password.length<minimumPasswordLength)return null;
   const digest=createHmac('sha256',password)
    .update('STRATUM_SPATIAL_VERIFIED_SESSION_SIGNING_V1','utf8')
    .digest();
