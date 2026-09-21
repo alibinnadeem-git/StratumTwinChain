@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import PlanAnnotations from './PlanAnnotations';
 import SheetReview from './SheetReview';
+import SpatialPortableRecovery from './SpatialPortableRecovery';
 import {inferPdfPageFloor,sameSourceFrame,scopeSourceEntities} from '../lib/compiler-source';
 import {classifyElectricalLabel,detectSldPage,isElectricalAssetLabel,isElectricalCircuitLabel} from '../lib/sld-recognition';
 import {buildSldVectorTopology} from '../lib/sld-vector-topology';
@@ -113,6 +114,7 @@ export default function CompilerWorkspace(){
    <p className="muted">Use these only for manual annotation, drawing geometry review, source alignment or debugging the source-grounded compilation.</p>
    <PlanAnnotations/>
    <SheetReview/>
+   <SpatialPortableRecovery/>
    <div className="workflow-steps" style={{marginTop:14}}>{[['1','Source fingerprint','Original file identity'],['2','Native extraction','PDF/DXF entities'],['3','Architecture','Rooms, walls, openings'],['4','Spatial semantics','Floor, Z, rotation, scale'],['5','Asset candidates','Reviewable L4 candidates']].map(([n,t,d],i)=><div className={`workflow-step ${((i===0&&totals.files>0)||(i===1&&totals.parsed>0))?'done':''}`} key={n}><i>{n}</i><div><strong>{t}</strong><span>{d}</span></div></div>)}</div>
    <div className="provenance-map" style={{marginTop:14}}>{(['L0','L1','L2','L3','L4'] as const).map((l,i)=><span key={l} style={{display:'contents'}}><div className="prov-step active"><i>{l}</i><b>{['Source','Architectural','Electrical Physical','Electrical Logical','STRATUM Assets'][i]}</b><span>{l==='L0'?files.length:layerStats[l]||0} records</span></div>{i<4&&<em>→</em>}</span>)}</div>
   </details>
