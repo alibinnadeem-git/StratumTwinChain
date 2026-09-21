@@ -2,6 +2,44 @@ import {expect,test} from '@playwright/test';
 
 const tinyPng=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WlP7wAAAABJRU5ErkJggg==','base64');
 
+function syntheticElectricalPdf(lines:string[]){
+ const escape=(value:string)=>value.replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)');
+ const stream=lines.map((line,index)=>`BT /F1 12 Tf 72 ${740-index*46} Td (${escape(line)}) Tj ET`).join('\n')+'\n';
+ const bodies=[
+  '<< /Type /Catalog /Pages 2 0 R >>',
+  '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+  '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',
+  `<< /Length ${Buffer.byteLength(stream)} >>\nstream\n${stream}endstream`,
+  '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'
+ ];
+ let pdf='%PDF-1.4\n',offset=Buffer.byteLength(pdf),offsets=[0];
+ bodies.forEach((body,index)=>{offsets.push(offset);const object=`${index+1} 0 obj\n${body}\nendobj\n`;pdf+=object;offset+=Buffer.byteLength(object)});
+ const xref=offset;pdf+='xref\n0 6\n0000000000 65535 f \n';
+ for(let i=1;i<=5;i++)pdf+=String(offsets[i]).padStart(10,'0')+' 00000 n \n';
+ pdf+=`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+ return Buffer.from(pdf);
+}
+
+test('content-only electrical SLD upload populates the Spatial model',async({page})=>{
+ await page.goto('/compiler');
+ const pdf=syntheticElectricalPdf(['UTILITY SERVICE 12KV','XFMR-1','SWBD-1','MDP-1','CB-12','480V FEEDER']);
+ await page.locator('input[type=file][accept*=".pdf"]').setInputFiles({name:'project-power-sheet.pdf',mimeType:'application/pdf',buffer:pdf});
+ await expect(page.getByText('project-power-sheet.pdf',{exact:true})).toBeVisible();
+ await expect(page.getByText(/SLD page recognized from content\/topology/i)).toBeVisible();
+ const compiled=await page.evaluate(()=>{
+  const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
+  const sld=(graph.entities||[]).filter((entity:any)=>entity.layer==='L2'&&entity.meta?.sldCandidate===true);
+  return {sources:graph.sources?.length||0,names:sld.map((entity:any)=>entity.name),classes:sld.map((entity:any)=>entity.meta?.electricalComponentHint)};
+ });
+ expect(compiled.sources).toBeGreaterThan(0);
+ expect(compiled.names).toEqual(expect.arrayContaining(['UTILITY SERVICE 12KV','XFMR-1','SWBD-1','MDP-1','CB-12']));
+ expect(compiled.classes).toEqual(expect.arrayContaining(['UTILITY_SOURCE','TRANSFORMER','SWITCHBOARD','BREAKER']));
+ await page.getByRole('link',{name:'Open Spatial'}).last().click();
+ await expect(page).toHaveURL(/\/spatial$/);
+ await expect(page.getByRole('heading',{name:'Spatial model'})).toBeVisible();
+ await expect(page.getByText(/SLD object\(s\)/)).toContainText(/[1-9]/);
+});
+
 test('manual plan annotations persist deletion and restore without resurrecting removed marks',async({page})=>{
  await page.goto('/compiler');
  await page.getByText('Advanced compiler details',{exact:true}).click();
