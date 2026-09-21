@@ -84,7 +84,7 @@ export default function SpatialWorkspaceStatus({compact=false}:{compact?:boolean
       <div>
         <div className="eyebrow">Project workspace</div>
         <strong>{graph?`${summary.sources} source${summary.sources===1?'':'s'} · ${summary.entities} Spatial object${summary.entities===1?'':'s'}`:'No Spatial model found on this web address'}</strong>
-        <span>{graph?'Protected in browser storage + IndexedDB recovery.':'Use Recover or Import before rebuilding anything.'}</span>
+        <span>{graph?'Protected locally. Open Spatial and continue working.':'Recover the model before re-importing anything.'}</span>
       </div>
       <div className="workspace-health">
         <span className={graph?'proof':'pending'}>{graph?'MODEL FOUND':'MODEL MISSING'}</span>
@@ -92,19 +92,24 @@ export default function SpatialWorkspaceStatus({compact=false}:{compact?:boolean
       </div>
     </div>
 
-    <div className="workspace-actions">
+    <div className="workspace-actions primary">
       {!graph&&<button className="action" type="button" onClick={()=>void restore()}>Recover model</button>}
       {graph&&<Link className="action" href="/spatial">Open Spatial</Link>}
-      <button className="ghost" type="button" onClick={download} disabled={!graph}>Export backup</button>
-      <label className="ghost file-button">Import backup<input aria-label="Import Spatial backup" type="file" accept=".json,application/json" onChange={event=>void importBackup(event)}/></label>
-      <button className="ghost" type="button" onClick={()=>void restorePrevious()}>Restore previous copy</button>
+      {!graph&&<Link className="ghost" href="/compiler">Import sources</Link>}
     </div>
 
-    {!serverReady&&<details className="secondary-details workspace-why">
-      <summary>Why server data is unavailable</summary>
-      <p className="muted">The deployed application currently reports {health?.databaseConfigured?'a database binding':'no production database binding'}, {health?.authConfigured?'authentication configured':'no production authentication binding'}, and {health?.chainRpcConfigured?'a DIR RPC binding':'no DIR RPC binding'}. Browser recovery protects the Spatial working model on this device, but cross-device/project persistence requires the production server binding.</p>
-      <p className="muted">If the missing model was created on a different STRATUM hostname, that browser storage cannot be read from this hostname because of the browser same-origin security boundary. Open the old hostname on the same device, export the model, then import it here.</p>
-    </details>}
+    <details className="secondary-details workspace-why">
+      <summary>Backup & recovery</summary>
+      <div className="workspace-actions">
+        <button className="ghost" type="button" onClick={download} disabled={!graph}>Export backup</button>
+        <label className="ghost file-button">Import backup<input aria-label="Import Spatial backup" type="file" accept=".json,application/json" onChange={event=>void importBackup(event)}/></label>
+        <button className="ghost" type="button" onClick={()=>void restorePrevious()}>Restore previous copy</button>
+      </div>
+      {!serverReady&&<>
+       <p className="muted">Production server sync is currently unavailable because the deployed application does not have all required database/auth/DIR runtime bindings. The browser recovery layer protects the working model on this device until that infrastructure binding is completed.</p>
+       <p className="muted">If the missing model was created on a different STRATUM hostname, browser same-origin security keeps that storage separate. Open that old hostname on the same device, export the model there, then import the JSON backup here.</p>
+      </>}
+    </details>
     {message&&<div className="notice" role="status"><strong>WORKSPACE</strong><span>{message}</span></div>}
   </section>;
 }
