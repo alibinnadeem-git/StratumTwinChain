@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import {classifyElectricalLabel,detectSldPage,sldLogicalDepth} from '../lib/sld-recognition.ts';
+import {buildSldVectorTopology} from '../lib/sld-vector-topology.ts';
+import {enrichSpatialProjection} from '../lib/spatial-projection.ts';
 
 const expected=[
  ['XFMR-1','TRANSFORMER',1],
@@ -30,4 +32,41 @@ assert.equal(titled.isSld,true,'explicit one-line title must be sufficient');
 const ordinary=detectSldPage(['GENERAL NOTES','OFFICE 101','DOOR TYPE A'],120);
 assert.equal(ordinary.isSld,false,'vector-heavy ordinary drawing must not become an SLD without electrical evidence');
 
-console.log('SLD content recognition and logical projection conformance passed.');
+const topology=buildSldVectorTopology(
+ [
+  {x:0,y:0,x2:0,y2:5},
+  {x:0,y:5,x2:0,y2:10},
+  {x:5,y:0,x2:6,y2:0},
+ ],
+ [
+  {id:'utility',x:.1,y:.5},
+  {id:'xfmr',x:.1,y:5},
+  {id:'swbd',x:.1,y:9.5},
+  {id:'isolated',x:5.2,y:.05},
+ ],
+);
+const utilityAttachment=topology.attachments.find(item=>item.labelId==='utility');
+const xfmrAttachment=topology.attachments.find(item=>item.labelId==='xfmr');
+const swbdAttachment=topology.attachments.find(item=>item.labelId==='swbd');
+const isolatedAttachment=topology.attachments.find(item=>item.labelId==='isolated');
+assert.ok(utilityAttachment&&xfmrAttachment&&swbdAttachment&&isolatedAttachment);
+assert.equal(utilityAttachment.component,xfmrAttachment.component);
+assert.equal(xfmrAttachment.component,swbdAttachment.component);
+assert.equal(utilityAttachment.componentAttachmentCount,3);
+assert.equal(isolatedAttachment.componentAttachmentCount,1,'single-label decorative/isolated vector components must remain distinguishable from feeder networks');
+
+const vectorComponent=utilityAttachment.component;
+const projected=enrichSpatialProjection({
+ entities:[
+  {id:'u',source:'drawing.pdf',layer:'L2',kind:'text-asset-candidate',name:'UTILITY SERVICE',x:0,y:0,z:0,confidence:.9,meta:{page:1,sldCandidate:true,sldVectorComponent:vectorComponent}},
+  {id:'t',source:'drawing.pdf',layer:'L2',kind:'text-asset-candidate',name:'XFMR-1',x:0,y:5,z:0,confidence:.9,meta:{page:1,sldCandidate:true,sldVectorComponent:vectorComponent}},
+  {id:'s',source:'drawing.pdf',layer:'L2',kind:'text-asset-candidate',name:'SWBD-1',x:0,y:10,z:0,confidence:.9,meta:{page:1,sldCandidate:true,sldVectorComponent:vectorComponent}},
+ ],links:[]
+});
+const vectorLinks=(projected.links||[]).filter(link=>link.type==='SLD_FEEDS');
+assert.equal(vectorLinks.length,2);
+assert.ok(vectorLinks.every(link=>link.meta?.inference==='PDF_VECTOR_CONNECTED_COMPONENT'));
+assert.ok(vectorLinks.every(link=>link.confidence===.9));
+assert.equal(projected.spatialProjection.sldVectorLinks,2);
+
+console.log('SLD content recognition, source-vector topology and logical projection conformance passed.');
