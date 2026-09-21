@@ -21,7 +21,25 @@ try{
  assert.equal(db?.retargeted,false);
  assert.equal(db?.targetDatabase,'original');
  assert.equal(db?.url,process.env.DATABASE_URL);
- console.log('✓ explicit DATABASE_URL remains authoritative and unmodified');
+ console.log('✓ explicit non-Neon DATABASE_URL remains authoritative and unmodified');
+
+ clear();
+ process.env.DATABASE_URL='postgresql://user:abcdefghijklmnopqrstuvwxyz012345@ep-test.us-east-1.aws.neon.tech/neondb?sslmode=require';
+ db=resolveDatabaseRuntime();
+ assert.equal(db?.source,'DATABASE_URL');
+ assert.equal(db?.retargeted,true);
+ assert.equal(db?.targetDatabase,'stratum_spatial_verified');
+ assert.equal(new URL(db.url).pathname,'/stratum_spatial_verified');
+ assert.equal(new URL(db.url).searchParams.get('sslmode'),'require');
+ console.log('✓ Neon DATABASE_URL using default neondb is safely retargeted to Spatial database');
+
+ clear();
+ process.env.DATABASE_URL='postgresql://user:abcdefghijklmnopqrstuvwxyz012345@ep-test.us-east-1.aws.neon.tech/customer_specific?sslmode=require';
+ db=resolveDatabaseRuntime();
+ assert.equal(db?.retargeted,false);
+ assert.equal(db?.targetDatabase,'customer_specific');
+ assert.equal(new URL(db.url).pathname,'/customer_specific');
+ console.log('✓ explicit non-default Neon DATABASE_URL database remains authoritative');
 
  clear();
  process.env.POSTGRES_URL='postgresql://user:abcdefghijklmnopqrstuvwxyz012345@ep-test.us-east-1.aws.neon.tech/neondb?sslmode=require';
