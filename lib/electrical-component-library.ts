@@ -109,18 +109,7 @@ export const ELECTRICAL_COMPONENTS:ElectricalComponent[]=[
  {key:'vibration-sensor',name:'Vibration Sensor',category:'Sensors & Monitoring Devices',aliases:['vibration sensor'],twinShape:'sensor',trackAsAsset:false}
 ];
 
-function escapeRegex(value:string){return value.replace(/[.*+?^${}()|[\]\\]/g,'\\function escapeRegex(value:string){return value.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}
-function aliasMatches(name:string,alias:string){
- const a=alias.trim().toLowerCase();
- if(!a)return false;
- if(a.length<=4&&/^[a-z0-9]+$/.test(a))return new RegExp(`(^|[^a-z0-9])${escapeRegex(a)}([^a-z0-9]|$)`,'i').test(name);
- return name.includes(a);
-}
-
-export function resolveElectricalComponent(name:string){
- const n=name.toLowerCase();
- return ELECTRICAL_COMPONENTS.find(c=>c.aliases.some(a=>aliasMatches(n,a)))||null;
-}')}
+function escapeRegex(value:string){return value.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}
 function normalized(value:string){return value.toLowerCase().replace(/[^a-z0-9]+/g,' ').trim().replace(/\s+/g,' ')}
 function aliasMatches(name:string,alias:string){
  const n=normalized(name),a=normalized(alias);
