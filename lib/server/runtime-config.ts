@@ -11,9 +11,32 @@ const DATABASE_KEYS=[
 
 const AUTH_KEYS=['AUTH_SECRET','NEXTAUTH_SECRET','SESSION_SECRET','STRATUM_AUTH_SECRET'] as const;
 
+type DatabaseKey=(typeof DATABASE_KEYS)[number];
+type AuthKey=(typeof AUTH_KEYS)[number];
+
+function readDatabaseEnv(source:DatabaseKey){
+ switch(source){
+  case 'DATABASE_URL':return process.env.DATABASE_URL;
+  case 'POSTGRES_URL':return process.env.POSTGRES_URL;
+  case 'POSTGRES_PRISMA_URL':return process.env.POSTGRES_PRISMA_URL;
+  case 'NEON_DATABASE_URL':return process.env.NEON_DATABASE_URL;
+  case 'DATABASE_URL_UNPOOLED':return process.env.DATABASE_URL_UNPOOLED;
+  case 'POSTGRES_URL_NON_POOLING':return process.env.POSTGRES_URL_NON_POOLING;
+ }
+}
+
+function readAuthEnv(source:AuthKey){
+ switch(source){
+  case 'AUTH_SECRET':return process.env.AUTH_SECRET;
+  case 'NEXTAUTH_SECRET':return process.env.NEXTAUTH_SECRET;
+  case 'SESSION_SECRET':return process.env.SESSION_SECRET;
+  case 'STRATUM_AUTH_SECRET':return process.env.STRATUM_AUTH_SECRET;
+ }
+}
+
 export type DatabaseRuntimeConfig={
  url:string;
- source:(typeof DATABASE_KEYS)[number];
+ source:DatabaseKey;
  targetDatabase:string|null;
  retargeted:boolean;
 };
@@ -25,7 +48,7 @@ function targetDatabaseName(){
 
 export function resolveDatabaseRuntime():DatabaseRuntimeConfig|null{
  for(const source of DATABASE_KEYS){
-  const value=(process.env[source]||'').trim();
+  const value=(readDatabaseEnv(source)||'').trim();
   if(!value)continue;
   if(source==='DATABASE_URL'){
    let database:string|null=null;
@@ -53,7 +76,7 @@ export type AuthRuntimeConfig={
 
 export function resolveAuthRuntime():AuthRuntimeConfig|null{
  for(const source of AUTH_KEYS){
-  const value=(process.env[source]||'').trim();
+  const value=(readAuthEnv(source)||'').trim();
   if(value.length>=32)return{key:new TextEncoder().encode(value),source,derived:false};
  }
  const database=resolveDatabaseRuntime();

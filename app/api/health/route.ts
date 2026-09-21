@@ -3,6 +3,9 @@ import {DATABASE_READINESS_SQL,REQUIRED_DATABASE_TABLES,summarizeDatabaseReadine
 import {resolveAuthRuntime,resolveDatabaseRuntime} from '@/lib/server/runtime-config';
 import {probeDirRpc} from '@/lib/server/chain';
 
+export const runtime='nodejs';
+export const dynamic='force-dynamic';
+
 type ReadinessProbeStatus='UNCONFIGURED'|'READY'|'INCOMPLETE_SCHEMA'|'UNREACHABLE';
 
 export async function GET(){
