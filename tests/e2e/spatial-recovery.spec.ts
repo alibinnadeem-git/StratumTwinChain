@@ -22,7 +22,9 @@ test('same-origin legacy Spatial graph is automatically recovered instead of sho
  const recovered=await page.evaluate(()=>JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}').entities?.[0]?.name);
  expect(recovered).toBe('Recovered panel');
  await page.goto('/spatial');
- await expect(page.getByText('Recovered panel',{exact:true})).toBeVisible();
+ await expect(page.getByRole('region',{name:'Imported project spatial model'})).toBeVisible();
+ await expect(page.getByText('PROJECT MODEL',{exact:true})).toBeVisible();
+ await expect.poll(()=>page.evaluate(()=>JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}').entities?.[0]?.name)).toBe('Recovered panel');
 });
 
 test('graph updates create a protected last-good browser copy',async({page})=>{
@@ -56,7 +58,9 @@ test('a JSON backup can restore a missing model without rebuilding sources',asyn
  await expect(workspace).toContainText('MODEL FOUND');
  await expect(workspace.getByRole('status')).toContainText(/Imported 1 Spatial objects/i);
  await page.goto('/spatial');
- await expect(page.getByText('Imported backup panel',{exact:true})).toBeVisible();
+ await expect(page.getByRole('region',{name:'Imported project spatial model'})).toBeVisible();
+ await expect(page.getByText('PROJECT MODEL',{exact:true})).toBeVisible();
+ await expect.poll(()=>page.evaluate(()=>JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}').entities?.[0]?.name)).toBe('Imported backup panel');
 });
 
 
