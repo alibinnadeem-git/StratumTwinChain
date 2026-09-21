@@ -3,13 +3,13 @@ export type SldElectricalFamily='SOURCE'|'TRANSFORMER'|'MAIN_DISTRIBUTION'|'DIST
 export const EXPLICIT_SLD_PATTERN=/single\s*line|one\s*line|one-line|single-line|\bsld\b|riser|power\s*diagram|electrical\s*diagram/i;
 
 const FAMILY_PATTERNS:Record<SldElectricalFamily,RegExp>={
- SOURCE:/\butility\b|\bservice\b|\bincoming\b|\bsource\b|\bfeed\b|\bnormal\s+power\b|\bemergency\s+power\b/i,
+ SOURCE:/\butility\b|\bservice\b|\bincoming\b|\bsource\b|\bfeed\b|\bnormal\s+power\b|\bemergency\s+power\b|\bgenerator\b|\bgenset\b|\bups\b|\bbattery\b|\bsolar\b|\bpv\b/i,
  TRANSFORMER:/\btransformer\b|\bxfmr\b|\bxfrmr\b|\btx\s*[-#]?\s*\d+/i,
  MAIN_DISTRIBUTION:/\bswitchgear\b|\bswitchboard\b|\bswbd\b|\bmsb\b|\bmdb\b|\bmdp\b|\bmain\s*(?:distribution|board|switchboard|switchgear)\b/i,
  DISTRIBUTION:/\bats\b|\btransfer\s*switch\b|\bmcc\b|\bpdu\b|\bbusway\b|\bbus\s*duct\b|\bdistribution\s*(?:board|panel)?\b/i,
- PANEL:/\bpanelboard\b|\bpanel\s*[-#]?[a-z0-9]+\b|\bload\s*center\b|\blp\s*[-#]?\s*\d+/i,
+ PANEL:/\bpanelboard\b|\bpanel\b(?:\s*[-#]?\s*[a-z0-9]+)?|\bload\s*center\b|\blp\s*[-#]?\s*\d+/i,
  PROTECTION:/\bbreaker\b|\bcircuit\s*breaker\b|\bmccb\b|\bacb\b|\bvcb\b|\bcb\s*[-#]?\s*\d+/i,
- LOAD:/\bgenerator\b|\bgenset\b|\bups\b|\bbattery\b|\bsolar\b|\bpv\b|\binverter\b|\bdisconnect\b|\bvfd\b|\bmotor\b|\bevse\b|\bcharger\b|\breceptacle\b|\boutlet\b|\bequipment\b|\bload\b/i,
+ LOAD:/\binverter\b|\bdisconnect\b|\bvfd\b|\bmotor\b|\bevse\b|\bcharger\b|\breceptacle\b|\boutlet\b|\bequipment\b|\bload\b/i,
 };
 
 const POWER_RATING_PATTERN=/\b\d+(?:\.\d+)?\s*(?:v|kv|a|amp|amps|ka|kva|mva|kw|mw|hz)\b/i;
