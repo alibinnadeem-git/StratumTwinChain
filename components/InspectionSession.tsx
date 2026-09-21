@@ -139,6 +139,7 @@ export default function InspectionSession(){
      <label>Crew / technician reference<input value={draft.crewReference} onChange={e=>setDraft(v=>({...v,crewReference:e.target.value}))} placeholder="Crew, badge or field reference"/></label>
      <label>Supervisor / inspector reference<input value={draft.reviewerReference} onChange={e=>setDraft(v=>({...v,reviewerReference:e.target.value}))} placeholder="Supervisor / inspector field reference"/></label>
      <label>Notes<textarea value={draft.notes} onChange={e=>setDraft(v=>({...v,notes:e.target.value}))} placeholder="Exceptions, observations, corrective actions…"/></label>
+     <p className="muted">The server records the authenticated performer. Crew and supervisor references are context only, not signatures or identity proof.</p>
     </div>
    </details>}
 
