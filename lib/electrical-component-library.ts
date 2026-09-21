@@ -17,21 +17,23 @@ export const ELECTRICAL_CATEGORIES=[
 ] as const;
 
 export const ELECTRICAL_COMPONENTS:ElectricalComponent[]=[
- {key:'utility-transformer',name:'Utility Transformer',category:'Power Intake & Utility',aliases:['utility transformer','service transformer'],twinShape:'transformer',trackAsAsset:true},
+ {key:'utility-transformer',name:'Utility Transformer',category:'Power Intake & Utility',aliases:['utility transformer','service transformer','xfmr','xfr'],twinShape:'transformer',trackAsAsset:true},
  {key:'pad-mount-transformer',name:'Pad-Mount Transformer',category:'Power Intake & Utility',aliases:['pad mount transformer','pad-mounted transformer'],twinShape:'transformer',trackAsAsset:true},
- {key:'utility-switchgear',name:'Utility Switchgear',category:'Power Intake & Utility',aliases:['utility switchgear','service switchgear'],twinShape:'cabinet',trackAsAsset:true},
+ {key:'utility-switchgear',name:'Utility Switchgear',category:'Power Intake & Utility',aliases:['utility switchgear','service switchgear','switchgear','swgr','swg'],twinShape:'cabinet',trackAsAsset:true},
  {key:'metering-cabinet',name:'Metering Cabinet',category:'Power Intake & Utility',aliases:['metering cabinet','meter cabinet'],twinShape:'meter',trackAsAsset:true},
- {key:'service-entrance',name:'Service Entrance Equipment',category:'Power Intake & Utility',aliases:['service entrance','service equipment'],twinShape:'cabinet',trackAsAsset:true},
+ {key:'service-entrance',name:'Service Entrance Equipment',category:'Power Intake & Utility',aliases:['service entrance','service equipment','utility service','incoming service'],twinShape:'cabinet',trackAsAsset:true},
 
- {key:'main-switchboard',name:'Main Switchboard',category:'Distribution Equipment',aliases:['main switchboard','msb','switchboard'],twinShape:'cabinet',trackAsAsset:true},
+ {key:'main-switchboard',name:'Main Switchboard',category:'Distribution Equipment',aliases:['main switchboard','msb','switchboard','swbd','mdb','mdp'],twinShape:'cabinet',trackAsAsset:true},
  {key:'distribution-panel',name:'Distribution Panel',category:'Distribution Equipment',aliases:['distribution panel','distribution board'],twinShape:'panel',trackAsAsset:true},
- {key:'panelboard',name:'Panelboard',category:'Distribution Equipment',aliases:['panelboard','panel board','panel lp','panel pp'],twinShape:'panel',trackAsAsset:true},
+ {key:'panelboard',name:'Panelboard',category:'Distribution Equipment',aliases:['panelboard','panel board','panel lp','panel pp','panel','pnl'],twinShape:'panel',trackAsAsset:true},
+ {key:'power-distribution-unit',name:'Power Distribution Unit (PDU)',category:'Distribution Equipment',aliases:['power distribution unit','pdu'],twinShape:'cabinet',trackAsAsset:true},
  {key:'lv-switchboard',name:'Low-Voltage Switchboard',category:'Distribution Equipment',aliases:['lv switchboard','low voltage switchboard'],twinShape:'cabinet',trackAsAsset:true},
  {key:'busduct',name:'Busduct / Busway',category:'Distribution Equipment',aliases:['busduct','bus duct','busway'],twinShape:'busduct',trackAsAsset:true},
 
  {key:'acb',name:'Air Circuit Breaker (ACB)',category:'Circuit Protection',aliases:['air circuit breaker','acb'],twinShape:'breaker',trackAsAsset:true},
  {key:'mccb',name:'Molded Case Circuit Breaker (MCCB)',category:'Circuit Protection',aliases:['molded case circuit breaker','mccb'],twinShape:'breaker',trackAsAsset:true},
  {key:'mcb',name:'Miniature Circuit Breaker (MCB)',category:'Circuit Protection',aliases:['miniature circuit breaker','mcb'],twinShape:'breaker',trackAsAsset:false},
+ {key:'circuit-breaker',name:'Circuit Breaker',category:'Circuit Protection',aliases:['circuit breaker','breaker','cb'],twinShape:'breaker',trackAsAsset:true},
  {key:'fused-switch',name:'Fused Switch',category:'Circuit Protection',aliases:['fused switch'],twinShape:'breaker',trackAsAsset:true},
  {key:'spd',name:'Surge Protective Device (SPD)',category:'Circuit Protection',aliases:['surge protective device','spd','surge protection'],twinShape:'breaker',trackAsAsset:true},
 
@@ -71,10 +73,10 @@ export const ELECTRICAL_COMPONENTS:ElectricalComponent[]=[
  {key:'motor',name:'Electric Motor',category:'Motor Control & Drives',aliases:['electric motor','motor'],twinShape:'motor',trackAsAsset:true},
  {key:'pump',name:'Pump',category:'Motor Control & Drives',aliases:['pump'],twinShape:'motor',trackAsAsset:true},
 
- {key:'generator',name:'Diesel / Gas Generator',category:'Backup Power Systems',aliases:['generator','genset'],twinShape:'generator',trackAsAsset:true},
+ {key:'generator',name:'Diesel / Gas Generator',category:'Backup Power Systems',aliases:['generator','genset','gen'],twinShape:'generator',trackAsAsset:true},
  {key:'ats',name:'Automatic Transfer Switch (ATS)',category:'Backup Power Systems',aliases:['automatic transfer switch','ats'],twinShape:'cabinet',trackAsAsset:true},
  {key:'ups',name:'UPS',category:'Backup Power Systems',aliases:['ups','uninterruptible power supply'],twinShape:'cabinet',trackAsAsset:true},
- {key:'battery-bank',name:'Battery Bank',category:'Backup Power Systems',aliases:['battery bank','battery rack'],twinShape:'battery',trackAsAsset:true},
+ {key:'battery-bank',name:'Battery Bank',category:'Backup Power Systems',aliases:['battery bank','battery rack','battery','bess','ess'],twinShape:'battery',trackAsAsset:true},
  {key:'dc-power',name:'DC Power System',category:'Backup Power Systems',aliases:['dc power system','rectifier'],twinShape:'cabinet',trackAsAsset:true},
 
  {key:'ground-rod',name:'Ground Rod',category:'Earthing & Bonding',aliases:['ground rod','earth rod'],twinShape:'ground',trackAsAsset:false},
@@ -91,7 +93,7 @@ export const ELECTRICAL_COMPONENTS:ElectricalComponent[]=[
 
  {key:'solar-inverter',name:'Solar Inverter',category:'Renewable & EV Infrastructure',aliases:['solar inverter','pv inverter'],twinShape:'cabinet',trackAsAsset:true},
  {key:'combiner',name:'PV Combiner Box',category:'Renewable & EV Infrastructure',aliases:['combiner box','pv combiner'],twinShape:'junction',trackAsAsset:true},
- {key:'pv-array',name:'PV Array',category:'Renewable & EV Infrastructure',aliases:['pv array','solar array','solar panel'],twinShape:'solar',trackAsAsset:true},
+ {key:'pv-array',name:'PV Array',category:'Renewable & EV Infrastructure',aliases:['pv array','solar array','solar panel','pv'],twinShape:'solar',trackAsAsset:true},
  {key:'evse-kempower-satellite-v2',name:'Kempower Satellite V2',category:'Renewable & EV Infrastructure',aliases:['kempower satellite v2','kempower satellite','kempower charger'],twinShape:'evse',trackAsAsset:true,manufacturer:'Kempower',modelFamily:'Satellite V2'},
  {key:'evse-alpitronic-hyc400-s2',name:'Alpitronic HYC400 Series 2',category:'Renewable & EV Infrastructure',aliases:['alpitronic hyc400 series 2','alpitronic hyc400s2','alpitronic hyc400','alpitronic hypercharger','hypercharger hyc400'],twinShape:'evse',trackAsAsset:true,manufacturer:'Alpitronic',modelFamily:'HYC400 Series 2'},
  {key:'evse-delta-dc-wallbox-50',name:'Delta DC Wallbox 50 kW',category:'Renewable & EV Infrastructure',aliases:['delta dc wallbox 50kw','delta dc wallbox 50','delta dc wallbox','delta ev charger'],twinShape:'evse',trackAsAsset:true,manufacturer:'Delta Electronics',modelFamily:'DC Wallbox 50 kW'},
@@ -100,14 +102,14 @@ export const ELECTRICAL_COMPONENTS:ElectricalComponent[]=[
  {key:'evse',name:'EV Charging Station',category:'Renewable & EV Infrastructure',aliases:['ev charger','ev charging station','evse'],twinShape:'evse',trackAsAsset:true},
  {key:'charging-panel',name:'EV Charging Distribution Panel',category:'Renewable & EV Infrastructure',aliases:['charging distribution panel','ev panel'],twinShape:'panel',trackAsAsset:true},
 
- {key:'power-meter',name:'Power Meter',category:'Sensors & Monitoring Devices',aliases:['power meter'],twinShape:'meter',trackAsAsset:true},
+ {key:'power-meter',name:'Power Meter',category:'Sensors & Monitoring Devices',aliases:['power meter','meter'],twinShape:'meter',trackAsAsset:true},
  {key:'energy-meter',name:'Energy Meter',category:'Sensors & Monitoring Devices',aliases:['energy meter'],twinShape:'meter',trackAsAsset:true},
  {key:'current-sensor',name:'Current Sensor / CT',category:'Sensors & Monitoring Devices',aliases:['current sensor','ct sensor'],twinShape:'sensor',trackAsAsset:false},
  {key:'temperature-sensor',name:'Temperature Sensor',category:'Sensors & Monitoring Devices',aliases:['temperature sensor','temp sensor'],twinShape:'sensor',trackAsAsset:false},
  {key:'vibration-sensor',name:'Vibration Sensor',category:'Sensors & Monitoring Devices',aliases:['vibration sensor'],twinShape:'sensor',trackAsAsset:false}
 ];
 
-function escapeRegex(value:string){return value.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}
+function escapeRegex(value:string){return value.replace(/[.*+?^${}()|[\]\\]/g,'\\function escapeRegex(value:string){return value.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}
 function aliasMatches(name:string,alias:string){
  const a=alias.trim().toLowerCase();
  if(!a)return false;
@@ -118,4 +120,21 @@ function aliasMatches(name:string,alias:string){
 export function resolveElectricalComponent(name:string){
  const n=name.toLowerCase();
  return ELECTRICAL_COMPONENTS.find(c=>c.aliases.some(a=>aliasMatches(n,a)))||null;
+}')}
+function normalized(value:string){return value.toLowerCase().replace(/[^a-z0-9]+/g,' ').trim().replace(/\s+/g,' ')}
+function aliasMatches(name:string,alias:string){
+ const n=normalized(name),a=normalized(alias);
+ if(!a)return false;
+ if(a.length<=4&&/^[a-z0-9]+$/.test(a))return new RegExp(`(^| )${escapeRegex(a)}( |$)`,'i').test(n);
+ return n.includes(a);
+}
+
+export function resolveElectricalComponent(name:string){
+ let best:ElectricalComponent|null=null,bestScore=-1;
+ for(const component of ELECTRICAL_COMPONENTS)for(const alias of component.aliases){
+  if(!aliasMatches(name,alias))continue;
+  const a=normalized(alias),n=normalized(name),score=a.length+(n===a?1000:0);
+  if(score>bestScore){best=component;bestScore=score}
+ }
+ return best;
 }
