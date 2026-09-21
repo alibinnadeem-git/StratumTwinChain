@@ -1,7 +1,6 @@
 import Link from 'next/link';
-import {assets as referenceAssets,events as referenceEvents} from '@/lib/data';
-import AssetPassport from '@/components/AssetPassport';
 import LiveAssetSummary from '@/components/LiveAssetSummary';
+import SpatialWorkspaceStatus from '@/components/SpatialWorkspaceStatus';
 import TaskLauncher from '@/components/TaskLauncher';
 import {readSession} from '@/lib/server/auth';
 import {commandCenterSnapshot,type CommandCenterActivity,type CommandCenterMetrics} from '@/lib/server/command-center';
@@ -9,7 +8,6 @@ import {liveAssets,type LiveAssetRow} from '@/lib/server/live-views';
 
 export const dynamic='force-dynamic';
 
-type CommandCenterMode='LIVE'|'REFERENCE_SIGNED_OUT'|'REFERENCE_UNAVAILABLE';
 type CommandCenterSnapshot={organizationId:string;metrics:CommandCenterMetrics;activities:CommandCenterActivity[]};
 
 function stamp(value:Date|string|null|undefined){
@@ -18,53 +16,50 @@ function stamp(value:Date|string|null|undefined){
 }
 
 function LiveActivity({activity}:{activity:CommandCenterActivity}){
- const lifecycle=activity.source==='LIFECYCLE';
- const recorded=Boolean(activity.ledger_block_height);
- return <div className="event">
-  <i className={`event-icon ${recorded?'verified':lifecycle?'pending':'evidence'}`}>{recorded?'✓':lifecycle?'●':'+'}</i>
-  <div>
-   <strong>{activity.activity_type} · {activity.asset_name}</strong>
-   <small>{activity.source} · {activity.asset_code} · {activity.trust_state}{activity.actor_name?` · ${activity.actor_name}`:''} · {stamp(activity.occurred_at)}{recorded?` · DIR #${activity.ledger_block_height}`:''}</small>
-  </div>
- </div>;
+ const finalized=Boolean(activity.ledger_block_height);
+ return <div className="event"><i className={`event-icon ${finalized?'verified':'pending'}`}>{finalized?'✓':'●'}</i><div><strong>{activity.activity_type} · {activity.asset_name}</strong><small>{activity.asset_code} · {activity.trust_state} · {stamp(activity.occurred_at)}{finalized?` · DIR #${activity.ledger_block_height}`:''}</small></div></div>;
 }
 
 export default async function Home(){
  const session=await readSession();
- let mode:CommandCenterMode=session?'REFERENCE_UNAVAILABLE':'REFERENCE_SIGNED_OUT';
  let snapshot:CommandCenterSnapshot|null=null;
  let tenantAssets:LiveAssetRow[]=[];
+ let liveUnavailable=false;
 
  if(session){
-  try{
-   [snapshot,tenantAssets]=await Promise.all([commandCenterSnapshot(),liveAssets()]);
-   mode='LIVE';
-  }catch(error){
-   console.error('Live command-center data unavailable; rendering explicitly labeled reference mode.',error);
-  }
+  try{[snapshot,tenantAssets]=await Promise.all([commandCenterSnapshot(),liveAssets()]);}
+  catch(error){liveUnavailable=true;console.error('Live command-center data unavailable.',error);}
  }
 
- const liveSnapshot:CommandCenterSnapshot|null=mode==='LIVE'?snapshot:null;
- const metrics=liveSnapshot?.metrics??null;
- const dirLinked=metrics?.dir_linked_assets??0;
- const registered=metrics?.registered_assets??0;
-
  return <>
-  <div className="topline home-intro"><div><div className="eyebrow">STRATUM Spatial Verified</div><h1 className="title">Choose a task and keep moving.</h1><div className="subtitle">Start with the work in front of you: a drawing, a Spatial model, a field asset, or an Asset Passport. STRATUM keeps evidence, approvals and trust history connected without forcing those details into every screen.</div><div className="trust-summary"><span className="status-chip">OBSERVED ≠ VERIFIED</span><span className="status-chip">NO SILENT PROMOTION</span></div></div><div className="badge">{liveSnapshot?'LIVE TENANT':'REFERENCE MODE'}</div></div>
+  <div className="topline home-intro"><div><div className="eyebrow">STRATUM Spatial Verified</div><h1 className="title">Continue your project.</h1><div className="subtitle">Recover or open the Spatial model first, then choose the one task you need. Advanced engineering, trust and administration controls stay out of the way.</div></div><div className="badge">{snapshot?'LIVE TENANT':session?'SERVER OFFLINE':'BROWSER WORKSPACE'}</div></div>
+
+  <SpatialWorkspaceStatus/>
 
   <TaskLauncher/>
 
-  {mode==='REFERENCE_SIGNED_OUT'&&<section className="card" role="status" style={{marginBottom:16,borderColor:'#75592e'}}><div className="eyebrow">Reference mode · Signed out</div><h3>Sign in to work with live project data</h3><p className="muted">The examples below are interface reference data, not current infrastructure state.</p><Link className="action" href="/login">Sign in</Link></section>}
-  {mode==='REFERENCE_UNAVAILABLE'&&<section className="card" role="alert" style={{marginBottom:16,borderColor:'#75592e'}}><div className="eyebrow">Live service unavailable</div><h3>Reference data is shown temporarily</h3><p className="muted">Your tenant session remains separate from these examples. Reference values are never treated as Verified infrastructure state or PoVI finality.</p></section>}
-  {liveSnapshot&&<section className="card" role="status" style={{marginBottom:16}}><div className="eyebrow">Live tenant</div><p className="muted" style={{margin:0}}>You are viewing organization-scoped assets, lifecycle records and evidence.</p></section>}
+  {!session&&<section className="card simple-status" role="status"><div><div className="eyebrow">Live tenant data</div><strong>Signed out</strong><p className="muted">Your browser Spatial model can still be recovered and backed up. Sign in only when you need tenant assets, evidence, approvals or DIR history.</p></div><Link className="ghost" href="/login">Sign in</Link></section>}
 
-  {liveSnapshot&&metrics?<section className="grid kpis"><div className="card"><div className="label">Assets</div><div className="metric">{registered.toLocaleString()}</div><div className="muted">Registered STRATUM Assets</div></div><div className="card"><div className="label">DIR-linked</div><div className="metric">{dirLinked.toLocaleString()}</div><div className="muted">Assets with recorded lifecycle provenance</div></div><div className="card"><div className="label">Lifecycle records</div><div className="metric">{metrics.lifecycle_records.toLocaleString()}</div><div className="muted">Recorded asset history</div></div><div className="card"><div className="label">Evidence</div><div className="metric">{metrics.evidence_records.toLocaleString()}</div><div className="muted">Organization-scoped evidence records</div></div></section>:<section className="grid kpis"><div className="card"><div className="label">Reference assets</div><div className="metric">{referenceAssets.length}</div><div className="muted">Interface examples only</div></div><div className="card"><div className="label">Reference DIR-linked</div><div className="metric">{referenceAssets.filter(asset=>asset.block).length}</div><div className="muted">Example associations only</div></div><div className="card"><div className="label">Reference events</div><div className="metric">{referenceEvents.length}</div><div className="muted">Interface examples only</div></div><div className="card"><div className="label">Trust rule</div><div className="metric" style={{fontSize:18}}>Review before trust</div><div className="muted">Observed, approved, recorded and finalized remain distinct</div></div></section>}
+  {session&&liveUnavailable&&<section className="card simple-status" role="alert"><div><div className="eyebrow">Live tenant data</div><strong>Server connection is not bound in production</strong><p className="muted">The interface will not replace your project with demonstration data. Browser model recovery remains available above.</p></div><Link className="ghost" href="/release-readiness">View readiness</Link></section>}
 
-  <section className="grid two"><div><div className="section-head"><div><div className="eyebrow">Asset</div><h2>Continue with an asset</h2></div></div>{liveSnapshot?(tenantAssets[0]?<LiveAssetSummary asset={tenantAssets[0]}/>:<div className="card"><h3>No active STRATUM Assets</h3><p className="muted">This organization has no active registered assets yet.</p><Link className="action" href="/workflows">Register an asset</Link></div>):<AssetPassport asset={referenceAssets[0]} reference/>}</div><div className="card"><div className="section-head"><div><div className="eyebrow">Recent activity</div><h3>{liveSnapshot?'Latest tenant work':'Reference activity'}</h3></div></div>{liveSnapshot?<div className="timeline">{liveSnapshot.activities.map(activity=><LiveActivity key={`${activity.source}-${activity.id}`} activity={activity}/>)}{!liveSnapshot.activities.length&&<p className="muted">No lifecycle or evidence activity is recorded yet.</p>}</div>:<div className="timeline">{referenceEvents.map(event=><div className="event" key={event.meta}><i className={`event-icon ${event.kind}`}>•</i><div><strong>{event.title}</strong><small>REFERENCE · {event.meta}</small></div></div>)}</div>}</div></section>
+  {snapshot&&<details className="secondary-details card">
+   <summary>Live project data</summary>
+   <div className="simple-kpis">
+    <div><span>Assets</span><strong>{snapshot.metrics.registered_assets.toLocaleString()}</strong></div>
+    <div><span>DIR-linked</span><strong>{snapshot.metrics.dir_linked_assets.toLocaleString()}</strong></div>
+    <div><span>Lifecycle</span><strong>{snapshot.metrics.lifecycle_records.toLocaleString()}</strong></div>
+    <div><span>Evidence</span><strong>{snapshot.metrics.evidence_records.toLocaleString()}</strong></div>
+   </div>
+   <div className="grid two" style={{marginTop:14}}>
+    <div>{tenantAssets[0]?<LiveAssetSummary asset={tenantAssets[0]}/>:<div className="card"><h3>No active registered assets</h3><p className="muted">Import/review the project model first, then register only the equipment you want to manage.</p></div>}</div>
+    <div className="card"><div className="eyebrow">Recent activity</div><div className="timeline">{snapshot.activities.slice(0,5).map(activity=><LiveActivity key={`${activity.source}-${activity.id}`} activity={activity}/>)}{!snapshot.activities.length&&<p className="muted">No tenant activity recorded yet.</p>}</div></div>
+   </div>
+  </details>}
 
-  <details className="secondary-details"><summary>Trust & architecture details</summary>
-   <section className="hero"><div className="card hero-copy"><div className="eyebrow">Spatial → Evidence → Approval → Finality</div><h2>One durable infrastructure identity across the lifecycle.</h2><p className="muted">Cryptographic integrity and provenance strengthen evidence, but they do not by themselves establish physical truth. Human and deterministic validation remain explicit.</p><div className="button-row"><Link className="ghost" href="/dir">Open DIR Explorer</Link><Link className="ghost" href="/provenance">Open Provenance</Link></div></div><div className="card layer-visual"><div className="layer l1"><b>Source</b><span>Documents · capture · OEM · telemetry</span></div><div className="layer l2"><b>Spatial</b><span>Site · room · system · asset</span></div><div className="layer l3"><b>Execution</b><span>Field work · QA/QC · commissioning</span></div><div className="layer l4"><b>Trust</b><span>Evidence · HITL · approvals · provenance</span></div><div className="layer l5"><b>PoVI</b><span>Nano DIR · Micro DIR · DIR · finality</span></div></div></section>
-   <section className="card" style={{marginTop:16}}><div className="section-head"><div><div className="eyebrow">Redbook implementation order</div><h2>Build by convergence, not replacement</h2></div></div><div className="redbook-priority-grid"><div className="card redbook-priority"><span className="implementation-chip partial">P0 · PARTIAL</span><h3>Canonical Trust Foundation</h3><p className="muted">Canonical schemas and terminology, PoVI safety, Nano DIR / Micro DIR / DIR hierarchy, validator registry and portable validator path.</p></div><div className="card redbook-priority"><span className="implementation-chip foundation">P1 · IN PROGRESS</span><h3>Platform Convergence</h3><p className="muted">STRATUM Spatial Verified, Data Room, AI Costing and JARVIS converge around shared canonical objects and trust semantics.</p></div><div className="card redbook-priority"><span className="implementation-chip planned">P2 · PLANNED</span><h3>Field / Engineering / OT</h3><p className="muted">OPC UA, edge runtime, Spatial reconstruction, power services, QA, safety, commissioning and operations.</p></div><div className="card redbook-priority"><span className="implementation-chip planned">P3 · PLANNED</span><h3>Ecosystem / Scale</h3><p className="muted">External connectors, Studio/SIR/WASM, enterprise certification and sovereign-scale validator deployments.</p></div></div></section>
+  <details className="secondary-details card">
+   <summary>Trust details</summary>
+   <p className="muted">Observed, inferred, approved and finalized states remain distinct. A Spatial visualization, QR lookup or finalized DIR never silently becomes physical truth.</p>
+   <div className="button-row"><Link className="ghost" href="/dir">DIR</Link><Link className="ghost" href="/provenance">Provenance</Link><Link className="ghost" href="/release-readiness">Release readiness</Link></div>
   </details>
  </>;
 }
