@@ -4,6 +4,7 @@ import './redbook.css';
 import './task-ui.css';
 import './accessibility.css';
 import Shell from '@/components/Shell';
+import SpatialPersistenceGuard from '@/components/SpatialPersistenceGuard';
 import {STRATUM_PRODUCT} from '@/lib/redbook/terminology';
 
 export const metadata={
@@ -12,5 +13,5 @@ export const metadata={
 };
 
 export default function RootLayout({children}:{children:React.ReactNode}){
- return <html lang="en"><body><Shell>{children}</Shell></body></html>
+ return <html lang="en"><body><SpatialPersistenceGuard/><Shell>{children}</Shell></body></html>
 }
