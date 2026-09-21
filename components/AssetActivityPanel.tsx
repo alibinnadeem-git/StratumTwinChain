@@ -39,6 +39,25 @@ async function signApproval(payloadHash:string){
  return{signature:bytesToBase64(signature),publicKeyJwk};
 }
 
+function dirProgress(event:ActivityEvent){
+ const evidenceCount=Number(event.evidence_count||0);
+ const approvedCount=Number(event.approved_count||0);
+ const approvalsRequired=Math.max(1,Number(event.approvals_required||1));
+ const evidenceReady=!event.require_evidence||evidenceCount>0;
+ const approvalReady=approvedCount>=approvalsRequired;
+ const finalized=Boolean(event.ledger_block_height&&event.ledger_tx_hash);
+ return{evidenceCount,approvedCount,approvalsRequired,evidenceReady,approvalReady,finalized};
+}
+
+function nextStep(event:ActivityEvent){
+ const progress=dirProgress(event);
+ if(event.status==='REJECTED')return 'Rejected — submit a corrected lifecycle event.';
+ if(progress.finalized)return 'Complete — the immutable record reached PoVI finality.';
+ if(!progress.evidenceReady)return 'Next: add field evidence.';
+ if(!progress.approvalReady)return `Next: independent approval (${progress.approvedCount}/${progress.approvalsRequired}).`;
+ return 'Next: PoVI finalization.';
+}
+
 export default function AssetActivityPanel({assetId,projectId}:{assetId:string;projectId:string}){
  const [notes,setNotes]=useState('');
  const [eventType,setEventType]=useState('INSPECT');
@@ -84,7 +103,7 @@ export default function AssetActivityPanel({assetId,projectId}:{assetId:string;p
    if(!response.ok)throw new Error(body.error||'Activity submission failed');
    setNotes('');pending.current=null;
    await loadHistory();
-   setMessage('Activity saved for review. No DIR is finalized until the governed approval and PoVI steps complete.');
+   setMessage('Activity saved. It remains reviewable until evidence, approval and PoVI finality are complete.');
   }catch(error){
    setMessage(`${error instanceof Error?error.message:'Submission failed'}. Your note is retained; retry uses the same request identifier.`);
   }finally{setBusy(false);}
@@ -116,43 +135,74 @@ export default function AssetActivityPanel({assetId,projectId}:{assetId:string;p
   }finally{setApprovalBusy(null);}
  }
 
- return <section aria-label="Registered asset activity" style={{display:'grid',gap:10,marginTop:16}}>
-  <div className="section-head"><div><div className="eyebrow">Lifecycle</div><h3 style={{margin:'2px 0'}}>Asset activity</h3></div><span className="muted">{events.length} record{events.length===1?'':'s'}</span></div>
+ return <section aria-label="Registered asset activity" className="asset-activity">
+  <div className="section-head">
+   <div><div className="eyebrow">Lifecycle & DIR</div><h3 style={{margin:'2px 0'}}>Activity history</h3></div>
+   <span className="muted">{events.length} record{events.length===1?'':'s'}</span>
+  </div>
 
-  <details>
+  <div className="dir-flow dir-flow-legend" aria-label="DIR lifecycle">
+   <span className="dir-node done">1<span>Activity</span></span>
+   <span className="dir-connector"/>
+   <span className="dir-node">2<span>Evidence</span></span>
+   <span className="dir-connector"/>
+   <span className="dir-node">3<span>Approval</span></span>
+   <span className="dir-connector"/>
+   <span className="dir-node">4<span>PoVI DIR</span></span>
+  </div>
+
+  <details className="secondary-details">
    <summary>Record new activity</summary>
    <div style={{display:'grid',gap:10,marginTop:10}}>
     <label>Activity type<select disabled={busy} value={eventType} onChange={e=>setEventType(e.target.value)}><option value="INSPECT">Inspection</option><option value="MAINTAIN">Maintenance completed</option><option value="REPAIR">Repair completed</option></select></label>
     <label>Reported condition<select disabled={busy} value={reportedState} onChange={e=>setReportedState(e.target.value)}><option>IN_SERVICE</option><option>INSPECTION_DUE</option><option>OUT_OF_SERVICE</option><option>MAINTENANCE</option></select></label>
     <label>Activity notes<textarea disabled={busy} value={notes} onChange={e=>setNotes(e.target.value)} rows={3} maxLength={10000}/></label>
-    <button disabled={busy||!notes.trim()} onClick={submit}>{busy?'Submitting…':'Submit activity for review'}</button>
-    <p className="muted" style={{margin:0}}>For installation/inspection evidence, use the field workflow. A note by itself is not physical verification.</p>
+    <button disabled={busy||!notes.trim()} onClick={submit}>{busy?'Submitting…':'Submit for review'}</button>
+    <p className="muted" style={{margin:0}}>A lifecycle note records what was reported. It does not become physical verification or a finalized DIR by itself.</p>
    </div>
   </details>
 
-  <div className="button-row"><Link className="ghost" href={`/inspection?q=${encodeURIComponent(assetId)}`}>Inspection & evidence</Link></div>
+  <div className="button-row"><Link className="ghost" href={`/inspection?q=${encodeURIComponent(assetId)}`}>Add inspection evidence</Link><Link className="ghost" href="/dir">Open DIR Explorer</Link></div>
   {message&&<p role="status" className="notice" style={{margin:0}}>{message}</p>}
 
-  <div style={{display:'grid',gap:8}}>
+  <div className="activity-list">
    {events.map(event=>{
-    const evidenceMissing=Boolean(event.require_evidence)&&Number(event.evidence_count||0)<1;
-    const finalized=Boolean(event.ledger_block_height&&event.ledger_tx_hash);
-    return <article className="card" key={event.id} style={{padding:12}}>
-     <div className="section-head"><div><strong>{event.event_type}</strong><div className="muted">{new Date(event.occurred_at).toLocaleString()}</div></div><span className={finalized?'proof':event.status==='REJECTED'?'pending':'status-chip'}>{finalized?`DIR #${event.ledger_block_height}`:event.status}</span></div>
-     <p style={{margin:'8px 0'}}>{event.payload?.notes||'No activity note recorded.'}</p>
-     <div className="muted">{event.payload?.reportedState||'Condition not reported'} · Evidence {event.evidence_count||0} · Approvals {event.approved_count||0}/{event.approvals_required||1}</div>
+    const progress=dirProgress(event);
+    const rejected=event.status==='REJECTED';
+    return <article className="card activity-card" key={event.id}>
+     <div className="section-head">
+      <div><strong>{event.event_type}</strong><div className="muted">{new Date(event.occurred_at).toLocaleString()}</div></div>
+      <span className={progress.finalized?'proof':rejected?'pending':'status-chip'}>{progress.finalized?`DIR #${event.ledger_block_height}`:event.status}</span>
+     </div>
+
+     <p className="activity-note">{event.payload?.notes||'No activity note recorded.'}</p>
+     <div className="muted">{event.payload?.reportedState||'Condition not reported'}</div>
+
+     <div className="dir-flow" aria-label={`DIR progress for ${event.event_type}`}>
+      <span className="dir-node done">1<span>Activity</span></span>
+      <span className={`dir-connector ${progress.evidenceReady?'done':''}`}/>
+      <span className={`dir-node ${progress.evidenceReady?'done':event.require_evidence?'current':''}`}>2<span>{event.require_evidence?`Evidence ${progress.evidenceCount}`:'Evidence N/A'}</span></span>
+      <span className={`dir-connector ${progress.approvalReady?'done':''}`}/>
+      <span className={`dir-node ${progress.approvalReady?'done':progress.evidenceReady&&!rejected?'current':''}`}>3<span>{`Approval ${progress.approvedCount}/${progress.approvalsRequired}`}</span></span>
+      <span className={`dir-connector ${progress.finalized?'done':''}`}/>
+      <span className={`dir-node ${progress.finalized?'done':progress.approvalReady&&!rejected?'current':''}`}>4<span>{progress.finalized?'Finalized':'PoVI DIR'}</span></span>
+     </div>
+
+     <div className={`dir-next ${progress.finalized?'complete':rejected?'blocked':''}`}>{nextStep(event)}</div>
+
      {event.can_approve&&<div style={{marginTop:10}}>
-      {evidenceMissing?<div className="notice"><strong>EVIDENCE REQUIRED</strong><span>Add field evidence before this event can reach DIR finality.</span></div>:<div className="button-row">
+      {!progress.evidenceReady?<div className="notice"><strong>EVIDENCE REQUIRED</strong><span>Add field evidence before this event can advance to approval and DIR finality.</span></div>:<div className="button-row">
        <button className="action" disabled={Boolean(approvalBusy)} onClick={()=>void decide(event,'APPROVED')}>{approvalBusy===event.id?'Signing…':'Approve & advance DIR'}</button>
        <button className="ghost" disabled={Boolean(approvalBusy)} onClick={()=>void decide(event,'REJECTED')}>Reject</button>
       </div>}
      </div>}
+
      {event.separation_of_duties_blocked&&event.status==='SUBMITTED'&&<p className="muted" style={{marginBottom:0}}>Independent approval required: the person who submitted this activity cannot approve the same lifecycle event.</p>}
      {event.current_user_decision&&<p className="muted" style={{marginBottom:0}}>Your decision: {event.current_user_decision}.</p>}
-     {finalized&&<p className="muted" style={{marginBottom:0}}>Finalized on {event.ledger_network||'STRATUM Chain'} · transaction {event.ledger_tx_hash?.slice(0,18)}…</p>}
+     {progress.finalized&&<details className="proof-details"><summary>DIR proof details</summary><div className="verify-grid"><span>Network</span><b>{event.ledger_network||'STRATUM Chain'}</b><span>Block</span><b>{event.ledger_block_height}</b><span>Transaction</span><b className="mono">{event.ledger_tx_hash}</b><span>Anchored</span><b>{event.anchored_at?new Date(event.anchored_at).toLocaleString():'—'}</b></div></details>}
     </article>;
    })}
-   {!events.length&&<p className="muted">No lifecycle activity has been recorded for this asset yet.</p>}
+   {!events.length&&<div className="empty"><strong>No lifecycle activity yet</strong><p className="muted">Record work only when something actually happened to this asset. Evidence and approval can then advance that record toward DIR finality.</p></div>}
   </div>
  </section>;
 }
