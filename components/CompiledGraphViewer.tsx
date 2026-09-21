@@ -41,7 +41,7 @@ const systemOptions:{id:SystemMode;label:string}[]=[
 
 function n(value:unknown,fallback=0){const x=Number(value);return Number.isFinite(x)?x:fallback}
 function metaNumber(e:Entity,key:string){const value=e.meta?.[key];const x=Number(value);return Number.isFinite(x)?x:null}
-function isSld(e:Entity){return Boolean(e.meta?.sldSpatialProjection||e.meta?.sldLogicalDepth!==undefined||/single.?line|one.?line|\bsld\b|riser/i.test(String(e.meta?.sheetTitle||e.source)))}
+function isSld(e:Entity){return Boolean(e.meta?.sldCandidate===true||e.meta?.sldSpatialProjection||e.meta?.sldLogicalDepth!==undefined||/single.?line|one.?line|\bsld\b|riser/i.test(String(e.meta?.sheetTitle||e.source)))}
 function physicalElevationKnown(e:Entity){return e.meta?.elevationKnown===true||e.meta?.physicalElevationKnown===true||e.meta?.sourceType==="DXF"||e.meta?.coordinateUnits==="m"&&e.floor!=="UNRESOLVED"}
 function displayElevation(e:Entity,mode:ViewMode){
   const base=n(e.z);
