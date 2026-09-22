@@ -21,4 +21,12 @@ assert.equal(asset.truthBoundary,'VISUAL_REVIEW_MARKER_NOT_GEOMETRIC_CLASH_OR_EN
 assert.equal(index.has('f-sheet'),false);
 assert.equal(findingsForEntity(snapshot,'asset-1').length,2);
 assert.equal(findingsForEntity(snapshot,'missing').length,0);
+const fs=await import('node:fs');
+const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
+assert.match(viewer,/buildSpatialCoordinationReviewIndex/);
+assert.match(viewer,/coordinationAnchors/);
+assert.match(viewer,/dataset\.coordinationAssets/);
+assert.match(viewer,/dataset\.coordinationHitX/);
+assert.match(viewer,/Selected asset coordination review/);
+assert.match(viewer,/not establish a geometric clash, code compliance, AHJ approval, or engineering approval/);
 console.log('Spatial coordination review index preserves finding severity and truth boundaries');
