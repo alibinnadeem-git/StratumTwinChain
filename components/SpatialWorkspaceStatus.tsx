@@ -21,7 +21,7 @@ type Health={
   mode?:string;
 };
 
-export default function SpatialWorkspaceStatus({compact=false}:{compact?:boolean}){
+export default function SpatialWorkspaceStatus({compact=false,authenticated=false}:{compact?:boolean;authenticated?:boolean}){
   const [graph,setGraph]=useState(()=>typeof window==='undefined'?null:readCurrentSpatialGraph());
   const [health,setHealth]=useState<Health|null>(null);
   const [message,setMessage]=useState('');
@@ -51,7 +51,8 @@ export default function SpatialWorkspaceStatus({compact=false}:{compact?:boolean
   },[]);
 
   const summary=graphSummary(graph);
-  const serverReady=Boolean(health?.liveDataReady);
+  const infrastructureReady=Boolean(health?.liveDataReady);
+  const serverReady=infrastructureReady&&authenticated;
 
   async function restore(){
     const before=readCurrentSpatialGraph();
@@ -107,7 +108,7 @@ export default function SpatialWorkspaceStatus({compact=false}:{compact?:boolean
       </div>
       <div className="workspace-health">
         <span className={graph?'proof':'pending'}>{graph?'MODEL FOUND':'MODEL MISSING'}</span>
-        <span className={serverReady?'proof':'pending'}>{serverReady?'SERVER SYNC READY':'SERVER SYNC OFFLINE'}</span>
+        <span className={serverReady?'proof':'pending'}>{serverReady?'SERVER SYNC READY':infrastructureReady?'SIGN IN FOR SERVER SYNC':'SERVER SYNC OFFLINE'}</span>
       </div>
     </div>
 
@@ -126,7 +127,9 @@ export default function SpatialWorkspaceStatus({compact=false}:{compact?:boolean
         <button className="ghost" type="button" onClick={()=>void restorePrevious()}>Restore previous copy</button>
       </div>
       {!serverReady&&<>
-       <p className="muted">Production server sync is currently unavailable because the deployed application does not have all required database/auth/DIR runtime bindings. The browser recovery layer protects the working model on this device until that infrastructure binding is completed.</p>
+       <p className="muted">{infrastructureReady
+        ?<>Production runtime bindings are ready. <Link href="/login">Sign in</Link> to use tenant-scoped server persistence and live asset context; browser recovery remains available while signed out.</>
+        :'Production server sync is currently unavailable because the deployed application does not have all required database/auth/DIR runtime bindings. The browser recovery layer protects the working model on this device until that infrastructure binding is completed.'}</p>
        <p className="muted">If the missing model was created on a different STRATUM hostname, browser same-origin security keeps that storage separate. Open that old hostname on the same device, export the model there, then import the JSON backup here.</p>
       </>}
     </details>
