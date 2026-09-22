@@ -2,6 +2,7 @@ import SpatialExperience from '@/components/SpatialExperience';
 import SpatialProjectionEngine from '@/components/SpatialProjectionEngine';
 import SpatialReviewQueue from '@/components/SpatialReviewQueue';
 import SpatialWorkspaceStatus from '@/components/SpatialWorkspaceStatus';
+import PowerIntelligencePanel from '@/components/PowerIntelligencePanel';
 import TrustBadge from '@/components/TrustBadge';
 import {type RegisteredSpatialAsset} from '@/lib/spatial-asset-link';
 import {liveAssets} from '@/lib/server/live-views';
@@ -33,6 +34,7 @@ export default async function SpatialPage(){
   <SpatialWorkspaceStatus compact/>
 
   <SpatialExperience assets={assets}/>
+  <PowerIntelligencePanel/>
 
   <details className="secondary-details card">
    <summary>Review & trust details</summary>
