@@ -2,6 +2,7 @@ import Link from 'next/link';
 import AssetQR from '@/components/AssetQR';
 import AssetArchiveControls from '@/components/AssetArchiveControls';
 import HumanAttestationPanel from '@/components/HumanAttestationPanel';
+import MaintenancePlanPanel from '@/components/MaintenancePlanPanel';
 import {assetArchiveHistory,assetLifecycle,liveAsset,publicEvidence} from '@/lib/server/live-views';
 import {readSession} from '@/lib/server/auth';
 
@@ -46,6 +47,7 @@ export default async function AssetDetail({params}:{params:Promise<{id:string}>}
  <section className="card lifecycle-card"><div className="section-head"><div><div className="eyebrow">Lifecycle</div><h2>Lifecycle record history</h2></div><span className="proof">{verifiedEvents} VERIFIED · {submittedEvents} SUBMITTED</span></div><div className="vertical-timeline">{events.map((e:any)=><div className={`life-event ${e.status==='VERIFIED'?'verified':e.status==='SUBMITTED'?'pending':''}`} key={e.id}><i>{e.status==='VERIFIED'?'✓':e.status==='SUBMITTED'?'●':'○'}</i><div><strong>{e.event_type}</strong><span>{date(e.occurred_at)} · {e.performed_by_name||'Actor recorded'}{e.approved_by_name?` → approved by ${e.approved_by_name}`:''}</span><small className="mono">Payload {short(e.payload_sha256,14)} · Evidence {short(e.evidence_package_sha256,14)}</small></div><b>{e.ledger_block_height?`DIR ${e.ledger_block_height}`:e.status}</b></div>)}{!events.length&&<p className="muted">No lifecycle events recorded yet.</p>}</div><p className="muted">A lifecycle event carrying status VERIFIED is a governed record state. The Passport does not convert that label into an unsupported assertion about current physical condition.</p></section>
 
  {liveTenant&&<HumanAttestationPanel assetId={asset.id}/>} 
+ {liveTenant&&<MaintenancePlanPanel assetId={asset.id} canManage={canManage}/>} 
 
  {liveTenant&&<section className="card" style={{marginTop:16}}><div className="section-head"><div><div className="eyebrow">Administrative provenance</div><h2>Archive / restore history</h2></div><span className="muted">Not physical truth</span></div>{archiveEvents.length?<div className="vertical-timeline">{archiveEvents.map((event:any)=><div className="life-event" key={event.id}><i>{event.action==='ARCHIVE'?'−':'↺'}</i><div><strong>{event.action==='ARCHIVE'?'Archived from active registry':'Restored to active registry'}</strong><span>{date(event.occurred_at)} · {event.actor_name||'Authorized administrator'}</span><small>{event.reason}</small></div><b>{event.action}</b></div>)}</div>:<p className="muted">No administrative archive/restore events have been recorded for this asset.</p>}<p className="muted">These events control registry visibility only. They do not rewrite lifecycle evidence, DIR/PFC finality, PoVI authority, or Verified infrastructure state.</p></section>}
 
