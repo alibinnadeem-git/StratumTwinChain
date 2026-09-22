@@ -333,3 +333,39 @@ test('Spatial restores the latest tenant project snapshot from the server when b
  expect(stored.entities?.some((entity:any)=>entity.name==='SERVER MAIN SWITCHBOARD MSB-1')).toBeTruthy();
  expect(await page.evaluate(()=>localStorage.getItem('stratum_spatial_project_id'))).toBe(projectId);
 });
+
+
+test('each uploaded drawing can be toggled independently as a Spatial source layer',async({page})=>{
+ const graph={
+  version:'1.1',createdAt:'2026-09-22T22:30:00.000Z',
+  sources:[
+   {name:'A-101 Architectural Plan.dxf',ext:'dxf',sha256:'1'.repeat(64),discipline:'Architectural',floor:'L1',elevation:0,unitName:'m',unitToMeters:1},
+   {name:'E-201 Electrical Plan.dxf',ext:'dxf',sha256:'2'.repeat(64),discipline:'Electrical',floor:'L1',elevation:0,unitName:'m',unitToMeters:1}
+  ],
+  entities:[
+   {id:'room-a',source:'A-101 Architectural Plan.dxf',layer:'L1',kind:'room-boundary',name:'ELECTRICAL ROOM',x:0,y:0,z:0,floor:'L1',confidence:.9,vertices:[{x:-3,y:-3},{x:3,y:-3},{x:3,y:3},{x:-3,y:3}],meta:{sourceDesignCoordinate:true,physicalTruth:false}},
+   {id:'panel-e',source:'E-201 Electrical Plan.dxf',layer:'L2',kind:'cad-block',name:'PANELBOARD LP-1',x:0,y:0,z:0,floor:'L1',confidence:.95,meta:{sourceDesignCoordinate:true,physicalTruth:false}}
+  ],
+  links:[],stats:{L0:2,L1:1,L2:1,L3:0,L4:0}
+ };
+ await page.addInitScript(value=>localStorage.setItem('stratum_compiled_graph',JSON.stringify(value)),graph);
+ await page.goto('/spatial');
+ await expect(page.getByRole('heading',{name:'Spatial model'})).toBeVisible();
+ const layers=page.getByText(/Source layers · 2\/2 visible/);
+ await expect(layers).toBeVisible();
+ await layers.click();
+
+ const architectural=page.getByLabel('Toggle source A-101 Architectural Plan.dxf');
+ const electrical=page.getByLabel('Toggle source E-201 Electrical Plan.dxf');
+ await expect(architectural).toBeChecked();await expect(electrical).toBeChecked();
+ await expect(page.getByLabel('Imported object').locator('option').filter({hasText:'PANELBOARD LP-1'})).toHaveCount(1);
+
+ await electrical.uncheck();
+ await expect(page.getByText(/Source layers · 1\/2 visible/)).toBeVisible();
+ await expect(page.getByLabel('Imported object').locator('option').filter({hasText:'PANELBOARD LP-1'})).toHaveCount(0);
+ await expect(architectural).toBeChecked();
+
+ await page.getByRole('button',{name:'Show all sources'}).click();
+ await expect(electrical).toBeChecked();
+ await expect(page.getByText(/Source layers · 2\/2 visible/)).toBeVisible();
+});
