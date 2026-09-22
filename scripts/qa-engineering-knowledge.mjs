@@ -28,7 +28,7 @@ for(const required of ['parsePowerIntelligence','persistPowerIntelligence','new 
 for(const required of ["requireSession(['SUPER_ADMIN','ORG_ADMIN','PROJECT_MANAGER'])",'power_finding_dispositions','ENGINEERING_REVIEW_REQUIRED','FINDING_DISPOSITION_DOES_NOT_ESTABLISH_CODE_COMPLIANCE_ENGINEERING_APPROVAL_OR_PHYSICAL_TRUTH'])
  assert.ok(powerRoute.includes(required),'Power finding review invariant missing: '+required);
 
-for(const required of ['PUBLISHED_REFERENCE','AHJ_ADOPTED','CONTRACTUAL','OEM_PUBLISHED','PROJECT_SUBMITTAL','HISTORICAL_REFERENCE','PUBLISHED_REFERENCE_IS_NOT_PROJECT_APPLICABILITY'])
+for(const required of ['PUBLISHED_REFERENCE','AHJ_ADOPTED','CONTRACTUAL','OEM_PUBLISHED','PROJECT_SUBMITTAL','HISTORICAL_REFERENCE','PUBLISHED_REFERENCE_IS_NOT_PROJECT_APPLICABILITY','A published reference cannot become project-applicable'])
  assert.ok(referenceRoute.includes(required)||registry.includes(required),'Engineering reference authority boundary missing: '+required);
 
 for(const required of ["basis:z.enum(['OEM','NFPA_70B','NECA','PROJECT_SPEC','OWNER_STANDARD','CONDITION_BASED','USER_DEFINED'])",'supersedes_plan_id','revision=(prior.rows[0]?.revision||0)+1','MAINTENANCE_PLAN_IS_NOT_PROOF_MAINTENANCE_WAS_PERFORMED'])
