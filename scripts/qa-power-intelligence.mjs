@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {buildPowerIntelligence} from '../lib/power-intelligence.ts';
+import {parseEquipmentScheduleText} from '../lib/equipment-schedule.ts';
 
 const graph={
  version:'fixture',createdAt:'2026-09-21T00:00:00.000Z',
@@ -48,3 +49,37 @@ assert.match(compiler,/Render Spatial Environment/);
 assert.match(viewer,/Discipline isolation/);
 assert.match(engine,/enrichPowerIntelligence/);
 console.log('✓ expected power discovery, missing-feed reconciliation, rating conflicts and truth boundaries passed');
+
+
+const scheduleCsv=`TAG,DESCRIPTION,VOLTAGE,PHASE,FLA,MCA,MOCP,HP,MANUFACTURER,MODEL
+AHU-7,Air Handling Unit,480,3,14,16,20,,Acme,AHU-X
+PMP-4,CHW Pump,460,3,,18,25,7.5,Acme,P-75
+FP-1,Fire Pump,480,3,,,100,50,Acme,FP50
+ROOM-1,Mechanical Room,,,,,,,,`;
+const parsedSchedule=parseEquipmentScheduleText(scheduleCsv);
+assert.equal(parsedSchedule.hasHeader,true);
+assert.equal(parsedSchedule.records.length,3);
+const ahu7=parsedSchedule.records.find(item=>item.tag==='AHU-7');
+assert.ok(ahu7);assert.equal(ahu7.equipmentClass,'AIR_HANDLER');assert.equal(ahu7.voltage,480);assert.equal(ahu7.phase,3);assert.equal(ahu7.fla,14);
+const pmp4=parsedSchedule.records.find(item=>item.tag==='PMP-4');
+assert.ok(pmp4);assert.equal(pmp4.equipmentClass,'PUMP');assert.equal(pmp4.mca,18);assert.equal(pmp4.mocp,25);assert.equal(pmp4.motorHp,7.5);
+
+const scheduleGraph={
+ version:'fixture-schedule',createdAt:'2026-09-21T00:00:00.000Z',
+ sources:[{name:'M-601 Equipment Schedule.csv',discipline:'Mechanical'},{name:'E-201 Power Plan.dxf',discipline:'Electrical'}],
+ entities:[
+  ...parsedSchedule.records.map((record,index)=>({id:`schedule-${index}`,source:'M-601 Equipment Schedule.csv',layer:'L4',kind:'equipment-schedule-candidate',name:record.rawText,x:0,y:0,confidence:record.confidence,meta:{assetTag:record.tag,voltage:record.voltage,phase:record.phase,fla:record.fla,mca:record.mca,mocp:record.mocp,motorHp:record.motorHp,spatialPlacementAuthority:'SCHEDULE_ONLY_NO_PHYSICAL_XYZ'}})),
+  {id:'ahu7-elec',source:'E-201 Power Plan.dxf',layer:'L2',kind:'text-asset-candidate',name:'AHU-7 480V 3PH',x:1,y:1,confidence:.9}
+ ]
+};
+const schedulePower=buildPowerIntelligence(scheduleGraph);
+assert.equal(schedulePower.requirements.find(item=>item.tag==='AHU-7')?.status,'MATCHED');
+assert.equal(schedulePower.requirements.find(item=>item.tag==='PMP-4')?.status,'MISSING');
+assert.ok(schedulePower.findings.some(item=>item.findingType==='EMERGENCY_POWER_REVIEW'&&schedulePower.requirements.find(req=>req.id===item.expectedPowerRequirementId)?.tag==='FP-1'));
+
+const compilerSchedule=fs.readFileSync('components/CompilerWorkspace.tsx','utf8');
+const viewerSchedule=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
+assert.match(compilerSchedule,/parseEquipmentScheduleText/);
+assert.match(compilerSchedule,/SCHEDULE_ONLY_NO_PHYSICAL_XYZ/);
+assert.match(viewerSchedule,/SCHEDULE_ONLY_NO_PHYSICAL_XYZ/);
+console.log('✓ equipment schedules contribute powered semantic records without inventing physical XYZ');
