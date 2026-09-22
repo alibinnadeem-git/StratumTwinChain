@@ -401,22 +401,18 @@ test('each uploaded drawing can be toggled independently as a Spatial source lay
 
 test('Review mode exposes clickable coordination findings on affected 3D assets',async({page})=>{
  const source='E-201 Electrical Plan.dxf';
+ const schedule='M-601 Equipment Matrix.xlsx';
  const graph={
   version:'1.1',createdAt:'2026-09-22T22:40:00.000Z',
-  sources:[{name:source,ext:'dxf',sha256:'c'.repeat(64),discipline:'Electrical',floor:'L1',elevation:0,unitName:'m',unitToMeters:1}],
-  entities:[{id:'panel-review-1',source,layer:'L4',kind:'asset-candidate',name:'PANELBOARD LP-1',x:0,y:0,z:0,floor:'L1',confidence:.96,meta:{assetTag:'LP-1',registrationState:'CANDIDATE',sourceDesignCoordinate:true,physicalTruth:false,reviewRequired:true}}],
-  links:[],stats:{L0:1,L1:0,L2:0,L3:0,L4:1},
-  coordinationIntelligence:{
-   version:'1',generatedFrom:'2026-09-22T22:40:00.000Z',
-   findings:[{
-    id:'coord:rating:LP-1',findingType:'RATING_CONFLICT',title:'LP-1 has conflicting equipment ratings across sources',
-    detail:'Voltage differs across project sources.',entityRefs:['panel-review-1'],sourceRefs:[source,'M-601 Equipment Matrix.xlsx'],
-    comparison:{tag:'LP-1',fields:['voltage']},confidence:.96,humanControlLevel:'H3',status:'OPEN',
-    truthBoundary:'COORDINATION_FINDING_REQUIRES_HUMAN_REVIEW'
-   }],
-   summary:{findings:1,high:1,review:0},
-   truthBoundary:'COORDINATION_FINDINGS_DO_NOT_ESTABLISH_PHYSICAL_CLASH_CODE_COMPLIANCE_OR_ENGINEERING_APPROVAL'
-  }
+  sources:[
+   {name:source,ext:'dxf',sha256:'c'.repeat(64),discipline:'Electrical',floor:'L1',elevation:0,unitName:'m',unitToMeters:1},
+   {name:schedule,ext:'xlsx',sha256:'d'.repeat(64),discipline:'Mechanical',floor:'L1',elevation:0}
+  ],
+  entities:[
+   {id:'panel-review-1',source,layer:'L4',kind:'asset-candidate',name:'PANELBOARD LP-1',x:0,y:0,z:0,floor:'L1',confidence:.96,meta:{assetTag:'LP-1',voltage:480,phase:3,registrationState:'CANDIDATE',sourceSha256:'c'.repeat(64),sourceDesignCoordinate:true,physicalTruth:false,reviewRequired:true}},
+   {id:'schedule-review-1',source:schedule,layer:'L4',kind:'equipment-schedule',name:'LP-1 PANELBOARD',x:0,y:0,z:0,floor:'L1',confidence:.91,meta:{assetTag:'LP-1',voltage:208,phase:3,sourceSha256:'d'.repeat(64),nonSpatial:true,physicalTruth:false,reviewRequired:true}}
+  ],
+  links:[],stats:{L0:2,L1:0,L2:0,L3:0,L4:2}
  };
  await page.addInitScript(value=>localStorage.setItem('stratum_compiled_graph',JSON.stringify(value)),graph);
  await page.goto('/spatial');
