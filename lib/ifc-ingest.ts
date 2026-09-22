@@ -152,7 +152,7 @@ function propertyData(records:Map<number,StepRecord>){
   if(typeof value==='number'&&key==='inputKw'){const raw=String(rec.args[2]||'').toUpperCase();if(raw.includes('POWERMEASURE')&&Math.abs(value)>1000)value=value/1000}
   singles.set(rec.id,{key,value});
  }
- const psets=new Map<number<Record<string,unknown>>>();
+ const psets=new Map<number,Record<string,unknown>>();
  for(const rec of records.values()){
   if(rec.type!=='IFCPROPERTYSET')continue;
   const data:Record<string,unknown>={};for(const id of refs(rec.args[4])){const p=singles.get(id);if(p&&p.value!==null)data[p.key]=p.value}
