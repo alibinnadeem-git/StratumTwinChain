@@ -304,3 +304,32 @@ test('Spatial auto-recovers the last good uploaded model when the current browse
  await expect.poll(()=>page.evaluate(()=>Boolean(localStorage.getItem('stratum_compiled_graph')))).toBeTruthy();
  expect(await page.getByLabel('Imported object').locator('option').filter({hasText:'MAIN SWITCHBOARD MSB-1'}).count()).toBeGreaterThan(0);
 });
+
+
+test('Spatial restores the latest tenant project snapshot from the server when browser state is empty',async({page})=>{
+ const projectId='30000000-0000-4000-8000-000000000001';
+ const source='E-201-Server-Switchboard.dxf';
+ const graph={
+  version:'1.1',
+  createdAt:'2026-09-22T21:10:00.000Z',
+  sources:[{name:source,ext:'dxf',sha256:'a'.repeat(64),discipline:'Electrical',floor:'L1',elevation:0,unitName:'m',unitToMeters:1}],
+  entities:[{id:'server-msb-1',source,layer:'L4',kind:'asset-candidate',name:'SERVER MAIN SWITCHBOARD MSB-1',x:0,y:0,z:0,floor:'L1',confidence:.96,meta:{registrationState:'CANDIDATE',sourceDesignCoordinate:true,physicalTruth:false,reviewRequired:true}}],
+  links:[],
+  stats:{L0:1,L1:0,L2:0,L3:0,L4:1}
+ };
+ await page.route('**/api/spatial/compilations**',async route=>{
+  const url=new URL(route.request().url());
+  if(url.searchParams.get('projectId')){
+   await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({schemaReady:true,projects:[{id:projectId,project_code:'SV-UAT-001',name:'STRATUM Verified Production Pilot'}],latest:{revision:7,graph_json:graph}})});
+  }else{
+   await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({schemaReady:true,projects:[{id:projectId,project_code:'SV-UAT-001',name:'STRATUM Verified Production Pilot'}],latest:null})});
+  }
+ });
+ await page.goto('/spatial');
+ await expect(page.getByRole('heading',{name:'Spatial model'})).toBeVisible();
+ await expect(page.locator('canvas[aria-label="Interactive Spatial model"]')).toBeVisible();
+ await expect(page.getByLabel('Imported object').locator('option').filter({hasText:'SERVER MAIN SWITCHBOARD MSB-1'})).toHaveCount(1);
+ const stored=await page.evaluate(()=>JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}'));
+ expect(stored.entities?.some((entity:any)=>entity.name==='SERVER MAIN SWITCHBOARD MSB-1')).toBeTruthy();
+ expect(await page.evaluate(()=>localStorage.getItem('stratum_spatial_project_id'))).toBe(projectId);
+});
