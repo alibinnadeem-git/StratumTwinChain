@@ -177,7 +177,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       (Object.keys(groups) as Layer[]).forEach(l=>scene.add(groups[l]));
       groups.L0.visible=mode!=="ELECTRICAL";groups.L1.visible=mode!=="ELECTRICAL";groups.L2.visible=true;groups.L3.visible=true;groups.L4.visible=true;
       const entityById=new Map(graph.entities.map(e=>[e.id,e]));
-      const clickable:any[]=[];const clickableEntities=new Set<string>();const entityAnchors=new Map<string,any>();
+      const clickable:any[]=[];const clickableEntities=new Set<string>();const entityAnchors=new Map<string,any>();const coordinationAnchors=new Map<string,any>();
       const floorIndex=new Map(levels.map(([name],i)=>[name,i]));
       const extra=(e:Entity)=>exploded?(floorIndex.get(e.floor||"UNRESOLVED")||0)*2.6:0;
       const height=(e:Entity)=>displayElevation(e,mode)+extra(e);
@@ -196,6 +196,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
         ring.rotation.x=Math.PI/2;
         root.add(sphere,ring);
         root.userData.entity=e;sphere.userData.entity=e;ring.userData.entity=e;
+        coordinationAnchors.set(e.id,root);
         clickable.push(sphere,ring);groups.L4.add(root);
         renderer.domElement.dataset.coordinationAssets=String(Number(renderer.domElement.dataset.coordinationAssets||0)+1);
       };
@@ -298,7 +299,12 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       renderer.domElement.addEventListener("pointercancel",pointerCancel);
       renderer.domElement.addEventListener("click",clickPick);
       const ro=new ResizeObserver(()=>{if(!host.clientWidth||!host.clientHeight)return;camera.aspect=host.clientWidth/host.clientHeight;camera.updateProjectionMatrix();renderer.setSize(host.clientWidth,host.clientHeight)});ro.observe(host);
-      const publishPrimaryHit=()=>{const first=[...entityAnchors.entries()][0];if(!first)return;const [id,obj]=first,p=new THREE.Vector3();obj.getWorldPosition(p);p.project(camera);renderer.domElement.dataset.primaryAsset=id;renderer.domElement.dataset.primaryHitX=String(((p.x+1)/2)*renderer.domElement.clientWidth);renderer.domElement.dataset.primaryHitY=String(((-p.y+1)/2)*renderer.domElement.clientHeight)};
+      const publishPrimaryHit=()=>{
+        const first=[...entityAnchors.entries()][0];
+        if(first){const [id,obj]=first,p=new THREE.Vector3();obj.getWorldPosition(p);p.project(camera);renderer.domElement.dataset.primaryAsset=id;renderer.domElement.dataset.primaryHitX=String(((p.x+1)/2)*renderer.domElement.clientWidth);renderer.domElement.dataset.primaryHitY=String(((-p.y+1)/2)*renderer.domElement.clientHeight)}
+        const review=[...coordinationAnchors.entries()][0];
+        if(review){const [id,obj]=review,p=new THREE.Vector3();obj.getWorldPosition(p);p.project(camera);renderer.domElement.dataset.coordinationAsset=id;renderer.domElement.dataset.coordinationHitX=String(((p.x+1)/2)*renderer.domElement.clientWidth);renderer.domElement.dataset.coordinationHitY=String(((-p.y+1)/2)*renderer.domElement.clientHeight)}
+      };
       let frame=0;const animate=()=>{controls.update();publishPrimaryHit();renderer.render(scene,camera);frame=requestAnimationFrame(animate)};animate();
       cleanup=()=>{runtime.current=null;cancelAnimationFrame(frame);ro.disconnect();renderer.domElement.removeEventListener("pointerdown",pointerDown);renderer.domElement.removeEventListener("pointermove",pointerMove);renderer.domElement.removeEventListener("pointerup",pointerUp);renderer.domElement.removeEventListener("pointercancel",pointerCancel);renderer.domElement.removeEventListener("click",clickPick);controls.dispose();renderer.dispose();host.replaceChildren()};
     })();
