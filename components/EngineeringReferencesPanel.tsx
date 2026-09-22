@@ -69,7 +69,7 @@ export default function EngineeringReferencesPanel(){
      <label>Authority<select name="authorityClass"><option>PUBLISHED_REFERENCE</option><option>AHJ_ADOPTED</option><option>CONTRACTUAL</option><option>OWNER_REQUIREMENT</option><option>OEM</option></select></label>
      <label>Status<select name="applicabilityStatus"><option>REFERENCE</option><option>REVIEW_REQUIRED</option><option>APPLICABLE</option><option>SUPERSEDED</option></select></label>
      <label>Jurisdiction / AHJ<input name="jurisdictionLabel"/></label><label>Effective date<input name="effectiveDate" type="date"/></label><label>Source URL<input name="sourceUrl" type="url"/></label><label>Notes<textarea name="notes" rows={3}/></label>
-     <button className="action" disabled={busy}>Append applicability record</button>
+     <button className="action" type="submit" disabled={busy}>Append applicability record</button>
     </form>
     <form onSubmit={addOem} className="card" style={{display:'grid',gap:9}}>
      <div className="eyebrow">OEM / project document</div>
@@ -77,7 +77,7 @@ export default function EngineeringReferencesPanel(){
      <label>Document type<select name="documentType"><option>DATASHEET</option><option>INSTALLATION</option><option>OPERATION</option><option>MAINTENANCE</option><option>SUBMITTAL</option><option>WARRANTY</option><option>OTHER</option></select></label>
      <label>Title<input name="title" required/></label><label>Revision<input name="revision"/></label><label>Published date<input name="publishedAt" type="date"/></label><label>Source URL<input name="sourceUrl" type="url"/></label>
      <label>Authority<select name="authorityClass"><option>OEM_PUBLISHED</option><option>PROJECT_SUBMITTAL</option><option>HISTORICAL_REFERENCE</option></select></label>
-     <button className="action" disabled={busy}>Append OEM reference</button>
+     <button className="action" type="submit" disabled={busy}>Append OEM reference</button>
     </form>
    </div>
   </details>}
