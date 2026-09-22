@@ -12,7 +12,7 @@ const primaryTasks=[
 
 const moreGroups=[
  {label:'Assets & projects',links:[['/assets','Asset Passports'],['/projects','Projects'],['/sites','Sites']]},
- {label:'Engineering',links:[['/component-library','Component Library'],['/reality','Reality Capture & Reconciliation'],['/simulation','Simulation']]},
+ {label:'Engineering',links:[['/component-library','Component Library'],['/references','Standards & OEM'],['/reality','Reality Capture & Reconciliation'],['/simulation','Simulation']]},
  {label:'Operations',links:[['/workflows','Field Work & Commissioning'],['/maintenance','Maintenance'],['/predictive','Predictive Intelligence'],['/evidence','Evidence']]},
  {label:'Trust & handover',links:[['/handover','Digital Handover'],['/provenance','Provenance Explorer'],['/verify','Verify Record']]},
  {label:'Platform',links:[['/admin','Admin & RBAC'],['/release-readiness','Release readiness'],['/release-uat','Physical-device UAT']]}
