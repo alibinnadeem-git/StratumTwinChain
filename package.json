@@ -21,6 +21,7 @@
     "qa:spatial-viewer": "node --experimental-strip-types scripts/qa-spatial-viewer.mjs",
     "qa:power-intelligence": "node --experimental-strip-types scripts/qa-power-intelligence.mjs",
     "qa:equipment-schedule": "node --experimental-strip-types scripts/qa-equipment-schedule.mjs",
+    "qa:engineering-knowledge": "node scripts/qa-engineering-knowledge.mjs",
     "qa:sld-spatial": "node --experimental-strip-types scripts/qa-sld-spatial-ingest.mjs",
     "qa:spatial-asset-passport": "node --experimental-strip-types scripts/qa-spatial-asset-passport.mjs",
     "qa:title-block": "node --experimental-strip-types scripts/qa-title-block.mjs",
