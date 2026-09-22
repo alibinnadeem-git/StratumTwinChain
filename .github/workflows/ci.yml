@@ -68,6 +68,8 @@ jobs:
         run: npm run qa:engineering-knowledge
       - name: Cross-document coordination intelligence conformance
         run: npm run qa:coordination-intelligence
+      - name: Spatial coordination review overlay conformance
+        run: npm run qa:spatial-coordination-review
       - name: Structured XLSX and DOCX ingestion conformance
         run: npm run qa:office-ingestion
       - name: IFC BIM semantic and placement ingestion conformance

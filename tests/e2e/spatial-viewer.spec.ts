@@ -397,3 +397,44 @@ test('each uploaded drawing can be toggled independently as a Spatial source lay
  await expect(electrical).toBeChecked();
  await expect(page.getByText(/Source layers · 2\/2 visible/)).toBeVisible();
 });
+
+
+test('Review mode exposes clickable coordination findings on affected 3D assets',async({page})=>{
+ const source='E-201 Electrical Plan.dxf';
+ const schedule='M-601 Equipment Matrix.xlsx';
+ const graph={
+  version:'1.1',createdAt:'2026-09-22T22:40:00.000Z',
+  sources:[
+   {name:source,ext:'dxf',sha256:'c'.repeat(64),discipline:'Electrical',floor:'L1',elevation:0,unitName:'m',unitToMeters:1},
+   {name:schedule,ext:'xlsx',sha256:'d'.repeat(64),discipline:'Mechanical',floor:'L1',elevation:0}
+  ],
+  entities:[
+   {id:'panel-review-1',source,layer:'L4',kind:'asset-candidate',name:'PANELBOARD LP-1',x:0,y:0,z:0,floor:'L1',confidence:.96,meta:{assetTag:'LP-1',voltage:480,phase:3,registrationState:'CANDIDATE',sourceSha256:'c'.repeat(64),sourceDesignCoordinate:true,physicalTruth:false,reviewRequired:true}},
+   {id:'schedule-review-1',source:schedule,layer:'L4',kind:'equipment-schedule',name:'LP-1 PANELBOARD',x:0,y:0,z:0,floor:'L1',confidence:.91,meta:{assetTag:'LP-1',voltage:208,phase:3,sourceSha256:'d'.repeat(64),nonSpatial:true,physicalTruth:false,reviewRequired:true}}
+  ],
+  links:[],stats:{L0:2,L1:0,L2:0,L3:0,L4:2}
+ };
+ await page.addInitScript(value=>localStorage.setItem('stratum_compiled_graph',JSON.stringify(value)),graph);
+ await page.goto('/spatial');
+ await expect(page.getByRole('heading',{name:'Spatial model'})).toBeVisible();
+ await page.getByRole('button',{name:/Review/}).click();
+ const canvas=page.locator('canvas[aria-label="Interactive Spatial model"]');
+ await expect(canvas).toBeVisible();
+ await expect.poll(async()=>Number(await canvas.getAttribute('data-coordination-assets')||0),{timeout:15000}).toBeGreaterThan(0);
+ let box=await canvas.boundingBox();expect(box).not.toBeNull();
+ const x=Number(await canvas.getAttribute('data-coordination-hit-x'));
+ const y=Number(await canvas.getAttribute('data-coordination-hit-y'));
+ expect(Number.isFinite(x)&&Number.isFinite(y)).toBeTruthy();
+ const viewport=page.viewportSize();
+ if(viewport&&box!.y+y>viewport.height-48){
+  await page.evaluate(({top,hitY,height})=>window.scrollBy(0,Math.max(0,top+hitY-height*.62)),{top:box!.y,hitY:y,height:viewport.height});
+  box=await canvas.boundingBox();expect(box).not.toBeNull();
+ }
+ await page.mouse.click(box!.x+x,box!.y+y);
+ await expect.poll(async()=>await canvas.getAttribute('data-selected-asset')).toBe('panel-review-1');
+ await expect(page.getByRole('heading',{name:'PANELBOARD LP-1'})).toBeVisible();
+ const reviewCard=page.getByLabel('Selected asset coordination review');
+ await expect(reviewCard).toBeVisible();
+ await expect(reviewCard.getByText(/RATING CONFLICT/)).toBeVisible();
+ await expect(reviewCard.getByText(/do not establish a geometric clash, code compliance, AHJ approval, or engineering approval/i)).toBeVisible();
+});
