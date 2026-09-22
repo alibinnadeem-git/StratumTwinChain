@@ -34,8 +34,10 @@ assert.match(viewer,/groups\.L4\.visible=true/,'default Spatial model must keep 
 assert.match(viewer,/groups\[e\.layer===\"L4\"\?\"L4\":\"L2\"\]\.add\(root\)/,'direct L4 assets must render as equipment, not marker-only metadata');
 assert.match(viewer,/derivedFrom[\s\S]*sourceEntity[\s\S]*continue/,'derived L4 duplicates must not double-render over their source equipment');
 assert.match(viewer,/new THREE\.Raycaster\(\)/,'3D asset selection must use scene raycasting');
-assert.match(viewer,/pointerdown[\s\S]*pointermove[\s\S]*pointerup/,'3D click selection must distinguish pointer interaction from orbit controls');
-assert.match(viewer,/Math\.hypot\(ev\.clientX-start\.x,ev\.clientY-start\.y\)>6/,'orbit drags must not be interpreted as asset clicks');
+assert.match(viewer,/addEventListener\(\"pointerdown\",pointerDown\)[\s\S]*addEventListener\(\"pointermove\",pointerMove\)[\s\S]*addEventListener\(\"pointerup\",pointerUp\)[\s\S]*addEventListener\(\"click\",clickPick\)/,'3D selection must support pointer/tap plus native click fallback around OrbitControls');
+assert.match(viewer,/Math\.hypot\(ev\.clientX-down\.x,ev\.clientY-down\.y\)>6\)moved=true/,'orbit drags must be detected and not interpreted as asset clicks');
+assert.match(viewer,/if\(wasMoved\)\{ignoreNextClick=true;return\}/,'pointer-up after an orbit drag must fail closed without selecting');
+assert.match(viewer,/const clickPick=.*selectAt\(ev\)/,'native click fallback must use the same raycast selection path');
 assert.match(viewer,/dataset\.clickableAssets/,'rendered clickable asset count must be exposed for release UAT');
 assert.match(viewer,/dataset\.selectedAsset=entity\.id/,'raycast selection must expose the selected rendered asset for release UAT');
 assert.match(viewer,/interactionProxy/,'rendered assets must have a forgiving 3D hit envelope for desktop and touch selection');
