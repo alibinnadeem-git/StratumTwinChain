@@ -76,6 +76,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
   const [environment,setEnvironment]=useState<EnvironmentMode>("ENGINEERING");
   const [systemMode,setSystemMode]=useState<SystemMode>("ALL");
   const [floor,setFloor]=useState("ALL");
+  const [discipline,setDiscipline]=useState("ALL");
   const [exploded,setExploded]=useState(false);
   const [xray,setXray]=useState(false);
   const [search,setSearch]=useState("");
@@ -97,6 +98,8 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
     return()=>{window.removeEventListener("stratum:graph-updated",load);window.removeEventListener("storage",load);window.removeEventListener("stratum:model-registry-updated",load)};
   },[]);
 
+  const disciplines=useMemo(()=>graph?[...new Set(graph.sources.map(source=>source.discipline||"Unclassified"))].sort():[],[graph]);
+  const sourceDisciplines=useMemo(()=>new Map((graph?.sources||[]).map(source=>[source.name,source.discipline||"Unclassified"])),[graph]);
   const levels=useMemo(()=>{
     if(!graph)return[] as [string,number][];
     const map=new Map<string,number>();
@@ -109,12 +112,14 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
     const q=search.trim().toLowerCase();
     return graph.entities.filter(e=>{
       if(floor!=="ALL"&&(e.floor||"UNRESOLVED")!==floor)return false;
+      const entityDiscipline=sourceDisciplines.get(e.source)||String(e.meta?.discipline||"Unclassified");
+      if(discipline!=="ALL"&&entityDiscipline!==discipline)return false;
       if(mode==="ELECTRICAL"&&!(["L2","L3","L4"] as Layer[]).includes(e.layer))return false;
       if(systemMode!=="ALL"&&e.layer==="L2"&&entitySystem(e)!==systemMode)return false;
       if(q&&!`${e.name} ${e.source} ${e.floor||""} ${e.zone||""}`.toLowerCase().includes(q))return false;
       return true;
     });
-  },[graph,floor,mode,systemMode,search]);
+  },[graph,floor,discipline,mode,systemMode,search,sourceDisciplines]);
   const inventory=useMemo(()=>visible.filter(e=>e.kind!=="line"&&e.kind!=="sld-feeder-candidate"&&e.kind!=="wall-segment"),[visible]);
   const rooms=useMemo(()=>graph?.entities.filter(e=>e.kind==="room-boundary").length||0,[graph]);
   const sldObjects=useMemo(()=>graph?.entities.filter(e=>e.layer==="L2"&&isSld(e)).length||0,[graph]);
@@ -268,6 +273,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
 
     <div style={{display:"flex",gap:8,padding:"10px 12px",alignItems:"center",flexWrap:"wrap",borderBottom:"1px solid #17334a"}}>
       <select aria-label="Floor isolation" value={floor} onChange={e=>setFloor(e.target.value)}><option value="ALL">All floors</option>{levels.map(([f])=><option key={f} value={f}>{f}</option>)}</select>
+      <select aria-label="Discipline isolation" value={discipline} onChange={e=>setDiscipline(e.target.value)}><option value="ALL">All disciplines</option>{disciplines.map(value=><option key={value} value={value}>{value}</option>)}</select>
       <input aria-label="Search objects" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search equipment, room or source" style={{minWidth:220,flex:"1 1 240px"}}/>
       <button className="ghost" onClick={()=>setFitRevision(v=>v+1)}>Fit model</button>
       <button className="ghost" onClick={()=>setLabels(v=>!v)}>{labels?"Hide labels":"Show labels"}</button>
