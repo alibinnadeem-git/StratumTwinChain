@@ -436,3 +436,36 @@ test('Review mode exposes clickable coordination findings on affected 3D assets'
  await expect(page.getByText(/RATING CONFLICT/)).toBeVisible();
  await expect(page.getByText(/do not establish a geometric clash, code compliance, AHJ approval, or engineering approval/i)).toBeVisible();
 });
+
+
+test('same-named drawing revisions remain independently switchable by source hash',async({page})=>{
+ const name='E-201 Electrical Plan.dxf';
+ const shaA='a'.repeat(64),shaB='b'.repeat(64);
+ const graph={
+  version:'1.1',createdAt:'2026-09-22T22:55:00.000Z',
+  sources:[
+   {name,ext:'dxf',sha256:shaA,discipline:'Electrical',floor:'L1',elevation:0,unitName:'m',unitToMeters:1},
+   {name,ext:'dxf',sha256:shaB,discipline:'Electrical',floor:'L1',elevation:0,unitName:'m',unitToMeters:1}
+  ],
+  entities:[
+   {id:'panel-rev-a',source:name,layer:'L2',kind:'cad-block',name:'PANELBOARD LP-A',x:-2,y:0,z:0,floor:'L1',confidence:.95,meta:{sourceSha256:shaA,sourceDesignCoordinate:true,physicalTruth:false}},
+   {id:'panel-rev-b',source:name,layer:'L2',kind:'cad-block',name:'PANELBOARD LP-B',x:2,y:0,z:0,floor:'L1',confidence:.95,meta:{sourceSha256:shaB,sourceDesignCoordinate:true,physicalTruth:false}}
+  ],
+  links:[],stats:{L0:2,L1:0,L2:2,L3:0,L4:0}
+ };
+ await page.addInitScript(value=>localStorage.setItem('stratum_compiled_graph',JSON.stringify(value)),graph);
+ await page.goto('/spatial');
+ await expect(page.getByRole('heading',{name:'Spatial model'})).toBeVisible();
+ const layerSummary=page.getByText(/Source layers · 2\/2 visible/);
+ await expect(layerSummary).toBeVisible();
+ await layerSummary.click();
+
+ const revA=page.getByLabel('Toggle source E-201 Electrical Plan.dxf · aaaaaaaa');
+ const revB=page.getByLabel('Toggle source E-201 Electrical Plan.dxf · bbbbbbbb');
+ await expect(revA).toBeChecked();await expect(revB).toBeChecked();
+ await revA.uncheck();
+ await expect(page.getByText(/Source layers · 1\/2 visible/)).toBeVisible();
+ await expect(page.getByLabel('Imported object').locator('option').filter({hasText:'PANELBOARD LP-A'})).toHaveCount(0);
+ await expect(page.getByLabel('Imported object').locator('option').filter({hasText:'PANELBOARD LP-B'})).toHaveCount(1);
+ await expect(revB).toBeChecked();
+});
