@@ -28,6 +28,7 @@ function inspectCompiledGraph():ExperienceState{
 
 export default function SpatialExperience({assets,authenticated=false}:{assets:RegisteredSpatialAsset[];authenticated?:boolean}){
   const [state,setState]=useState<ExperienceState>({ready:false,hasImportedModel:false,sourceCount:0});
+  const [serverPending,setServerPending]=useState(false);
 
   useEffect(()=>{
     let active=true;
@@ -36,7 +37,8 @@ export default function SpatialExperience({assets,authenticated=false}:{assets:R
     const onServerHydration=(event:Event)=>{
       if(!active)return;
       const detail=(event as CustomEvent).detail||{};
-      if(detail.state==='LOADING'){setState({ready:false,hasImportedModel:false,sourceCount:0});return}
+      if(detail.state==='LOADING'){setServerPending(true);setState({ready:false,hasImportedModel:false,sourceCount:0});return}
+      setServerPending(false);
       refresh();
     };
     const hydrate=async()=>{
@@ -45,11 +47,10 @@ export default function SpatialExperience({assets,authenticated=false}:{assets:R
       await restoreBestSpatialGraph();
       const recovered=inspectCompiledGraph();
       if(recovered.hasImportedModel){if(active)setState(recovered);return}
-      if(authenticated){
-        const state=serverState();
-        if(!state||state==='LOADING'){if(active)setState({ready:false,hasImportedModel:false,sourceCount:recovered.sourceCount});return}
-      }
-      if(active)setState(recovered);
+      const state=serverState();
+      if(state==='LOADING'){if(active){setServerPending(true);setState({ready:false,hasImportedModel:false,sourceCount:recovered.sourceCount})}return}
+      if(authenticated&&!state){if(active){setServerPending(true);setState({ready:false,hasImportedModel:false,sourceCount:recovered.sourceCount})}return}
+      if(active){setServerPending(false);setState(recovered)};
     };
     void hydrate();
     window.addEventListener("stratum:graph-updated",refresh);
@@ -65,8 +66,8 @@ export default function SpatialExperience({assets,authenticated=false}:{assets:R
 
   if(!state.ready)return <section className="card" aria-live="polite">
     <div className="eyebrow">Spatial workspace</div>
-    <h2>{authenticated?'Restoring latest project model…':'Preparing the project workspace…'}</h2>
-    <p className="muted">{authenticated?'Checking the tenant project for the latest saved Spatial revision before declaring the workspace empty.':'Recovering the latest browser-protected project model.'}</p>
+    <h2>{serverPending?'Restoring latest project model…':'Preparing the project workspace…'}</h2>
+    <p className="muted">{serverPending?'Checking the tenant project for the latest saved Spatial revision before declaring the workspace empty.':'Recovering the latest browser-protected project model.'}</p>
   </section>;
 
   if(state.hasImportedModel)return <section id="spatial-model" aria-label="Imported project spatial model">
