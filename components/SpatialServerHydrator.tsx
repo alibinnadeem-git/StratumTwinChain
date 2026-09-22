@@ -5,6 +5,7 @@ import {protectSpatialGraph,readCurrentSpatialGraph,replaceCurrentSpatialGraph,t
 
 const PROJECT_KEY='stratum_spatial_project_id';
 export const SERVER_HYDRATION_EVENT='stratum:server-hydration';
+export const SERVER_HYDRATION_VERSION='1';
 
 type Project={id:string;project_code?:string;name?:string};
 type CompilationResponse={
@@ -20,7 +21,7 @@ function validRenderableGraph(value:unknown):value is SpatialGraphLike{
 }
 
 function publish(detail:Record<string,unknown>){
-  window.dispatchEvent(new CustomEvent(SERVER_HYDRATION_EVENT,{detail}));
+  window.dispatchEvent(new CustomEvent(SERVER_HYDRATION_EVENT,{detail:{...detail,version:SERVER_HYDRATION_VERSION}}));
 }
 
 export default function SpatialServerHydrator(){
