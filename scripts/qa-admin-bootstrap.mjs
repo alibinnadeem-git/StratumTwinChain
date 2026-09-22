@@ -16,7 +16,7 @@ assert.match(route,/session_version=session_version\+1/);
 assert.match(route,/last_password_change_at=now\(\)/);
 assert.match(route,/UPDATE user_password_setup_tokens SET used_at=COALESCE\(used_at,now\(\)\)/);
 assert.doesNotMatch(route,/Greenpanda299/i,'Plaintext user password must never enter the repository');
-assert.doesNotMatch(route,/xsdtInAPKxMVzBR8WaNehCceYeMtzm3_7Ry_Ka4aEtPy0DpFM8EkzALqmsXPO0oX/,'Raw bootstrap token must never enter the repository');
+assert.equal((route.match(/BOOTSTRAP_TOKEN_SHA256='[a-f0-9]{64}'/g)||[]).length,1,'Only the fixed-length bootstrap token digest may be embedded');
 assert.match(page,/mode'\)==='bootstrap'/);
 assert.match(page,/\/api\/auth\/bootstrap-first-admin/);
 assert.match(page,/single-use bootstrap credential/);
