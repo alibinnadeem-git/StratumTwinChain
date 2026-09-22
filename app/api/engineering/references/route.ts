@@ -14,10 +14,6 @@ const Applicability=z.object({
  applicabilityStatus:z.enum(['REFERENCE','APPLICABLE','SUPERSEDED','REVIEW_REQUIRED']),
  effectiveDate:z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),sourceUrl:z.string().url().max(2000).nullable().optional(),
  sourceSha256:Sha.nullable().optional(),notes:z.string().max(4000).nullable().optional()
-}).superRefine((value,ctx)=>{
- if(value.applicabilityStatus==='APPLICABLE'&&value.authorityClass==='PUBLISHED_REFERENCE'){
-  ctx.addIssue({code:z.ZodIssueCode.custom,path:['authorityClass'],message:'A published reference cannot become project-applicable without AHJ, contractual, owner, or OEM authority.'});
- }
 });
 const Oem=z.object({
  type:z.literal('OEM'),manufacturerName:z.string().trim().min(1).max(200),modelPattern:z.string().trim().max(300).nullable().optional(),
@@ -51,6 +47,9 @@ export async function POST(req:Request){
  try{
   const session=await requireSession(['SUPER_ADMIN','ORG_ADMIN','PROJECT_MANAGER']);
   const body=Body.parse(await req.json());
+  if(body.type==='APPLICABILITY'&&body.applicabilityStatus==='APPLICABLE'&&body.authorityClass==='PUBLISHED_REFERENCE'){
+   return NextResponse.json({error:'A published reference cannot become project-applicable without AHJ, contractual, owner, or OEM authority.'},{status:400});
+  }
   if(body.type==='APPLICABILITY'){
    const inserted=await tx(async client=>{
     const project=await client.query<{id:string}>('SELECT id::text FROM projects WHERE id=$1 AND organization_id=$2 FOR SHARE',[body.projectId,session.organizationId]);
