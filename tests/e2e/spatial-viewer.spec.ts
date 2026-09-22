@@ -335,6 +335,34 @@ test('Spatial restores the latest tenant project snapshot from the server when b
 });
 
 
+test('Spatial keeps a restoring state while the latest server model is still loading',async({page})=>{
+ const projectId='30000000-0000-4000-8000-000000000001';
+ const source='M-201-Server-Pump.ifc';
+ const graph={
+  version:'1.1',
+  createdAt:'2026-09-22T22:20:00.000Z',
+  sources:[{name:source,ext:'ifc',sha256:'b'.repeat(64),discipline:'Mechanical',floor:'L2',elevation:4,unitName:'m',unitToMeters:1}],
+  entities:[{id:'server-pump-1',source,layer:'L4',kind:'ifc-product-placement',name:'SERVER CHW PUMP P-1',x:2,y:3,z:4,floor:'L2',confidence:.94,meta:{registrationState:'CANDIDATE',sourceDesignCoordinate:true,physicalTruth:false,reviewRequired:true}}],
+  links:[],
+  stats:{L0:1,L1:0,L2:0,L3:0,L4:1}
+ };
+ await page.route('**/api/spatial/compilations**',async route=>{
+  const url=new URL(route.request().url());
+  if(url.searchParams.get('projectId')){
+   await new Promise(resolve=>setTimeout(resolve,900));
+   await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({schemaReady:true,projects:[{id:projectId,project_code:'SV-UAT-001',name:'STRATUM Verified Production Pilot'}],latest:{revision:8,graph_json:graph}})});
+  }else{
+   await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({schemaReady:true,projects:[{id:projectId,project_code:'SV-UAT-001',name:'STRATUM Verified Production Pilot'}],latest:null})});
+  }
+ });
+ await page.goto('/spatial');
+ await expect(page.getByRole('heading',{name:'Restoring latest project model…'})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Import before viewing Spatial'})).toHaveCount(0);
+ await expect(page.getByRole('heading',{name:'Spatial model'})).toBeVisible();
+ await expect(page.locator('canvas[aria-label="Interactive Spatial model"]')).toBeVisible();
+ await expect(page.getByLabel('Imported object').locator('option').filter({hasText:'SERVER CHW PUMP P-1'})).toHaveCount(1);
+});
+
 test('each uploaded drawing can be toggled independently as a Spatial source layer',async({page})=>{
  const graph={
   version:'1.1',createdAt:'2026-09-22T22:30:00.000Z',
