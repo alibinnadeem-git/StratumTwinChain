@@ -111,6 +111,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
     if(!graph)return[];
     const q=search.trim().toLowerCase();
     return graph.entities.filter(e=>{
+      if(e.meta?.nonSpatial===true)return false;
       if(floor!=="ALL"&&(e.floor||"UNRESOLVED")!==floor)return false;
       const entityDiscipline=sourceDisciplines.get(e.source)||String(e.meta?.discipline||"Unclassified");
       if(discipline!=="ALL"&&entityDiscipline!==discipline)return false;

@@ -62,6 +62,10 @@ jobs:
         run: npm run qa:sld-spatial
       - name: Expected power and missing-feed intelligence conformance
         run: npm run qa:power-intelligence
+      - name: Equipment schedule ingestion conformance
+        run: npm run qa:equipment-schedule
+      - name: Engineering knowledge, power persistence and maintenance conformance
+        run: npm run qa:engineering-knowledge
       - name: Spatial asset click and DIR Passport conformance
         run: npm run qa:spatial-asset-passport
       - name: PDF title-block intelligence conformance

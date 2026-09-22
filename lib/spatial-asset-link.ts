@@ -21,6 +21,16 @@ export type RegisteredSpatialAsset={
  ledger_tx_hash:string|null;
  ledger_block_height:string|null;
  anchored_at?:string|Date|null;
+ maintenance_plan_id?:string|null;
+ maintenance_revision?:number|null;
+ maintenance_basis?:string|null;
+ maintenance_interval_days?:number|null;
+ maintenance_interval_hours?:number|null;
+ maintenance_next_due_at?:string|Date|null;
+ maintenance_condition_triggers?:unknown[];
+ maintenance_task_summary?:string|null;
+ maintenance_source_refs?:unknown[];
+ maintenance_status?:string|null;
 };
 
 export type SpatialAssetEntity={id:string;name:string;layer:string;meta?:Record<string,unknown>};

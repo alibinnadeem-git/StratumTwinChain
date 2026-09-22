@@ -111,6 +111,21 @@ export default function SpatialAssetInspector({
     <div><span>Trust</span><strong>{dir.finalized?`DIR #${dir.blockHeight}`:'Awaiting finality'}</strong></div>
    </div>
 
+   <div className="card" style={{marginTop:12,padding:14}}>
+    <div className="section-head">
+     <div><div className="eyebrow">Maintenance cycle</div><h3 style={{margin:'3px 0'}}>{asset.maintenance_plan_id?'Versioned maintenance plan':'No maintenance plan recorded'}</h3></div>
+     <span className={asset.maintenance_status==='ACTIVE'?'proof':'pending'}>{asset.maintenance_status||'UNPLANNED'}</span>
+    </div>
+    {asset.maintenance_plan_id?<div className="passport-facts">
+     <div><span>Basis</span><strong>{asset.maintenance_basis?.replaceAll('_',' ')||'—'}</strong></div>
+     <div><span>Revision</span><strong>{asset.maintenance_revision?'r'+asset.maintenance_revision:'—'}</strong></div>
+     <div><span>Cycle</span><strong>{asset.maintenance_interval_days?asset.maintenance_interval_days+' days':asset.maintenance_interval_hours?asset.maintenance_interval_hours+' operating hours':'Condition / due-date based'}</strong></div>
+     <div><span>Next due</span><strong>{asset.maintenance_next_due_at?new Date(asset.maintenance_next_due_at).toLocaleDateString():'—'}</strong></div>
+    </div>:<p className="muted">No current plan is attached to this registered asset. Add a governed maintenance plan from the Asset Passport when required.</p>}
+    {asset.maintenance_task_summary&&<p className="muted" style={{marginBottom:0}}>{asset.maintenance_task_summary}</p>}
+    <small className="spatial-review-boundary">A maintenance plan or due date does not prove that maintenance was physically performed.</small>
+   </div>
+
    <div className={`dir-summary-card ${dir.finalized?'finalized':''}`}>
     <div>
      <div className="eyebrow">Digital Immutable Record</div>

@@ -22,6 +22,10 @@ export default async function SpatialPage(){
    manufacturer_name:a.manufacturer_name,latest_event_id:a.latest_event_id,latest_event_type:a.latest_event_type,
    latest_event_status:a.latest_event_status,ledger_network:a.ledger_network,ledger_tx_hash:a.ledger_tx_hash,
    ledger_block_height:a.ledger_block_height,anchored_at:a.anchored_at,
+   maintenance_plan_id:a.maintenance_plan_id,maintenance_revision:a.maintenance_revision,maintenance_basis:a.maintenance_basis,
+   maintenance_interval_days:a.maintenance_interval_days,maintenance_interval_hours:a.maintenance_interval_hours,
+   maintenance_next_due_at:a.maintenance_next_due_at,maintenance_condition_triggers:a.maintenance_condition_triggers,
+   maintenance_task_summary:a.maintenance_task_summary,maintenance_source_refs:a.maintenance_source_refs,maintenance_status:a.maintenance_status,
   }));
  }catch(error){
   backendOnline=false;

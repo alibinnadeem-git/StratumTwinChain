@@ -107,3 +107,25 @@ EOF
  await expect(discipline).toBeVisible();
  await expect(discipline.locator('option').filter({hasText:'Mechanical'})).toHaveCount(1);
 });
+
+
+test('CSV equipment schedule feeds Expected Power without inventing Spatial XYZ',async({page})=>{
+ await page.goto('/compiler');
+ const csv=[
+  'TAG,DESCRIPTION,MANUFACTURER,MODEL,VOLTAGE,PHASE,FLA,MCA,MOCP,LOCATION',
+  'AHU-7,Air Handling Unit,Trane,XA700,480,3,14,18,25,Mechanical Room'
+ ].join('\n');
+ await sourceUpload(page).setInputFiles({name:'M-601-HVAC-Equipment-Schedule.csv',mimeType:'text/csv',buffer:Buffer.from(csv)});
+ await expect(page.getByText(/powered equipment candidate/i)).toBeVisible();
+ const graphState=await page.evaluate(()=>{
+  const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
+  const entity=(graph.entities||[]).find((item:any)=>item.meta?.assetTag==='AHU-7');
+  return entity?{kind:entity.kind,nonSpatial:entity.meta?.nonSpatial,authority:entity.meta?.spatialPlacementAuthority,voltage:entity.meta?.voltage,phase:entity.meta?.phase}:null;
+ });
+ expect(graphState).toEqual({kind:'schedule-powered-equipment-candidate',nonSpatial:true,authority:'NON_SPATIAL_SCHEDULE',voltage:480,phase:3});
+ const render=page.getByRole('link',{name:'Render Spatial Environment'});
+ await expect(render).toBeVisible();await render.click();
+ await expect(page.getByRole('heading',{name:'Expected power review'})).toBeVisible();
+ await expect(page.getByText(/AHU-7 has no reconciled electrical feed/i)).toBeVisible();
+ await expect(page.getByLabel('Imported object').locator('option').filter({hasText:'AHU-7'})).toHaveCount(0);
+});
