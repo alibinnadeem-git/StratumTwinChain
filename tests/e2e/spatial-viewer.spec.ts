@@ -224,3 +224,35 @@ test('DOCX specification text becomes non-spatial powered-equipment evidence',as
  await expect(page.getByText(/RTU-4 has no reconciled electrical feed/i)).toBeVisible();
  await expect(page.getByLabel('Imported object').locator('option').filter({hasText:'RTU-4'})).toHaveCount(0);
 });
+
+
+test('IFC BIM source preserves source-design placement and feeds Expected Power',async({page})=>{
+ await page.goto('/compiler');
+ const ifc=[
+  'ISO-10303-21;','HEADER;',"FILE_DESCRIPTION(('ViewDefinition [CoordinationView]'),'2;1');",'ENDSEC;','DATA;',
+  '#1=IFCSIUNIT(*,.LENGTHUNIT.,.MILLI.,.METRE.);',
+  '#10=IFCCARTESIANPOINT((1000.,2000.,0.));','#11=IFCAXIS2PLACEMENT3D(#10,$,$);','#12=IFCLOCALPLACEMENT($,#11);',
+  "#20=IFCBUILDINGSTOREY('STOREY',$,'Level 1',$,$,#12,$,'L1',.ELEMENT.,0.);",
+  '#21=IFCCARTESIANPOINT((3000.,4000.,1000.));','#22=IFCAXIS2PLACEMENT3D(#21,$,$);','#23=IFCLOCALPLACEMENT(#12,#22);',
+  "#30=IFCPUMP('PUMP-GID',$,'CHW Pump',$,$,#23,$,'P-1',.CIRCULATOR.);",
+  "#40=IFCRELCONTAINEDINSPATIALSTRUCTURE('REL',$,$,$,(#30),#20);",
+  "#50=IFCPROPERTYSINGLEVALUE('Voltage',$,IFCELECTRICVOLTAGEMEASURE(480.),$);",
+  "#51=IFCPROPERTYSINGLEVALUE('NumberOfPhases',$,IFCINTEGER(3),$);",
+  "#52=IFCPROPERTYSINGLEVALUE('FLA',$,IFCELECTRICCURRENTMEASURE(12.),$);",
+  "#55=IFCPROPERTYSET('PSET',$,'Pset_EquipmentElectrical',$,(#50,#51,#52));",
+  "#56=IFCRELDEFINESBYPROPERTIES('PSETREL',$,$,$,(#30),#55);",
+  'ENDSEC;','END-ISO-10303-21;'
+ ].join('\n');
+ await sourceUpload(page).setInputFiles({name:'M-201-Mechanical.ifc',mimeType:'application/x-step',buffer:Buffer.from(ifc)});
+ await expect(page.getByText(/IFC STEP records.*placement\(s\) resolved/i)).toBeVisible();
+ const evidence=await page.evaluate(()=>{
+  const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
+  const entity=(graph.entities||[]).find((item:any)=>item.meta?.assetTag==='P-1'&&item.meta?.ifcType==='IFCPUMP');
+  return entity?{x:entity.x,y:entity.y,z:entity.z,floor:entity.floor,physicalTruth:entity.meta?.physicalTruth,authority:entity.meta?.zPlacementAuthority,geometry:entity.meta?.geometryAuthority,unit:entity.meta?.ifcUnitToMeters}:null;
+ });
+ expect(evidence).toEqual({x:4,y:6,z:1,floor:'Level 1',physicalTruth:false,authority:'SOURCE_IFC_DESIGN_PLACEMENT',geometry:'IFC_PLACEMENT_ONLY_NO_SHAPE_MESH',unit:.001});
+ await page.getByRole('link',{name:'Render Spatial Environment'}).click();
+ await expect(page.getByRole('heading',{name:'Expected power review'})).toBeVisible();
+ await expect(page.getByText(/P-1 has no reconciled electrical feed/i)).toBeVisible();
+ await expect(page.getByLabel('Imported object').locator('option').filter({hasText:'P-1'})).toHaveCount(1);
+});

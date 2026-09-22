@@ -70,6 +70,8 @@ jobs:
         run: npm run qa:coordination-intelligence
       - name: Structured XLSX and DOCX ingestion conformance
         run: npm run qa:office-ingestion
+      - name: IFC BIM semantic and placement ingestion conformance
+        run: npm run qa:ifc-ingestion
       - name: Spatial asset click and DIR Passport conformance
         run: npm run qa:spatial-asset-passport
       - name: PDF title-block intelligence conformance

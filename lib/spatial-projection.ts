@@ -54,7 +54,7 @@ function hasExplicitCadZ(entity:SpatialProjectionEntity){
  return rawZ!==null&&unit!==null&&unit>0&&Math.abs(rawZ)>1e-9;
 }
 function canUsePhysicalZ(entity:SpatialProjectionEntity){
- return entity.meta?.elevationKnown===true||entity.meta?.physicalElevationKnown===true||entity.meta?.alignmentVerified===true||entity.meta?.zPlacementAuthority==='MEASURED_OR_REVIEWED'||entity.meta?.zPlacementAuthority==='SOURCE_CAD_Z'||hasExplicitCadZ(entity);
+ return entity.meta?.elevationKnown===true||entity.meta?.physicalElevationKnown===true||entity.meta?.sourceDesignElevationKnown===true||entity.meta?.alignmentVerified===true||entity.meta?.zPlacementAuthority==='MEASURED_OR_REVIEWED'||entity.meta?.zPlacementAuthority==='SOURCE_CAD_Z'||entity.meta?.zPlacementAuthority==='SOURCE_IFC_DESIGN_PLACEMENT'||hasExplicitCadZ(entity);
 }
 function buildCadScales(entities:SpatialProjectionEntity[]){
  const result=new Map<string,CadScale>();
