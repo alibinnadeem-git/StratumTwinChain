@@ -59,7 +59,7 @@ for(const id of [
 ])assert.ok(registry.includes(`id:'${id}'`),'Published reference registry missing '+id);
 const referenceIds=[...registry.matchAll(/\{id:'([^']+)'/g)].map(match=>match[1]);
 assert.equal(new Set(referenceIds).size,referenceIds.length,'Published reference IDs must remain unique');
-const applicabilityCount=(registry.match(/applicability:'REFERENCE_ONLY_UNTIL_PROJECT_AHJ_RESOLUTION'/g)||[]).length;
+const applicabilityCount=(registry.match(/,applicability:'REFERENCE_ONLY_UNTIL_PROJECT_AHJ_RESOLUTION'/g)||[]).length;
 assert.equal(applicabilityCount,referenceIds.length,'Every built-in reference must remain reference-only until project/AHJ resolution');
 const publisherUrlCount=(registry.match(/publisherUrl:'https:\/\//g)||[]).length;
 assert.equal(publisherUrlCount,referenceIds.length,'Every built-in reference must point to an HTTPS publisher/government source');
