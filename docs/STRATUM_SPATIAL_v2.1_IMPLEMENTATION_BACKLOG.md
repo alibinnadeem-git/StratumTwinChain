@@ -6,7 +6,7 @@ Owner: Platform/Security
 Agents: Security Agent, QA Agent
 
 Stories:
-- E0.1 Provision first real SUPER_ADMIN under STRATUM Electric.
+- E0.1 Provision first real SUPER_ADMIN under STRATUM Power.
 - E0.2 Use native one-time password setup; never store plaintext passwords.
 - E0.3 Verify login/session/tenant scoping and invalidate bootstrap credentials.
 - E0.4 Run authenticated Spatial persistence UAT.
