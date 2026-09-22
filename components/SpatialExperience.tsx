@@ -4,6 +4,7 @@ import Link from "next/link";
 import {useEffect,useState} from "react";
 import CompiledGraphViewer from "@/components/CompiledGraphViewer";
 import {type RegisteredSpatialAsset} from "@/lib/spatial-asset-link";
+import {restoreBestSpatialGraph} from "@/lib/spatial-browser-recovery";
 
 type ExperienceState={
   ready:boolean;
@@ -28,11 +29,19 @@ export default function SpatialExperience({assets}:{assets:RegisteredSpatialAsse
   const [state,setState]=useState<ExperienceState>({ready:false,hasImportedModel:false,sourceCount:0});
 
   useEffect(()=>{
-    const refresh=()=>setState(inspectCompiledGraph());
-    refresh();
+    let active=true;
+    const refresh=()=>{if(active)setState(inspectCompiledGraph())};
+    const hydrate=async()=>{
+      const initial=inspectCompiledGraph();
+      if(initial.hasImportedModel){if(active)setState(initial);return}
+      await restoreBestSpatialGraph();
+      refresh();
+    };
+    void hydrate();
     window.addEventListener("stratum:graph-updated",refresh);
     window.addEventListener("storage",refresh);
     return()=>{
+      active=false;
       window.removeEventListener("stratum:graph-updated",refresh);
       window.removeEventListener("storage",refresh);
     };
