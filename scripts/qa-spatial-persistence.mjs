@@ -53,6 +53,8 @@ const checks=[
  ['Spatial route mounts server hydration before rendering the project workspace',spatialPage.includes('<SpatialServerHydrator/>')],
  ['server hydrator only restores a renderable graph and never invents a project',serverHydrator.includes('validRenderableGraph')&&serverHydrator.includes("projects.length===1?projects[0].id:''")&&serverHydrator.includes('replaceCurrentSpatialGraph(graph)')],
  ['server hydration uses same-origin authenticated compilation API calls',serverHydrator.includes("credentials:'same-origin'")&&serverHydrator.includes('/api/spatial/compilations')],
+ ["server hydration publishes a durable LOADING state before remote lookup",serverHydrator.includes("SERVER_HYDRATION_STATE_KEY")&&serverHydrator.includes("publish({state:'LOADING'})")],
+ ["Spatial empty-state waits while the latest server model is being restored",experience.includes('serverPending')&&experience.includes('Restoring latest project model…')&&experience.includes("state==='LOADING'")],
  ['new persistence path does not call deprecated twin ingest route',!ui.includes('/api/twin/ingest')&&!autoSync.includes('/api/twin/ingest')&&!api.includes('/api/twin/ingest')]
 ];
 
