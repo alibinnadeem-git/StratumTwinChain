@@ -4,6 +4,7 @@ export const DATABASE_CAPABILITY_TABLES={
  evidence:['organizations','users','memberships','projects','sites','assets','lifecycle_events','evidence','evidence_files'],
  archive:['organizations','users','memberships','projects','sites','assets','asset_archive_events'],
  spatialPersistence:['organizations','users','memberships','projects','sites','assets','spatial_compilations','spatial_compilation_reviews'],
+ powerIntelligence:['organizations','users','memberships','projects','sites','assets','spatial_compilations','power_intelligence_snapshots','expected_power_requirements','power_gap_findings','power_finding_dispositions'],
  attestations:['organizations','users','memberships','projects','sites','assets','lifecycle_events','human_attestations'],
  dirRuntime:['organizations','users','memberships','projects','sites','assets','lifecycle_events','approvals','ledger_records','approval_policies'],
 } as const;
@@ -28,6 +29,7 @@ export type DatabaseReadiness={
  evidenceReady:boolean;
  archiveReady:boolean;
  spatialPersistenceReady:boolean;
+ powerIntelligenceReady:boolean;
  attestationsReady:boolean;
  dirRuntimeReady:boolean;
  fullSchemaReady:boolean;
@@ -45,13 +47,14 @@ export function summarizeDatabaseReadiness(tableNames:string[]):DatabaseReadines
  const evidenceReady=capabilityReady(present,'evidence');
  const archiveReady=capabilityReady(present,'archive');
  const spatialPersistenceReady=capabilityReady(present,'spatialPersistence');
+ const powerIntelligenceReady=capabilityReady(present,'powerIntelligence');
  const attestationsReady=capabilityReady(present,'attestations');
  const dirRuntimeReady=capabilityReady(present,'dirRuntime');
  return{
   requiredTableCount:REQUIRED_DATABASE_TABLES.length,
   presentTableCount:REQUIRED_DATABASE_TABLES.length-missingTables.length,
   missingTables,
-  coreReady,lifecycleReady,evidenceReady,archiveReady,spatialPersistenceReady,attestationsReady,dirRuntimeReady,
+  coreReady,lifecycleReady,evidenceReady,archiveReady,spatialPersistenceReady,powerIntelligenceReady,attestationsReady,dirRuntimeReady,
   fullSchemaReady:missingTables.length===0,
  };
 }
