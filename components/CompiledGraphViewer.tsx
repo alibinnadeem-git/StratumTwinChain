@@ -76,7 +76,8 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
   const [environment,setEnvironment]=useState<EnvironmentMode>("ENGINEERING");
   const [systemMode,setSystemMode]=useState<SystemMode>("ALL");
   const [floor,setFloor]=useState("ALL");
-  const [discipline,setDiscipline]=useState("ALL");
+  const [hiddenDisciplines,setHiddenDisciplines]=useState<string[]>([]);
+  const [hiddenSources,setHiddenSources]=useState<string[]>([]);
   const [exploded,setExploded]=useState(false);
   const [xray,setXray]=useState(false);
   const [search,setSearch]=useState("");
@@ -113,13 +114,13 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
     return graph.entities.filter(e=>{
       if(floor!=="ALL"&&(e.floor||"UNRESOLVED")!==floor)return false;
       const entityDiscipline=sourceDisciplines.get(e.source)||String(e.meta?.discipline||"Unclassified");
-      if(discipline!=="ALL"&&entityDiscipline!==discipline)return false;
+      if(hiddenDisciplines.includes(entityDiscipline)||hiddenSources.includes(e.source))return false;
       if(mode==="ELECTRICAL"&&!(["L2","L3","L4"] as Layer[]).includes(e.layer))return false;
       if(systemMode!=="ALL"&&e.layer==="L2"&&entitySystem(e)!==systemMode)return false;
       if(q&&!`${e.name} ${e.source} ${e.floor||""} ${e.zone||""}`.toLowerCase().includes(q))return false;
       return true;
     });
-  },[graph,floor,discipline,mode,systemMode,search,sourceDisciplines]);
+  },[graph,floor,hiddenDisciplines,hiddenSources,mode,systemMode,search,sourceDisciplines]);
   const inventory=useMemo(()=>visible.filter(e=>e.kind!=="line"&&e.kind!=="sld-feeder-candidate"&&e.kind!=="wall-segment"),[visible]);
   const rooms=useMemo(()=>graph?.entities.filter(e=>e.kind==="room-boundary").length||0,[graph]);
   const sldObjects=useMemo(()=>graph?.entities.filter(e=>e.layer==="L2"&&isSld(e)).length||0,[graph]);
@@ -273,11 +274,19 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
 
     <div style={{display:"flex",gap:8,padding:"10px 12px",alignItems:"center",flexWrap:"wrap",borderBottom:"1px solid #17334a"}}>
       <select aria-label="Floor isolation" value={floor} onChange={e=>setFloor(e.target.value)}><option value="ALL">All floors</option>{levels.map(([f])=><option key={f} value={f}>{f}</option>)}</select>
-      <select aria-label="Discipline isolation" value={discipline} onChange={e=>setDiscipline(e.target.value)}><option value="ALL">All disciplines</option>{disciplines.map(value=><option key={value} value={value}>{value}</option>)}</select>
       <input aria-label="Search objects" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search equipment, room or source" style={{minWidth:220,flex:"1 1 240px"}}/>
       <button className="ghost" onClick={()=>setFitRevision(v=>v+1)}>Fit model</button>
       <button className="ghost" onClick={()=>setLabels(v=>!v)}>{labels?"Hide labels":"Show labels"}</button>
     </div>
+
+    <details style={{borderBottom:"1px solid #17334a"}}><summary style={{padding:"10px 14px",cursor:"pointer"}}>Layers</summary>
+      <div style={{display:"grid",gap:10,padding:"0 12px 12px"}}>
+        <div><strong style={{fontSize:12}}>Disciplines</strong><div className="button-row" style={{marginTop:6}}>{disciplines.map(value=>{const on=!hiddenDisciplines.includes(value);return <button key={value} type="button" className={on?"action":"ghost"} aria-label={value+" layer"} aria-pressed={on} onClick={()=>setHiddenDisciplines(current=>on?[...current,value]:current.filter(item=>item!==value))}>{value}</button>})}</div></div>
+        <div><strong style={{fontSize:12}}>Sources</strong><div className="button-row" style={{marginTop:6}}>{(graph?.sources||[]).map(source=>{const on=!hiddenSources.includes(source.name);return <button key={source.sha256||source.name} type="button" className={on?"action":"ghost"} aria-label={source.name+" source layer"} aria-pressed={on} title={source.name} onClick={()=>setHiddenSources(current=>on?[...current,source.name]:current.filter(item=>item!==source.name))}>{source.name.length>28?source.name.slice(0,25)+"…":source.name}</button>})}</div></div>
+        <div className="button-row"><button type="button" className="ghost" onClick={()=>{setHiddenDisciplines([]);setHiddenSources([])}} disabled={!hiddenDisciplines.length&&!hiddenSources.length}>Show all layers</button></div>
+        <small className="muted">Layer visibility changes the view only. It never changes source authority, review state or the persisted engineering record.</small>
+      </div>
+    </details>
 
     <details style={{borderBottom:"1px solid #17334a"}}><summary style={{padding:"10px 14px",cursor:"pointer"}}>Advanced view controls</summary><div style={{display:"flex",gap:8,padding:"0 12px 12px",flexWrap:"wrap"}}>
       <button className="ghost" aria-pressed={exploded} onClick={()=>setExploded(v=>!v)}>{exploded?"Collapse building":"Explode building"}</button>

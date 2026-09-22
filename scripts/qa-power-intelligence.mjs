@@ -44,7 +44,13 @@ assert.equal(result.truthBoundary,'EXPECTED_POWER_IS_ADVISORY_UNTIL_QUALIFIED_EN
 const compiler=fs.readFileSync('components/CompilerWorkspace.tsx','utf8');
 const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
 const engine=fs.readFileSync('components/SpatialProjectionEngine.tsx','utf8');
+const inspector=fs.readFileSync('components/SpatialAssetInspector.tsx','utf8');
 assert.match(compiler,/Render Spatial Environment/);
-assert.match(viewer,/Discipline isolation/);
+assert.match(viewer,/>Layers</);
+assert.match(viewer,/Show all layers/);
+assert.match(viewer,/source layer/);
 assert.match(engine,/enrichPowerIntelligence/);
+assert.match(inspector,/Expected electrical requirement/);
+assert.match(inspector,/Maintenance cycle/);
+assert.match(inspector,/Warranty/);
 console.log('✓ expected power discovery, missing-feed reconciliation, rating conflicts and truth boundaries passed');

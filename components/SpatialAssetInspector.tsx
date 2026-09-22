@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import {useMemo,useState} from 'react';
+import {useEffect,useMemo,useState} from 'react';
 import AssetActivityPanel from '@/components/AssetActivityPanel';
 import AssetQR from '@/components/AssetQR';
 import {
@@ -10,6 +10,7 @@ import {
  type RegisteredSpatialAsset,
  type SpatialAssetEntity,
 } from '@/lib/spatial-asset-link';
+import type {PowerIntelligenceSnapshot} from '@/lib/power-intelligence';
 
 type InspectorEntity=SpatialAssetEntity&{
  source:string;
@@ -42,9 +43,19 @@ export default function SpatialAssetInspector({
 }){
  const [linkId,setLinkId]=useState('');
  const [message,setMessage]=useState('');
+ const [powerSnapshot,setPowerSnapshot]=useState<PowerIntelligenceSnapshot|null>(null);
+ useEffect(()=>{
+  const load=()=>{try{const graph=JSON.parse(localStorage.getItem(GRAPH_KEY)||'{}');setPowerSnapshot(graph.powerIntelligence||null)}catch{setPowerSnapshot(null)}};
+  load();window.addEventListener('stratum:graph-updated',load);window.addEventListener('storage',load);
+  return()=>{window.removeEventListener('stratum:graph-updated',load);window.removeEventListener('storage',load)};
+ },[]);
  const binding=useMemo(()=>resolveRegisteredSpatialAsset(selected,registeredAssets),[selected,registeredAssets]);
  const dir=useMemo(()=>spatialAssetDirState(binding),[binding]);
  const asset=binding?.asset||null;
+ const powerRequirement=useMemo(()=>selected?powerSnapshot?.requirements.find(item=>item.sourceEntityId===selected.id)||null:null,[selected,powerSnapshot]);
+ const powerFindings=useMemo(()=>selected?(powerSnapshot?.findings||[]).filter(item=>item.sourceEntityId===selected.id):[],[selected,powerSnapshot]);
+ const maintenanceCycle=asset?.specifications?String(asset.specifications.maintenanceCycle||asset.specifications.maintenanceInterval||asset.specifications.maintenance_interval||asset.specifications.maintenance_interval_days||'').trim():'';
+ const specificationFacts=asset?.specifications?Object.entries(asset.specifications).filter(([,value])=>['string','number','boolean'].includes(typeof value)).slice(0,8):[];
 
  function persistBinding(nextAsset:RegisteredSpatialAsset|null){
   if(!selected)return;
@@ -103,6 +114,19 @@ export default function SpatialAssetInspector({
    <div><span>Z placement</span><strong>{zReviewed?'Measured / reviewed':'Unverified elevation'}</strong></div>
   </div>
 
+  {powerRequirement&&<section className="card" style={{marginTop:12,padding:12}} aria-label="Selected asset expected power">
+   <div className="section-head"><div><div className="eyebrow">Expected power</div><h3 style={{margin:'2px 0'}}>Expected electrical requirement</h3></div><span className={powerFindings.length?'pending':'status-chip'}>{powerRequirement.status}</span></div>
+   <div className="passport-facts" style={{marginTop:8}}>
+    <div><span>Voltage</span><strong>{powerRequirement.voltage!==null?`${powerRequirement.voltage} V`:'Unresolved'}</strong></div>
+    <div><span>Phase</span><strong>{powerRequirement.phase!==null?`${powerRequirement.phase}φ`:'Unresolved'}</strong></div>
+    <div><span>Input</span><strong>{powerRequirement.inputKw!==null?`${powerRequirement.inputKw} kW`:powerRequirement.inputKva!==null?`${powerRequirement.inputKva} kVA`:powerRequirement.connectedLoadEstimateKva!==null?`${powerRequirement.connectedLoadEstimateKva} kVA reference`:'Unresolved'}</strong></div>
+    <div><span>Authority</span><strong>{powerRequirement.authorityClass.replaceAll('_',' ')}</strong></div>
+   </div>
+   {powerFindings.map(item=><div className="notice" style={{marginTop:8}} key={item.id}><strong>{item.findingType.replaceAll('_',' ')}</strong><span>{item.detail}</span></div>)}
+   {powerRequirement.assumptions.length>0&&<p className="muted" style={{marginBottom:0}}>{powerRequirement.assumptions.join(' ')}</p>}
+   <small className="muted">Advisory engineering review only; this is not a final load calculation, code-compliance determination or design approval.</small>
+  </section>}
+
   {asset?<>
    <div className="asset-summary-strip">
     <div><span>Identity</span><strong>{asset.serial_number||asset.asset_code}</strong></div>
@@ -136,6 +160,8 @@ export default function SpatialAssetInspector({
       <div><span>Manufacturer</span><strong>{asset.manufacturer_name||'Pending'}</strong></div>
       <div><span>Model</span><strong>{asset.model||'Pending'}</strong></div>
       <div><span>Serial</span><strong>{asset.serial_number||'—'}</strong></div>
+      <div><span>Warranty</span><strong>{asset.warranty_expires_at?new Date(asset.warranty_expires_at).toLocaleDateString():'Not recorded'}</strong></div>
+      <div><span>Maintenance cycle</span><strong>{maintenanceCycle||'Not configured'}</strong></div>
       <div><span>Binding</span><strong>{binding?.method.replaceAll('_',' ')}</strong></div>
      </div>
      <div className="qr-inline">
@@ -143,6 +169,17 @@ export default function SpatialAssetInspector({
       <p className="muted">Scan to reopen this exact asset identity.</p>
      </div>
     </div>
+   </details>
+
+   <details className="secondary-details">
+    <summary>Specifications & lifecycle dates</summary>
+    <div className="passport-facts" style={{marginTop:10}}>
+     <div><span>Installed</span><strong>{asset.installed_at?new Date(asset.installed_at).toLocaleDateString():'Not recorded'}</strong></div>
+     <div><span>Commissioned</span><strong>{asset.commissioned_at?new Date(asset.commissioned_at).toLocaleDateString():'Not recorded'}</strong></div>
+     <div><span>Warranty expires</span><strong>{asset.warranty_expires_at?new Date(asset.warranty_expires_at).toLocaleDateString():'Not recorded'}</strong></div>
+     <div><span>Maintenance plan</span><strong>{maintenanceCycle||'Not configured in asset specifications'}</strong></div>
+    </div>
+    {specificationFacts.length>0?<dl className="proof-details">{specificationFacts.map(([key,value])=><div key={key}><dt>{key}</dt><dd>{String(value)}</dd></div>)}</dl>:<p className="muted">No scalar specification facts are registered for this asset yet.</p>}
    </details>
 
    {asset.project_id

@@ -21,6 +21,10 @@ export type RegisteredSpatialAsset={
  ledger_tx_hash:string|null;
  ledger_block_height:string|null;
  anchored_at?:string|Date|null;
+ specifications?:Record<string,unknown>;
+ installed_at?:string|Date|null;
+ commissioned_at?:string|Date|null;
+ warranty_expires_at?:string|Date|null;
 };
 
 export type SpatialAssetEntity={id:string;name:string;layer:string;meta?:Record<string,unknown>};
