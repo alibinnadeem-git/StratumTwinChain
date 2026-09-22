@@ -14,6 +14,10 @@ const Applicability=z.object({
  applicabilityStatus:z.enum(['REFERENCE','APPLICABLE','SUPERSEDED','REVIEW_REQUIRED']),
  effectiveDate:z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),sourceUrl:z.string().url().max(2000).nullable().optional(),
  sourceSha256:Sha.nullable().optional(),notes:z.string().max(4000).nullable().optional()
+}).superRefine((value,ctx)=>{
+ if(value.applicabilityStatus==='APPLICABLE'&&value.authorityClass==='PUBLISHED_REFERENCE'){
+  ctx.addIssue({code:z.ZodIssueCode.custom,path:['authorityClass'],message:'A published reference cannot become project-applicable without AHJ, contractual, owner, or OEM authority.'});
+ }
 });
 const Oem=z.object({
  type:z.literal('OEM'),manufacturerName:z.string().trim().min(1).max(200),modelPattern:z.string().trim().max(300).nullable().optional(),
