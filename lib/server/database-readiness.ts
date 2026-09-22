@@ -6,6 +6,7 @@ export const DATABASE_CAPABILITY_TABLES={
  spatialPersistence:['organizations','users','memberships','projects','sites','assets','spatial_compilations','spatial_compilation_reviews'],
  powerIntelligence:['organizations','users','memberships','projects','sites','assets','spatial_compilations','power_intelligence_snapshots','expected_power_requirements','power_gap_findings','power_finding_dispositions'],
  engineeringKnowledge:['organizations','users','memberships','projects','sites','assets','engineering_applicability_records','oem_reference_documents','asset_maintenance_plans'],
+ coordination:['organizations','users','memberships','projects','spatial_compilations','coordination_snapshots','coordination_findings','coordination_finding_dispositions','coordination_action_requests'],
  attestations:['organizations','users','memberships','projects','sites','assets','lifecycle_events','human_attestations'],
  dirRuntime:['organizations','users','memberships','projects','sites','assets','lifecycle_events','approvals','ledger_records','approval_policies'],
 } as const;
@@ -32,6 +33,7 @@ export type DatabaseReadiness={
  spatialPersistenceReady:boolean;
  powerIntelligenceReady:boolean;
  engineeringKnowledgeReady:boolean;
+ coordinationReady:boolean;
  attestationsReady:boolean;
  dirRuntimeReady:boolean;
  fullSchemaReady:boolean;
@@ -51,13 +53,14 @@ export function summarizeDatabaseReadiness(tableNames:string[]):DatabaseReadines
  const spatialPersistenceReady=capabilityReady(present,'spatialPersistence');
  const powerIntelligenceReady=capabilityReady(present,'powerIntelligence');
  const engineeringKnowledgeReady=capabilityReady(present,'engineeringKnowledge');
+ const coordinationReady=capabilityReady(present,'coordination');
  const attestationsReady=capabilityReady(present,'attestations');
  const dirRuntimeReady=capabilityReady(present,'dirRuntime');
  return{
   requiredTableCount:REQUIRED_DATABASE_TABLES.length,
   presentTableCount:REQUIRED_DATABASE_TABLES.length-missingTables.length,
   missingTables,
-  coreReady,lifecycleReady,evidenceReady,archiveReady,spatialPersistenceReady,powerIntelligenceReady,engineeringKnowledgeReady,attestationsReady,dirRuntimeReady,
+  coreReady,lifecycleReady,evidenceReady,archiveReady,spatialPersistenceReady,powerIntelligenceReady,engineeringKnowledgeReady,coordinationReady,attestationsReady,dirRuntimeReady,
   fullSchemaReady:missingTables.length===0,
  };
 }
