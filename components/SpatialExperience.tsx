@@ -5,6 +5,7 @@ import {useEffect,useState} from "react";
 import CompiledGraphViewer from "@/components/CompiledGraphViewer";
 import {type RegisteredSpatialAsset} from "@/lib/spatial-asset-link";
 import {restoreBestSpatialGraph} from "@/lib/spatial-browser-recovery";
+import {SERVER_HYDRATION_EVENT,SERVER_HYDRATION_STATE_KEY} from "@/components/SpatialServerHydrator";
 
 type ExperienceState={
   ready:boolean;
@@ -25,31 +26,47 @@ function inspectCompiledGraph():ExperienceState{
   }
 }
 
-export default function SpatialExperience({assets}:{assets:RegisteredSpatialAsset[]}){
+export default function SpatialExperience({assets,authenticated=false}:{assets:RegisteredSpatialAsset[];authenticated?:boolean}){
   const [state,setState]=useState<ExperienceState>({ready:false,hasImportedModel:false,sourceCount:0});
 
   useEffect(()=>{
     let active=true;
     const refresh=()=>{if(active)setState(inspectCompiledGraph())};
+    const serverState=()=>{try{return JSON.parse(sessionStorage.getItem(SERVER_HYDRATION_STATE_KEY)||'{}')?.state||''}catch{return''}};
+    const onServerHydration=(event:Event)=>{
+      if(!active)return;
+      const detail=(event as CustomEvent).detail||{};
+      if(detail.state==='LOADING'){setState({ready:false,hasImportedModel:false,sourceCount:0});return}
+      refresh();
+    };
     const hydrate=async()=>{
       const initial=inspectCompiledGraph();
       if(initial.hasImportedModel){if(active)setState(initial);return}
       await restoreBestSpatialGraph();
-      refresh();
+      const recovered=inspectCompiledGraph();
+      if(recovered.hasImportedModel){if(active)setState(recovered);return}
+      if(authenticated){
+        const state=serverState();
+        if(!state||state==='LOADING'){if(active)setState({ready:false,hasImportedModel:false,sourceCount:recovered.sourceCount});return}
+      }
+      if(active)setState(recovered);
     };
     void hydrate();
     window.addEventListener("stratum:graph-updated",refresh);
     window.addEventListener("storage",refresh);
+    window.addEventListener(SERVER_HYDRATION_EVENT,onServerHydration);
     return()=>{
       active=false;
       window.removeEventListener("stratum:graph-updated",refresh);
       window.removeEventListener("storage",refresh);
+      window.removeEventListener(SERVER_HYDRATION_EVENT,onServerHydration);
     };
-  },[]);
+  },[authenticated]);
 
   if(!state.ready)return <section className="card" aria-live="polite">
     <div className="eyebrow">Spatial workspace</div>
-    <h2>Preparing the project workspace…</h2>
+    <h2>{authenticated?'Restoring latest project model…':'Preparing the project workspace…'}</h2>
+    <p className="muted">{authenticated?'Checking the tenant project for the latest saved Spatial revision before declaring the workspace empty.':'Recovering the latest browser-protected project model.'}</p>
   </section>;
 
   if(state.hasImportedModel)return <section id="spatial-model" aria-label="Imported project spatial model">
