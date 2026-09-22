@@ -50,4 +50,17 @@ for(const forbidden of [
 
 assert.match(registry,/ashrae-90-1-2025/);
 assert.match(registry,/REFERENCE_ONLY_UNTIL_PROJECT_AHJ_RESOLUTION/);
+for(const id of [
+ 'nfpa-70b-2023','nfpa-20-2025','nfpa-99-2024','nfpa-101-2024','nfpa-855-2026',
+ 'neca-1-2023','neca-91-2023','neca-100-2024','neca-402-2020','neca-413-2024','neca-430-2025','neca-714-2025',
+ 'icc-ibc-2024','icc-ifc-2024','icc-iecc-2024','icc-imc-2024','icc-izc-2024',
+ 'ca-title24-part2-2025','ca-title24-part3-2025','ca-title24-part4-2025','ca-title24-part6-2025','ca-title24-part9-2025','ca-title24-part11-2025',
+ 'asce-7-22','aisc-360-22','aisc-341-22','ieee-1584-2018','iso-19650-1-2018','ada-2010','osha-1910-subpart-s','nist-csf-2-0','hipaa-security-rule-current','ul-1008-current'
+])assert.ok(registry.includes(`id:'${id}'`),'Published reference registry missing '+id);
+const referenceIds=[...registry.matchAll(/\{id:'([^']+)'/g)].map(match=>match[1]);
+assert.equal(new Set(referenceIds).size,referenceIds.length,'Published reference IDs must remain unique');
+const applicabilityCount=(registry.match(/,applicability:'REFERENCE_ONLY_UNTIL_PROJECT_AHJ_RESOLUTION'/g)||[]).length;
+assert.equal(applicabilityCount,referenceIds.length,'Every built-in reference must remain reference-only until project/AHJ resolution');
+const publisherUrlCount=(registry.match(/publisherUrl:'https:\/\//g)||[]).length;
+assert.equal(publisherUrlCount,referenceIds.length,'Every built-in reference must point to an HTTPS publisher/government source');
 console.log('Expected Power persistence, standards/OEM authority, and maintenance revision truth boundaries passed');
