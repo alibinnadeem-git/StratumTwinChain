@@ -206,9 +206,10 @@ export function parseIfcText(text:string,source:string,fallbackDiscipline='Uncla
     discipline:d,ifcUnitName:units.unitName,ifcUnitToMeters:units.unitToMeters,
     ifcPlacementRef:placementRef,ifcPlacementResolved:canPlace,
     coordinateUnits:canPlace?'m_ifc_design':'ifc_project_unit_unresolved',
-    sourceDesignCoordinate:true,physicalTruth:false,reviewRequired:true,
-    geometryAuthority:'IFC_PLACEMENT_ONLY_NO_SHAPE_MESH',
+    sourceDesignCoordinate:true,sourceDesignElevationKnown:canPlace,physicalTruth:false,reviewRequired:true,
+    cadMetricXY:canPlace,geometryAuthority:'IFC_PLACEMENT_ONLY_NO_SHAPE_MESH',
     nonSpatial:!canPlace,
+    zPlacementAuthority:canPlace?'SOURCE_IFC_DESIGN_PLACEMENT':'UNRESOLVED',
     spatialPlacementAuthority:canPlace?'IFC_LOCAL_PLACEMENT':'IFC_PLACEMENT_OR_UNIT_UNRESOLVED',
     ...(storey?{ifcStorey:storey.name,ifcStoreyElevation:storey.elevation}:{}),
     registrationState:'CANDIDATE'
