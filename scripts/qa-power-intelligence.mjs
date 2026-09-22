@@ -16,7 +16,8 @@ const graph={
   {id:'ahu2-mech',source:'M-201 Mechanical Equipment.dxf',layer:'L1',kind:'cad-block',name:'AHU-2 480V 3PH 10 KVA',x:3,y:0,confidence:.9},
   {id:'ahu2-elec',source:'E-201 Power Plan.dxf',layer:'L2',kind:'text-asset-candidate',name:'AHU-2 208V 3PH',x:4,y:0,confidence:.9},
   {id:'fp-mech',source:'FP-101 Fire Protection.dxf',layer:'L1',kind:'cad-block',name:'FIRE PUMP FP-1 480V 3PH 50 HP',x:5,y:0,confidence:.95},
-  {id:'room',source:'M-201 Mechanical Equipment.dxf',layer:'L1',kind:'room-label',name:'MECHANICAL ROOM',x:6,y:0,confidence:.9}
+  {id:'room',source:'M-201 Mechanical Equipment.dxf',layer:'L1',kind:'room-label',name:'MECHANICAL ROOM',x:6,y:0,confidence:.9},
+  {id:'ahu-unrated',source:'M-201 Mechanical Equipment.dxf',layer:'L1',kind:'cad-block',name:'AHU-9',x:7,y:0,confidence:.8,meta:{voltage:null,fla:null,inputKw:null}}
  ]
 };
 
@@ -37,6 +38,9 @@ assert.ok(result.findings.some(item=>item.sourceEntityId==='ahu2-mech'&&item.fin
 const firePump=result.requirements.find(item=>item.sourceEntityId==='fp-mech');
 assert.ok(firePump);assert.equal(firePump.status,'MISSING');
 assert.ok(result.findings.some(item=>item.sourceEntityId==='fp-mech'&&item.findingType==='EMERGENCY_POWER_REVIEW'));
+
+const unrated=result.requirements.find(item=>item.sourceEntityId==='ahu-unrated');
+assert.ok(unrated);assert.equal(unrated.voltage,null);assert.equal(unrated.fla,null);assert.equal(unrated.inputKw,null);assert.equal(unrated.connectedLoadEstimateKva,null);
 
 assert.ok(!result.requirements.some(item=>item.sourceEntityId==='room'));
 assert.equal(result.truthBoundary,'EXPECTED_POWER_IS_ADVISORY_UNTIL_QUALIFIED_ENGINEERING_REVIEW');
