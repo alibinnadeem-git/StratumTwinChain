@@ -281,7 +281,7 @@ test('uploaded drawing renders a clickable WebGL asset and opens its inspector f
  const hitX=Number(await canvas.getAttribute('data-primary-hit-x'));
  const hitY=Number(await canvas.getAttribute('data-primary-hit-y'));
  expect(Number.isFinite(hitX)&&Number.isFinite(hitY)).toBeTruthy();
- await page.mouse.click(box!.x+hitX,box!.y+hitY);
+ await canvas.click({position:{x:hitX,y:hitY}});
  await expect.poll(async()=>await canvas.getAttribute('data-selected-asset')).toBe(await canvas.getAttribute('data-primary-asset'));
  await expect(page.getByRole('heading',{name:'DRY TYPE TRANSFORMER T1'})).toBeVisible();
  await expect(page.getByText('Z placement',{exact:true})).toBeVisible();
