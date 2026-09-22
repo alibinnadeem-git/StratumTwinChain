@@ -8,6 +8,8 @@ const autoSync=read('components/SpatialAutoSync.tsx');
 const recovery=read('lib/spatial-browser-recovery.ts');
 const guard=read('components/SpatialPersistenceGuard.tsx');
 const compilerPage=read('app/compiler/page.tsx');
+const spatialPage=read('app/spatial/page.tsx');
+const serverHydrator=read('components/SpatialServerHydrator.tsx');
 const compiler=read('components/CompilerWorkspace.tsx');
 const experience=read('components/SpatialExperience.tsx');
 
@@ -47,6 +49,10 @@ const checks=[
  ['recovery prefers a graph with renderable entities over a zero-entity current shell',recovery.includes('current&&current.entities.length>0')&&recovery.includes('item.graph.entities.length>0')],
  ['global persistence guard captures graph updates',guard.includes("stratum:graph-updated")&&guard.includes('protectSpatialGraph')],
  ['compiler keeps server review controls secondary',compilerPage.includes('<summary>Server sync & review baseline</summary>')],
+ ['authenticated compiler mounts automatic append-only Spatial sync',compilerPage.includes('session&&<SpatialAutoSync/>')],
+ ['Spatial route mounts server hydration before rendering the project workspace',spatialPage.includes('<SpatialServerHydrator/>')],
+ ['server hydrator only restores a renderable graph and never invents a project',serverHydrator.includes('validRenderableGraph')&&serverHydrator.includes("projects.length===1?projects[0].id:''")&&serverHydrator.includes('replaceCurrentSpatialGraph(graph)')],
+ ['server hydration uses same-origin authenticated compilation API calls',serverHydrator.includes("credentials:'same-origin'")&&serverHydrator.includes('/api/spatial/compilations')],
  ['new persistence path does not call deprecated twin ingest route',!ui.includes('/api/twin/ingest')&&!autoSync.includes('/api/twin/ingest')&&!api.includes('/api/twin/ingest')]
 ];
 
