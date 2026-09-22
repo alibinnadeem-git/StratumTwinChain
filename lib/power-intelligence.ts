@@ -69,6 +69,7 @@ function firstMeta(entity:PowerEntity,keys:string[]){for(const key of keys){cons
 function parseNumber(text:string,pattern:RegExp){const m=text.match(pattern);return m?finite(m[1]):null}
 function normalized(value:string){return value.toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim()}
 function equipmentClass(name:string){return POWERED_CLASSES.find(item=>item.pattern.test(name))||null}
+export function poweredEquipmentClass(value:string){return equipmentClass(String(value||''))?.key||null}
 function sourceDiscipline(graph:PowerGraph,entity:PowerEntity){
  const source=(graph.sources||[]).find(item=>item.name===entity.source);
  return String(source?.discipline||entity.meta?.discipline||'Unclassified');
