@@ -61,3 +61,49 @@ test('SLD becomes review-only spatial electrical hierarchy',async({page})=>{
  expect(projected.depths).toEqual([0,1,2,4]);
  expect(projected.feeders).toBeGreaterThanOrEqual(3);
 });
+
+
+test('Render Spatial Environment surfaces missing HVAC power from a mechanical source',async({page})=>{
+ await page.goto('/compiler');
+ const dxf=`0
+SECTION
+2
+HEADER
+9
+$INSUNITS
+70
+2
+0
+ENDSEC
+0
+SECTION
+2
+ENTITIES
+0
+INSERT
+8
+M-HVAC-EQUIP
+2
+AHU-1 480V 3PH FLA 12
+10
+100
+20
+100
+30
+0
+0
+ENDSEC
+0
+EOF
+`;
+ await sourceUpload(page).setInputFiles({name:'M-201-HVAC-Equipment.dxf',mimeType:'application/dxf',buffer:Buffer.from(dxf)});
+ const render=page.getByRole('link',{name:'Render Spatial Environment'});
+ await expect(render).toBeVisible();
+ await render.click();
+ await expect(page).toHaveURL(/\/spatial/);
+ await expect(page.getByRole('heading',{name:'Expected power review'})).toBeVisible();
+ await expect(page.getByText(/AHU-1 has no reconciled electrical feed/i)).toBeVisible();
+ const discipline=page.getByLabel('Discipline isolation');
+ await expect(discipline).toBeVisible();
+ await expect(discipline.locator('option').filter({hasText:'Mechanical'})).toHaveCount(1);
+});
