@@ -20,6 +20,7 @@ export default async function SpatialPage(){
    manufacturer_name:a.manufacturer_name,latest_event_id:a.latest_event_id,latest_event_type:a.latest_event_type,
    latest_event_status:a.latest_event_status,ledger_network:a.ledger_network,ledger_tx_hash:a.ledger_tx_hash,
    ledger_block_height:a.ledger_block_height,anchored_at:a.anchored_at,
+   specifications:a.specifications,installed_at:a.installed_at,commissioned_at:a.commissioned_at,warranty_expires_at:a.warranty_expires_at,
   }));
  }catch(error){
   backendOnline=false;
