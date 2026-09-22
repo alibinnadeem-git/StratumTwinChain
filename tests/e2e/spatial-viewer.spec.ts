@@ -1,4 +1,5 @@
 import {expect,test} from '@playwright/test';
+import {strToU8,zipSync} from 'fflate';
 
 const sourceUpload=(page:import('@playwright/test').Page)=>page.locator('input[type=file][accept*=".dxf"]');
 
@@ -177,4 +178,49 @@ EOF
  await expect(page.getByRole('heading',{name:'Coordination findings'})).toBeVisible();
  await expect(page.getByText(/AHU-7 has conflicting equipment ratings across sources/i)).toBeVisible();
  await expect(page.getByText(/geometric clash proof/i)).toBeVisible();
+});
+
+
+test('XLSX equipment matrix becomes non-spatial Expected Power evidence',async({page})=>{
+ await page.goto('/compiler');
+ const workbook='<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Mechanical Equipment" sheetId="1" r:id="rId1"/></sheets></workbook>';
+ const rels='<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>';
+ const shared=['TAG','DESCRIPTION','MANUFACTURER','MODEL','VOLTAGE','PHASE','FLA','LOCATION','AHU-12','Air Handling Unit','Trane','TX12','480','3','15','Mechanical Room'];
+ const sharedXml='<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+shared.map(v=>'<si><t>'+v+'</t></si>').join('')+'</sst>';
+ const cell=(ref:string,index:number)=>'<c r="'+ref+'" t="s"><v>'+index+'</v></c>';
+ const cols=['A','B','C','D','E','F','G','H'];
+ const row1='<row r="1">'+cols.map((col,i)=>cell(col+'1',i)).join('')+'</row>';
+ const row2='<row r="2">'+cols.map((col,i)=>cell(col+'2',8+i)).join('')+'</row>';
+ const sheet='<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'+row1+row2+'</sheetData></worksheet>';
+ const xlsx=zipSync({'xl/workbook.xml':strToU8(workbook),'xl/_rels/workbook.xml.rels':strToU8(rels),'xl/sharedStrings.xml':strToU8(sharedXml),'xl/worksheets/sheet1.xml':strToU8(sheet)});
+ await sourceUpload(page).setInputFiles({name:'M-601-Equipment-Matrix.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:Buffer.from(xlsx)});
+ await expect(page.getByText(/worksheet\(s\).*powered equipment candidate/i)).toBeVisible();
+ const evidence=await page.evaluate(()=>{
+  const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
+  const entity=(graph.entities||[]).find((item:any)=>item.meta?.assetTag==='AHU-12');
+  return entity?{nonSpatial:entity.meta?.nonSpatial,officeFormat:entity.meta?.officeFormat,sheet:entity.meta?.workbookSheet,voltage:entity.meta?.voltage}:null;
+ });
+ expect(evidence).toEqual({nonSpatial:true,officeFormat:'XLSX',sheet:'Mechanical Equipment',voltage:480});
+ await page.getByRole('link',{name:'Render Spatial Environment'}).click();
+ await expect(page.getByRole('heading',{name:'Expected power review'})).toBeVisible();
+ await expect(page.getByText(/AHU-12 has no reconciled electrical feed/i)).toBeVisible();
+ await expect(page.getByLabel('Imported object').locator('option').filter({hasText:'AHU-12'})).toHaveCount(0);
+});
+
+test('DOCX specification text becomes non-spatial powered-equipment evidence',async({page})=>{
+ await page.goto('/compiler');
+ const documentXml='<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>HVAC equipment electrical requirements</w:t></w:r></w:p><w:p><w:r><w:t>RTU-4 Rooftop Unit 208V 3PH FLA 22</w:t></w:r></w:p></w:body></w:document>';
+ const docx=zipSync({'word/document.xml':strToU8(documentXml)});
+ await sourceUpload(page).setInputFiles({name:'23-73-00-HVAC-Specification.docx',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',buffer:Buffer.from(docx)});
+ await expect(page.getByText(/paragraph\(s\).*powered equipment\/spec candidate/i)).toBeVisible();
+ const evidence=await page.evaluate(()=>{
+  const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
+  const entity=(graph.entities||[]).find((item:any)=>item.name.includes('RTU-4'));
+  return entity?{nonSpatial:entity.meta?.nonSpatial,officeFormat:entity.meta?.officeFormat,section:entity.meta?.documentSection}:null;
+ });
+ expect(evidence).toEqual({nonSpatial:true,officeFormat:'DOCX',section:'PARAGRAPH_TEXT'});
+ await page.getByRole('link',{name:'Render Spatial Environment'}).click();
+ await expect(page.getByRole('heading',{name:'Expected power review'})).toBeVisible();
+ await expect(page.getByText(/RTU-4 has no reconciled electrical feed/i)).toBeVisible();
+ await expect(page.getByLabel('Imported object').locator('option').filter({hasText:'RTU-4'})).toHaveCount(0);
 });
