@@ -6,6 +6,8 @@ import {resolveElectricalComponent} from "@/lib/electrical-component-library";
 import {resolveAssetPlacement} from "@/lib/asset-placement";
 import {fitProceduralObjectToMeters,normalizeObjectToMeters} from "@/lib/three-model-normalization";
 import SpatialAssetInspector from "@/components/SpatialAssetInspector";
+import {buildSpatialCoordinationReviewIndex,findingsForEntity} from "@/lib/spatial-coordination-review";
+import type {CoordinationSnapshot} from "@/lib/coordination-intelligence";
 import {type RegisteredSpatialAsset} from "@/lib/spatial-asset-link";
 import {
   DEFAULT_ELECTRICAL_MODEL_REGISTRY,
@@ -29,6 +31,7 @@ type Graph={
   version:string;createdAt:string;
   sources:{name:string;ext:string;sha256:string;discipline:string;floor?:string;elevation?:number;unitName?:string;unitToMeters?:number}[];
   entities:Entity[];links?:GraphLink[];stats:Record<Layer,number>;
+  coordinationIntelligence?:CoordinationSnapshot;
 };
 
 type RenderStatus="STARTING"|"WEBGL"|"FALLBACK";
@@ -103,6 +106,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
   const sourceLayers=useMemo(()=>graph?.sources||[],[graph]);
   const hiddenSourceSet=useMemo(()=>new Set(hiddenSources),[hiddenSources]);
   const sourceDisciplines=useMemo(()=>new Map((graph?.sources||[]).map(source=>[source.name,source.discipline||"Unclassified"])),[graph]);
+  const coordinationReview=useMemo(()=>buildSpatialCoordinationReviewIndex(graph?.coordinationIntelligence),[graph?.coordinationIntelligence]);
   const levels=useMemo(()=>{
     if(!graph)return[] as [string,number][];
     const map=new Map<string,number>();
@@ -181,6 +185,20 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       const material=(color:number,opacity=1,emissive=0)=>new THREE.MeshStandardMaterial({color,emissive,emissiveIntensity:.2,metalness:.28,roughness:.48,transparent:opacity<1,opacity,depthWrite:opacity>.2});
       const tag=(obj:any,e:Entity)=>{obj.userData.entity=e;entityAnchors.set(e.id,obj);clickableEntities.add(e.id);renderer.domElement.dataset.clickableAssets=String(clickableEntities.size);obj.traverse?.((node:any)=>{if(node.isMesh){node.userData.entity=e;if(!node.userData?.interactionProxy){node.castShadow=true;node.receiveShadow=true}const mats=Array.isArray(node.material)?node.material:[node.material];for(const mat of mats){if(mat?.emissive&&mat.userData?.stratumBaseEmissive===undefined){mat.userData=mat.userData||{};mat.userData.stratumBaseEmissive=mat.emissive.getHex();mat.userData.stratumBaseEmissiveIntensity=Number(mat.emissiveIntensity||0)}}clickable.push(node)}})};
       const interactionProxy=(root:any,target:[number,number,number])=>{const proxy=new THREE.Mesh(new THREE.BoxGeometry(Math.max(target[0]+.3,.8),Math.max(target[1]+.3,.8),Math.max(target[2]+.3,.8)),new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false,colorWrite:false}));proxy.userData.interactionProxy=true;root.add(proxy)};
+      const reviewMarker=(e:Entity)=>{
+        if(mode!=="REVIEW")return;
+        const review=coordinationReview.get(e.id);if(!review)return;
+        const color=review.severity==="H3"?0xff5a52:0xffb84d;
+        const root=new THREE.Group();
+        root.position.set(e.x,height(e)+2.45,e.y);
+        const sphere=new THREE.Mesh(new THREE.SphereGeometry(.23,18,12),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.95,depthTest:false}));
+        const ring=new THREE.Mesh(new THREE.TorusGeometry(.34,.035,8,24),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.92,depthTest:false}));
+        ring.rotation.x=Math.PI/2;
+        root.add(sphere,ring);
+        root.userData.entity=e;sphere.userData.entity=e;ring.userData.entity=e;
+        clickable.push(sphere,ring);groups.L4.add(root);
+        renderer.domElement.dataset.coordinationAssets=String(Number(renderer.domElement.dataset.coordinationAssets||0)+1);
+      };
       const label=(text:string,x:number,y:number,z:number,color="#cfefff",entity?:Entity)=>{
         if(!labels)return;const canvas=document.createElement("canvas");canvas.width=512;canvas.height=112;const ctx=canvas.getContext("2d");if(!ctx)return;
         ctx.fillStyle="rgba(3,12,18,.82)";ctx.roundRect(4,4,504,104,16);ctx.fill();ctx.fillStyle=color;ctx.font="700 28px system-ui";ctx.fillText(text.slice(0,30),20,49);ctx.fillStyle="#83a6b7";ctx.font="20px system-ui";ctx.fillText(`${y.toFixed(2)} m Z`,20,82);
@@ -230,6 +248,10 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
           }
         },undefined,()=>{if(!disposed)fallbackShape(e)});
       };
+      if(mode==="REVIEW"){
+        renderer.domElement.dataset.coordinationAssets="0";
+        for(const reviewEntity of visible)reviewMarker(reviewEntity);
+      }
       for(const e of graph.entities){
         if(!isVisible(e))continue;
         if(e.kind==="room-boundary"||e.kind==="floor-boundary"){room(e);continue}
@@ -364,12 +386,20 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
             {visible.map(e=>(e.kind==="line"||e.kind==="sld-feeder-candidate")&&Number.isFinite(e.x2)&&Number.isFinite(e.y2)?<line key={e.id} x1={sx(e.x)} y1={sy(e.y)} x2={sx(e.x2!)} y2={sy(e.y2!)} stroke={e.layer==="L3"?"#62bfff":"#7895a4"} strokeWidth=".28"/>:<g key={e.id} onClick={()=>setSelected(e)} style={{cursor:"pointer"}}><circle cx={sx(e.x)} cy={sy(e.y)} r={e.layer==="L2"?1.25:.75} fill={e.layer==="L2"?"#e5a14d":e.layer==="L4"?"#43d98f":"#7f98a6"}/>{labels&&e.layer==="L2"&&<text x={sx(e.x)+1.7} y={sy(e.y)-1} fill="#d8edf6" fontSize="2.2">{e.name.slice(0,24)}</text>}</g>)}
           </svg><p className="muted" style={{margin:"8px 0 0"}}>Interactive 2D fallback active. Source placement and selection remain available while this device/browser cannot initialize WebGL.</p>
         </div>}
-        <div style={{position:"absolute",top:12,right:12,background:"rgba(3,12,18,.86)",border:"1px solid #245069",borderRadius:12,padding:"10px 12px",pointerEvents:"none"}}><div className="eyebrow">INFRASTRUCTURE HUD</div><small>{renderStatus==="WEBGL"?"3D WEBGL":"2D FALLBACK"} · {mode}</small><div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:"4px 12px",marginTop:6,fontSize:12}}><span>VISIBLE</span><b>{visible.length}</b><span>SLD</span><b>{sldObjects}</b><span>UNRESOLVED Z</span><b>{unresolvedZ}</b><span>3D MODELS</span><b>{modelMapped}</b></div></div>
+        <div style={{position:"absolute",top:12,right:12,background:"rgba(3,12,18,.86)",border:"1px solid #245069",borderRadius:12,padding:"10px 12px",pointerEvents:"none"}}><div className="eyebrow">INFRASTRUCTURE HUD</div><small>{renderStatus==="WEBGL"?"3D WEBGL":"2D FALLBACK"} · {mode}</small><div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:"4px 12px",marginTop:6,fontSize:12}}><span>VISIBLE</span><b>{visible.length}</b><span>SLD</span><b>{sldObjects}</b><span>UNRESOLVED Z</span><b>{unresolvedZ}</b><span>3D MODELS</span><b>{modelMapped}</b>{mode==="REVIEW"&&<><span>COORDINATION</span><b>{[...coordinationReview.values()].filter(item=>visible.some(entity=>entity.id===item.entityId)).length}</b></>}</div></div>
       </div>
 
       <aside style={{padding:15,borderLeft:"1px solid #17334a",overflow:"auto"}}>
         <label>Imported object<select aria-label="Imported object" value={selected?.id||""} onChange={e=>setSelected(graph.entities.find(x=>x.id===e.target.value)||null)} style={{width:"100%"}}><option value="">Select an object</option>{matching.map(e=><option key={e.id} value={e.id}>{e.name} · {e.floor||"UNRESOLVED"}</option>)}</select></label>
         <SpatialAssetInspector selected={selected} registeredAssets={registeredAssets} onEntityUpdated={entity=>setSelected(entity as Entity)}/>
+        {selected&&findingsForEntity(graph.coordinationIntelligence,selected.id).length>0&&<div className="card" style={{marginTop:10,padding:12}} aria-label="Selected asset coordination review">
+          <div className="eyebrow">Coordination review</div>
+          <strong>{findingsForEntity(graph.coordinationIntelligence,selected.id).length} open source conflict{findingsForEntity(graph.coordinationIntelligence,selected.id).length===1?"":"s"}</strong>
+          <small style={{display:"block",marginTop:6}}>Review markers flag source conflicts only. They do not establish a geometric clash, code compliance, AHJ approval, or engineering approval.</small>
+          <ul style={{margin:"8px 0 0",paddingLeft:18}}>
+            {findingsForEntity(graph.coordinationIntelligence,selected.id).slice(0,4).map(finding=><li key={finding.id}><small>{finding.humanControlLevel} · {finding.findingType.replaceAll("_"," ")} · {finding.title}</small></li>)}
+          </ul>
+        </div>}
         {selected&&isSld(selected)&&<div className="notice" style={{marginTop:12}}><strong>SLD → SPATIAL PROJECTION</strong><span>The vertical separation in Electrical mode expresses logical power hierarchy. It is not an as-built physical elevation until field/design evidence establishes Z.</span></div>}
         {selected&&!physicalElevationKnown(selected)&&!isSld(selected)&&<div className="notice" style={{marginTop:12}}><strong>Z NEEDS REVIEW</strong><span>This object has source placement, but physical elevation is not yet established. Review floor/elevation before treating Z as physical placement.</span></div>}
         {selected&&<button className="ghost" style={{width:"100%",marginTop:12}} onClick={()=>setFitRevision(v=>v+1)}>Fit full model</button>}
