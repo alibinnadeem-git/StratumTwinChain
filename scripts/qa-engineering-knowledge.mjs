@@ -57,9 +57,10 @@ for(const id of [
  'ca-title24-part2-2025','ca-title24-part3-2025','ca-title24-part4-2025','ca-title24-part6-2025','ca-title24-part9-2025','ca-title24-part11-2025',
  'asce-7-22','aisc-360-22','aisc-341-22','ieee-1584-2018','iso-19650-1-2018','ada-2010','osha-1910-subpart-s','nist-csf-2-0','hipaa-security-rule-current','ul-1008-current'
 ])assert.ok(registry.includes(`id:'${id}'`),'Published reference registry missing '+id);
-const registryModule=await import('../lib/engineering-reference-registry.ts');
-const published=registryModule.ENGINEERING_REFERENCE_REGISTRY;
-assert.equal(new Set(published.map(item=>item.id)).size,published.length,'Published reference IDs must remain unique');
-assert.ok(published.every(item=>item.applicability==='REFERENCE_ONLY_UNTIL_PROJECT_AHJ_RESOLUTION'),'Every built-in reference must remain reference-only until project/AHJ resolution');
-assert.ok(published.every(item=>/^https:\/\//.test(item.publisherUrl)),'Every built-in reference must point to an HTTPS publisher/government source');
+const referenceIds=[...registry.matchAll(/\{id:'([^']+)'/g)].map(match=>match[1]);
+assert.equal(new Set(referenceIds).size,referenceIds.length,'Published reference IDs must remain unique');
+const applicabilityCount=(registry.match(/applicability:'REFERENCE_ONLY_UNTIL_PROJECT_AHJ_RESOLUTION'/g)||[]).length;
+assert.equal(applicabilityCount,referenceIds.length,'Every built-in reference must remain reference-only until project/AHJ resolution');
+const publisherUrlCount=(registry.match(/publisherUrl:'https:\/\//g)||[]).length;
+assert.equal(publisherUrlCount,referenceIds.length,'Every built-in reference must point to an HTTPS publisher/government source');
 console.log('Expected Power persistence, standards/OEM authority, and maintenance revision truth boundaries passed');
