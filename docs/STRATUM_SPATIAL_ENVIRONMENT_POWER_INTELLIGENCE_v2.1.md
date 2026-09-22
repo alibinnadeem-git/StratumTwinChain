@@ -208,13 +208,13 @@ The library shall expand from electrical-only toward multi-discipline physical a
 ### 4.8 Standards resolver
 The engine stores standards as licensed/public metadata and interpreted rules with version/effective-date provenance. It shall resolve project-applicable rules rather than assuming the newest edition is legally adopted.
 
-Reference families as of 2026-09-21 include:
+Reference families as of 2026-09-22 include:
 - NFPA 70 NEC, current published 2026 edition, subject to AHJ adoption;
 - NFPA 70E 2024 electrical safety;
 - NFPA 70B 2026 electrical equipment maintenance;
 - NFPA 72 2025 fire alarm/signaling and NFPA 20 2025 fire pumps, where applicable;
 - ICC 2024 IBC/IFC model codes, subject to local adoption/amendment;
-- ASHRAE/IES 90.1-2022 energy; ASHRAE 62.1-2025 ventilation/IAQ; ASHRAE 15-2024 refrigeration safety;
+- ASHRAE/IES 90.1-2025 energy; ASHRAE 62.1-2025 ventilation/IAQ; ASHRAE 15-2024 refrigeration safety;
 - NECA NEIS including NECA 1-2023 workmanship, NECA 90-2024 commissioning, NECA 91-2023 maintenance, NECA 100-2024 symbols and equipment-specific standards;
 - ISO 16739-1:2024 IFC;
 - ISO 19650-1:2018 and ISO 19650-2:2018 remain current published editions while second-edition drafts progress in 2026;
