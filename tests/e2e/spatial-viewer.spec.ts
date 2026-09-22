@@ -397,3 +397,42 @@ test('each uploaded drawing can be toggled independently as a Spatial source lay
  await expect(electrical).toBeChecked();
  await expect(page.getByText(/Source layers · 2\/2 visible/)).toBeVisible();
 });
+
+
+test('Review mode exposes clickable coordination findings on affected 3D assets',async({page})=>{
+ const source='E-201 Electrical Plan.dxf';
+ const graph={
+  version:'1.1',createdAt:'2026-09-22T22:40:00.000Z',
+  sources:[{name:source,ext:'dxf',sha256:'c'.repeat(64),discipline:'Electrical',floor:'L1',elevation:0,unitName:'m',unitToMeters:1}],
+  entities:[{id:'panel-review-1',source,layer:'L4',kind:'asset-candidate',name:'PANELBOARD LP-1',x:0,y:0,z:0,floor:'L1',confidence:.96,meta:{assetTag:'LP-1',registrationState:'CANDIDATE',sourceDesignCoordinate:true,physicalTruth:false,reviewRequired:true}}],
+  links:[],stats:{L0:1,L1:0,L2:0,L3:0,L4:1},
+  coordinationIntelligence:{
+   version:'1',generatedFrom:'2026-09-22T22:40:00.000Z',
+   findings:[{
+    id:'coord:rating:LP-1',findingType:'RATING_CONFLICT',title:'LP-1 has conflicting equipment ratings across sources',
+    detail:'Voltage differs across project sources.',entityRefs:['panel-review-1'],sourceRefs:[source,'M-601 Equipment Matrix.xlsx'],
+    comparison:{tag:'LP-1',fields:['voltage']},confidence:.96,humanControlLevel:'H3',status:'OPEN',
+    truthBoundary:'COORDINATION_FINDING_REQUIRES_HUMAN_REVIEW'
+   }],
+   summary:{findings:1,high:1,review:0},
+   truthBoundary:'COORDINATION_FINDINGS_DO_NOT_ESTABLISH_PHYSICAL_CLASH_CODE_COMPLIANCE_OR_ENGINEERING_APPROVAL'
+  }
+ };
+ await page.addInitScript(value=>localStorage.setItem('stratum_compiled_graph',JSON.stringify(value)),graph);
+ await page.goto('/spatial');
+ await expect(page.getByRole('heading',{name:'Spatial model'})).toBeVisible();
+ await page.getByRole('button',{name:/Review/}).click();
+ const canvas=page.locator('canvas[aria-label="Interactive Spatial model"]');
+ await expect(canvas).toBeVisible();
+ await expect.poll(async()=>Number(await canvas.getAttribute('data-coordination-assets')||0),{timeout:15000}).toBeGreaterThan(0);
+ const box=await canvas.boundingBox();expect(box).not.toBeNull();
+ const x=Number(await canvas.getAttribute('data-coordination-hit-x'));
+ const y=Number(await canvas.getAttribute('data-coordination-hit-y'));
+ expect(Number.isFinite(x)&&Number.isFinite(y)).toBeTruthy();
+ await page.mouse.click(box!.x+x,box!.y+y);
+ await expect.poll(async()=>await canvas.getAttribute('data-selected-asset')).toBe('panel-review-1');
+ await expect(page.getByRole('heading',{name:'PANELBOARD LP-1'})).toBeVisible();
+ await expect(page.getByLabel('Selected asset coordination review')).toBeVisible();
+ await expect(page.getByText(/RATING CONFLICT/)).toBeVisible();
+ await expect(page.getByText(/do not establish a geometric clash, code compliance, AHJ approval, or engineering approval/i)).toBeVisible();
+});
