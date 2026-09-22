@@ -133,7 +133,7 @@ assert.match(viewer,/hiddenSources/,'viewer must track source-specific visibilit
 assert.match(viewer,/const sourceKey=spatialEntitySourceKey\(e\)/,'source layer visibility must derive immutable per-entity source identity');
 assert.match(viewer,/hiddenSourceSet\.has\(sourceKey\)/,'source layer visibility must filter rendered entities by immutable source identity');
 assert.match(viewer,/Source layers · \{sourceLayers\.length-hiddenSources\.length\}\/\{sourceLayers\.length\} visible/,'viewer must expose concise source-layer status');
-assert.match(viewer,/Toggle source \$\{source\.name\}/,'each source layer must have an accessible on-off control');
+assert.match(viewer,/Toggle source \$\{label\}/,'each source revision layer must have an accessible disambiguated on-off control');
 assert.match(viewer,/Show all sources/);assert.match(viewer,/Hide all sources/);
 assert.match(viewer,/graph\.entities\.length===0/,'zero-entity graphs must not render an empty project stage');
 assert.match(spatialPage,/MODEL · LIVE ASSETS/);assert.match(spatialPage,/MODEL · BROWSER/);assert.match(spatialPage,/<SpatialExperience /);
