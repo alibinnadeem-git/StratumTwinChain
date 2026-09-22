@@ -6,10 +6,12 @@ import PowerIntelligencePanel from '@/components/PowerIntelligencePanel';
 import TrustBadge from '@/components/TrustBadge';
 import {type RegisteredSpatialAsset} from '@/lib/spatial-asset-link';
 import {liveAssets} from '@/lib/server/live-views';
+import {readSession} from '@/lib/server/auth';
 
 export const dynamic='force-dynamic';
 
 export default async function SpatialPage(){
+ const session=await readSession();
  let assets:RegisteredSpatialAsset[]=[];let backendOnline=true;
  try{
   const rows=await liveAssets();
@@ -31,7 +33,7 @@ export default async function SpatialPage(){
 
   <div className="page-head"><div><div className="eyebrow">Spatial</div><h1 className="title">See the project.</h1><p className="subtitle">The project model is the workspace. Click equipment for identity, field activity and DIR status; open review details only when something needs attention.</p></div><div className="badge">{backendOnline?'MODEL · LIVE ASSETS':'MODEL · BROWSER'}</div></div>
 
-  <SpatialWorkspaceStatus compact/>
+  <SpatialWorkspaceStatus compact authenticated={Boolean(session)}/>
 
   <SpatialExperience assets={assets}/>
   <PowerIntelligencePanel/>
