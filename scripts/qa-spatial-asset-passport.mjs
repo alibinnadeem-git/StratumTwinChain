@@ -38,6 +38,9 @@ assert.match(viewer,/pointerdown[\s\S]*pointermove[\s\S]*pointerup/,'3D click se
 assert.match(viewer,/Math\.hypot\(ev\.clientX-start\.x,ev\.clientY-start\.y\)>6/,'orbit drags must not be interpreted as asset clicks');
 assert.match(viewer,/dataset\.clickableAssets/,'rendered clickable asset count must be exposed for release UAT');
 assert.match(viewer,/dataset\.selectedAsset=entity\.id/,'raycast selection must expose the selected rendered asset for release UAT');
+assert.match(viewer,/interactionProxy/,'rendered assets must have a forgiving 3D hit envelope for desktop and touch selection');
+assert.match(viewer,/dataset\.primaryHitX/,'browser UAT must click the actual projected Spatial asset position');
+assert.match(viewer,/sprite\.userData\.entity=entity/,'visible equipment labels must select the same asset as the 3D geometry');
 assert.match(viewer,/Interactive Spatial model/,'WebGL canvas must remain discoverable for accessibility and UAT');
 assert.match(inspector,/Registered asset/);assert.match(inspector,/DIR FINALIZED/);assert.match(inspector,/No finalized DIR yet/);assert.match(inspector,/>Passport</);
 assert.match(inspector,/AssetActivityPanel/,'asset click must expose server lifecycle activity');
