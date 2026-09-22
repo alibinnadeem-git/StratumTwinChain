@@ -25,6 +25,7 @@
     "qa:coordination-intelligence": "node --experimental-strip-types scripts/qa-coordination-intelligence.mjs",
     "qa:office-ingestion": "node --experimental-strip-types scripts/qa-office-ingestion.mjs",
     "qa:ifc-ingestion": "node --experimental-strip-types scripts/qa-ifc-ingestion.mjs",
+    "qa:image-ocr": "node --experimental-strip-types scripts/qa-image-ocr.mjs",
     "qa:sld-spatial": "node --experimental-strip-types scripts/qa-sld-spatial-ingest.mjs",
     "qa:spatial-asset-passport": "node --experimental-strip-types scripts/qa-spatial-asset-passport.mjs",
     "qa:title-block": "node --experimental-strip-types scripts/qa-title-block.mjs",
@@ -61,6 +62,7 @@
   "dependencies": {
     "@zxing/browser": "^0.2.1",
     "fflate": "^0.8.3",
+    "tesseract.js": "^7.0.0",
     "jose": "^6.0.11",
     "next": "16.3.1",
     "pdfjs-dist": "^5.4.149",
