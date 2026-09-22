@@ -64,7 +64,7 @@ const POWERED_CLASSES:PoweredClass[]=[
 const ELECTRICAL_SUPPLY=/\b(?:panel|panelboard|switchboard|switchgear|breaker|circuit|feeder|disconnect|mcc|pdu|rpp|transformer|xfmr|ats|ups)\b/i;
 const TAG_PATTERN=/\b(?:AHU|RTU|MAU|FCU|VAV|EF|SF|RF|PF|FP|JP|SMF|P|PMP|CH|CHLR|CT|CU|HP|WH|UH|HWP|CHWP|FACP|NAC|BMS|DDC|ELEV|EL|EVSE)[-_ ]?#?[A-Z0-9]+(?:[-_.][A-Z0-9]+)*\b/i;
 
-function finite(value:unknown){const n=Number(value);return Number.isFinite(n)?n:null}
+function finite(value:unknown){if(value===null||value===undefined||value==='')return null;const n=Number(value);return Number.isFinite(n)?n:null}
 function firstMeta(entity:PowerEntity,keys:string[]){for(const key of keys){const n=finite(entity.meta?.[key]);if(n!==null)return n}return null}
 function parseNumber(text:string,pattern:RegExp){const m=text.match(pattern);return m?finite(m[1]):null}
 function normalized(value:string){return value.toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim()}
