@@ -41,6 +41,11 @@ for(const file of sourceFiles){
  if(/\bblockchain\b/i.test(text)&&!rel.startsWith('app/api/'))warnings.push(`${rel}: public-facing "blockchain" wording remains`);
 }
 
+const spatialPagePath=path.join(root,'app','spatial','page.tsx');
+const spatialPage=fs.readFileSync(spatialPagePath,'utf8');
+if(!/if\(session\)try\{[\s\S]*?liveAssets\(\)/.test(spatialPage))errors.push('app/spatial/page.tsx: signed-out Spatial must not query the live asset registry');
+if(/console\.error\(['"]STRATUM Spatial Verified backend data unavailable/.test(spatialPage))errors.push('app/spatial/page.tsx: signed-out/source-only state must not be logged as a backend error');
+
 const shellPath=path.join(root,'components','Shell.tsx');
 const shell=fs.readFileSync(shellPath,'utf8');
 if(/demoSession/.test(shell))errors.push('components/Shell.tsx: shell must not display demo identity as authenticated user');
