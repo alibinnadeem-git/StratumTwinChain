@@ -159,17 +159,18 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       (Object.keys(groups) as Layer[]).forEach(l=>scene.add(groups[l]));
       groups.L0.visible=mode!=="ELECTRICAL";groups.L1.visible=mode!=="ELECTRICAL";groups.L2.visible=true;groups.L3.visible=true;groups.L4.visible=true;
       const entityById=new Map(graph.entities.map(e=>[e.id,e]));
-      const clickable:any[]=[];const clickableEntities=new Set<string>();
+      const clickable:any[]=[];const clickableEntities=new Set<string>();const entityAnchors=new Map<string,any>();
       const floorIndex=new Map(levels.map(([name],i)=>[name,i]));
       const extra=(e:Entity)=>exploded?(floorIndex.get(e.floor||"UNRESOLVED")||0)*2.6:0;
       const height=(e:Entity)=>displayElevation(e,mode)+extra(e);
       const isVisible=(e:Entity)=>visible.some(v=>v.id===e.id);
       const material=(color:number,opacity=1,emissive=0)=>new THREE.MeshStandardMaterial({color,emissive,emissiveIntensity:.2,metalness:.28,roughness:.48,transparent:opacity<1,opacity,depthWrite:opacity>.2});
-      const tag=(obj:any,e:Entity)=>{obj.userData.entity=e;clickableEntities.add(e.id);renderer.domElement.dataset.clickableAssets=String(clickableEntities.size);obj.traverse?.((node:any)=>{if(node.isMesh){node.userData.entity=e;node.castShadow=true;node.receiveShadow=true;const mats=Array.isArray(node.material)?node.material:[node.material];for(const mat of mats){if(mat?.emissive&&mat.userData?.stratumBaseEmissive===undefined){mat.userData=mat.userData||{};mat.userData.stratumBaseEmissive=mat.emissive.getHex();mat.userData.stratumBaseEmissiveIntensity=Number(mat.emissiveIntensity||0)}}clickable.push(node)}})};
-      const label=(text:string,x:number,y:number,z:number,color="#cfefff")=>{
+      const tag=(obj:any,e:Entity)=>{obj.userData.entity=e;entityAnchors.set(e.id,obj);clickableEntities.add(e.id);renderer.domElement.dataset.clickableAssets=String(clickableEntities.size);obj.traverse?.((node:any)=>{if(node.isMesh){node.userData.entity=e;if(!node.userData?.interactionProxy){node.castShadow=true;node.receiveShadow=true}const mats=Array.isArray(node.material)?node.material:[node.material];for(const mat of mats){if(mat?.emissive&&mat.userData?.stratumBaseEmissive===undefined){mat.userData=mat.userData||{};mat.userData.stratumBaseEmissive=mat.emissive.getHex();mat.userData.stratumBaseEmissiveIntensity=Number(mat.emissiveIntensity||0)}}clickable.push(node)}})};
+      const interactionProxy=(root:any,target:[number,number,number])=>{const proxy=new THREE.Mesh(new THREE.BoxGeometry(Math.max(target[0]+.3,.8),Math.max(target[1]+.3,.8),Math.max(target[2]+.3,.8)),new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false,colorWrite:false}));proxy.userData.interactionProxy=true;root.add(proxy)};
+      const label=(text:string,x:number,y:number,z:number,color="#cfefff",entity?:Entity)=>{
         if(!labels)return;const canvas=document.createElement("canvas");canvas.width=512;canvas.height=112;const ctx=canvas.getContext("2d");if(!ctx)return;
         ctx.fillStyle="rgba(3,12,18,.82)";ctx.roundRect(4,4,504,104,16);ctx.fill();ctx.fillStyle=color;ctx.font="700 28px system-ui";ctx.fillText(text.slice(0,30),20,49);ctx.fillStyle="#83a6b7";ctx.font="20px system-ui";ctx.fillText(`${y.toFixed(2)} m Z`,20,82);
-        const texture=new THREE.CanvasTexture(canvas),sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,depthTest:false}));sprite.scale.set(3.5,.77,1);sprite.position.set(x,y+2.2,z);scene.add(sprite);
+        const texture=new THREE.CanvasTexture(canvas),sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,depthTest:false}));sprite.scale.set(3.5,.77,1);sprite.position.set(x,y+2.2,z);if(entity){sprite.userData.entity=entity;clickable.push(sprite)}scene.add(sprite);
       };
       const wall=(a:XY,b:XY,e:Entity)=>{const dx=b.x-a.x,dz=b.y-a.y,len=Math.hypot(dx,dz);if(len<.02)return;const op=xray?.12:.55,m=new THREE.Mesh(new THREE.BoxGeometry(len,2.7,.09),material(colors.L1,op));m.position.set((a.x+b.x)/2,height(e)+1.35,(a.y+b.y)/2);m.rotation.y=-Math.atan2(dz,dx);groups.L1.add(m)};
       const room=(e:Entity)=>{if(!e.vertices||e.vertices.length<3||!isVisible(e))return;const shape=new THREE.Shape();e.vertices.forEach((p,i)=>i?shape.lineTo(p.x,p.y):shape.moveTo(p.x,p.y));shape.closePath();const floorMesh=new THREE.Mesh(new THREE.ShapeGeometry(shape),material(0x173748,xray?.07:.18));floorMesh.rotation.x=Math.PI/2;floorMesh.position.y=height(e)+.01;groups.L1.add(floorMesh);for(let i=0;i<e.vertices.length;i++)wall(e.vertices[i],e.vertices[(i+1)%e.vertices.length],e)};
@@ -183,7 +184,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
         try{fitProceduralObjectToMeters(root,target)}catch{}
         root.position.set(e.x,height(e),e.y);root.rotation.y=THREE.MathUtils.degToRad(-(e.rotation||0));
         root.userData.dimensionAuthority=placement.dimensions.authority;root.userData.targetDimensionsMeters=target;
-        tag(root,e);groups[e.layer==="L4"?"L4":"L2"].add(root);label(e.name,e.x,height(e),e.y,isSld(e)?"#8fcfff":"#ffd08a");
+        interactionProxy(root,target);tag(root,e);groups[e.layer==="L4"?"L4":"L2"].add(root);label(e.name,e.x,height(e),e.y,isSld(e)?"#8fcfff":"#ffd08a",e);
       };
       const loader=new GLTFLoader();
       const equipment=(e:Entity)=>{
@@ -206,7 +207,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
             root.userData.targetDimensionsMeters=target;
             root.userData.normalization={scalar:normalized.scalar,ratioSpread:normalized.ratioSpread,reviewRequired:normalized.reviewRequired};
             if(normalized.reviewRequired)console.warn("STRATUM model dimension mismatch requires review",{component:e.name,target,intrinsic:normalized.intrinsic,ratios:normalized.ratios,ratioSpread:normalized.ratioSpread});
-            root.add(model);tag(root,e);groups[e.layer==="L4"?"L4":"L2"].add(root);label(e.name,e.x,height(e),e.y);
+            root.add(model);interactionProxy(root,target);tag(root,e);groups[e.layer==="L4"?"L4":"L2"].add(root);label(e.name,e.x,height(e),e.y,"#cfefff",e);
             const renderedBox=new THREE.Box3().setFromObject(root);if(!renderedBox.isEmpty())bounds.union(renderedBox);
             runtime.current?.fit?.();
           }catch(error){
@@ -257,7 +258,8 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       renderer.domElement.addEventListener("pointerup",pick);
       renderer.domElement.addEventListener("pointercancel",pick);
       const ro=new ResizeObserver(()=>{if(!host.clientWidth||!host.clientHeight)return;camera.aspect=host.clientWidth/host.clientHeight;camera.updateProjectionMatrix();renderer.setSize(host.clientWidth,host.clientHeight)});ro.observe(host);
-      let frame=0;const animate=()=>{controls.update();renderer.render(scene,camera);frame=requestAnimationFrame(animate)};animate();
+      const publishPrimaryHit=()=>{const first=[...entityAnchors.entries()][0];if(!first)return;const [id,obj]=first,p=new THREE.Vector3();obj.getWorldPosition(p);p.project(camera);renderer.domElement.dataset.primaryAsset=id;renderer.domElement.dataset.primaryHitX=String(((p.x+1)/2)*renderer.domElement.clientWidth);renderer.domElement.dataset.primaryHitY=String(((-p.y+1)/2)*renderer.domElement.clientHeight)};
+      let frame=0;const animate=()=>{controls.update();publishPrimaryHit();renderer.render(scene,camera);frame=requestAnimationFrame(animate)};animate();
       cleanup=()=>{runtime.current=null;cancelAnimationFrame(frame);ro.disconnect();renderer.domElement.removeEventListener("pointerdown",pointerDown);renderer.domElement.removeEventListener("pointermove",pointerMove);renderer.domElement.removeEventListener("pointerup",pick);renderer.domElement.removeEventListener("pointercancel",pick);controls.dispose();renderer.dispose();host.replaceChildren()};
     })();
     return()=>{disposed=true;cleanup()};
