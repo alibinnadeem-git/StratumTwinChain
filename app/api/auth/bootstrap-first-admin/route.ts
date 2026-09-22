@@ -2,7 +2,7 @@ import {createHash,timingSafeEqual} from 'node:crypto';
 import {NextRequest,NextResponse} from 'next/server';
 import {tx} from '@/lib/server/db';
 
-const BOOTSTRAP_TOKEN_SHA256='bbceeb9aa1f77f811a2836bde1bb15e083a5623cdf45f010f3737269dc41aac9';
+const BOOTSTRAP_TOKEN_SHA256='dc6c9c82027bcce2b30a3c9cd22338e43b36a40981d6faee5bc2ff5ea41ed39a';
 const BOOTSTRAP_EXPIRES_AT='2026-10-01T00:00:00.000Z';
 const BOOTSTRAP_ORGANIZATION='STRATUM Power';
 
