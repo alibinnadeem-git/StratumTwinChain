@@ -41,16 +41,18 @@ function model(entity:CoordinationEntity){return norm(entity.meta?.model||entity
 function manufacturer(entity:CoordinationEntity){return norm(entity.meta?.manufacturer||entity.meta?.manufacturerName)}
 function sourceSha(entity:CoordinationEntity){return norm(entity.meta?.sourceSha256)||norm(entity.source)}
 function nonSpatial(entity:CoordinationEntity){return entity.meta?.nonSpatial===true}
+function parsedNumber(text:string,pattern:RegExp){const match=text.match(pattern);return match?finite(match[1]):null}
 function rating(entity:CoordinationEntity){
+ const text=entity.name;
  return{
-  voltage:finite(entity.meta?.voltage??entity.meta?.voltageV??entity.meta?.ratedVoltage),
-  phase:finite(entity.meta?.phase??entity.meta?.phases),
-  inputKw:finite(entity.meta?.inputKw??entity.meta?.kw??entity.meta?.ratedKw),
-  inputKva:finite(entity.meta?.inputKva??entity.meta?.kva??entity.meta?.ratedKva),
-  fla:finite(entity.meta?.fla??entity.meta?.fullLoadAmps),
-  mca:finite(entity.meta?.mca??entity.meta?.minimumCircuitAmpacity),
-  mocp:finite(entity.meta?.mocp??entity.meta?.maxOvercurrentProtection),
-  motorHp:finite(entity.meta?.motorHp??entity.meta?.hp)
+  voltage:finite(entity.meta?.voltage??entity.meta?.voltageV??entity.meta?.ratedVoltage)??parsedNumber(text,/\b(\d{2,5}(?:\.\d+)?)\s*V(?:OLT)?S?\b/i),
+  phase:finite(entity.meta?.phase??entity.meta?.phases)??(/\b3\s*(?:PH|PHASE)\b/i.test(text)?3:/\b1\s*(?:PH|PHASE)\b/i.test(text)?1:null),
+  inputKw:finite(entity.meta?.inputKw??entity.meta?.kw??entity.meta?.ratedKw)??parsedNumber(text,/\b(\d+(?:\.\d+)?)\s*KW\b/i),
+  inputKva:finite(entity.meta?.inputKva??entity.meta?.kva??entity.meta?.ratedKva)??parsedNumber(text,/\b(\d+(?:\.\d+)?)\s*KVA\b/i),
+  fla:finite(entity.meta?.fla??entity.meta?.fullLoadAmps)??parsedNumber(text,/\bFLA\s*[:=]?\s*(\d+(?:\.\d+)?)/i),
+  mca:finite(entity.meta?.mca??entity.meta?.minimumCircuitAmpacity)??parsedNumber(text,/\bMCA\s*[:=]?\s*(\d+(?:\.\d+)?)/i),
+  mocp:finite(entity.meta?.mocp??entity.meta?.maxOvercurrentProtection)??parsedNumber(text,/\bMOCP\s*[:=]?\s*(\d+(?:\.\d+)?)/i),
+  motorHp:finite(entity.meta?.motorHp??entity.meta?.hp)??parsedNumber(text,/\b(\d+(?:\.\d+)?)\s*HP\b/i)
  };
 }
 function different(a:unknown,b:unknown,tolerance=.001){
