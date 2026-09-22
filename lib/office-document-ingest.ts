@@ -1,5 +1,5 @@
 import {strFromU8,unzipSync} from 'fflate';
-import {parseEquipmentScheduleText,type ScheduleEntity} from './equipment-schedule';
+import {parseEquipmentScheduleText,type ScheduleEntity} from './equipment-schedule.ts';
 
 export type StructuredOfficeResult={
  entities:ScheduleEntity[];
