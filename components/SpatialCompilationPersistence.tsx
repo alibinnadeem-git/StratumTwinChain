@@ -102,6 +102,7 @@ export default function SpatialCompilationPersistence(){
       const body=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(body?.error||`Snapshot save failed (${response.status}).`);
       await refresh(projectId);
+      window.dispatchEvent(new Event('stratum:power-snapshot-saved'));
       setMessage(body.idempotent?'This exact compilation already exists on the server; no duplicate revision was created.':`Saved Spatial review snapshot revision ${body.revision}. Human review is still required.`);
     }catch(error){setMessage(error instanceof Error?error.message:'Unable to save the Spatial review snapshot.');}
     finally{setBusy(false);}
