@@ -159,13 +159,13 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       (Object.keys(groups) as Layer[]).forEach(l=>scene.add(groups[l]));
       groups.L0.visible=mode!=="ELECTRICAL";groups.L1.visible=mode!=="ELECTRICAL";groups.L2.visible=true;groups.L3.visible=true;groups.L4.visible=true;
       const entityById=new Map(graph.entities.map(e=>[e.id,e]));
-      const clickable:any[]=[];
+      const clickable:any[]=[];const clickableEntities=new Set<string>();
       const floorIndex=new Map(levels.map(([name],i)=>[name,i]));
       const extra=(e:Entity)=>exploded?(floorIndex.get(e.floor||"UNRESOLVED")||0)*2.6:0;
       const height=(e:Entity)=>displayElevation(e,mode)+extra(e);
       const isVisible=(e:Entity)=>visible.some(v=>v.id===e.id);
       const material=(color:number,opacity=1,emissive=0)=>new THREE.MeshStandardMaterial({color,emissive,emissiveIntensity:.2,metalness:.28,roughness:.48,transparent:opacity<1,opacity,depthWrite:opacity>.2});
-      const tag=(obj:any,e:Entity)=>{obj.userData.entity=e;obj.traverse?.((node:any)=>{if(node.isMesh){node.userData.entity=e;node.castShadow=true;node.receiveShadow=true;const mats=Array.isArray(node.material)?node.material:[node.material];for(const mat of mats){if(mat?.emissive&&mat.userData?.stratumBaseEmissive===undefined){mat.userData=mat.userData||{};mat.userData.stratumBaseEmissive=mat.emissive.getHex();mat.userData.stratumBaseEmissiveIntensity=Number(mat.emissiveIntensity||0)}}clickable.push(node)}})};
+      const tag=(obj:any,e:Entity)=>{obj.userData.entity=e;clickableEntities.add(e.id);renderer.domElement.dataset.clickableAssets=String(clickableEntities.size);obj.traverse?.((node:any)=>{if(node.isMesh){node.userData.entity=e;node.castShadow=true;node.receiveShadow=true;const mats=Array.isArray(node.material)?node.material:[node.material];for(const mat of mats){if(mat?.emissive&&mat.userData?.stratumBaseEmissive===undefined){mat.userData=mat.userData||{};mat.userData.stratumBaseEmissive=mat.emissive.getHex();mat.userData.stratumBaseEmissiveIntensity=Number(mat.emissiveIntensity||0)}}clickable.push(node)}})};
       const label=(text:string,x:number,y:number,z:number,color="#cfefff")=>{
         if(!labels)return;const canvas=document.createElement("canvas");canvas.width=512;canvas.height=112;const ctx=canvas.getContext("2d");if(!ctx)return;
         ctx.fillStyle="rgba(3,12,18,.82)";ctx.roundRect(4,4,504,104,16);ctx.fill();ctx.fillStyle=color;ctx.font="700 28px system-ui";ctx.fillText(text.slice(0,30),20,49);ctx.fillStyle="#83a6b7";ctx.font="20px system-ui";ctx.fillText(`${y.toFixed(2)} m Z`,20,82);
@@ -251,7 +251,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       let down:{x:number;y:number}|null=null;
       const pointerDown=(ev:PointerEvent)=>{down={x:ev.clientX,y:ev.clientY};renderer.domElement.style.cursor="grabbing"};
       const pointerMove=(ev:PointerEvent)=>{if(down)return;renderer.domElement.style.cursor=hitEntity(ev)?"pointer":"grab"};
-      const pick=(ev:PointerEvent)=>{renderer.domElement.style.cursor="grab";const start=down;down=null;if(start&&Math.hypot(ev.clientX-start.x,ev.clientY-start.y)>6)return;const entity=hitEntity(ev);if(entity)setSelected(entity)};
+      const pick=(ev:PointerEvent)=>{renderer.domElement.style.cursor="grab";const start=down;down=null;if(start&&Math.hypot(ev.clientX-start.x,ev.clientY-start.y)>6)return;const entity=hitEntity(ev);if(entity){renderer.domElement.dataset.selectedAsset=entity.id;setSelected(entity)}};
       renderer.domElement.addEventListener("pointerdown",pointerDown);
       renderer.domElement.addEventListener("pointermove",pointerMove);
       renderer.domElement.addEventListener("pointerup",pick);
