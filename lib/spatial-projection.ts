@@ -90,6 +90,7 @@ export function enrichSpatialProjection<T extends SpatialProjectionGraph>(graph:
  const originalById=new Map(graph.entities.map(entity=>[entity.id,entity]));
  const cadScales=buildCadScales(graph.entities);
  const metricEntities=graph.entities.map(entity=>{
+  if(entity.meta?.nonSpatial===true)return entity;
   const cadScale=cadScales.get(sourceDocument(entity));if(!cadScale||entity.meta?.cadMetricXY===true)return entity;
   const tx=(x:number)=>(x-cadScale.minDisplayX)*cadScale.metersPerX,ty=(y:number)=>(y-cadScale.minDisplayY)*cadScale.metersPerY;
   const explicitCadZ=hasExplicitCadZ(entity);
@@ -111,6 +112,7 @@ export function enrichSpatialProjection<T extends SpatialProjectionGraph>(graph:
  }
 
  const entities=metricEntities.map(entity=>{
+  if(entity.meta?.nonSpatial===true)return entity;
   const meta={...(entity.meta||{})};
   const frame=sourceFrame(entity),isSld=entity.layer==='L2'&&sldFrames.has(frame);
   let z=Number.isFinite(Number(entity.z))?Number(entity.z):0;
