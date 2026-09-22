@@ -23,6 +23,7 @@
     "qa:equipment-schedule": "node --experimental-strip-types scripts/qa-equipment-schedule.mjs",
     "qa:engineering-knowledge": "node scripts/qa-engineering-knowledge.mjs",
     "qa:coordination-intelligence": "node --experimental-strip-types scripts/qa-coordination-intelligence.mjs",
+    "qa:office-ingestion": "node --experimental-strip-types scripts/qa-office-ingestion.mjs",
     "qa:sld-spatial": "node --experimental-strip-types scripts/qa-sld-spatial-ingest.mjs",
     "qa:spatial-asset-passport": "node --experimental-strip-types scripts/qa-spatial-asset-passport.mjs",
     "qa:title-block": "node --experimental-strip-types scripts/qa-title-block.mjs",
