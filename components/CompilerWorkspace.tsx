@@ -19,8 +19,8 @@ type CompiledGraph={version:string;createdAt:string;sources:{name:string;ext:str
 
 const NATIVE_ADAPTER=['dwg','ifc','rvt'];
 const VIEWER=['glb','gltf'];
-const ACCEPTED=new Set(['pdf','dwg','dxf','ifc','rvt','glb','gltf','png','jpg','jpeg']);
-const classify=(name:string)=>{const n=name.toLowerCase();if(/(^|[^a-z])e\d|elect|power|lighting|one.?line|panel/.test(n))return'Electrical';if(/civil|grading|drainage/.test(n))return'Civil';if(/arch|floor|plan/.test(n))return'Architectural';if(/mech|hvac/.test(n))return'Mechanical';if(/plumb/.test(n))return'Plumbing';return'Unclassified'};
+const ACCEPTED=new Set(['pdf','dwg','dxf','ifc','rvt','glb','gltf','png','jpg','jpeg','csv','xlsx','xls','docx','txt']);
+const classify=(name:string)=>{const n=name.toLowerCase();if(/(^|[^a-z])e\d|elect|power|lighting|one.?line|panel/.test(n))return'Electrical';if(/fire|sprinkler|life.?safety/.test(n))return'Fire Protection';if(/controls|\bbms\b|\bbas\b|\bddc\b/.test(n))return'Controls';if(/struct|framing|foundation/.test(n))return'Structural';if(/civil|grading|drainage|site plan/.test(n))return'Civil';if(/arch|floor|plan/.test(n))return'Architectural';if(/mech|hvac/.test(n))return'Mechanical';if(/plumb/.test(n))return'Plumbing';return'Unclassified'};
 const inferLevel=(name:string)=>{const n=name.toLowerCase();if(/roof|penthouse/.test(n))return{floor:'ROOF',elevation:12};if(/basement|\bb1\b|parking/.test(n))return{floor:'B1',elevation:-4};const m=n.match(/(?:level|floor|lvl|fl)[-_ ]?(\d+)/);if(m){const f=Number(m[1]);return{floor:`L${f}`,elevation:(f-1)*4}}if(/ground|\bl1\b|first floor/.test(n))return{floor:'L1',elevation:0};return{floor:'L1',elevation:0}};
 const layerFor=(s:string):Layer=>{const n=s.toLowerCase();if(/wall|door|room|floor|ceiling|stair|column|architect|partition|a-wall|a-room/.test(n))return'L1';if(/feeder|circuit|conduit|wire|cable|tray|busway/.test(n)||isElectricalCircuitLabel(s))return'L3';if(isElectricalAssetLabel(s))return'L2';return'L1'};
 const roomCandidate=(s:string)=>/room|electrical room|switchgear room|mdf|idf|mechanical room|garage|lobby|corridor|office|lab|data hall|closet|storage/i.test(s);
@@ -89,8 +89,8 @@ export default function CompilerWorkspace(){
    <div className="eyebrow">Engineering sources</div>
    <h2>Drop the project set</h2>
    <label className={`source-drop ${dragging?'dragging':''}`} onDragEnter={e=>{e.preventDefault();setDragging(true)}} onDragOver={e=>{e.preventDefault();setDragging(true)}} onDragLeave={()=>setDragging(false)} onDrop={drop}>
-    <div><div className="source-drop-icon">⌁</div><b>{busy?'Parsing engineering sources…':dragging?'Release to import':'Drag files here or choose files'}</b><p className="muted">PDF · DXF · DWG · IFC · RVT · GLB · GLTF · images</p></div>
-    <input hidden multiple disabled={busy} type="file" accept=".pdf,.dwg,.dxf,.ifc,.rvt,.glb,.gltf,.png,.jpg,.jpeg" onChange={addFiles}/>
+    <div><div className="source-drop-icon">⌁</div><b>{busy?'Parsing engineering sources…':dragging?'Release to import':'Drag files here or choose files'}</b><p className="muted">PDF · DXF/DWG · IFC/RVT · GLB/GLTF · images · schedules/spec files</p></div>
+    <input hidden multiple disabled={busy} type="file" accept=".pdf,.dwg,.dxf,.ifc,.rvt,.glb,.gltf,.png,.jpg,.jpeg,.csv,.xlsx,.xls,.docx,.txt" onChange={addFiles}/>
    </label>
 
    {message&&<div className="notice" role="status"><strong>{busy?'PARSING':'IMPORT'}</strong><span>{message}</span></div>}
@@ -106,7 +106,8 @@ export default function CompilerWorkspace(){
     <div><span>Levels</span><strong>{totals.levels}</strong></div>
    </div>
 
-   <div className="button-row"><Link className="action" href="/spatial">Open Spatial</Link></div>
+   <div className="button-row">{totals.entities>0?<Link className="action" href="/spatial">Render Spatial Environment</Link>:<button className="action" type="button" disabled>Render Spatial Environment</button>}</div>
+   <p className="muted" style={{marginBottom:0}}>{totals.entities>0?'Render compiles the current source-derived graph into the Spatial environment and keeps unresolved geometry/inference reviewable.':'A renderable source object is required first; fingerprint-only files do not unlock a false or demonstration model.'}</p>
   </section>
 
   <details className="secondary-details card">
