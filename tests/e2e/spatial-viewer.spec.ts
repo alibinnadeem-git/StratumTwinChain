@@ -256,3 +256,25 @@ test('IFC BIM source preserves source-design placement and feeds Expected Power'
  await expect(page.getByText(/P-1 has no reconciled electrical feed/i)).toBeVisible();
  await expect(page.getByLabel('Imported object').locator('option').filter({hasText:'P-1'})).toHaveCount(1);
 });
+
+test('uploaded drawing renders a clickable WebGL asset and opens its inspector from the model',async({page})=>{
+ await page.goto('/compiler');
+ const dxf=['0','SECTION','2','HEADER','9','$INSUNITS','70','2','0','ENDSEC','0','SECTION','2','ENTITIES','0','INSERT','8','E-EQUIP','2','DRY TYPE TRANSFORMER T1','10','100','20','100','30','0','0','ENDSEC','0','EOF',''].join('\n');
+ await sourceUpload(page).setInputFiles({name:'E2-Level-1-Transformer.dxf',mimeType:'application/dxf',buffer:Buffer.from(dxf)});
+ await expect(page.getByText(/Source compilation updated/i)).toBeVisible();
+ await page.getByRole('link',{name:'Render Spatial Environment'}).click();
+ await expect(page).toHaveURL(/\/spatial/);
+ await expect(page.getByRole('heading',{name:'Spatial model'})).toBeVisible();
+
+ const canvas=page.locator('canvas[aria-label="Interactive Spatial model"]');
+ await expect(canvas).toBeVisible();
+ await expect(page.getByText(/3D WEBGL/)).toBeVisible();
+ await expect.poll(async()=>Number(await canvas.getAttribute('data-clickable-assets')||0),{timeout:15000}).toBeGreaterThan(0);
+
+ const box=await canvas.boundingBox();
+ expect(box).not.toBeNull();
+ await page.mouse.click(box!.x+box!.width/2,box!.y+box!.height/2);
+ await expect.poll(async()=>await canvas.getAttribute('data-selected-asset')).toBeTruthy();
+ await expect(page.getByRole('heading',{name:'DRY TYPE TRANSFORMER T1'})).toBeVisible();
+ await expect(page.getByText('Z placement',{exact:true})).toBeVisible();
+});
