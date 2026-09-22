@@ -4,6 +4,7 @@ import {requireSession} from '@/lib/server/auth';
 import {query,tx} from '@/lib/server/db';
 import {canonicalHash} from '@/lib/server/hash';
 import {parsePowerIntelligence,persistPowerIntelligence} from '@/lib/server/power-intelligence-persistence';
+import {parseCoordination,persistCoordination} from '@/lib/server/coordination-persistence';
 
 const Sha=z.string().regex(/^[a-f0-9]{64}$/i).transform(value=>value.toLowerCase());
 const Point=z.object({x:z.number().finite(),y:z.number().finite()});
@@ -94,7 +95,10 @@ export async function POST(req:Request){
     if(!await schemaReady())return NextResponse.json({error:'Spatial compilation persistence schema is not ready'},{status:503});
     const body=SaveBody.parse(await req.json());
     const graph=body.graph;
-    const powerPayload=parsePowerIntelligence((graph as Record<string,unknown>).powerIntelligence,new Set(graph.entities.map(entity=>entity.id)));
+    const entityIds=new Set(graph.entities.map(entity=>entity.id));
+    const sourceNames=new Set(graph.sources.map(source=>source.name));
+    const powerPayload=parsePowerIntelligence((graph as Record<string,unknown>).powerIntelligence,entityIds);
+    const coordinationPayload=parseCoordination((graph as Record<string,unknown>).coordinationIntelligence,entityIds,sourceNames);
     const graphSha256=canonicalHash({domain:'STRATUM/SPATIAL/COMPILATION/1',projectId:body.projectId,graph});
     const sourceSha256s=[...new Set(graph.sources.map(source=>source.sha256))].sort();
     const result=await tx(async client=>{
@@ -105,7 +109,8 @@ export async function POST(req:Request){
         WHERE organization_id=$1 AND project_id=$2 AND graph_sha256=$3 LIMIT 1`,[session.organizationId,body.projectId,graphSha256]);
       if(duplicate.rows[0]){
         const power=await persistPowerIntelligence(client,{organizationId:session.organizationId,projectId:body.projectId,compilationId:duplicate.rows[0].id,userId:session.userId,payload:powerPayload});
-        return {...duplicate.rows[0],idempotent:true,powerIntelligence:power};
+        const coordination=await persistCoordination(client,{organizationId:session.organizationId,projectId:body.projectId,compilationId:duplicate.rows[0].id,userId:session.userId,payload:coordinationPayload});
+        return {...duplicate.rows[0],idempotent:true,powerIntelligence:power,coordinationIntelligence:coordination};
       }
       const prior=await client.query<{id:string;revision:number}>(`SELECT id::text,revision FROM spatial_compilations
         WHERE organization_id=$1 AND project_id=$2 ORDER BY revision DESC LIMIT 1 FOR UPDATE`,[session.organizationId,body.projectId]);
@@ -118,7 +123,8 @@ export async function POST(req:Request){
           JSON.stringify(sourceSha256s),JSON.stringify(graph),prior.rows[0]?.id||null,session.userId
         ]);
       const power=await persistPowerIntelligence(client,{organizationId:session.organizationId,projectId:body.projectId,compilationId:inserted.rows[0].id,userId:session.userId,payload:powerPayload});
-      return {...inserted.rows[0],idempotent:false,powerIntelligence:power};
+      const coordination=await persistCoordination(client,{organizationId:session.organizationId,projectId:body.projectId,compilationId:inserted.rows[0].id,userId:session.userId,payload:coordinationPayload});
+      return {...inserted.rows[0],idempotent:false,powerIntelligence:power,coordinationIntelligence:coordination};
     });
     return NextResponse.json({...result,reviewState:'REVIEW_REQUIRED',truthBoundary:'STORED_COMPILATION_DOES_NOT_CREATE_OR_VERIFY_ASSETS'},{status:201});
   }catch(error:any){
