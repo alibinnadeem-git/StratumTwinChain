@@ -273,8 +273,16 @@ test('uploaded drawing renders a clickable WebGL asset and opens its inspector f
 
  const box=await canvas.boundingBox();
  expect(box).not.toBeNull();
- await page.mouse.click(box!.x+box!.width/2,box!.y+box!.height/2);
- await expect.poll(async()=>await canvas.getAttribute('data-selected-asset')).toBeTruthy();
+ await expect.poll(async()=>({
+  x:Number(await canvas.getAttribute('data-primary-hit-x')),
+  y:Number(await canvas.getAttribute('data-primary-hit-y')),
+  id:await canvas.getAttribute('data-primary-asset')
+ }),{timeout:15000}).toMatchObject({id:expect.any(String)});
+ const hitX=Number(await canvas.getAttribute('data-primary-hit-x'));
+ const hitY=Number(await canvas.getAttribute('data-primary-hit-y'));
+ expect(Number.isFinite(hitX)&&Number.isFinite(hitY)).toBeTruthy();
+ await page.mouse.click(box!.x+hitX,box!.y+hitY);
+ await expect.poll(async()=>await canvas.getAttribute('data-selected-asset')).toBe(await canvas.getAttribute('data-primary-asset'));
  await expect(page.getByRole('heading',{name:'DRY TYPE TRANSFORMER T1'})).toBeVisible();
  await expect(page.getByText('Z placement',{exact:true})).toBeVisible();
 });
