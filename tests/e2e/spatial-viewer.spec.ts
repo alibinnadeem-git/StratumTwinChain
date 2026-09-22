@@ -129,3 +129,52 @@ test('CSV equipment schedule feeds Expected Power without inventing Spatial XYZ'
  await expect(page.getByText(/AHU-7 has no reconciled electrical feed/i)).toBeVisible();
  await expect(page.getByLabel('Imported object').locator('option').filter({hasText:'AHU-7'})).toHaveCount(0);
 });
+
+
+test('cross-document coordination surfaces schedule versus drawing rating conflict without claiming geometric clash',async({page})=>{
+ await page.goto('/compiler');
+ const csv=[
+  'TAG,DESCRIPTION,MANUFACTURER,MODEL,VOLTAGE,PHASE,FLA,LOCATION',
+  'AHU-7,Air Handling Unit,Trane,XA700,480,3,14,Mechanical Room'
+ ].join('\n');
+ const dxf=\`0
+SECTION
+2
+HEADER
+9
+$INSUNITS
+70
+2
+0
+ENDSEC
+0
+SECTION
+2
+ENTITIES
+0
+INSERT
+8
+M-HVAC-EQUIP
+2
+AHU-7 208V 3PH
+10
+100
+20
+100
+30
+0
+0
+ENDSEC
+0
+EOF
+\`;
+ await sourceUpload(page).setInputFiles([
+  {name:'M-601-HVAC-Equipment-Schedule.csv',mimeType:'text/csv',buffer:Buffer.from(csv)},
+  {name:'M-201-HVAC-Plan.dxf',mimeType:'application/dxf',buffer:Buffer.from(dxf)}
+ ]);
+ await expect(page.getByText(/powered equipment candidate/i)).toBeVisible();
+ await page.getByRole('link',{name:'Render Spatial Environment'}).click();
+ await expect(page.getByRole('heading',{name:'Coordination findings'})).toBeVisible();
+ await expect(page.getByText(/AHU-7 has conflicting equipment ratings across sources/i)).toBeVisible();
+ await expect(page.getByText(/geometric clash proof/i)).toBeVisible();
+});
