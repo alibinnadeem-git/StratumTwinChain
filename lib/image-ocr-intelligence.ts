@@ -24,7 +24,7 @@ export function buildImageOcrEvidence(input:{
  const text=input.text.replace(/\u0000/g,'').trim();
  const parsed=parseEquipmentScheduleText(text,input.source,input.discipline,input.floor);
  const mean=Number.isFinite(Number(input.meanConfidence))?Math.max(0,Math.min(100,Number(input.meanConfidence))):null;
- const confidenceFactor=mean===null?.72:Math.max(.35,Math.min(.9,mean/100));
+ const confidenceFactor=mean===null ? .72 : Math.max(.35,Math.min(.9,mean/100));
  const entities=parsed.entities.map((entity,index):ImageOcrEvidence=>({
   ...entity,
   id:('ocr-'+index+'-'+entity.id).slice(0,300),
