@@ -72,6 +72,8 @@ jobs:
         run: npm run qa:office-ingestion
       - name: IFC BIM semantic and placement ingestion conformance
         run: npm run qa:ifc-ingestion
+      - name: Scanned-image OCR review-evidence conformance
+        run: npm run qa:image-ocr
       - name: Spatial asset click and DIR Passport conformance
         run: npm run qa:spatial-asset-passport
       - name: PDF title-block intelligence conformance
