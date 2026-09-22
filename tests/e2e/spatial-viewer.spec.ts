@@ -421,14 +421,20 @@ test('Review mode exposes clickable coordination findings on affected 3D assets'
  const canvas=page.locator('canvas[aria-label="Interactive Spatial model"]');
  await expect(canvas).toBeVisible();
  await expect.poll(async()=>Number(await canvas.getAttribute('data-coordination-assets')||0),{timeout:15000}).toBeGreaterThan(0);
- const box=await canvas.boundingBox();expect(box).not.toBeNull();
+ let box=await canvas.boundingBox();expect(box).not.toBeNull();
  const x=Number(await canvas.getAttribute('data-coordination-hit-x'));
  const y=Number(await canvas.getAttribute('data-coordination-hit-y'));
  expect(Number.isFinite(x)&&Number.isFinite(y)).toBeTruthy();
+ const viewport=page.viewportSize();
+ if(viewport&&box!.y+y>viewport.height-48){
+  await page.evaluate(({top,hitY,height})=>window.scrollBy(0,Math.max(0,top+hitY-height*.62)),{top:box!.y,hitY:y,height:viewport.height});
+  box=await canvas.boundingBox();expect(box).not.toBeNull();
+ }
  await page.mouse.click(box!.x+x,box!.y+y);
  await expect.poll(async()=>await canvas.getAttribute('data-selected-asset')).toBe('panel-review-1');
  await expect(page.getByRole('heading',{name:'PANELBOARD LP-1'})).toBeVisible();
- await expect(page.getByLabel('Selected asset coordination review')).toBeVisible();
- await expect(page.getByText(/RATING CONFLICT/)).toBeVisible();
- await expect(page.getByText(/do not establish a geometric clash, code compliance, AHJ approval, or engineering approval/i)).toBeVisible();
+ const reviewCard=page.getByLabel('Selected asset coordination review');
+ await expect(reviewCard).toBeVisible();
+ await expect(reviewCard.getByText(/RATING CONFLICT/)).toBeVisible();
+ await expect(reviewCard.getByText(/do not establish a geometric clash, code compliance, AHJ approval, or engineering approval/i)).toBeVisible();
 });
