@@ -1,4 +1,4 @@
-import {poweredEquipmentClass} from './power-intelligence';
+import {poweredEquipmentClass} from './power-intelligence.ts';
 
 export type EquipmentScheduleRecord={
  rowIndex:number;
