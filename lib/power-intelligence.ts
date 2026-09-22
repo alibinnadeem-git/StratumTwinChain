@@ -62,7 +62,7 @@ const POWERED_CLASSES:PoweredClass[]=[
 ];
 
 const ELECTRICAL_SUPPLY=/\b(?:panel|panelboard|switchboard|switchgear|breaker|circuit|feeder|disconnect|mcc|pdu|rpp|transformer|xfmr|ats|ups)\b/i;
-const TAG_PATTERN=/\b(?:AHU|RTU|MAU|FCU|VAV|EF|SF|RF|PF|P|PMP|CH|CHLR|CT|CU|HP|WH|UH|HWP|CHWP|FACP|NAC|BMS|DDC|ELEV|EL|EVSE)[-_ ]?#?[A-Z0-9]+(?:[-_.][A-Z0-9]+)*\b/i;
+const TAG_PATTERN=/\b(?:AHU|RTU|MAU|FCU|VAV|EF|SF|RF|PF|FP|JP|SMF|P|PMP|CH|CHLR|CT|CU|HP|WH|UH|HWP|CHWP|FACP|NAC|BMS|DDC|ELEV|EL|EVSE)[-_ ]?#?[A-Z0-9]+(?:[-_.][A-Z0-9]+)*\b/i;
 
 function finite(value:unknown){const n=Number(value);return Number.isFinite(n)?n:null}
 function firstMeta(entity:PowerEntity,keys:string[]){for(const key of keys){const n=finite(entity.meta?.[key]);if(n!==null)return n}return null}
@@ -82,7 +82,7 @@ function tagFor(entity:PowerEntity){
 function electricalValues(entity:PowerEntity){
  const text=entity.name;
  const voltage=firstMeta(entity,['voltage','voltageV','volts','ratedVoltage'])??parseNumber(text,/\b(\d{2,5}(?:\.\d+)?)\s*V(?:OLT)?S?\b/i);
- const phase=firstMeta(entity,['phase','phases'])??(\/\b3\s*(?:PH|PHASE)\b/i.test(text)?3:/\b1\s*(?:PH|PHASE)\b/i.test(text)?1:null);
+ const phase=firstMeta(entity,['phase','phases'])??(/\b3\s*(?:PH|PHASE)\b/i.test(text)?3:/\b1\s*(?:PH|PHASE)\b/i.test(text)?1:null);
  const frequencyHz=firstMeta(entity,['frequencyHz','frequency','hz'])??parseNumber(text,/\b(\d{2,3})\s*HZ\b/i);
  const inputKw=firstMeta(entity,['inputKw','kw','ratedKw'])??parseNumber(text,/\b(\d+(?:\.\d+)?)\s*KW\b/i);
  const inputKva=firstMeta(entity,['inputKva','kva','ratedKva'])??parseNumber(text,/\b(\d+(?:\.\d+)?)\s*KVA\b/i);
