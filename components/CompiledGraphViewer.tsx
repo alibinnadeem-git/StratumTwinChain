@@ -77,6 +77,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
   const [systemMode,setSystemMode]=useState<SystemMode>("ALL");
   const [floor,setFloor]=useState("ALL");
   const [discipline,setDiscipline]=useState("ALL");
+  const [hiddenSources,setHiddenSources]=useState<string[]>([]);
   const [exploded,setExploded]=useState(false);
   const [xray,setXray]=useState(false);
   const [search,setSearch]=useState("");
@@ -99,6 +100,8 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
   },[]);
 
   const disciplines=useMemo(()=>graph?[...new Set(graph.sources.map(source=>source.discipline||"Unclassified"))].sort():[],[graph]);
+  const sourceLayers=useMemo(()=>graph?.sources||[],[graph]);
+  const hiddenSourceSet=useMemo(()=>new Set(hiddenSources),[hiddenSources]);
   const sourceDisciplines=useMemo(()=>new Map((graph?.sources||[]).map(source=>[source.name,source.discipline||"Unclassified"])),[graph]);
   const levels=useMemo(()=>{
     if(!graph)return[] as [string,number][];
@@ -112,6 +115,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
     const q=search.trim().toLowerCase();
     return graph.entities.filter(e=>{
       if(e.meta?.nonSpatial===true)return false;
+      if(hiddenSourceSet.has(e.source))return false;
       if(floor!=="ALL"&&(e.floor||"UNRESOLVED")!==floor)return false;
       const entityDiscipline=sourceDisciplines.get(e.source)||String(e.meta?.discipline||"Unclassified");
       if(discipline!=="ALL"&&entityDiscipline!==discipline)return false;
@@ -120,7 +124,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       if(q&&!`${e.name} ${e.source} ${e.floor||""} ${e.zone||""}`.toLowerCase().includes(q))return false;
       return true;
     });
-  },[graph,floor,discipline,mode,systemMode,search,sourceDisciplines]);
+  },[graph,floor,discipline,mode,systemMode,search,sourceDisciplines,hiddenSourceSet]);
   const inventory=useMemo(()=>visible.filter(e=>e.kind!=="line"&&e.kind!=="sld-feeder-candidate"&&e.kind!=="wall-segment"),[visible]);
   const rooms=useMemo(()=>graph?.entities.filter(e=>e.kind==="room-boundary").length||0,[graph]);
   const sldObjects=useMemo(()=>graph?.entities.filter(e=>e.layer==="L2"&&isSld(e)).length||0,[graph]);
@@ -130,6 +134,16 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
   }).length||0,[graph,registry]);
   const matching=useMemo(()=>inventory,[inventory]);
   const fallbackBounds=useMemo(()=>bounds2d(visible),[visible]);
+
+  useEffect(()=>{
+    if(!graph)return;
+    const valid=new Set(graph.sources.map(source=>source.name));
+    setHiddenSources(current=>current.filter(source=>valid.has(source)));
+  },[graph?.createdAt]);
+
+  function toggleSource(name:string){
+    setHiddenSources(current=>current.includes(name)?current.filter(source=>source!==name):[...current,name]);
+  }
 
   useEffect(()=>{
     if(!graph||!mount.current)return;
@@ -314,6 +328,25 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       <button className="ghost" onClick={()=>setFitRevision(v=>v+1)}>Fit model</button>
       <button className="ghost" onClick={()=>setLabels(v=>!v)}>{labels?"Hide labels":"Show labels"}</button>
     </div>
+
+    <details style={{borderBottom:"1px solid #17334a"}}><summary style={{padding:"10px 14px",cursor:"pointer"}}>Source layers · {sourceLayers.length-hiddenSources.length}/{sourceLayers.length} visible</summary>
+      <div style={{padding:"0 12px 12px"}}>
+        <div className="button-row" style={{marginBottom:10}}>
+          <button className="ghost" type="button" onClick={()=>setHiddenSources([])} disabled={!hiddenSources.length}>Show all sources</button>
+          <button className="ghost" type="button" onClick={()=>setHiddenSources(sourceLayers.map(source=>source.name))} disabled={!sourceLayers.length||hiddenSources.length===sourceLayers.length}>Hide all sources</button>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(250px,1fr))",gap:8}}>
+          {sourceLayers.map(source=>{
+            const active=!hiddenSourceSet.has(source.name);
+            const entityCount=graph.entities.filter(entity=>entity.source===source.name&&entity.meta?.nonSpatial!==true).length;
+            return <label key={source.sha256||source.name} style={{display:"flex",alignItems:"flex-start",gap:8,border:"1px solid #17334a",borderRadius:10,padding:"9px 10px"}}>
+              <input type="checkbox" aria-label={`Toggle source ${source.name}`} checked={active} onChange={()=>toggleSource(source.name)}/>
+              <span style={{minWidth:0}}><strong style={{display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={source.name}>{source.name}</strong><small className="muted">{source.discipline||"Unclassified"} · {source.ext?.toUpperCase()||"SOURCE"} · {entityCount} spatial object{entityCount===1?"":"s"}</small></span>
+            </label>;
+          })}
+        </div>
+      </div>
+    </details>
 
     <details style={{borderBottom:"1px solid #17334a"}}><summary style={{padding:"10px 14px",cursor:"pointer"}}>Advanced view controls</summary><div style={{display:"flex",gap:8,padding:"0 12px 12px",flexWrap:"wrap"}}>
       <button className="ghost" aria-pressed={exploded} onClick={()=>setExploded(v=>!v)}>{exploded?"Collapse building":"Explode building"}</button>
