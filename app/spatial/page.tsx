@@ -13,7 +13,7 @@ export const dynamic='force-dynamic';
 export default async function SpatialPage(){
  const session=await readSession();
  let assets:RegisteredSpatialAsset[]=[];let backendOnline=true;
- try{
+ if(session)try{
   const rows=await liveAssets();
   assets=rows.map(a=>({
    id:a.id,project_id:a.project_id,asset_code:a.asset_code,asset_type:a.asset_type,name:a.name,model:a.model,
@@ -29,13 +29,13 @@ export default async function SpatialPage(){
   }));
  }catch(error){
   backendOnline=false;
-  console.error('STRATUM Spatial Verified backend data unavailable; rendering source-only Spatial workspace.',error);
+  console.warn('STRATUM Spatial Verified live asset data unavailable for authenticated Spatial session; rendering source-only workspace.',error);
  }
 
  return <>
   <SpatialProjectionEngine/>
 
-  <div className="page-head"><div><div className="eyebrow">Spatial</div><h1 className="title">See the project.</h1><p className="subtitle">The project model is the workspace. Click equipment for identity, field activity and DIR status; open review details only when something needs attention.</p></div><div className="badge">{backendOnline?'MODEL · LIVE ASSETS':'MODEL · BROWSER'}</div></div>
+  <div className="page-head"><div><div className="eyebrow">Spatial</div><h1 className="title">See the project.</h1><p className="subtitle">The project model is the workspace. Click equipment for identity, field activity and DIR status; open review details only when something needs attention.</p></div><div className="badge">{session?(backendOnline?'MODEL · LIVE ASSETS':'MODEL · BROWSER'):'MODEL · SOURCE-ONLY'}</div></div>
 
   <SpatialWorkspaceStatus compact authenticated={Boolean(session)}/>
 
@@ -45,7 +45,7 @@ export default async function SpatialPage(){
   <details className="secondary-details card">
    <summary>Review & trust details</summary>
    <SpatialReviewQueue/>
-   <div className="section-head" style={{marginTop:14}}><div><div className="eyebrow">Trust boundary</div><h3>Keep model, asset state and DIR finality distinct</h3></div><div className="trust-row"><TrustBadge state={backendOnline?'LIVE':'STALE'}/><TrustBadge state={assets.some(a=>a.ledger_block_height)?'POVI_VERIFIED':'UNVERIFIED'}/></div></div>
+   <div className="section-head" style={{marginTop:14}}><div><div className="eyebrow">Trust boundary</div><h3>Keep model, asset state and DIR finality distinct</h3></div><div className="trust-row"><TrustBadge state={session?(backendOnline?'LIVE':'STALE'):'UNVERIFIED'}/><TrustBadge state={assets.some(a=>a.ledger_block_height)?'POVI_VERIFIED':'UNVERIFIED'}/></div></div>
    <p className="muted">Imported geometry can remain usable while live asset data is unavailable. STRATUM never substitutes reference assets for your project and never treats visualization or cryptographic finality as physical truth.</p>
   </details>
  </>;
