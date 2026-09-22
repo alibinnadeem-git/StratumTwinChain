@@ -35,6 +35,17 @@ export type LiveAssetRow={
   archive_actor_user_id:string|null;
   archived:boolean;
   archive_schema_ready:boolean;
+  maintenance_plan_id:string|null;
+  maintenance_revision:number|null;
+  maintenance_basis:string|null;
+  maintenance_interval_days:number|null;
+  maintenance_interval_hours:number|null;
+  maintenance_next_due_at:Date|null;
+  maintenance_condition_triggers:unknown[];
+  maintenance_task_summary:string|null;
+  maintenance_source_refs:unknown[];
+  maintenance_status:string|null;
+  maintenance_created_at:Date|null;
 };
 
 export type AssetArchiveHistoryRow={
@@ -47,7 +58,7 @@ export type AssetArchiveHistoryRow={
   previous_event_id:string|null;
 };
 
-const ASSET_COLUMNS=`a.id,a.project_id,a.asset_code,a.asset_type,a.name,a.model,a.serial_number,a.location_label,a.status,a.qr_token::text,a.specifications,a.installed_at,a.commissioned_at,a.warranty_expires_at,p.project_code,p.name project_name,si.name site_name,sy.name system_name,m.name manufacturer_name,le.id::text latest_event_id,le.event_type::text latest_event_type,le.status::text latest_event_status,le.ledger_network,le.ledger_tx_hash,le.ledger_block_height::text,le.anchored_at`;
+const ASSET_COLUMNS=`a.id,a.project_id,a.asset_code,a.asset_type,a.name,a.model,a.serial_number,a.location_label,a.status,a.qr_token::text,a.specifications,a.installed_at,a.commissioned_at,a.warranty_expires_at,p.project_code,p.name project_name,si.name site_name,sy.name system_name,m.name manufacturer_name,le.id::text latest_event_id,le.event_type::text latest_event_type,le.status::text latest_event_status,le.ledger_network,le.ledger_tx_hash,le.ledger_block_height::text,le.anchored_at,mp.id::text maintenance_plan_id,mp.revision maintenance_revision,mp.basis maintenance_basis,mp.interval_days maintenance_interval_days,mp.interval_hours maintenance_interval_hours,mp.next_due_at maintenance_next_due_at,COALESCE(mp.condition_triggers,'[]'::jsonb) maintenance_condition_triggers,mp.task_summary maintenance_task_summary,COALESCE(mp.source_refs,'[]'::jsonb) maintenance_source_refs,mp.status maintenance_status,mp.created_at maintenance_created_at`;
 
 const ASSET_JOINS=`FROM assets a
   JOIN projects p ON p.id=a.project_id
@@ -59,7 +70,14 @@ const ASSET_JOINS=`FROM assets a
     WHERE x.asset_id=a.id AND x.status='VERIFIED'
     ORDER BY x.anchored_at DESC NULLS LAST,x.occurred_at DESC
     LIMIT 1
-  ) le ON true`;
+  ) le ON true
+  LEFT JOIN LATERAL (
+    SELECT plan.*
+    FROM asset_maintenance_plans plan
+    WHERE plan.asset_id=a.id AND plan.organization_id=a.organization_id
+    ORDER BY plan.revision DESC,plan.created_at DESC
+    LIMIT 1
+  ) mp ON true`;
 
 const ARCHIVE_JOIN=`LEFT JOIN LATERAL (
   SELECT x.id,x.action,x.reason,x.occurred_at,x.actor_user_id
