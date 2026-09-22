@@ -286,3 +286,21 @@ test('uploaded drawing renders a clickable WebGL asset and opens its inspector f
  await expect(page.getByRole('heading',{name:'DRY TYPE TRANSFORMER T1'})).toBeVisible();
  await expect(page.getByText('Z placement',{exact:true})).toBeVisible();
 });
+
+
+test('Spatial auto-recovers the last good uploaded model when the current browser key is missing',async({page})=>{
+ await page.goto('/compiler');
+ const dxf=['0','SECTION','2','HEADER','9','$INSUNITS','70','2','0','ENDSEC','0','SECTION','2','ENTITIES','0','INSERT','8','E-EQUIP','2','MAIN SWITCHBOARD MSB-1','10','100','20','100','30','0','0','ENDSEC','0','EOF',''].join('\n');
+ await sourceUpload(page).setInputFiles({name:'E-201-Level-1-Switchboard.dxf',mimeType:'application/dxf',buffer:Buffer.from(dxf)});
+ await expect(page.getByText(/Source compilation updated/i)).toBeVisible();
+ await expect.poll(()=>page.evaluate(()=>Boolean(localStorage.getItem('stratum_compiled_graph_last_good_v2')))).toBeTruthy();
+
+ await page.evaluate(()=>localStorage.removeItem('stratum_compiled_graph'));
+ await page.goto('/spatial');
+
+ await expect(page.getByRole('heading',{name:'Spatial model'})).toBeVisible();
+ const canvas=page.locator('canvas[aria-label="Interactive Spatial model"]');
+ await expect(canvas).toBeVisible();
+ await expect.poll(()=>page.evaluate(()=>Boolean(localStorage.getItem('stratum_compiled_graph')))).toBeTruthy();
+ expect(await page.getByLabel('Imported object').locator('option').filter({hasText:'MAIN SWITCHBOARD MSB-1'}).count()).toBeGreaterThan(0);
+});

@@ -162,12 +162,12 @@ export async function protectSpatialGraph(graph:SpatialGraphLike,previous:Spatia
 
 export async function restoreBestSpatialGraph(){
   const current=readCurrentSpatialGraph();
-  if(current)return{graph:current,source:'current' as const};
+  if(current&&current.entities.length>0)return{graph:current,source:'current' as const};
 
   const sameOrigin=findSameOriginRecoveryCandidates();
-  const localCandidate=sameOrigin[0]?.graph||null;
+  const localCandidate=sameOrigin.find(item=>item.graph.entities.length>0)?.graph||sameOrigin[0]?.graph||null;
   const indexed=await readIndexedRecovery('latest');
-  const graph=localCandidate||indexed;
+  const graph=(indexed&&indexed.entities.length>0?indexed:null)||localCandidate||indexed||current;
   if(!graph)return{graph:null,source:null};
 
   localStorage.setItem(SPATIAL_GRAPH_KEY,JSON.stringify(graph));

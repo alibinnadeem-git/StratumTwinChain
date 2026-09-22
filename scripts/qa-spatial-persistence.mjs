@@ -8,6 +8,8 @@ const autoSync=read('components/SpatialAutoSync.tsx');
 const recovery=read('lib/spatial-browser-recovery.ts');
 const guard=read('components/SpatialPersistenceGuard.tsx');
 const compilerPage=read('app/compiler/page.tsx');
+const compiler=read('components/CompilerWorkspace.tsx');
+const experience=read('components/SpatialExperience.tsx');
 
 const forbiddenMutations=[
   /INSERT\s+INTO\s+assets/i,/UPDATE\s+assets/i,/DELETE\s+FROM\s+assets/i,
@@ -40,6 +42,9 @@ const checks=[
  ['automatic sync never performs review acceptance, approval or DIR finality',!autoSync.includes("method:'PATCH'")&&!autoSync.includes('/api/approvals')&&!autoSync.includes('getLedger')],
  ['browser recovery keeps a last-good and previous graph copy',recovery.includes('SPATIAL_LAST_GOOD_KEY')&&recovery.includes('SPATIAL_PREVIOUS_KEY')],
  ['browser recovery adds IndexedDB protection',recovery.includes("indexedDB.open")&&recovery.includes("idbPut('latest'")],
+ ['compiler protects every renderable graph as current plus last-good recovery state',compiler.includes('replaceCurrentSpatialGraph(graph)')&&compiler.includes('protectSpatialGraph(graph')&&compiler.includes('zoned.length>0')],
+ ['Spatial experience auto-restores recovery state before declaring the model missing',experience.includes('restoreBestSpatialGraph')&&experience.includes('await restoreBestSpatialGraph()')],
+ ['recovery prefers a graph with renderable entities over a zero-entity current shell',recovery.includes('current&&current.entities.length>0')&&recovery.includes('item.graph.entities.length>0')],
  ['global persistence guard captures graph updates',guard.includes("stratum:graph-updated")&&guard.includes('protectSpatialGraph')],
  ['compiler keeps server review controls secondary',compilerPage.includes('<summary>Server sync & review baseline</summary>')],
  ['new persistence path does not call deprecated twin ingest route',!ui.includes('/api/twin/ingest')&&!autoSync.includes('/api/twin/ingest')&&!api.includes('/api/twin/ingest')]
