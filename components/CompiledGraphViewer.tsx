@@ -274,7 +274,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
         const base=mat.userData?.stratumBaseEmissive;
         const baseIntensity=mat.userData?.stratumBaseEmissiveIntensity;
         mat.emissive.setHex(active?0x20bfff:(typeof base==="number"?base:0x000000));
-        mat.emissiveIntensity=active?.72:(typeof baseIntensity==="number"?baseIntensity:0);
+        mat.emissiveIntensity=active ? .72 : (typeof baseIntensity==="number"?baseIntensity:0);
       }
     });
   },[selected?.id]);
