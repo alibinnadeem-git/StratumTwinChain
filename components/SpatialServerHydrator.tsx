@@ -5,7 +5,7 @@ import {protectSpatialGraph,readCurrentSpatialGraph,replaceCurrentSpatialGraph,t
 
 const PROJECT_KEY='stratum_spatial_project_id';
 export const SERVER_HYDRATION_EVENT='stratum:server-hydration';
-export const SERVER_HYDRATION_VERSION='1';
+export const SERVER_HYDRATION_VERSION='2';
 export const SERVER_HYDRATION_STATE_KEY='stratum_spatial_server_hydration_v1';
 
 type Project={id:string;project_code?:string;name?:string};
