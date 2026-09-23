@@ -12,6 +12,7 @@ type Project={id:string;project_code?:string;name?:string};
 type CompilationResponse={
   schemaReady?:boolean;
   projects?:Project[];
+  restorableProjectId?:string|null;
   latest?:{revision?:number;graph_json?:unknown}|null;
 };
 
@@ -50,7 +51,8 @@ export default function SpatialServerHydrator(){
     let projectId='';
     try{projectId=localStorage.getItem(PROJECT_KEY)||''}catch{}
     if(!projects.some(project=>project.id===projectId)){
-      projectId=projects.length===1?projects[0].id:'';
+      const restorable=initial.restorableProjectId||'';
+      projectId=projects.length===1?projects[0].id:projects.some(project=>project.id===restorable)?restorable:'';
     }
     if(!projectId){publish({state:'PROJECT_REQUIRED',projectCount:projects.length});return}
     try{localStorage.setItem(PROJECT_KEY,projectId)}catch{}

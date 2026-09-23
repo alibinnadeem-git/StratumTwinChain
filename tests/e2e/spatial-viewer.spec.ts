@@ -306,7 +306,7 @@ test('Spatial auto-recovers the last good uploaded model when the current browse
 });
 
 
-test('Spatial restores the latest tenant project snapshot from the server when browser state is empty',async({page})=>{
+test('Spatial restores the saved project among multiple tenant projects when browser state is empty',async({page})=>{
  const projectId='30000000-0000-4000-8000-000000000001';
  const source='E-201-Server-Switchboard.dxf';
  const graph={
@@ -322,7 +322,7 @@ test('Spatial restores the latest tenant project snapshot from the server when b
   if(url.searchParams.get('projectId')){
    await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({schemaReady:true,projects:[{id:projectId,project_code:'SV-UAT-001',name:'STRATUM Verified Production Pilot'}],latest:{revision:7,graph_json:graph}})});
   }else{
-   await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({schemaReady:true,projects:[{id:projectId,project_code:'SV-UAT-001',name:'STRATUM Verified Production Pilot'}],latest:null})});
+   await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({schemaReady:true,projects:[{id:'30000000-0000-4000-8000-000000000002',project_code:'EMPTY',name:'Empty project'},{id:projectId,project_code:'SV-UAT-001',name:'STRATUM Verified Production Pilot'}],restorableProjectId:projectId,latest:null})});
   }
  });
  await page.goto('/spatial');

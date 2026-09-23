@@ -70,7 +70,11 @@ export async function GET(req:Request){
       FROM projects WHERE organization_id=$1 ORDER BY name,project_code`,[session.organizationId]);
     const ready=await schemaReady();
     if(!ready)return NextResponse.json({schemaReady:false,truthBoundary:'COMPILATION_IS_REVIEW_ARTIFACT_NOT_VERIFIED_STATE',projects:projects.rows,latest:null});
-    if(!projectId)return NextResponse.json({schemaReady:true,truthBoundary:'COMPILATION_IS_REVIEW_ARTIFACT_NOT_VERIFIED_STATE',projects:projects.rows,latest:null});
+    if(!projectId){
+      const restorable=await query<{project_id:string}>(`SELECT project_id::text FROM spatial_compilations
+        WHERE organization_id=$1 AND entity_count>0 ORDER BY created_at DESC,id DESC LIMIT 1`,[session.organizationId]);
+      return NextResponse.json({schemaReady:true,truthBoundary:'COMPILATION_IS_REVIEW_ARTIFACT_NOT_VERIFIED_STATE',projects:projects.rows,restorableProjectId:restorable.rows[0]?.project_id||null,latest:null});
+    }
     if(!z.string().uuid().safeParse(projectId).success)return NextResponse.json({error:'projectId must be a UUID'},{status:400});
     const latest=await query<any>(`SELECT sc.id::text,sc.project_id::text,sc.revision,sc.graph_sha256,sc.graph_version,sc.source_count,sc.entity_count,sc.link_count,sc.source_sha256s,sc.graph_json,sc.created_by::text,sc.created_at,
       review.action review_action,review.reason review_reason,review.occurred_at review_occurred_at,review.actor_user_id::text review_actor_user_id
