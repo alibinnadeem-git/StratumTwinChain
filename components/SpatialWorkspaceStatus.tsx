@@ -52,6 +52,7 @@ export default function SpatialWorkspaceStatus({compact=false,authenticated=fals
   },[]);
 
   const summary=graphSummary(graph);
+  const sourceSheetOnly=Boolean(graph&&graph.entities.length>0&&(graph.reviewState==='SOURCE_SHEET_ONLY'||graph.entities.every(entity=>typeof entity==='object'&&entity!==null&&'kind' in entity&&entity.kind==='line')));
   const infrastructureReady=Boolean(health?.liveDataReady);
   const serverReady=infrastructureReady&&authenticated;
 
@@ -105,11 +106,11 @@ export default function SpatialWorkspaceStatus({compact=false,authenticated=fals
     <div className="workspace-status-main">
       <div>
         <div className="eyebrow">Project workspace</div>
-        <strong>{graph?`${summary.sources} source${summary.sources===1?'':'s'} · ${summary.entities} Spatial object${summary.entities===1?'':'s'}`:'No Spatial model found on this web address'}</strong>
-        <span>{graph?'Protected locally. Open Spatial and continue working.':'Recover the model before re-importing anything.'}</span>
+        <strong>{sourceSheetOnly?`${summary.sources} source sheet · ${summary.entities} drawing line${summary.entities===1?'':'s'} · 0 components`:graph?`${summary.sources} source${summary.sources===1?'':'s'} · ${summary.entities} Spatial object${summary.entities===1?'':'s'}`:'No Spatial model found on this web address'}</strong>
+        <span>{sourceSheetOnly?'A source sheet is saved, but there are no identified equipment components to select.':graph?'Protected locally. Open Spatial and continue working.':'Recover the model before re-importing anything.'}</span>
       </div>
       <div className="workspace-health">
-        <span className={graph?'proof':'pending'}>{graph?'MODEL FOUND':'MODEL MISSING'}</span>
+        <span className={sourceSheetOnly?'pending':graph?'proof':'pending'}>{sourceSheetOnly?'SOURCE SHEET ONLY':graph?'MODEL FOUND':'MODEL MISSING'}</span>
         <span className={serverReady?'proof':'pending'}>{serverReady?'SERVER SYNC READY':infrastructureReady?'SIGN IN FOR SERVER SYNC':'SERVER SYNC OFFLINE'}</span>
       </div>
     </div>
@@ -117,8 +118,9 @@ export default function SpatialWorkspaceStatus({compact=false,authenticated=fals
     <div className="workspace-actions primary">
       {!graph&&<button className="action" type="button" onClick={()=>void restore()}>Recover model</button>}
       {graph&&<Link className="action" href="/spatial">Open Spatial</Link>}
+      {sourceSheetOnly&&<button className="ghost" type="button" onClick={recoverLegacy}>Recover earlier STRATUM model</button>}
       {!graph&&<button className="ghost" type="button" onClick={recoverLegacy}>Recover earlier STRATUM model</button>}
-      {!graph&&<Link className="ghost" href="/compiler">Import sources</Link>}
+      {(!graph||sourceSheetOnly)&&<Link className="ghost" href="/compiler">Import sources</Link>}
     </div>
 
     <details className="secondary-details workspace-why">
@@ -127,7 +129,7 @@ export default function SpatialWorkspaceStatus({compact=false,authenticated=fals
         <button className="ghost" type="button" onClick={download} disabled={!graph}>Export backup</button>
         <label className="ghost file-button">Import backup<input aria-label="Import Spatial backup" type="file" accept=".json,application/json" onChange={event=>void importBackup(event)}/></label>
         <button className="ghost" type="button" onClick={()=>void restorePrevious()}>Restore previous copy</button>
-        {graph&&<button className="ghost" type="button" onClick={recoverLegacy}>Recover earlier STRATUM model</button>}
+        {graph&&!sourceSheetOnly&&<button className="ghost" type="button" onClick={recoverLegacy}>Recover earlier STRATUM model</button>}
       </div>
       {!serverReady&&<>
        <p className="muted">{infrastructureReady

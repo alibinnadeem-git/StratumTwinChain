@@ -3,6 +3,23 @@ import {strToU8,zipSync} from 'fflate';
 
 const sourceUpload=(page:import('@playwright/test').Page)=>page.locator('input[type=file][accept*=".dxf"]');
 
+test('source-sheet compilation identifies zero selectable components and exposes model recovery',async({page})=>{
+ await page.goto('/spatial');
+ await page.evaluate(()=>{
+  localStorage.setItem('stratum_compiled_graph',JSON.stringify({
+   version:'1.1',createdAt:new Date().toISOString(),reviewState:'SOURCE_SHEET_ONLY',
+   sources:[{name:'Audi E4.0.pdf',ext:'pdf',sha256:'a'.repeat(64),discipline:'Electrical'}],
+   entities:[{id:'sheet-line',source:'Audi E4.0.pdf',layer:'L1',kind:'line',name:'Drawing line',x:0,y:0,x2:5,y2:0,confidence:1}],
+   links:[],stats:{L0:1,L1:1,L2:0,L3:0,L4:0}
+  }));
+  window.dispatchEvent(new Event('stratum:graph-updated'));
+ });
+ await expect(page.getByText('SOURCE SHEET ONLY · 0 COMPONENTS')).toBeVisible();
+ await expect(page.getByRole('button',{name:'Recover earlier STRATUM model'})).toBeVisible();
+ await expect(page.getByLabel('Imported object').locator('option')).toHaveText(['No selectable objects in this view']);
+ await expect(page.getByText(/1 source sheet · 1 drawing line · 0 components/)).toBeVisible();
+});
+
 test('DXF plan scale becomes metric while equipment Z remains separately reviewable',async({page})=>{
  await page.goto('/compiler');
  const dxf=`0\nSECTION\n2\nHEADER\n9\n$INSUNITS\n70\n2\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n0\nINSERT\n8\nE-EQUIP\n2\nDRY TYPE TRANSFORMER T1\n10\n100\n20\n100\n30\n0\n0\nINSERT\n8\nE-EQUIP\n2\nPANELBOARD LP-2\n10\n200\n20\n110\n30\n0\n0\nENDSEC\n0\nEOF\n`;
