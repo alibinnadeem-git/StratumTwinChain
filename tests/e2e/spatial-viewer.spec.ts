@@ -332,6 +332,11 @@ test('Spatial restores the saved project among multiple tenant projects when bro
  const stored=await page.evaluate(()=>JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}'));
  expect(stored.entities?.some((entity:any)=>entity.name==='SERVER MAIN SWITCHBOARD MSB-1')).toBeTruthy();
  expect(await page.evaluate(()=>localStorage.getItem('stratum_spatial_project_id'))).toBe(projectId);
+ await page.getByText('Backup & recovery').click();
+ await expect(page.getByRole('button',{name:'Recover earlier STRATUM model'})).toBeVisible();
+ await page.evaluate(()=>window.dispatchEvent(new MessageEvent('message',{origin:'https://stratum-twin-chain.vercel.app',data:{type:'STRATUM_SPATIAL_RECOVERY',version:1,graph:{version:'1.1',createdAt:new Date().toISOString(),sources:[],entities:[{id:'legacy-one',source:'legacy',layer:'L2',kind:'asset-candidate',name:'LEGACY ASSET',x:0,y:0,z:0,confidence:.7}],links:[],stats:{L2:1}}}})));
+ await expect.poll(()=>page.evaluate(()=>localStorage.getItem('stratum_spatial_project_id'))).toBeNull();
+ await expect(page.getByText(/Choose the correct project before server sync/)).toBeVisible();
 });
 
 

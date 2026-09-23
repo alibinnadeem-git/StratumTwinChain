@@ -9,6 +9,7 @@ const recovery=read('lib/spatial-browser-recovery.ts');
 const guard=read('components/SpatialPersistenceGuard.tsx');
 const compilerPage=read('app/compiler/page.tsx');
 const spatialPage=read('app/spatial/page.tsx');
+const workspaceStatus=read('components/SpatialWorkspaceStatus.tsx');
 const serverHydrator=read('components/SpatialServerHydrator.tsx');
 const compiler=read('components/CompilerWorkspace.tsx');
 const experience=read('components/SpatialExperience.tsx');
@@ -53,6 +54,7 @@ const checks=[
  ['Spatial route mounts server hydration before rendering the project workspace',spatialPage.includes('<SpatialServerHydrator/>')],
  ['server hydrator only restores a renderable graph from an organization project',serverHydrator.includes('validRenderableGraph')&&serverHydrator.includes('projects.some(project=>project.id===restorable)')&&serverHydrator.includes('replaceCurrentSpatialGraph(graph)')],
  ['server suggests only a saved, nonempty compilation scoped to the organization',api.includes('restorableProjectId')&&api.includes('WHERE organization_id=$1 AND entity_count>0')],
+ ['legacy recovery remains available after hydration and clears prior project selection',workspaceStatus.includes('{graph&&<button className="ghost" type="button" onClick={recoverLegacy}>')&&workspaceStatus.includes("localStorage.removeItem('stratum_spatial_project_id')")],
  ['server hydration uses same-origin authenticated compilation API calls',serverHydrator.includes("credentials:'same-origin'")&&serverHydrator.includes('/api/spatial/compilations')],
  ["server hydration publishes a durable LOADING state before remote lookup",serverHydrator.includes("SERVER_HYDRATION_STATE_KEY")&&serverHydrator.includes("publish({state:'LOADING'})")],
  ["Spatial empty-state waits while the latest server model is being restored",experience.includes('serverPending')&&experience.includes('Restoring latest project model…')&&experience.includes("state==='LOADING'")],
