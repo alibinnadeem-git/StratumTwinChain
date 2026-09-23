@@ -1,5 +1,6 @@
 import {expect,test} from '@playwright/test';
 import {strToU8,zipSync} from 'fflate';
+import {readFileSync} from 'node:fs';
 
 const sourceUpload=(page:import('@playwright/test').Page)=>page.locator('input[type=file][accept*=".dxf"]');
 
@@ -18,6 +19,41 @@ test('source-sheet compilation identifies zero selectable components and exposes
  await expect(page.getByRole('button',{name:'Recover earlier STRATUM model'})).toBeVisible();
  await expect(page.getByLabel('Imported object').locator('option')).toHaveText(['No selectable objects in this view']);
  await expect(page.getByText(/1 source sheet · 1 drawing line · 0 components/)).toBeVisible();
+});
+
+test('Tesla GLB import persists real geometry and makes it selectable in Spatial',async({page})=>{
+ await page.goto('/compiler');
+ await page.evaluate(()=>{
+  localStorage.setItem('stratum_compiled_graph',JSON.stringify({version:'1.1',createdAt:new Date().toISOString(),reviewState:'SOURCE_SHEET_ONLY',
+   sources:[{name:'Audi E4.0.pdf',ext:'pdf',sha256:'a'.repeat(64),discipline:'Electrical',floor:'L1',elevation:0}],
+   entities:[{id:'audi-line',source:'Audi E4.0.pdf',layer:'L1',kind:'line',name:'Plan vector',x:0,y:0,x2:5,y2:0,z:0,confidence:1,floor:'L1'}],
+   links:[],stats:{L0:1,L1:1,L2:0,L3:0,L4:0}}));
+  window.dispatchEvent(new Event('stratum:graph-updated'));
+ });
+ await expect(page.getByText('Audi E4.0.pdf')).toBeVisible();
+ await page.locator('input[type=file][accept*=".glb"]').setInputFiles({
+  name:'Tesla-Supercharger-V3.glb',mimeType:'model/gltf-binary',
+  buffer:readFileSync('public/models/oem/tesla-supercharger-v3-community.glb')
+ });
+ await expect(page.getByText(/Renderable 3D geometry imported/)).toBeVisible();
+ const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}'));
+ expect(saved.entities).toEqual(expect.arrayContaining([expect.objectContaining({id:'audi-line'}),expect.objectContaining({kind:'imported-3d-model',layer:'L2',name:'Tesla Supercharger V3'})]));
+ expect(saved.entities.find((entity:any)=>entity.kind==='imported-3d-model').meta.embeddedGlb.length).toBeGreaterThan(100_000);
+ expect(saved.reviewState).toBe('REVIEW_REQUIRED');
+ await page.getByRole('link',{name:'Render Spatial Environment'}).click();
+ await expect(page.getByRole('heading',{name:'Spatial model'})).toBeVisible();
+ const canvas=page.locator('canvas[aria-label="Interactive Spatial model"]');
+ await expect(canvas).toBeVisible();
+ await expect.poll(()=>canvas.getAttribute('data-clickable-assets')).toBe('1');
+ await expect.poll(()=>canvas.getAttribute('data-primary-asset')).toContain('imported-glb-');
+ const point=await canvas.evaluate(element=>({x:Number((element as HTMLElement).dataset.primaryHitX),y:Number((element as HTMLElement).dataset.primaryHitY)}));
+ await canvas.click({position:point});
+ await expect.poll(()=>canvas.getAttribute('data-selected-asset')).toBe(await canvas.getAttribute('data-primary-asset'));
+ await expect(page.getByText('IMPORTED 3D GEOMETRY')).toBeVisible();
+ await expect(page.getByText('Tesla Supercharger V3',{exact:true}).first()).toBeVisible();
+ await expect(page.getByText('Unverified elevation')).toBeVisible();
+ await page.reload();
+ await expect(page.getByLabel('Imported object').locator('option').filter({hasText:'Tesla Supercharger V3'})).toHaveCount(1);
 });
 
 test('DXF plan scale becomes metric while equipment Z remains separately reviewable',async({page})=>{
