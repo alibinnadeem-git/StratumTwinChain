@@ -5,6 +5,7 @@ import {readCurrentSpatialGraph} from '@/lib/spatial-browser-recovery';
 
 const PROJECT_KEY='stratum_spatial_project_id';
 export const SERVER_SYNC_EVENT='stratum:server-sync';
+export const SERVER_SYNC_REQUEST_EVENT='stratum:sync-request';
 
 type Project={id:string};
 
@@ -63,10 +64,16 @@ export default function SpatialAutoSync(){
 
     schedule();
     window.addEventListener('stratum:graph-updated',schedule);
+    window.addEventListener('stratum:auth-changed',schedule);
+    window.addEventListener(SERVER_SYNC_REQUEST_EVENT,schedule);
+    window.addEventListener('online',schedule);
     return()=>{
       active=false;
       if(timer.current)clearTimeout(timer.current);
       window.removeEventListener('stratum:graph-updated',schedule);
+      window.removeEventListener('stratum:auth-changed',schedule);
+      window.removeEventListener(SERVER_SYNC_REQUEST_EVENT,schedule);
+      window.removeEventListener('online',schedule);
     };
   },[]);
 

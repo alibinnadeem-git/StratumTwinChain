@@ -45,7 +45,7 @@ export default async function Shell({children}:{children:ReactNode}){
      <div className="nav-more-body">{moreGroups.map(group=><div className="nav-group" key={group.label}><small>{group.label}</small>{group.links.map(([href,label])=><Link href={href} key={`${group.label}-${href}`}>{label}</Link>)}</div>)}</div>
     </details>
    </nav>
-   <div className="usercard"><div className="avatar" aria-hidden="true">{identity.avatar}</div><div><strong>{identity.primary}</strong><small>{identity.secondary}</small></div></div>
+   <div className="usercard"><div className="avatar" aria-hidden="true">{identity.avatar}</div><div><strong>{identity.primary}</strong><small>{identity.secondary}</small>{!session&&<Link href="/login">Sign in to load your project</Link>}</div></div>
   </aside>
   <main id="main-content" className="main" tabIndex={-1}>{children}</main>
  </div>
