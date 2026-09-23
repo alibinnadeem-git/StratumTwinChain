@@ -19,7 +19,8 @@ export default function Login(){
       :(j.error||'Login failed'));
     return;
    }
-   r.push('/');r.refresh();
+   window.dispatchEvent(new Event('stratum:auth-changed'));
+   r.push('/spatial');r.refresh();
   }catch{
    setError('Sign-in service is temporarily unavailable.');
   }finally{setBusy(false)}

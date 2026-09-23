@@ -12,11 +12,14 @@ import {
   restoreBestSpatialGraph,
   SPATIAL_RECOVERY_EVENT,
 } from '@/lib/spatial-browser-recovery';
+import {SERVER_SYNC_EVENT,SERVER_SYNC_REQUEST_EVENT} from '@/components/SpatialAutoSync';
 
 type Health={
   liveDataReady?:boolean;
   databaseConfigured?:boolean;
   authConfigured?:boolean;
+  databaseReachable?:boolean;
+  schema?:{spatialPersistenceReady?:boolean};
   chainRpcConfigured?:boolean;
   mode?:string;
 };
@@ -26,6 +29,7 @@ export default function SpatialWorkspaceStatus({compact=false,authenticated=fals
   const [health,setHealth]=useState<Health|null>(null);
   const [message,setMessage]=useState('');
   const [recoveryReady,setRecoveryReady]=useState(false);
+  const [syncState,setSyncState]=useState<{state:string;error?:string;status?:number;revision?:number}|null>(null);
 
   useEffect(()=>{
     const refresh=()=>setGraph(readCurrentSpatialGraph());
@@ -41,17 +45,20 @@ export default function SpatialWorkspaceStatus({compact=false,authenticated=fals
     window.addEventListener('stratum:graph-updated',refresh);
     window.addEventListener(SPATIAL_RECOVERY_EVENT,refresh);
     window.addEventListener('message',receiveLegacy);
+    const receiveSync=(event:Event)=>setSyncState((event as CustomEvent).detail||null);
+    window.addEventListener(SERVER_SYNC_EVENT,receiveSync);
     setRecoveryReady(true);
     fetch('/api/health',{cache:'no-store'}).then(r=>r.json()).then(setHealth).catch(()=>setHealth(null));
     return()=>{
       window.removeEventListener('stratum:graph-updated',refresh);
       window.removeEventListener(SPATIAL_RECOVERY_EVENT,refresh);
       window.removeEventListener('message',receiveLegacy);
+      window.removeEventListener(SERVER_SYNC_EVENT,receiveSync);
     };
   },[]);
 
   const summary=graphSummary(graph);
-  const infrastructureReady=Boolean(health?.liveDataReady);
+  const infrastructureReady=Boolean(health?.databaseReachable&&health?.authConfigured&&health?.schema?.spatialPersistenceReady);
   const serverReady=infrastructureReady&&authenticated;
 
   async function restore(){
@@ -117,6 +124,8 @@ export default function SpatialWorkspaceStatus({compact=false,authenticated=fals
       {graph&&<Link className="action" href="/spatial">Open Spatial</Link>}
       {!graph&&<button className="ghost" type="button" onClick={recoverLegacy}>Recover earlier STRATUM model</button>}
       {!graph&&<Link className="ghost" href="/compiler">Import sources</Link>}
+      {!authenticated&&<Link className="ghost" href="/login">Sign in to load saved model</Link>}
+      {graph&&authenticated&&<button className="ghost" type="button" onClick={()=>window.dispatchEvent(new Event(SERVER_SYNC_REQUEST_EVENT))}>Sync model now</button>}
     </div>
 
     <details className="secondary-details workspace-why">
@@ -129,10 +138,11 @@ export default function SpatialWorkspaceStatus({compact=false,authenticated=fals
       {!serverReady&&<>
        <p className="muted">{infrastructureReady
         ?<>Production runtime bindings are ready. <Link href="/login">Sign in</Link> to use tenant-scoped server persistence and live asset context; browser recovery remains available while signed out.</>
-        :'Production server sync is currently unavailable because the deployed application does not have all required database/auth/DIR runtime bindings. The browser recovery layer protects the working model on this device until that infrastructure binding is completed.'}</p>
+        :'Production Spatial sync is unavailable because the database or authentication binding is not ready. The browser recovery layer protects the working model on this device.'}</p>
        <p className="muted">If the missing model was created on a different STRATUM hostname, browser same-origin security keeps that storage separate. Open that old hostname on the same device, export the model there, then import the JSON backup here.</p>
       </>}
     </details>
+    {graph&&syncState&&<div className="notice" role="status"><strong>SERVER SYNC</strong><span>{syncState.state==='SAVED'?`Saved project model revision ${syncState.revision??'—'} on the server.`:syncState.state==='PROJECT_REQUIRED'?'Choose a project in Import → Server sync & review baseline.':syncState.state==='FAILED'?`Model could not be saved: ${syncState.error||`HTTP ${syncState.status}`}`:syncState.state==='UNAVAILABLE'?`Server sync unavailable${syncState.status?` (HTTP ${syncState.status})`:''}. Your browser model remains available.`:syncState.state==='SCHEMA_NOT_READY'?'Server Spatial storage is not ready. Your browser model remains available.':'Checking server sync…'}</span></div>}
     {message&&<div className="notice" role="status"><strong>WORKSPACE</strong><span>{message}</span></div>}
   </section>;
 }
