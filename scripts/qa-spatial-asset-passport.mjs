@@ -18,6 +18,7 @@ assert.equal(noDir?.asset.id,'asset-2');assert.equal(spatialAssetDirState(noDir)
 
 const unbound=resolveRegisteredSpatialAsset({id:'cad-x',name:'PANELBOARD LP',layer:'L2',meta:{}},assets);
 assert.equal(unbound,null,'similar or incomplete labels must not borrow another asset identity or DIR');
+assert.equal(resolveRegisteredSpatialAsset({id:'imported-reference',name:'Lighting Panel LP-1',layer:'L2',meta:{referenceOnly:true}},assets),null,'an imported model reference must not inherit project asset identity by a matching name');
 
 const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
 const inspector=fs.readFileSync('components/SpatialAssetInspector.tsx','utf8');

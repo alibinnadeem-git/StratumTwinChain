@@ -3,6 +3,8 @@ import {z} from 'zod';
 import {requireSession} from '@/lib/server/auth';
 import {query,tx} from '@/lib/server/db';
 import {canonicalHash} from '@/lib/server/hash';
+import {createHash} from 'node:crypto';
+import {inspectStandaloneGlb,MAX_EMBEDDED_GLB_BYTES} from '@/lib/spatial-glb-import';
 import {parsePowerIntelligence,persistPowerIntelligence} from '@/lib/server/power-intelligence-persistence';
 import {parseCoordination,persistCoordination} from '@/lib/server/coordination-persistence';
 
@@ -99,6 +101,18 @@ export async function POST(req:Request){
     if(!await schemaReady())return NextResponse.json({error:'Spatial compilation persistence schema is not ready'},{status:503});
     const body=SaveBody.parse(await req.json());
     const graph=body.graph;
+    for(const entity of graph.entities.filter(item=>item.kind==='imported-3d-model')){
+      const encoded=entity.meta?.embeddedGlb;
+      if(typeof encoded!=='string'||encoded.length>Math.ceil(MAX_EMBEDDED_GLB_BYTES*4/3)+4||!/^[A-Za-z0-9+/]+={0,2}$/.test(encoded))
+        return NextResponse.json({error:'Imported GLB payload is missing, invalid or exceeds 512 KB'},{status:400});
+      const decoded=Buffer.from(encoded,'base64');
+      if(decoded.toString('base64')!==encoded)return NextResponse.json({error:'Imported GLB payload is not canonical base64'},{status:400});
+      try{inspectStandaloneGlb(decoded.buffer.slice(decoded.byteOffset,decoded.byteOffset+decoded.byteLength))}
+      catch{return NextResponse.json({error:'Imported GLB payload is not a self-contained model'},{status:400})}
+      const digest=createHash('sha256').update(decoded).digest('hex');
+      if(entity.meta?.sourceSha256!==digest||!graph.sources.some(source=>source.sha256===digest&&source.name===entity.source))
+        return NextResponse.json({error:'Imported GLB fingerprint does not match its source record'},{status:400});
+    }
     const entityIds=new Set(graph.entities.map(entity=>entity.id));
     const sourceNames=new Set(graph.sources.map(source=>source.name));
     const powerPayload=parsePowerIntelligence((graph as Record<string,unknown>).powerIntelligence,entityIds);

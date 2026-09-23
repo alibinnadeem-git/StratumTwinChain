@@ -63,7 +63,7 @@ function comparableLocation(value:string|undefined){const n=norm(value);return n
 
 export function buildCoordinationIntelligence(graph:CoordinationGraph):CoordinationSnapshot{
  const findings:CoordinationFinding[]=[];
- const tagged=graph.entities.map(entity=>({entity,tag:tag(entity)})).filter(item=>item.tag);
+ const tagged=graph.entities.filter(entity=>entity.meta?.referenceOnly!==true).map(entity=>({entity,tag:tag(entity)})).filter(item=>item.tag);
  const byTag=new Map<string,CoordinationEntity[]>();
  for(const item of tagged){const list=byTag.get(item.tag!)||[];list.push(item.entity);byTag.set(item.tag!,list)}
 

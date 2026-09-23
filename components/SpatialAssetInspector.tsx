@@ -100,8 +100,9 @@ export default function SpatialAssetInspector({
   </div>
 
   <div className={`placement-trust ${zReviewed?'reviewed':'needs-review'}`} role="status">
-   <div><span>Z placement</span><strong>{zReviewed?'Measured / reviewed':'Unverified elevation'}</strong></div>
+    <div><span>Z placement</span><strong>{zReviewed?'Measured / reviewed':'Unverified elevation'}</strong></div>
   </div>
+  {selected.kind==='imported-3d-model'&&<div className="notice" role="status"><strong>IMPORTED 3D GEOMETRY</strong><span>This is the uploaded model file. Its location and model-space dimensions are unverified; importing it does not register an installed asset or establish its DIR state.</span></div>}
 
   {asset?<>
    <div className="asset-summary-strip">
@@ -198,7 +199,7 @@ export default function SpatialAssetInspector({
     <div><span>Confidence</span><strong>{Math.round(selected.confidence*100)}%</strong></div>
     <div><span>Zone</span><strong>{selected.zone||'Unresolved'}</strong></div>
    </div>
-   <details className="proof-details"><summary>Raw source details</summary><dl>{Object.entries(selected.meta||{}).map(([key,value])=><div key={key}><dt>{key}</dt><dd style={{overflowWrap:'anywhere'}}>{typeof value==='object'?JSON.stringify(value):String(value)}</dd></div>)}</dl></details>
+   <details className="proof-details"><summary>Raw source details</summary><dl>{Object.entries(selected.meta||{}).filter(([key])=>key!=='embeddedGlb').map(([key,value])=><div key={key}><dt>{key}</dt><dd style={{overflowWrap:'anywhere'}}>{typeof value==='object'?JSON.stringify(value):String(value)}</dd></div>)}</dl></details>
   </details>
   {message&&<p role="status" className="muted">{message}</p>}
  </div>;

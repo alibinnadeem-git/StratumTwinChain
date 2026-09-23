@@ -43,6 +43,8 @@ const unrated=result.requirements.find(item=>item.sourceEntityId==='ahu-unrated'
 assert.ok(unrated);assert.equal(unrated.voltage,null);assert.equal(unrated.fla,null);assert.equal(unrated.inputKw,null);assert.equal(unrated.connectedLoadEstimateKva,null);
 
 assert.ok(!result.requirements.some(item=>item.sourceEntityId==='room'));
+const reference=buildPowerIntelligence({...graph,entities:[...graph.entities,{id:'reference-only',source:'Tesla.glb',layer:'L2',kind:'imported-3d-model',name:'EV CHARGER EVSE-1',x:0,y:0,confidence:1,meta:{referenceOnly:true}}]});
+assert.ok(!reference.requirements.some(item=>item.sourceEntityId==='reference-only'),'3D model library references must not become project power requirements');
 assert.equal(result.truthBoundary,'EXPECTED_POWER_IS_ADVISORY_UNTIL_QUALIFIED_ENGINEERING_REVIEW');
 
 const compiler=fs.readFileSync('components/CompilerWorkspace.tsx','utf8');

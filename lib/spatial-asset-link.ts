@@ -60,6 +60,9 @@ export function resolveRegisteredSpatialAsset(entity:SpatialAssetEntity|null|und
  const explicitSerial=firstMeta(entity,['serialNumber','serial_number','assetSerial']);
  if(explicitSerial){const matches=assets.filter(item=>item.serial_number&&upper(item.serial_number)===upper(explicitSerial));if(matches.length===1)return{asset:matches[0],method:'EXPLICIT_SERIAL',confidence:.99};}
 
+ // An imported reference mesh has no project asset identity until a person binds it.
+ if(entity.meta?.referenceOnly===true)return null;
+
  const codeMatches=assets.filter(item=>containsIdentifier(entity.name,item.asset_code));
  if(codeMatches.length===1)return{asset:codeMatches[0],method:'IDENTIFIER_IN_LABEL',confidence:.97};
  const serialMatches=assets.filter(item=>item.serial_number&&containsIdentifier(entity.name,item.serial_number));
