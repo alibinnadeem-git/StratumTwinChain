@@ -5,6 +5,7 @@ import {useEffect,useMemo,useRef,useState} from "react";
 import {resolveElectricalComponent} from "@/lib/electrical-component-library";
 import {resolveAssetPlacement} from "@/lib/asset-placement";
 import {fitProceduralObjectToMeters,normalizeObjectToMeters} from "@/lib/three-model-normalization";
+import {decodeGlbBase64,inspectStandaloneGlb} from "@/lib/spatial-glb-import";
 import SpatialAssetInspector from "@/components/SpatialAssetInspector";
 import {buildSpatialCoordinationReviewIndex,findingsForEntity} from "@/lib/spatial-coordination-review";
 import type {CoordinationSnapshot} from "@/lib/coordination-intelligence";
@@ -87,6 +88,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
   const [selected,setSelected]=useState<Entity|null>(null);
   const [fitRevision,setFitRevision]=useState(0);
   const [labels,setLabels]=useState(true);
+  const [modelLoadErrors,setModelLoadErrors]=useState<string[]>([]);
 
   useEffect(()=>{
     const load=()=>{
@@ -135,7 +137,9 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
   const sldObjects=useMemo(()=>graph?.entities.filter(e=>e.layer==="L2"&&isSld(e)).length||0,[graph]);
   const unresolvedZ=useMemo(()=>graph?.entities.filter(e=>e.layer==="L2"&&!physicalElevationKnown(e)&&!isSld(e)).length||0,[graph]);
   const modelMapped=useMemo(()=>graph?.entities.filter(e=>{
-    if(e.layer!=="L2"||e.kind==="line")return false;const def=resolveElectricalComponent(e.name);return!!def&&!!registry.find(r=>r.componentKey===def.key)?.modelUrl.trim();
+    if(e.layer!=="L2"||e.kind==="line")return false;
+    if(e.kind==="imported-3d-model")return typeof e.meta?.embeddedGlb==='string';
+    const def=resolveElectricalComponent(e.name);return!!def&&!!registry.find(r=>r.componentKey===def.key)?.modelUrl.trim();
   }).length||0,[graph,registry]);
   const matching=useMemo(()=>inventory,[inventory]);
   const fallbackBounds=useMemo(()=>bounds2d(visible),[visible]);
@@ -153,6 +157,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
   useEffect(()=>{
     if(!graph||!mount.current)return;
     let disposed=false,cleanup=()=>{};
+    setModelLoadErrors([]);
     (async()=>{
       const THREE=await import("three");
       const {OrbitControls}=await import("three/examples/jsm/controls/OrbitControls.js");
@@ -223,6 +228,32 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       const loader=new GLTFLoader();
       const equipment=(e:Entity)=>{
         if(!isVisible(e))return;
+        if(e.kind==="imported-3d-model"){
+          try{
+            const encoded=e.meta?.embeddedGlb;
+            if(typeof encoded!=="string")throw new Error('Model bytes are missing');
+            const bytes=decodeGlbBase64(encoded);
+            inspectStandaloneGlb(bytes);
+            loader.parse(bytes,'',gltf=>{
+              if(disposed)return;
+              try{
+                const dimensions=e.meta?.modelBoundsMeters;
+                if(!Array.isArray(dimensions)||dimensions.length!==3||!dimensions.every(v=>typeof v==='number'&&Number.isFinite(v)&&v>0))throw new Error('Model bounds are invalid');
+                const target=dimensions as [number,number,number];
+                const model=gltf.scene;
+                normalizeObjectToMeters(model,target);
+                const root=new THREE.Group();root.position.set(e.x,height(e),e.y);
+                root.rotation.y=THREE.MathUtils.degToRad(-(e.rotation||0));
+                root.userData.dimensionAuthority='IMPORTED_MODEL_UNVERIFIED';
+                root.add(model);interactionProxy(root,target);tag(root,e);
+                groups.L2.add(root);label(e.name,e.x,height(e),e.y,'#ffd08a',e);
+                const renderedBox=new THREE.Box3().setFromObject(root);if(!renderedBox.isEmpty())bounds.union(renderedBox);
+                runtime.current?.fit?.();
+              }catch{setModelLoadErrors(current=>current.includes(e.id)?current:[...current,e.id])}
+            },()=>{if(!disposed)setModelLoadErrors(current=>current.includes(e.id)?current:[...current,e.id])});
+          }catch{setModelLoadErrors(current=>current.includes(e.id)?current:[...current,e.id])}
+          return;
+        }
         const def=resolveElectricalComponent(e.name),cfg=def?registry.find(r=>r.componentKey===def.key):null;
         if(!cfg?.modelUrl.trim()||!["GLB","GLTF"].includes(cfg.format)){fallbackShape(e);return}
         const placement=resolveAssetPlacement({name:e.name,floor:e.floor,z:e.z,meta:e.meta},cfg);
@@ -349,6 +380,8 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       <button className={mode==="ELECTRICAL"?"action":"ghost"} aria-pressed={mode==="ELECTRICAL"} onClick={()=>setMode("ELECTRICAL")}><b>Electrical</b><br/><small>SLD topology projected spatially</small></button>
       <button className={mode==="REVIEW"?"action":"ghost"} aria-pressed={mode==="REVIEW"} onClick={()=>setMode("REVIEW")}><b>Review</b><br/><small>Source confidence + candidates</small></button>
     </div>
+
+    {modelLoadErrors.length>0&&<div className="notice" role="alert"><strong>3D IMPORT NEEDS ATTENTION</strong><span>{modelLoadErrors.length} uploaded model{modelLoadErrors.length===1?'':'s'} could not be rendered. Its source record remains available for review; no substitute geometry was displayed.</span></div>}
 
     <div style={{display:"flex",gap:8,padding:"10px 12px",alignItems:"center",flexWrap:"wrap",borderBottom:"1px solid #17334a"}}>
       <select aria-label="Floor isolation" value={floor} onChange={e=>setFloor(e.target.value)}><option value="ALL">All floors</option>{levels.map(([f])=><option key={f} value={f}>{f}</option>)}</select>
