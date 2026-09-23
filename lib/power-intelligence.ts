@@ -105,10 +105,10 @@ function apparentKva(values:ReturnType<typeof electricalValues>){
  return{value:null,basis:null};
 }
 function comparableTag(name:string,tag:string|null){if(!tag)return false;return normalized(name).includes(normalized(tag))}
-function likelySupply(entity:PowerEntity){return entity.layer==='L2'||entity.layer==='L3'||ELECTRICAL_SUPPLY.test(entity.name)}
+function likelySupply(entity:PowerEntity){return entity.meta?.referenceOnly!==true&&(entity.layer==='L2'||entity.layer==='L3'||ELECTRICAL_SUPPLY.test(entity.name))}
 
 export function buildPowerIntelligence(graph:PowerGraph):PowerIntelligenceSnapshot{
- const candidates=graph.entities.filter(entity=>Boolean(equipmentClass(entity.name)));
+ const candidates=graph.entities.filter(entity=>entity.meta?.referenceOnly!==true&&Boolean(equipmentClass(entity.name)));
  const requirements:ExpectedPowerRequirement[]=[];
  const findings:PowerGapFinding[]=[];
  for(const entity of candidates){
