@@ -11,23 +11,27 @@ type ExperienceState={
   ready:boolean;
   hasImportedModel:boolean;
   sourceCount:number;
+  sourceSheetOnly:boolean;
+  lineCount:number;
 };
 
 function inspectCompiledGraph():ExperienceState{
   try{
     const raw=localStorage.getItem("stratum_compiled_graph");
-    if(!raw)return{ready:true,hasImportedModel:false,sourceCount:0};
+    if(!raw)return{ready:true,hasImportedModel:false,sourceCount:0,sourceSheetOnly:false,lineCount:0};
     const graph=JSON.parse(raw);
     const entities=Array.isArray(graph?.entities)?graph.entities:[];
     const sources=Array.isArray(graph?.sources)?graph.sources:[];
-    return{ready:true,hasImportedModel:entities.length>0,sourceCount:sources.length};
+    return{ready:true,hasImportedModel:entities.length>0,sourceCount:sources.length,
+      sourceSheetOnly:entities.length>0&&(graph.reviewState==='SOURCE_SHEET_ONLY'||entities.every((entity:{kind?:string})=>entity.kind==='line')),
+      lineCount:entities.filter((entity:{kind?:string})=>entity.kind==='line').length};
   }catch{
-    return{ready:true,hasImportedModel:false,sourceCount:0};
+    return{ready:true,hasImportedModel:false,sourceCount:0,sourceSheetOnly:false,lineCount:0};
   }
 }
 
 export default function SpatialExperience({assets,authenticated=false}:{assets:RegisteredSpatialAsset[];authenticated?:boolean}){
-  const [state,setState]=useState<ExperienceState>({ready:false,hasImportedModel:false,sourceCount:0});
+  const [state,setState]=useState<ExperienceState>({ready:false,hasImportedModel:false,sourceCount:0,sourceSheetOnly:false,lineCount:0});
   const [serverPending,setServerPending]=useState(false);
 
   useEffect(()=>{
@@ -37,7 +41,7 @@ export default function SpatialExperience({assets,authenticated=false}:{assets:R
     const onServerHydration=(event:Event)=>{
       if(!active)return;
       const detail=(event as CustomEvent).detail||{};
-      if(detail.state==='LOADING'){setServerPending(true);setState({ready:false,hasImportedModel:false,sourceCount:0});return}
+      if(detail.state==='LOADING'){setServerPending(true);setState({ready:false,hasImportedModel:false,sourceCount:0,sourceSheetOnly:false,lineCount:0});return}
       setServerPending(false);
       refresh();
     };
@@ -48,8 +52,8 @@ export default function SpatialExperience({assets,authenticated=false}:{assets:R
       const recovered=inspectCompiledGraph();
       if(recovered.hasImportedModel){if(active)setState(recovered);return}
       const state=serverState();
-      if(state==='LOADING'){if(active){setServerPending(true);setState({ready:false,hasImportedModel:false,sourceCount:recovered.sourceCount})}return}
-      if(authenticated&&!state){if(active){setServerPending(true);setState({ready:false,hasImportedModel:false,sourceCount:recovered.sourceCount})}return}
+      if(state==='LOADING'){if(active){setServerPending(true);setState({...recovered,ready:false})}return}
+      if(authenticated&&!state){if(active){setServerPending(true);setState({...recovered,ready:false})}return}
       if(active){setServerPending(false);setState(recovered)};
     };
     void hydrate();
@@ -71,10 +75,14 @@ export default function SpatialExperience({assets,authenticated=false}:{assets:R
   </section>;
 
   if(state.hasImportedModel)return <section id="spatial-model" aria-label="Imported project spatial model">
-    <div className="notice" style={{marginBottom:12,borderColor:"#2d7252"}}>
+    {state.sourceSheetOnly?<div className="notice" style={{marginBottom:12}} role="status">
+      <strong>SOURCE SHEET ONLY · 0 COMPONENTS</strong>
+      <span>This saved project contains {state.lineCount} drawing line{state.lineCount===1?'':'s'}, but no identified equipment or 3D components. The lines show the source sheet; they are not clickable assets. Use “Recover earlier STRATUM model” above on the device where your earlier model was created, or import the model backup or a labeled equipment source.</span>
+      <div className="button-row" style={{marginTop:10}}><Link className="ghost" href="/compiler">Import labeled equipment source</Link></div>
+    </div>:<div className="notice" style={{marginBottom:12,borderColor:"#2d7252"}}>
       <strong>PROJECT MODEL</strong>
       <span>This view is generated from your compiled engineering sources. Click equipment to inspect its registered asset, activity, QR identity and DIR state.</span>
-    </div>
+    </div>}
     <CompiledGraphViewer registeredAssets={assets}/>
   </section>;
 
