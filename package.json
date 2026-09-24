@@ -19,6 +19,7 @@
     "qa:runtime-config": "node --experimental-strip-types scripts/qa-runtime-config.mjs",
     "qa:release-uat": "node scripts/qa-release-uat.mjs",
     "qa:spatial-viewer": "node --experimental-strip-types scripts/qa-spatial-viewer.mjs",
+    "qa:spatial-source-layer": "node --experimental-strip-types scripts/qa-spatial-source-layer.mjs",
     "qa:power-intelligence": "node --experimental-strip-types scripts/qa-power-intelligence.mjs",
     "qa:equipment-schedule": "node --experimental-strip-types scripts/qa-equipment-schedule.mjs",
     "qa:engineering-knowledge": "node scripts/qa-engineering-knowledge.mjs",

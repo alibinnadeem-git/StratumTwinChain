@@ -9,6 +9,7 @@ import {decodeGlbBase64,inspectStandaloneGlb} from "@/lib/spatial-glb-import";
 import SpatialAssetInspector from "@/components/SpatialAssetInspector";
 import {buildSpatialCoordinationReviewIndex,findingsForEntity} from "@/lib/spatial-coordination-review";
 import type {CoordinationSnapshot} from "@/lib/coordination-intelligence";
+import {spatialEntitySourceKey,spatialSourceKey,spatialSourceLayerLabels} from "@/lib/spatial-source-layer";
 import {type RegisteredSpatialAsset} from "@/lib/spatial-asset-link";
 import {
   DEFAULT_ELECTRICAL_MODEL_REGISTRY,
@@ -106,8 +107,9 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
 
   const disciplines=useMemo(()=>graph?[...new Set(graph.sources.map(source=>source.discipline||"Unclassified"))].sort():[],[graph]);
   const sourceLayers=useMemo(()=>graph?.sources||[],[graph]);
+  const sourceLayerLabels=useMemo(()=>spatialSourceLayerLabels(sourceLayers),[sourceLayers]);
   const hiddenSourceSet=useMemo(()=>new Set(hiddenSources),[hiddenSources]);
-  const sourceDisciplines=useMemo(()=>new Map((graph?.sources||[]).map(source=>[source.name,source.discipline||"Unclassified"])),[graph]);
+  const sourceDisciplines=useMemo(()=>new Map((graph?.sources||[]).map(source=>[spatialSourceKey(source),source.discipline||"Unclassified"])),[graph]);
   const coordinationReview=useMemo(()=>buildSpatialCoordinationReviewIndex(graph?.coordinationIntelligence),[graph?.coordinationIntelligence]);
   const levels=useMemo(()=>{
     if(!graph)return[] as [string,number][];
@@ -121,9 +123,10 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
     const q=search.trim().toLowerCase();
     return graph.entities.filter(e=>{
       if(e.meta?.nonSpatial===true)return false;
-      if(hiddenSourceSet.has(e.source))return false;
+      const sourceKey=spatialEntitySourceKey(e);
+      if(hiddenSourceSet.has(sourceKey))return false;
       if(floor!=="ALL"&&(e.floor||"UNRESOLVED")!==floor)return false;
-      const entityDiscipline=sourceDisciplines.get(e.source)||String(e.meta?.discipline||"Unclassified");
+      const entityDiscipline=sourceDisciplines.get(sourceKey)||String(e.meta?.discipline||"Unclassified");
       if(discipline!=="ALL"&&entityDiscipline!==discipline)return false;
       if(mode==="ELECTRICAL"&&!(["L2","L3","L4"] as Layer[]).includes(e.layer))return false;
       if(systemMode!=="ALL"&&e.layer==="L2"&&entitySystem(e)!==systemMode)return false;
@@ -146,12 +149,12 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
 
   useEffect(()=>{
     if(!graph)return;
-    const valid=new Set(graph.sources.map(source=>source.name));
+    const valid=new Set(graph.sources.map(source=>spatialSourceKey(source)));
     setHiddenSources(current=>current.filter(source=>valid.has(source)));
   },[graph?.createdAt]);
 
-  function toggleSource(name:string){
-    setHiddenSources(current=>current.includes(name)?current.filter(source=>source!==name):[...current,name]);
+  function toggleSource(key:string){
+    setHiddenSources(current=>current.includes(key)?current.filter(source=>source!==key):[...current,key]);
   }
 
   useEffect(()=>{
@@ -406,15 +409,16 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       <div style={{padding:"0 12px 12px"}}>
         <div className="button-row" style={{marginBottom:10}}>
           <button className="ghost" type="button" onClick={()=>setHiddenSources([])} disabled={!hiddenSources.length}>Show all sources</button>
-          <button className="ghost" type="button" onClick={()=>setHiddenSources(sourceLayers.map(source=>source.name))} disabled={!sourceLayers.length||hiddenSources.length===sourceLayers.length}>Hide all sources</button>
+          <button className="ghost" type="button" onClick={()=>setHiddenSources(sourceLayers.map(source=>spatialSourceKey(source)))} disabled={!sourceLayers.length||hiddenSources.length===sourceLayers.length}>Hide all sources</button>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(250px,1fr))",gap:8}}>
           {sourceLayers.map(source=>{
-            const active=!hiddenSourceSet.has(source.name);
-            const entityCount=graph.entities.filter(entity=>entity.source===source.name&&entity.meta?.nonSpatial!==true).length;
-            return <label key={source.sha256||source.name} style={{display:"flex",alignItems:"flex-start",gap:8,border:"1px solid #17334a",borderRadius:10,padding:"9px 10px"}}>
-              <input type="checkbox" aria-label={`Toggle source ${source.name}`} checked={active} onChange={()=>toggleSource(source.name)}/>
-              <span style={{minWidth:0}}><strong style={{display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={source.name}>{source.name}</strong><small className="muted">{source.discipline||"Unclassified"} · {source.ext?.toUpperCase()||"SOURCE"} · {entityCount} spatial object{entityCount===1?"":"s"}</small></span>
+            const key=spatialSourceKey(source),label=sourceLayerLabels.get(key)||source.name;
+            const active=!hiddenSourceSet.has(key);
+            const entityCount=graph.entities.filter(entity=>spatialEntitySourceKey(entity)===key&&entity.meta?.nonSpatial!==true).length;
+            return <label key={key} style={{display:"flex",alignItems:"flex-start",gap:8,border:"1px solid #17334a",borderRadius:10,padding:"9px 10px"}}>
+              <input type="checkbox" aria-label={`Toggle source ${label}`} checked={active} onChange={()=>toggleSource(key)}/>
+              <span style={{minWidth:0}}><strong style={{display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={source.name}>{label}</strong><small className="muted">{source.discipline||"Unclassified"} · {source.ext?.toUpperCase()||"SOURCE"} · {entityCount} spatial object{entityCount===1?"":"s"}</small></span>
             </label>;
           })}
         </div>
@@ -433,7 +437,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
         {renderStatus!=="FALLBACK"&&<div ref={mount} style={{height:"min(72vh,760px)",minHeight:520}}/>}
         {renderStatus==="FALLBACK"&&<div style={{height:"min(72vh,760px)",minHeight:520,padding:14}} role="img" aria-label="2D spatial fallback">
           <svg viewBox="0 0 100 100" width="100%" height="100%" style={{background:"#06141e",borderRadius:12}}>
-            {(graph.links||[]).filter(l=>["SLD_FEEDS","SAME_TAG","SOURCE_RELATION"].includes(l.type)).map(l=>{const a=graph.entities.find(e=>e.id===l.from),b=graph.entities.find(e=>e.id===l.to);if(!a||!b)return null;return <line key={l.id} x1={sx(a.x)} y1={sy(a.y)} x2={sx(b.x)} y2={sy(b.y)} stroke={l.type==="SLD_FEEDS"?"#57baff":"#9a7cff"} strokeWidth=".35" strokeDasharray="1 1"/>})}
+            {(graph.links||[]).filter(l=>["SLD_FEEDS","SAME_TAG","SOURCE_RELATION"].includes(l.type)).map(l=>{const a=graph.entities.find(e=>e.id===l.from),b=graph.entities.find(e=>e.id===l.to);if(!a||!b||!visible.some(entity=>entity.id===a.id)||!visible.some(entity=>entity.id===b.id))return null;return <line key={l.id} x1={sx(a.x)} y1={sy(a.y)} x2={sx(b.x)} y2={sy(b.y)} stroke={l.type==="SLD_FEEDS"?"#57baff":"#9a7cff"} strokeWidth=".35" strokeDasharray="1 1"/>})}
             {visible.map(e=>(e.kind==="line"||e.kind==="sld-feeder-candidate")&&Number.isFinite(e.x2)&&Number.isFinite(e.y2)?<line key={e.id} x1={sx(e.x)} y1={sy(e.y)} x2={sx(e.x2!)} y2={sy(e.y2!)} stroke={e.layer==="L3"?"#62bfff":"#7895a4"} strokeWidth=".28"/>:<g key={e.id} onClick={()=>setSelected(e)} style={{cursor:"pointer"}}><circle cx={sx(e.x)} cy={sy(e.y)} r={e.layer==="L2"?1.25:.75} fill={e.layer==="L2"?"#e5a14d":e.layer==="L4"?"#43d98f":"#7f98a6"}/>{labels&&e.layer==="L2"&&<text x={sx(e.x)+1.7} y={sy(e.y)-1} fill="#d8edf6" fontSize="2.2">{e.name.slice(0,24)}</text>}</g>)}
           </svg><p className="muted" style={{margin:"8px 0 0"}}>Interactive 2D fallback active. Source placement and selection remain available while this device/browser cannot initialize WebGL.</p>
         </div>}

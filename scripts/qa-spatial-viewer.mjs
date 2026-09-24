@@ -130,9 +130,10 @@ assert.match(viewer,/normalizeObjectToMeters/);assert.match(viewer,/fitProcedura
 assert.doesNotMatch(viewer,/root\.scale\.setScalar\(cfg\.scale\s*\*\s*n\(e\.scale,1\)\)/,'registry GLBs must not use arbitrary display scalar as physical size');
 assert.match(viewer,/ViewMode="MODEL"\|"ELECTRICAL"\|"REVIEW"/);assert.match(viewer,/2D spatial fallback/);assert.match(viewer,/SLD → SPATIAL PROJECTION/);
 assert.match(viewer,/hiddenSources/,'viewer must track source-specific visibility without deleting model data');
-assert.match(viewer,/hiddenSourceSet\.has\(e\.source\)/,'source layer visibility must filter rendered entities by original source');
+assert.match(viewer,/const sourceKey=spatialEntitySourceKey\(e\)/,'source layer visibility must derive immutable per-entity source identity');
+assert.match(viewer,/hiddenSourceSet\.has\(sourceKey\)/,'source layer visibility must filter rendered entities by immutable source identity');
 assert.match(viewer,/Source layers · \{sourceLayers\.length-hiddenSources\.length\}\/\{sourceLayers\.length\} visible/,'viewer must expose concise source-layer status');
-assert.match(viewer,/Toggle source \$\{source\.name\}/,'each source layer must have an accessible on-off control');
+assert.match(viewer,/Toggle source \$\{label\}/,'each source revision layer must have an accessible disambiguated on-off control');
 assert.match(viewer,/Show all sources/);assert.match(viewer,/Hide all sources/);
 assert.match(viewer,/graph\.entities\.length===0/,'zero-entity graphs must not render an empty project stage');
 assert.match(spatialPage,/MODEL · LIVE ASSETS/);assert.match(spatialPage,/MODEL · BROWSER/);assert.match(spatialPage,/<SpatialExperience /);
