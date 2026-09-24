@@ -105,6 +105,7 @@ export const ELECTRICAL_COMPONENTS:ElectricalComponent[]=[
  {key:'energy-meter',name:'Energy Meter',category:'Sensors & Monitoring Devices',aliases:['energy meter'],twinShape:'meter',trackAsAsset:true},
  {key:'current-sensor',name:'Current Sensor / CT',category:'Sensors & Monitoring Devices',aliases:['current sensor','ct sensor'],twinShape:'sensor',trackAsAsset:false},
  {key:'temperature-sensor',name:'Temperature Sensor',category:'Sensors & Monitoring Devices',aliases:['temperature sensor','temp sensor'],twinShape:'sensor',trackAsAsset:false},
+ {key:'adafruit-bme280-2652',name:'Adafruit BME280 Sensor Breakout (2652)',category:'Sensors & Monitoring Devices',aliases:['adafruit bme280','adafruit 2652','bme280 breakout'],twinShape:'sensor',trackAsAsset:false,manufacturer:'Adafruit',modelFamily:'BME280 breakout'},
  {key:'vibration-sensor',name:'Vibration Sensor',category:'Sensors & Monitoring Devices',aliases:['vibration sensor'],twinShape:'sensor',trackAsAsset:false}
 ];
 

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import {createHash} from 'node:crypto';
 import {enrichSpatialProjection} from '../lib/spatial-projection.ts';
 import {resolveAssetPlacement} from '../lib/asset-placement.ts';
 import {planUniformMeterScale} from '../lib/model-scale.ts';
@@ -7,7 +8,7 @@ import {DEFAULT_ELECTRICAL_MODEL_REGISTRY,normalizeElectricalModelRegistry,oemMo
 import {ELECTRICAL_COMPONENTS} from '../lib/electrical-component-library.ts';
 import {OEM_SOURCES} from '../lib/oem-source-catalog.ts';
 
-const officialHosts=['abb.com','global.abb','se.com','siemens.com','eaton.com','legrand.us','phoenixcontact.com','nvent.com','rockwellautomation.com','grundfos.com','trane.com','vertiv.com','honeywell.com','apc.com','cummins.com','chargepoint.com','tesla.com','kempower.com','alpitronic.it','delta-americas.com','solaredge.com','enphase.com','hitachienergy.com','gevernova.com','weg.net','cat.com'];
+const officialHosts=['adafruit.com','abb.com','global.abb','se.com','siemens.com','eaton.com','legrand.us','phoenixcontact.com','nvent.com','rockwellautomation.com','grundfos.com','trane.com','vertiv.com','honeywell.com','apc.com','cummins.com','chargepoint.com','tesla.com','kempower.com','alpitronic.it','delta-americas.com','solaredge.com','enphase.com','hitachienergy.com','gevernova.com','weg.net','cat.com'];
 assert.ok(OEM_SOURCES.length>=20,'directory should cover core electrical, EV, HVAC, backup and renewables OEMs');
 assert.equal(new Set(OEM_SOURCES.map(source=>source.id)).size,OEM_SOURCES.length,'OEM source IDs must be unique');
 for(const source of OEM_SOURCES){
@@ -28,7 +29,13 @@ const {OEM_CAD_CANDIDATES}=await import('../lib/oem-cad-candidates.ts');
 for(const candidate of OEM_CAD_CANDIDATES){
  assert.ok(OEM_SOURCES.some(source=>source.id===candidate.sourceId&&source.componentKeys.includes(candidate.componentKey)),`${candidate.sku} must bind to its manufacturer and component class`);
  assert.ok(DEFAULT_ELECTRICAL_MODEL_REGISTRY.some(model=>model.componentKey===candidate.componentKey),`${candidate.sku} must have a registry class`);
- assert.notEqual(candidate.status,'GLB_APPROVED',`${candidate.sku} must not claim an imported OEM model without validated file evidence`);
+ if(candidate.status==='GLB_APPROVED'){
+  assert.ok(candidate.modelUrl?.startsWith('/models/oem/')&&candidate.sourceSha256&&candidate.modelSha256,`${candidate.sku} needs a pinned source hash and approved model`);
+  const model=fs.readFileSync('public'+candidate.modelUrl);
+  assert.equal(createHash('sha256').update(model).digest('hex'),candidate.modelSha256,`${candidate.sku} must match its approved GLB hash`);
+  assert.ok(DEFAULT_ELECTRICAL_MODEL_REGISTRY.find(item=>item.componentKey===candidate.componentKey)?.modelUrl===candidate.modelUrl,`${candidate.sku} must bind only to its exact SKU class`);
+  assert.equal(model.toString('ascii',0,4),'glTF');
+ }
 }
 assert.deepEqual(OEM_CAD_CANDIDATES.find(item=>item.sku==='3044076')?.dimensionsMeters,[.0052,.0477,.0469]);
 assert.ok(restored.find(model=>model.componentKey==='evse-kempower-satellite-v2')?.oemSourceIds?.includes('kempower-satellite'),'older browser registries must gain newly linked OEM source records');
