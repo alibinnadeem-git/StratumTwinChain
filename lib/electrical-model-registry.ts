@@ -1,8 +1,11 @@
 import {ELECTRICAL_COMPONENTS} from './electrical-component-library.ts';
+import {OEM_SOURCES} from './oem-source-catalog.ts';
 
 export type ElectricalModelFormat='GLB'|'GLTF'|'USD'|'USDZ';
 export type ElectricalModelConfig={
   componentKey:string;
+  /** Relevant manufacturer research records. An association is not an OEM model license. */
+  oemSourceIds?:string[];
   format:ElectricalModelFormat;
   modelUrl:string;
   scale:number;
@@ -98,6 +101,7 @@ const REPRESENTATIVE_FAMILY_DEFAULTS:Record<string,Partial<ElectricalModelConfig
 
 export const DEFAULT_ELECTRICAL_MODEL_REGISTRY:ElectricalModelConfig[]=ELECTRICAL_COMPONENTS.map(component=>({
   componentKey:component.key,
+  oemSourceIds:OEM_SOURCES.filter(source=>source.componentKeys.includes(component.key)).map(source=>source.id),
   format:'GLB',
   modelUrl:'',
   scale:1,
@@ -143,6 +147,7 @@ export function normalizeElectricalModelRegistry(input:unknown):ElectricalModelC
       dimensionsConfidence:Number.isFinite(Number(value.dimensionsConfidence))?Math.max(0,Math.min(1,Number(value.dimensionsConfidence))):base.dimensionsConfidence,
       lod:['LOW','MEDIUM','HIGH'].includes(value.lod)?value.lod:base.lod,
       source:typeof value.source==='string'?value.source:base.source,
+      oemSourceIds:[...new Set([...(base.oemSourceIds||[]),...(Array.isArray(value.oemSourceIds)?value.oemSourceIds.filter((id:unknown)=>typeof id==='string'&&OEM_SOURCES.some(source=>source.id===id)):[])])],
       sourceUrl:typeof value.sourceUrl==='string'?value.sourceUrl:base.sourceUrl,
       license:typeof value.license==='string'?value.license:base.license,
       attribution:typeof value.attribution==='string'?value.attribution:base.attribution,
@@ -154,4 +159,11 @@ export function normalizeElectricalModelRegistry(input:unknown):ElectricalModelC
 
 export function getElectricalModelConfig(componentKey:string,registry:ElectricalModelConfig[]){
   return registry.find(item=>item.componentKey===componentKey)||null;
+}
+
+export function oemModelBinding(sourceId:string,registry:ElectricalModelConfig[]){
+ const source=OEM_SOURCES.find(item=>item.id===sourceId);
+ if(!source)return null;
+ const models=source.componentKeys.map(key=>registry.find(model=>model.componentKey===key)).filter((model):model is ElectricalModelConfig=>Boolean(model));
+ return {source,models,status:source.componentKeys.length===0?'CLASS_PENDING':models.some(model=>model.modelUrl.trim())?'MODEL_MAPPED':'MODEL_PENDING'} as const;
 }

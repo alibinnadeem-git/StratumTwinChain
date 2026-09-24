@@ -3,11 +3,11 @@ import fs from 'node:fs';
 import {enrichSpatialProjection} from '../lib/spatial-projection.ts';
 import {resolveAssetPlacement} from '../lib/asset-placement.ts';
 import {planUniformMeterScale} from '../lib/model-scale.ts';
-import {DEFAULT_ELECTRICAL_MODEL_REGISTRY} from '../lib/electrical-model-registry.ts';
+import {DEFAULT_ELECTRICAL_MODEL_REGISTRY,normalizeElectricalModelRegistry,oemModelBinding} from '../lib/electrical-model-registry.ts';
 import {ELECTRICAL_COMPONENTS} from '../lib/electrical-component-library.ts';
 import {OEM_SOURCES} from '../lib/oem-source-catalog.ts';
 
-const officialHosts=['abb.com','se.com','siemens.com','eaton.com','legrand.us','phoenixcontact.com','nvent.com','rockwellautomation.com','grundfos.com','trane.com','vertiv.com','honeywell.com','apc.com','cummins.com','chargepoint.com','tesla.com','kempower.com','alpitronic.it','delta-americas.com','solaredge.com','enphase.com','hitachienergy.com','gevernova.com','weg.net','cat.com'];
+const officialHosts=['abb.com','global.abb','se.com','siemens.com','eaton.com','legrand.us','phoenixcontact.com','nvent.com','rockwellautomation.com','grundfos.com','trane.com','vertiv.com','honeywell.com','apc.com','cummins.com','chargepoint.com','tesla.com','kempower.com','alpitronic.it','delta-americas.com','solaredge.com','enphase.com','hitachienergy.com','gevernova.com','weg.net','cat.com'];
 assert.ok(OEM_SOURCES.length>=20,'directory should cover core electrical, EV, HVAC, backup and renewables OEMs');
 assert.equal(new Set(OEM_SOURCES.map(source=>source.id)).size,OEM_SOURCES.length,'OEM source IDs must be unique');
 for(const source of OEM_SOURCES){
@@ -16,7 +16,15 @@ for(const source of OEM_SOURCES){
  assert.ok(source.families.length&&source.formats.length&&source.fields.length&&source.access,`${source.id} must explain source data and acquisition`);
  for(const key of source.componentKeys)assert.ok(ELECTRICAL_COMPONENTS.some(item=>item.key===key),`${source.id} references unknown class ${key}`);
  assert.equal('modelUrl' in source,false,'a manufacturer directory link must not silently install a 3D model');
+ const mapping=oemModelBinding(source.id,DEFAULT_ELECTRICAL_MODEL_REGISTRY);
+ assert.ok(mapping,'every manufacturer source must resolve to a registry relationship');
+ for(const key of source.componentKeys)assert.ok(mapping.models.some(model=>model.componentKey===key&&model.oemSourceIds?.includes(source.id)),`${source.id} must be indexed in the 3D Asset Registry for ${key}`);
 }
+assert.equal(oemModelBinding('legrand-devices',DEFAULT_ELECTRICAL_MODEL_REGISTRY).status,'MODEL_PENDING');
+assert.equal(oemModelBinding('kempower-satellite',DEFAULT_ELECTRICAL_MODEL_REGISTRY).status,'MODEL_MAPPED');
+assert.equal(oemModelBinding('trane-hvac',DEFAULT_ELECTRICAL_MODEL_REGISTRY).status,'CLASS_PENDING');
+const restored=normalizeElectricalModelRegistry(DEFAULT_ELECTRICAL_MODEL_REGISTRY.map(model=>({componentKey:model.componentKey,modelUrl:model.modelUrl,format:model.format,scale:model.scale,rotation:model.rotation,offset:model.offset})));
+assert.ok(restored.find(model=>model.componentKey==='evse-kempower-satellite-v2')?.oemSourceIds?.includes('kempower-satellite'),'older browser registries must gain newly linked OEM source records');
 
 const tracked=ELECTRICAL_COMPONENTS.filter(item=>item.trackAsAsset);
 const mappedProductionModels=DEFAULT_ELECTRICAL_MODEL_REGISTRY.filter(item=>item.modelUrl&&['GLB','GLTF'].includes(item.format));
