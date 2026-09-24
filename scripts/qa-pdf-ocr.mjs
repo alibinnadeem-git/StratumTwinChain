@@ -2,6 +2,18 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {buildImageOcrEvidence} from '../lib/image-ocr-intelligence.ts';
 import {buildPowerIntelligence} from '../lib/power-intelligence.ts';
+import {drawingMarkEntity} from '../lib/drawing-review.ts';
+
+const mark={id:'pb1',page:2,x:.25,y:.7,width:792,height:612,label:'PB1',reference:'E-101',legend:'E-001 panelboard schedule',component:'panel',drawingState:'existing'};
+const reviewed=drawingMarkEntity(mark,'sha256-fixture','test-legend.pdf');
+assert.equal(reviewed.meta.page,2);
+assert.equal(reviewed.meta.electricalComponentHint,'panel');
+assert.equal(reviewed.meta.drawingState,'existing');
+assert.equal(reviewed.meta.registrationState,'CANDIDATE');
+assert.equal(reviewed.meta.physicalTruth,false);
+assert.ok(Math.abs(reviewed.y-(-4*612/792))<1e-9);
+assert.throws(()=>drawingMarkEntity({...mark,legend:''},'sha256-fixture','test-legend.pdf'),/legend or schedule/);
+assert.equal(drawingMarkEntity({...mark,component:'unresolved',legend:''},'sha256-fixture','test-legend.pdf').meta.electricalComponentHint,undefined);
 
 const evidence=buildImageOcrEvidence({
  text:'RTU-4 ROOFTOP UNIT 208V 3PH FLA 22\nEF-3 EXHAUST FAN 480V 3PH 5HP',
