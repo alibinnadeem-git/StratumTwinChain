@@ -4,6 +4,27 @@ import {readFileSync} from 'node:fs';
 
 const sourceUpload=(page:import('@playwright/test').Page)=>page.locator('input[type=file][accept*=".dxf"]');
 
+test('Audi E4.0 snapshot restores five source-linked selectable callouts without inventing asset history',async({page})=>{
+ await page.goto('/spatial');
+ await page.evaluate(()=>{
+  const name='Audi E4.0.pdf';
+  localStorage.setItem('stratum_compiled_graph',JSON.stringify({version:'1.1',createdAt:new Date().toISOString(),reviewState:'SOURCE_SHEET_ONLY',
+   sources:[{name,ext:'pdf',sha256:'c6b4c02f0b97d6eef947ff57f6863eddd16a6f769c13777af42e113905ded35c',discipline:'Electrical',floor:'L1'}],
+   entities:[{id:'sheet-line',source:name,layer:'L1',kind:'line',name:'Source vector',x:-3,y:3,x2:-2,y2:3,confidence:1,floor:'L1'}],
+   links:[],stats:{L0:1,L1:1,L2:0,L3:0,L4:0}}));
+  window.dispatchEvent(new Event('stratum:graph-updated'));
+ });
+ await expect(page.getByLabel('Imported object').locator('option').filter({hasText:'(E) L5A'})).toHaveCount(1);
+ const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}'));
+ expect(saved.stats.L2).toBe(5);
+ await page.getByLabel('Imported object').selectOption(saved.entities.find((item:any)=>item.name==='(E) L5A').id);
+ await expect(page.getByText('DRAWING CALLOUT · REVIEW REQUIRED')).toBeVisible();
+ await expect(page.getByText(/Maintenance can be recorded later for both existing and new registered assets/)).toBeVisible();
+ const canvas=page.locator('canvas[aria-label="Interactive Spatial model"]');
+ await expect(canvas).toBeVisible();
+ await expect.poll(()=>canvas.getAttribute('data-clickable-assets')).toBe('5');
+});
+
 test('source-sheet compilation identifies zero selectable components and exposes model recovery',async({page})=>{
  await page.goto('/spatial');
  await page.evaluate(()=>{

@@ -4,7 +4,8 @@ import Link from "next/link";
 import {useEffect,useState} from "react";
 import CompiledGraphViewer from "@/components/CompiledGraphViewer";
 import {type RegisteredSpatialAsset} from "@/lib/spatial-asset-link";
-import {restoreBestSpatialGraph} from "@/lib/spatial-browser-recovery";
+import {protectSpatialGraph,readCurrentSpatialGraph,replaceCurrentSpatialGraph,restoreBestSpatialGraph} from "@/lib/spatial-browser-recovery";
+import {enrichAudiE4SourceReview} from "@/lib/audi-e4-source-review";
 import {SERVER_HYDRATION_EVENT,SERVER_HYDRATION_STATE_KEY} from "@/components/SpatialServerHydrator";
 
 type ExperienceState={
@@ -17,10 +18,11 @@ type ExperienceState={
 
 function inspectCompiledGraph():ExperienceState{
   try{
-    const raw=localStorage.getItem("stratum_compiled_graph");
-    if(!raw)return{ready:true,hasImportedModel:false,sourceCount:0,sourceSheetOnly:false,lineCount:0};
-    const graph=JSON.parse(raw);
-    const entities=Array.isArray(graph?.entities)?graph.entities:[];
+    const saved=readCurrentSpatialGraph();
+    if(!saved)return{ready:true,hasImportedModel:false,sourceCount:0,sourceSheetOnly:false,lineCount:0};
+    const graph=enrichAudiE4SourceReview(saved);
+    if(graph!==saved){replaceCurrentSpatialGraph(graph);void protectSpatialGraph(graph,saved)}
+    const entities=(Array.isArray(graph?.entities)?graph.entities:[]) as {kind?:string}[];
     const sources=Array.isArray(graph?.sources)?graph.sources:[];
     return{ready:true,hasImportedModel:entities.length>0,sourceCount:sources.length,
       sourceSheetOnly:entities.length>0&&(graph.reviewState==='SOURCE_SHEET_ONLY'||entities.every((entity:{kind?:string})=>entity.kind==='line')),

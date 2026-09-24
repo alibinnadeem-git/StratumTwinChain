@@ -118,7 +118,7 @@ export function enrichSpatialProjection<T extends SpatialProjectionGraph>(graph:
   let z=Number.isFinite(Number(entity.z))?Number(entity.z):0;
   let scale=entity.scale;
 
-  if(entity.layer==='L2'&&entity.kind!=='imported-3d-model'){
+  if(entity.layer==='L2'&&entity.kind!=='imported-3d-model'&&entity.kind!=='sheet-callout-candidate'){
    const component=resolveElectricalComponent(entity.name);
    const registry=component?modelRegistry.find(item=>item.componentKey===component.key):undefined;
    const placement=resolveAssetPlacement({...entity,meta},registry);

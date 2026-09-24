@@ -25,10 +25,10 @@ A non-mutating local PDF-structure inspection was run against the exact SHA-256 
 - 85,993 line commands
 - 1,705 curve commands
 - 5 line/rectangle closed-vector candidates fall inside the compiler's normalized reconstruction area gate (`0.08 <= area <= 190`)
-- 1 source text item matches the electrical asset-candidate vocabulary: `Cannot locate Panel`
+- 1 source text item matches the electrical asset-candidate vocabulary: `Cannot locate Panel`, but this is an unresolved RFI remark and must not become an equipment record
 - no trustworthy room-label text was present
 
-The drawing therefore has enough real vector content to exercise reconstruction candidate generation, but it does **not** provide source-grounded room labels that would justify automatic room naming.
+The drawing has visible electrical symbols and callouts near ELEC 108, including (E) L5, L5A, L2A, L2 and H2. Their glyph outlines are not available as native PDF text. The absence of selectable text does not imply the absence of equipment. The one-page sheet does **not** provide source-grounded room polygons or the symbol legend needed to confirm every device type.
 
 ## Real-source defects found and fixed
 
@@ -52,8 +52,8 @@ The release now:
 
 The expected output for this real sheet is **not** an automatically finalized room. The valid end-to-end behavior is:
 
-`source fingerprint → PDF text/vector extraction → L1 sheet candidate → closed-vector candidates → electrical asset candidate → human review`
+`source fingerprint → PDF text/vector extraction → L1 sheet candidate → closed-vector candidates → visually inspected electrical callout candidates → human review`
 
-Because the sheet lacks a trustworthy room-label association, STRATUM must not guess a room name or mark geometry as validated. That fail-closed outcome is the acceptance condition for this source.
+Because the sheet lacks a trustworthy room polygon association, STRATUM must not invent room boundaries or mark geometry as validated. The visually inspected callouts can be retained as review-only candidates, with their exact source fingerprint and page coordinates. They are not registered assets, confirmed panelboards or verified physical positions.
 
 This evidence does **not** establish Verified physical state, DIR finality, PoVI finality, as-built accuracy, or authoritative geometry scale.

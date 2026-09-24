@@ -214,6 +214,16 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       const wall=(a:XY,b:XY,e:Entity)=>{const dx=b.x-a.x,dz=b.y-a.y,len=Math.hypot(dx,dz);if(len<.02)return;const op=xray?.12:.55,m=new THREE.Mesh(new THREE.BoxGeometry(len,2.7,.09),material(colors.L1,op));m.position.set((a.x+b.x)/2,height(e)+1.35,(a.y+b.y)/2);m.rotation.y=-Math.atan2(dz,dx);groups.L1.add(m)};
       const room=(e:Entity)=>{if(!e.vertices||e.vertices.length<3||!isVisible(e))return;const shape=new THREE.Shape();e.vertices.forEach((p,i)=>i?shape.lineTo(p.x,p.y):shape.moveTo(p.x,p.y));shape.closePath();const floorMesh=new THREE.Mesh(new THREE.ShapeGeometry(shape),material(0x173748,xray?.07:.18));floorMesh.rotation.x=Math.PI/2;floorMesh.position.y=height(e)+.01;groups.L1.add(floorMesh);for(let i=0;i<e.vertices.length;i++)wall(e.vertices[i],e.vertices[(i+1)%e.vertices.length],e)};
       const fallbackShape=(e:Entity)=>{
+        if(e.kind==='sheet-callout-candidate'){
+          const root=new THREE.Group();
+          const marker=new THREE.Mesh(new THREE.SphereGeometry(.24,12,8),material(0xffb85c,1));
+          marker.position.y=.35;root.add(marker);
+          const stem=new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,.35,8),material(0xffb85c,1));
+          stem.position.y=.175;root.add(stem);
+          root.position.set(e.x,height(e),e.y);tag(root,e);clickable.push(marker);
+          groups.L2.add(root);label(e.name+' · REVIEW',e.x,height(e),e.y,'#ffd08a',e);
+          return;
+        }
         const def=resolveElectricalComponent(e.name),shape=def?.twinShape||"cabinet",cfg=def?registry.find(r=>r.componentKey===def.key):null;
         const placement=resolveAssetPlacement({name:e.name,floor:e.floor,z:e.z,meta:e.meta},cfg);
         const target:[number,number,number]=[placement.dimensions.width,placement.dimensions.height,placement.dimensions.depth];
@@ -254,6 +264,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
           }catch{setModelLoadErrors(current=>current.includes(e.id)?current:[...current,e.id])}
           return;
         }
+        if(e.kind==='sheet-callout-candidate'){fallbackShape(e);return}
         const def=resolveElectricalComponent(e.name),cfg=def?registry.find(r=>r.componentKey===def.key):null;
         if(!cfg?.modelUrl.trim()||!["GLB","GLTF"].includes(cfg.format)){fallbackShape(e);return}
         const placement=resolveAssetPlacement({name:e.name,floor:e.floor,z:e.z,meta:e.meta},cfg);

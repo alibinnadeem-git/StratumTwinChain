@@ -1,0 +1,21 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {AUDI_E4_SHA256,enrichAudiE4SourceReview} from '../lib/audi-e4-source-review.ts';
+
+const source='Audi E4.0 power plan.pdf';
+const sheet={version:'1.1',sources:[{name:source,sha256:AUDI_E4_SHA256}],entities:[{id:'line-1',layer:'L1',kind:'line'}],stats:{L0:1,L1:1,L2:0,L3:0,L4:0}};
+const enriched=enrichAudiE4SourceReview(sheet);
+assert.equal(enriched.entities.length,6);
+assert.equal(enriched.stats.L2,5);
+assert.equal(enriched.reviewState,'REVIEW_REQUIRED');
+const callouts=enriched.entities.filter(item=>item.kind==='sheet-callout-candidate');
+assert.deepEqual(callouts.map(item=>item.name),['(E) L5','(E) L5A','(E) L2A','(E) L2','(E) H2']);
+assert.ok(callouts.every(item=>item.meta.referenceOnly===true&&item.meta.physicalTruth===false&&item.meta.equipmentType==='UNRESOLVED'&&item.meta.sourceSha256===AUDI_E4_SHA256&&item.meta.coordinateUnits==='sheet'));
+assert.strictEqual(enrichAudiE4SourceReview(enriched),enriched);
+assert.strictEqual(enrichAudiE4SourceReview({...sheet,sources:[{name:source,sha256:'other-source'}]}).entities.length,1);
+const compiler=fs.readFileSync('components/CompilerWorkspace.tsx','utf8');
+assert.match(compiler,/cannot locate/);
+assert.match(compiler,/enrichAudiE4SourceReview/);
+const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
+assert.match(viewer,/sheet-callout-candidate/);
+console.log('Audi source callouts: exact fingerprint, five clickable review markers, idempotence and uncertain identity passed');
