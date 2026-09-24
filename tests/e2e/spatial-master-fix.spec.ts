@@ -27,6 +27,8 @@ for(const [label,width,height] of [['desktop',1280,900],['tablet',768,1024],['mo
   await expect(canvas).toBeVisible();
   await expect.poll(()=>canvas.getAttribute('data-clickable-assets')).toBe('5');
   await page.getByLabel('Imported object').selectOption('candidate-0');
+  await expect(page.getByText('Unverified elevation',{exact:true})).toBeVisible();
+  await page.getByText('Placement & source confidence').click();
   await expect(page.getByText('Z unverified',{exact:true})).toBeVisible();
   await expect(page.getByText('Tier 2 · Drawing callout, review required')).toBeVisible();
   await expect(page.getByText('No history recorded by this drawing.',{exact:false})).toBeVisible();

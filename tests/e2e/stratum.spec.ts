@@ -118,7 +118,7 @@ test('DXF closed architectural polyline becomes reconstructed Spatial room geome
  await expect(page.getByText(/1 reconstructed rooms/i)).toBeVisible();
  await expect(page.getByText(/units ft/i).first()).toBeVisible();
  await page.goto('/spatial');
- await expect(page.getByText(/1 room\(s\)/i)).toBeVisible();
+ await expect(page.getByText(/1 room/i)).toBeVisible();
  await page.getByText('Advanced view controls').click();
  const explode=page.getByRole('button',{name:'Explode building'});
  await expect(explode).toBeVisible();

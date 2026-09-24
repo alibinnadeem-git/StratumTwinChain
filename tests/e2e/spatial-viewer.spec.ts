@@ -63,7 +63,7 @@ test('source-sheet compilation identifies zero selectable components and exposes
  await expect(page.getByText('SOURCE SHEET ONLY · 0 COMPONENTS')).toBeVisible();
  await expect(page.getByRole('button',{name:'Recover earlier STRATUM model'})).toBeVisible();
  await expect(page.getByLabel('Imported object').locator('option')).toHaveText(['No selectable objects in this view']);
- await expect(page.getByText(/1 source sheet · 1 drawing line · 0 components/)).toBeVisible();
+ await expect(page.getByText(/1 source · 0 objects · 1 drawing line/)).toBeVisible();
 });
 
 test('Tesla GLB import persists real geometry and makes it selectable in Spatial',async({page})=>{
@@ -148,7 +148,7 @@ test('SLD becomes review-only spatial electrical hierarchy',async({page})=>{
   }));
   window.dispatchEvent(new Event('stratum:graph-updated'));
  });
- await expect(page.getByText(/4 SLD object\(s\)/i)).toBeVisible();
+ await expect(page.getByText(/4 SLD objects/i)).toBeVisible();
  await page.getByRole('button',{name:/Electrical/i}).click();
  await page.getByLabel('Imported object').selectOption('panel');
  await expect(page.getByText('SLD → SPATIAL PROJECTION')).toBeVisible();
@@ -366,6 +366,7 @@ test('uploaded drawing renders a clickable WebGL asset and opens its inspector f
 
  const canvas=page.locator('canvas[aria-label="Interactive Spatial model"]');
  await expect(canvas).toBeVisible();
+ await page.getByRole('button',{name:/Infrastructure HUD/}).click();
  await expect(page.getByText(/3D WEBGL/)).toBeVisible();
  await expect.poll(async()=>Number(await canvas.getAttribute('data-clickable-assets')||0),{timeout:15000}).toBeGreaterThan(0);
 
@@ -391,7 +392,10 @@ test('Spatial auto-recovers the last good uploaded model when the current browse
  const dxf=['0','SECTION','2','HEADER','9','$INSUNITS','70','2','0','ENDSEC','0','SECTION','2','ENTITIES','0','INSERT','8','E-EQUIP','2','MAIN SWITCHBOARD MSB-1','10','100','20','100','30','0','0','ENDSEC','0','EOF',''].join('\n');
  await sourceUpload(page).setInputFiles({name:'E-201-Level-1-Switchboard.dxf',mimeType:'application/dxf',buffer:Buffer.from(dxf)});
  await expect(page.getByText(/Source compilation updated/i)).toBeVisible();
- await expect.poll(()=>page.evaluate(()=>Boolean(localStorage.getItem('stratum_compiled_graph_last_good_v2')))).toBeTruthy();
+ await expect.poll(()=>page.evaluate(async()=>{
+  const db=await new Promise<IDBDatabase>((resolve,reject)=>{const request=indexedDB.open('stratum-spatial-recovery-v1',1);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});
+  return new Promise<boolean>(resolve=>{const request=db.transaction('graphs','readonly').objectStore('graphs').get('latest');request.onsuccess=()=>resolve(Boolean(request.result?.entities?.length));request.onerror=()=>resolve(false)});
+ })).toBeTruthy();
 
  await page.evaluate(()=>localStorage.removeItem('stratum_compiled_graph'));
  await page.goto('/spatial');
