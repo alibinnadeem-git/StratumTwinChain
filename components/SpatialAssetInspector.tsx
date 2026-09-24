@@ -103,6 +103,7 @@ export default function SpatialAssetInspector({
     <div><span>Z placement</span><strong>{zReviewed?'Measured / reviewed':'Unverified elevation'}</strong></div>
   </div>
   {selected.kind==='imported-3d-model'&&<div className="notice" role="status"><strong>IMPORTED 3D GEOMETRY</strong><span>This is the uploaded model file. Its location and model-space dimensions are unverified; importing it does not register an installed asset or establish its DIR state.</span></div>}
+  {selected.kind==='sheet-callout-candidate'&&<div className="notice" role="status"><strong>DRAWING CALLOUT · REVIEW REQUIRED</strong><span>{selected.name} appears on sheet {String(selected.meta?.sheet||'unknown')}, page {String(selected.meta?.page||'?')}, near {selected.zone||'an unresolved room'}. Equipment type, physical position and asset identity need confirmation. Maintenance can be recorded later for both existing and new registered assets; no history is implied by this drawing.</span></div>}
 
   {asset?<>
    <div className="asset-summary-strip">
