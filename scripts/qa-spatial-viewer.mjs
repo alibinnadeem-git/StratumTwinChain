@@ -24,6 +24,13 @@ assert.equal(oemModelBinding('legrand-devices',DEFAULT_ELECTRICAL_MODEL_REGISTRY
 assert.equal(oemModelBinding('kempower-satellite',DEFAULT_ELECTRICAL_MODEL_REGISTRY).status,'MODEL_MAPPED');
 assert.equal(oemModelBinding('trane-hvac',DEFAULT_ELECTRICAL_MODEL_REGISTRY).status,'CLASS_PENDING');
 const restored=normalizeElectricalModelRegistry(DEFAULT_ELECTRICAL_MODEL_REGISTRY.map(model=>({componentKey:model.componentKey,modelUrl:model.modelUrl,format:model.format,scale:model.scale,rotation:model.rotation,offset:model.offset})));
+const {OEM_CAD_CANDIDATES}=await import('../lib/oem-cad-candidates.ts');
+for(const candidate of OEM_CAD_CANDIDATES){
+ assert.ok(OEM_SOURCES.some(source=>source.id===candidate.sourceId&&source.componentKeys.includes(candidate.componentKey)),`${candidate.sku} must bind to its manufacturer and component class`);
+ assert.ok(DEFAULT_ELECTRICAL_MODEL_REGISTRY.some(model=>model.componentKey===candidate.componentKey),`${candidate.sku} must have a registry class`);
+ assert.notEqual(candidate.status,'GLB_APPROVED',`${candidate.sku} must not claim an imported OEM model without validated file evidence`);
+}
+assert.deepEqual(OEM_CAD_CANDIDATES.find(item=>item.sku==='3044076')?.dimensionsMeters,[.0052,.0477,.0469]);
 assert.ok(restored.find(model=>model.componentKey==='evse-kempower-satellite-v2')?.oemSourceIds?.includes('kempower-satellite'),'older browser registries must gain newly linked OEM source records');
 
 const tracked=ELECTRICAL_COMPONENTS.filter(item=>item.trackAsAsset);
