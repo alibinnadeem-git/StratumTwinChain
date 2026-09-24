@@ -94,31 +94,31 @@ test('portable Spatial recovery exports protected history and restores the worki
 test('manual plan annotations persist deletion and restore without resurrecting removed marks',async({page})=>{
  await page.goto('/compiler');
  await page.getByText('Advanced compiler details',{exact:true}).click();
- await page.getByText('Manual annotation',{exact:true}).click();
- await page.getByLabel('Plan image').setInputFiles({name:'annotation-plan.png',mimeType:'image/png',buffer:tinyPng});
- await page.getByLabel('Annotation text').fill('PANEL-LP1');
+ await page.getByText('Drawing symbol review',{exact:true}).click();
+ await page.getByLabel('Drawing PDF or image').setInputFiles({name:'annotation-plan.png',mimeType:'image/png',buffer:tinyPng});
+ await page.getByLabel('Printed tag').fill('PANEL-LP1');
  await page.getByLabel('Drawing reference').fill('E-201');
  await page.getByAltText('annotation-plan.png').click({position:{x:1,y:1}});
- await expect(page.getByText('PANEL-LP1 · E-201')).toBeVisible();
- await page.getByRole('button',{name:'Save annotations to Spatial'}).click();
- await expect(page.getByRole('status').filter({hasText:'Annotations saved in this browser'})).toContainText(/Annotations saved in this browser/i);
+ await expect(page.getByText(/Page 1 · PANEL-LP1 · unresolved · E-201/)).toBeVisible();
+ await page.getByRole('button',{name:'Save drawing candidates to Spatial'}).click();
+ await expect(page.getByRole('status').filter({hasText:'Drawing candidates saved'})).toBeVisible();
 
  const saved=await page.evaluate(()=>{
   const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
-  const annotated=(graph.entities||[]).filter((entity:any)=>entity.meta?.sourceType==='MANUAL_IMAGE_ANNOTATION');
+  const annotated=(graph.entities||[]).filter((entity:any)=>entity.meta?.sourceType==='MANUAL_SHEET_REVIEW');
   const records=Object.values(graph.annotationSources||{}) as any[];
   return {entities:annotated.length,marks:records.reduce((sum,record)=>sum+(record.marks?.length||0),0)};
  });
  expect(saved).toEqual({entities:1,marks:1});
 
  await page.getByRole('button',{name:'Remove'}).click();
- await expect(page.getByText('PANEL-LP1 · E-201')).toHaveCount(0);
- await page.getByRole('button',{name:'Save annotations to Spatial'}).click();
- await expect(page.getByRole('status').filter({hasText:'Annotations saved in this browser'})).toContainText(/Annotations saved in this browser/i);
+ await expect(page.getByText(/Page 1 · PANEL-LP1 · unresolved · E-201/)).toHaveCount(0);
+ await page.getByRole('button',{name:'Save drawing candidates to Spatial'}).click();
+ await expect(page.getByRole('status').filter({hasText:'Drawing candidates saved'})).toBeVisible();
 
  const afterDelete=await page.evaluate(()=>{
   const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
-  const annotated=(graph.entities||[]).filter((entity:any)=>entity.meta?.sourceType==='MANUAL_IMAGE_ANNOTATION');
+  const annotated=(graph.entities||[]).filter((entity:any)=>entity.meta?.sourceType==='MANUAL_SHEET_REVIEW');
   const records=Object.values(graph.annotationSources||{}) as any[];
   return {entities:annotated.length,marks:records.reduce((sum,record)=>sum+(record.marks?.length||0),0)};
  });
@@ -126,15 +126,42 @@ test('manual plan annotations persist deletion and restore without resurrecting 
 
  await page.reload();
  await page.getByText('Advanced compiler details',{exact:true}).click();
- await page.getByText('Manual annotation',{exact:true}).click();
+ await page.getByText('Drawing symbol review',{exact:true}).click();
  await page.getByLabel('Saved plan').selectOption({label:'annotation-plan.png'});
- await expect(page.getByText('PANEL-LP1 · E-201')).toHaveCount(0);
+ await expect(page.getByText(/Page 1 · PANEL-LP1 · unresolved · E-201/)).toHaveCount(0);
  const restored=await page.evaluate(()=>{
   const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
   const records=Object.values(graph.annotationSources||{}) as any[];
   return records.reduce((sum,record)=>sum+(record.marks?.length||0),0);
  });
  expect(restored).toBe(0);
+});
+
+test('PDF symbol review records page, legend evidence and an unresolved drawing state',async({page})=>{
+ await page.goto('/compiler');
+ await page.getByText('Advanced compiler details',{exact:true}).click();
+ await page.getByText('Drawing symbol review',{exact:true}).click();
+ const drawing=syntheticElectricalPdf(['ELECTRICAL SYMBOL LEGEND','PANELBOARD PB1','DUPLEX RECEPTACLE','SWITCH']);
+ await page.getByLabel('Drawing PDF or image').setInputFiles({name:'test-legend.pdf',mimeType:'application/pdf',buffer:drawing});
+ await expect(page.getByAltText('test-legend.pdf, page 1')).toBeVisible();
+ await page.getByLabel('Printed tag').fill('PB1');
+ await page.getByLabel('Symbol type').selectOption('panel');
+ await page.getByAltText('test-legend.pdf, page 1').click({position:{x:90,y:90}});
+ await expect(page.getByRole('status').filter({hasText:'legend or schedule reference'})).toBeVisible();
+ await page.getByLabel('Legend or schedule evidence').fill('E-001 panelboard legend');
+ await page.getByLabel('Drawing reference').fill('E-101');
+ await page.getByAltText('test-legend.pdf, page 1').click({position:{x:90,y:90}});
+ await page.getByRole('button',{name:'Save drawing candidates to Spatial'}).click();
+ await expect(page.getByRole('status').filter({hasText:'Drawing candidates saved'})).toBeVisible();
+ const candidate=await page.evaluate(()=>{
+  const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
+  return (graph.entities||[]).find((e:any)=>e.name==='PB1');
+ });
+ expect(candidate).toMatchObject({layer:'L2',kind:'annotated-asset-candidate',floor:'UNRESOLVED',meta:{page:1,legendReference:'E-001 panelboard legend',electricalComponentHint:'panel',drawingState:'unresolved',registrationState:'CANDIDATE',physicalTruth:false}});
+ await page.goto('/spatial');
+ await expect(page.getByLabel('Imported object')).toContainText('PB1 · UNRESOLVED');
+ await page.getByLabel('Imported object').selectOption(candidate.id);
+ await expect(page.getByText('REVIEWED DRAWING SYMBOL · CANDIDATE')).toBeVisible();
 });
 
 test('sheet review requires explicit room confirmation and alignment remains reversible',async({page})=>{
