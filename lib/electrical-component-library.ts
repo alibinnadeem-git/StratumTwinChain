@@ -45,6 +45,7 @@ export const ELECTRICAL_COMPONENTS:ElectricalComponent[]=[
  {key:'disconnect',name:'Safety Switch / Disconnect',category:'Power Distribution Devices',aliases:['safety switch','disconnect','disconnect switch'],twinShape:'cabinet',trackAsAsset:true},
  {key:'fuse',name:'Fuse',category:'Power Distribution Devices',aliases:['fuse'],twinShape:'breaker',trackAsAsset:false},
  {key:'contactor',name:'Contactor',category:'Power Distribution Devices',aliases:['contactor'],twinShape:'breaker',trackAsAsset:false},
+ {key:'terminal-block',name:'Terminal Block',category:'Power Distribution Devices',aliases:['terminal block','feed-through terminal','terminal strip'],twinShape:'junction',trackAsAsset:false},
  {key:'motor-starter',name:'Motor Starter',category:'Power Distribution Devices',aliases:['motor starter'],twinShape:'cabinet',trackAsAsset:true},
 
  {key:'duplex-receptacle',name:'Duplex Receptacle',category:'Wiring Devices & Outlets',aliases:['duplex receptacle','receptacle','outlet'],twinShape:'receptacle',trackAsAsset:false},
