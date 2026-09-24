@@ -5,6 +5,18 @@ import {resolveAssetPlacement} from '../lib/asset-placement.ts';
 import {planUniformMeterScale} from '../lib/model-scale.ts';
 import {DEFAULT_ELECTRICAL_MODEL_REGISTRY} from '../lib/electrical-model-registry.ts';
 import {ELECTRICAL_COMPONENTS} from '../lib/electrical-component-library.ts';
+import {OEM_SOURCES} from '../lib/oem-source-catalog.ts';
+
+const officialHosts=['abb.com','se.com','siemens.com','eaton.com','legrand.us','phoenixcontact.com','nvent.com','rockwellautomation.com','grundfos.com','trane.com','vertiv.com','honeywell.com','apc.com','cummins.com','chargepoint.com','tesla.com','kempower.com','alpitronic.it','delta-americas.com','solaredge.com','enphase.com','hitachienergy.com','gevernova.com','weg.net','cat.com'];
+assert.ok(OEM_SOURCES.length>=20,'directory should cover core electrical, EV, HVAC, backup and renewables OEMs');
+assert.equal(new Set(OEM_SOURCES.map(source=>source.id)).size,OEM_SOURCES.length,'OEM source IDs must be unique');
+for(const source of OEM_SOURCES){
+ const host=new URL(source.url).hostname;
+ assert.ok(officialHosts.some(domain=>host===domain||host.endsWith('.'+domain)),`${source.id} must link to an official manufacturer host`);
+ assert.ok(source.families.length&&source.formats.length&&source.fields.length&&source.access,`${source.id} must explain source data and acquisition`);
+ for(const key of source.componentKeys)assert.ok(ELECTRICAL_COMPONENTS.some(item=>item.key===key),`${source.id} references unknown class ${key}`);
+ assert.equal('modelUrl' in source,false,'a manufacturer directory link must not silently install a 3D model');
+}
 
 const tracked=ELECTRICAL_COMPONENTS.filter(item=>item.trackAsAsset);
 const mappedProductionModels=DEFAULT_ELECTRICAL_MODEL_REGISTRY.filter(item=>item.modelUrl&&['GLB','GLTF'].includes(item.format));

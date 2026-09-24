@@ -1,4 +1,16 @@
 import {expect,test} from '@playwright/test';
+
+test('component library exposes searchable official OEM sources without treating CAD links as installed models',async({page})=>{
+ await page.goto('/component-library');
+ const directory=page.getByRole('region',{name:'OEM source directory'});
+ await expect(directory.getByText('OEM data and model sources')).toBeVisible();
+ await directory.getByLabel('Search OEM sources').fill('receptacles');
+ await expect(directory.getByRole('heading',{name:'Legrand'})).toHaveCount(1);
+ await expect(directory.getByRole('link',{name:'Open official source ↗'})).toHaveAttribute('href',/legrand\.us/);
+ await directory.getByLabel('Search OEM sources').fill('chillers');
+ await expect(directory.getByRole('heading',{name:'Trane'})).toBeVisible();
+ await expect(directory.getByText(/Select an exact unit before using its electrical demand or geometry/)).toBeVisible();
+});
 import {strToU8,zipSync} from 'fflate';
 import {readFileSync} from 'node:fs';
 
