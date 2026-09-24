@@ -10,6 +10,12 @@ test('component library exposes searchable official OEM sources without treating
  await directory.getByLabel('Search OEM sources').fill('chillers');
  await expect(directory.getByRole('heading',{name:'Trane'})).toBeVisible();
  await expect(directory.getByText(/Select an exact unit before using its electrical demand or geometry/)).toBeVisible();
+ await directory.getByLabel('Search OEM sources').fill('Hitachi Energy');
+ await directory.getByRole('button',{name:'Inspect 3D registry mapping'}).click();
+ const registry=page.getByRole('region',{name:'3D Asset Registry'});
+ await expect(registry.getByRole('heading',{name:'Utility Transformer'})).toBeVisible();
+ await expect(registry.getByText('Hitachi Energy · distribution transformers, power transformers, dry-type transformers')).toBeVisible();
+ await expect(registry.getByText(/STRATUM representative visualization/)).toBeVisible();
 });
 import {strToU8,zipSync} from 'fflate';
 import {readFileSync} from 'node:fs';
