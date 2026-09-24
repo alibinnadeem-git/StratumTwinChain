@@ -10,6 +10,7 @@
     "qa:ui": "node scripts/qa-ui.mjs",
     "qa:accessibility": "node scripts/qa-accessibility.mjs",
     "qa:auth-provisioning": "node scripts/qa-auth-provisioning.mjs",
+    "qa:admin-bootstrap": "node scripts/qa-admin-bootstrap.mjs",
     "qa:asset-archive": "node scripts/qa-asset-archive.mjs",
     "qa:command-center": "node scripts/qa-command-center.mjs",
     "qa:spatial-persistence": "node scripts/qa-spatial-persistence.mjs",
