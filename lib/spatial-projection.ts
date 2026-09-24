@@ -117,6 +117,9 @@ export function enrichSpatialProjection<T extends SpatialProjectionGraph>(graph:
   if((entity.kind==='sheet-callout-candidate'||entity.kind==='annotated-asset-candidate')&&meta.elevationKnown!==true&&meta.physicalElevationKnown!==true){
    delete meta.inferredZCandidate;
    delete meta.assetDimensionsMeters;
+   if(entity.kind==='sheet-callout-candidate'&&meta.sheetX!==undefined&&meta.sheetY!==undefined){
+    meta.description=`${entity.name} · sheet ${String(meta.sheet||'unresolved')} · sheet X ${String(meta.sheetX)} / Y ${String(meta.sheetY)}. Identity, equipment type and physical placement require review.`;
+   }
    meta.elevationKnown=false;
    meta.physicalElevationKnown=false;
    meta.zPlacementAuthority='UNVERIFIED_DRAWING_CALLOUT';
