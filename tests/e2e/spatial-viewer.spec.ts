@@ -16,6 +16,12 @@ test('component library exposes searchable official OEM sources without treating
  await expect(registry.getByRole('heading',{name:'Utility Transformer'})).toBeVisible();
  await expect(registry.getByText('Hitachi Energy · distribution transformers, power transformers, dry-type transformers')).toBeVisible();
  await expect(registry.getByText(/STRATUM representative visualization/)).toBeVisible();
+ await directory.getByLabel('Search OEM sources').fill('2652');
+ await expect(directory.getByText(/Manufacturer CAD converted; exact SKU model active/)).toBeVisible();
+ await directory.getByRole('button',{name:'Inspect 3D registry mapping'}).click();
+ await expect(registry.getByRole('heading',{name:'Adafruit BME280 Sensor Breakout (2652)'})).toBeVisible();
+ await expect(registry.getByText(/OEM supplied geometry/)).toBeVisible();
+ await expect(registry.getByText(/adafruit-bme280-2652\.glb/).first()).toBeVisible();
 });
 import {strToU8,zipSync} from 'fflate';
 import {readFileSync} from 'node:fs';
