@@ -38,7 +38,7 @@ test('content-only electrical SLD upload populates the Spatial model',async({pag
  await page.getByRole('link',{name:'Open Spatial'}).last().click();
  await expect(page).toHaveURL(/\/spatial$/);
  await expect(page.getByRole('heading',{name:'Spatial model'})).toBeVisible();
- await expect(page.getByText(/SLD object\(s\)/)).toContainText(/[1-9]\d* SLD object\(s\)/);
+ await expect(page.getByText(/SLD objects?/)).toContainText(/[1-9]\d* SLD objects?/);
 });
 
 test('portable Spatial recovery exports protected history and restores the working graph',async({page})=>{

@@ -22,7 +22,7 @@ type Health={
 };
 
 export default function SpatialWorkspaceStatus({compact=false,authenticated=false}:{compact?:boolean;authenticated?:boolean}){
-  const [graph,setGraph]=useState(()=>typeof window==='undefined'?null:readCurrentSpatialGraph());
+  const [graph,setGraph]=useState<ReturnType<typeof readCurrentSpatialGraph>>(null);
   const [health,setHealth]=useState<Health|null>(null);
   const [message,setMessage]=useState('');
   const [recoveryReady,setRecoveryReady]=useState(false);
@@ -52,6 +52,8 @@ export default function SpatialWorkspaceStatus({compact=false,authenticated=fals
   },[]);
 
   const summary=graphSummary(graph);
+  const drawingLines=graph?.entities.filter(entity=>typeof entity==='object'&&entity!==null&&'kind' in entity&&entity.kind==='line').length||0;
+  const objectCount=summary.entities-drawingLines;
   const sourceSheetOnly=Boolean(graph&&graph.entities.length>0&&(graph.reviewState==='SOURCE_SHEET_ONLY'||graph.entities.every(entity=>typeof entity==='object'&&entity!==null&&'kind' in entity&&entity.kind==='line')));
   const infrastructureReady=Boolean(health?.liveDataReady);
   const serverReady=infrastructureReady&&authenticated;
@@ -106,7 +108,7 @@ export default function SpatialWorkspaceStatus({compact=false,authenticated=fals
     <div className="workspace-status-main">
       <div>
         <div className="eyebrow">Project workspace</div>
-        <strong>{sourceSheetOnly?`${summary.sources} source sheet · ${summary.entities} drawing line${summary.entities===1?'':'s'} · 0 components`:graph?`${summary.sources} source${summary.sources===1?'':'s'} · ${summary.entities} Spatial object${summary.entities===1?'':'s'}`:'No Spatial model found on this web address'}</strong>
+        <strong>{graph?`${summary.sources} source${summary.sources===1?'':'s'} · ${objectCount} object${objectCount===1?'':'s'} · ${drawingLines} drawing line${drawingLines===1?'':'s'}`:'No Spatial model found on this web address'}</strong>
         <span>{sourceSheetOnly?'A source sheet is saved, but there are no identified equipment components to select.':graph?'Protected locally. Open Spatial and continue working.':'Recover the model before re-importing anything.'}</span>
       </div>
       <div className="workspace-health">
@@ -117,7 +119,7 @@ export default function SpatialWorkspaceStatus({compact=false,authenticated=fals
 
     <div className="workspace-actions primary">
       {!graph&&<button className="action" type="button" onClick={()=>void restore()}>Recover model</button>}
-      {graph&&<Link className="action" href="/spatial">Open Spatial</Link>}
+      {graph&&<a className="action" href="#spatial-model">Jump to model</a>}
       {sourceSheetOnly&&<button className="ghost" type="button" onClick={recoverLegacy}>Recover earlier STRATUM model</button>}
       {!graph&&<button className="ghost" type="button" onClick={recoverLegacy}>Recover earlier STRATUM model</button>}
       {(!graph||sourceSheetOnly)&&<Link className="ghost" href="/compiler">Import sources</Link>}
