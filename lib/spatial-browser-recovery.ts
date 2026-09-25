@@ -185,7 +185,7 @@ export async function protectSpatialGraph(graph:SpatialGraphLike,previous:Spatia
 export async function restoreBestSpatialGraph(){
   const indexedCurrent=await readPrimarySpatialGraph();
   if(indexedCurrent&&indexedCurrent.entities.length>0){
-    try{localStorage.setItem(SPATIAL_GRAPH_KEY,JSON.stringify(indexedCurrent))}catch{}
+    await writePrimarySpatialGraph(indexedCurrent);
     return{graph:indexedCurrent,source:'current' as const};
   }
   const current=readCurrentSpatialGraph();
@@ -204,7 +204,7 @@ export async function restoreBestSpatialGraph(){
 }
 
 export async function createSpatialRecoveryBundle(storage:Storage=localStorage):Promise<SpatialRecoveryBundle>{
-  const current=readCurrentSpatialGraph(storage);
+  const current=await readPrimarySpatialGraph(storage);
   const lastGood=parseSpatialGraph(storage.getItem(SPATIAL_LAST_GOOD_KEY));
   const previous=parseSpatialGraph(storage.getItem(SPATIAL_PREVIOUS_KEY));
   const sameOriginBackups=findSameOriginRecoveryCandidates(storage).map(item=>({key:item.key,graph:item.graph}));
@@ -231,7 +231,7 @@ export async function restoreSpatialRecoveryBundle(value:unknown,storage:Storage
   const primary=bundle.current||bundle.lastGood||bundle.indexedLatest||bundle.sameOriginBackups[0]?.graph||bundle.previous||bundle.indexedPrevious;
   if(!primary)throw new Error('The STRATUM Spatial Recovery bundle does not contain a recoverable graph.');
 
-  const existingCurrent=readCurrentSpatialGraph(storage);
+  const existingCurrent=await readPrimarySpatialGraph(storage);
   const existingLastGood=parseSpatialGraph(storage.getItem(SPATIAL_LAST_GOOD_KEY));
   const existingPrevious=parseSpatialGraph(storage.getItem(SPATIAL_PREVIOUS_KEY));
   const preImport=distinctGraphs([existingCurrent,existingLastGood,existingPrevious]);
