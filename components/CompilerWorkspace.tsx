@@ -23,7 +23,7 @@ type XY={x:number;y:number};
 type GraphEntity={id:string;source:string;layer:Layer;kind:string;name:string;x:number;y:number;z?:number;x2?:number;y2?:number;z2?:number;rotation?:number;scale?:number;floor?:string;zone?:string;vertices?:XY[];confidence:number;meta?:Record<string,unknown>};
 type SourceFile={name:string;size:number;ext:string;discipline:string;sha256:string;state:ParseState;summary:string;entities:number;floor:string;elevation:number;unitName?:string;unitToMeters?:number;pages?:number;vectors?:number;textItems?:number;sldPages?:number};
 type GraphLink={id:string;from:string;to:string;type:'SAME_TAG'|'DERIVED_ASSET'|'SOURCE_RELATION';confidence:number};
-type CompiledGraph={version:string;createdAt:string;sources:{name:string;ext:string;sha256:string;discipline:string;floor:string;elevation:number;unitName?:string;unitToMeters?:number}[];entities:GraphEntity[];links:GraphLink[];stats:Record<Layer,number>};
+type CompiledGraph={version:string;createdAt:string;reviewState?:string;sources:{name:string;ext:string;sha256:string;discipline:string;floor:string;elevation:number;unitName?:string;unitToMeters?:number}[];entities:GraphEntity[];links:GraphLink[];stats:Record<Layer,number>};
 
 const NATIVE_ADAPTER=['dwg','rvt'];
 const ACCEPTED=new Set(['pdf','dwg','dxf','ifc','rvt','glb','gltf','png','jpg','jpeg','csv','xlsx','xls','docx','txt']);
