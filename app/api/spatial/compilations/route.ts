@@ -26,7 +26,7 @@ const Entity=z.object({
   layer:z.enum(['L0','L1','L2','L3','L4']),
   kind:z.string().min(1).max(120),
   name:z.string().min(1).max(500),
-  x:z.number().finite(),y:z.number().finite(),z:z.number().finite(),
+  x:z.number().finite(),y:z.number().finite(),z:z.number().finite().optional(),
   x2:z.number().finite().optional(),y2:z.number().finite().optional(),z2:z.number().finite().optional(),
   rotation:z.number().finite().optional(),scale:z.number().finite().optional(),
   floor:z.string().max(120).optional(),zone:z.string().max(300).optional(),
