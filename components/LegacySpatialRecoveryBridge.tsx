@@ -1,7 +1,7 @@
 'use client';
 
 import {useEffect,useState} from 'react';
-import {findSameOriginRecoveryCandidates,graphSummary,readCurrentSpatialGraph,restoreBestSpatialGraph,type SpatialGraphLike} from '@/lib/spatial-browser-recovery';
+import {findSameOriginRecoveryCandidates,graphSummary,readPrimarySpatialGraph,restoreBestSpatialGraph,type SpatialGraphLike} from '@/lib/spatial-browser-recovery';
 
 const ALLOWED_TARGETS=new Set([
  'https://stratumspatialverified.vercel.app',
@@ -18,7 +18,7 @@ export default function LegacySpatialRecoveryBridge(){
   const raw=new URLSearchParams(window.location.search).get('target')||'';
   try{const origin=new URL(raw).origin;setTarget(ALLOWED_TARGETS.has(origin)?origin:'')}catch{setTarget('')}
   void (async()=>{
-   const current=readCurrentSpatialGraph();
+   const current=await readPrimarySpatialGraph();
    const recovered=current?{graph:current}:await restoreBestSpatialGraph();
    const candidate=recovered.graph||findSameOriginRecoveryCandidates()[0]?.graph||null;
    setGraph(candidate);
