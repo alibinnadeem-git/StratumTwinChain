@@ -4,6 +4,7 @@ import fs from 'node:fs';
 const migration=fs.readFileSync('migrations/010_oem_cad_verifications.sql','utf8');
 const route=fs.readFileSync('app/api/oem/cad-verifications/route.ts','utf8');
 const workbench=fs.readFileSync('components/OemCadVerificationWorkbench.tsx','utf8');
+const queue=fs.readFileSync('components/OemCadAcquisitionQueue.tsx','utf8');
 const readiness=fs.readFileSync('lib/server/database-readiness.ts','utf8');
 
 for(const table of ['oem_cad_verifications','oem_cad_source_files']){
@@ -33,6 +34,15 @@ assert.match(workbench,/\/api\/oem\/cad-verifications/);
 assert.match(workbench,/This advances evidence to FILE VERIFIED only/);
 assert.match(workbench,/does not mean the file has been converted to a controlled GLB/i);
 assert.doesNotMatch(workbench,/ELECTRICAL_MODEL_REGISTRY_STORAGE_KEY|stratum:model-registry-updated|modelUrl\s*=/i);
+assert.match(workbench,/stratum:oem-cad-verification-updated/);
+
+assert.match(queue,/\/api\/oem\/cad-verifications/);
+assert.match(queue,/stratum:oem-cad-verification-updated/);
+assert.match(queue,/status:'FILE_VERIFIED'/);
+assert.match(queue,/sourceSha256:verification\.source_sha256/);
+assert.match(queue,/reuseTerms:verification\.reuse_terms/);
+assert.match(queue,/candidate\.status==='GLB_APPROVED'\|\|!verification\?candidate/);
+assert.doesNotMatch(queue,/ELECTRICAL_MODEL_REGISTRY_STORAGE_KEY|stratum:model-registry-updated|modelUrl\s*=/i);
 
 assert.match(readiness,/oemCadVerification:\['organizations','users','memberships','oem_cad_verifications','oem_cad_source_files'\]/);
 
