@@ -7,6 +7,7 @@ import {resolveAssetPlacement} from "@/lib/asset-placement";
 import {fitProceduralObjectToMeters,normalizeObjectToMeters} from "@/lib/three-model-normalization";
 import {decodeGlbBase64,inspectStandaloneGlb} from "@/lib/spatial-glb-import";
 import SpatialAssetInspector from "@/components/SpatialAssetInspector";
+import {readPrimarySpatialGraph} from "@/lib/spatial-browser-recovery";
 import {buildSpatialCoordinationReviewIndex,findingsForEntity} from "@/lib/spatial-coordination-review";
 import type {CoordinationSnapshot} from "@/lib/coordination-intelligence";
 import {type RegisteredSpatialAsset} from "@/lib/spatial-asset-link";
@@ -93,18 +94,21 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
   const [modelLoadErrors,setModelLoadErrors]=useState<string[]>([]);
 
   useEffect(()=>{
-    const load=()=>{
+    let active=true;
+    const load=async()=>{
       try{
-        const raw=localStorage.getItem("stratum_compiled_graph");
-        setGraph(raw?JSON.parse(raw):null);
+        const primary=await readPrimarySpatialGraph();
+        if(!active)return;
+        setGraph(primary as Graph|null);
         setActiveProjectId(localStorage.getItem('stratum_spatial_project_id'));
         const stored=localStorage.getItem(ELECTRICAL_MODEL_REGISTRY_STORAGE_KEY);
         setRegistry(stored?normalizeElectricalModelRegistry(JSON.parse(stored)):DEFAULT_ELECTRICAL_MODEL_REGISTRY);
       }catch{}
     };
-    load();
-    window.addEventListener("stratum:graph-updated",load);window.addEventListener("storage",load);window.addEventListener("stratum:model-registry-updated",load);
-    return()=>{window.removeEventListener("stratum:graph-updated",load);window.removeEventListener("storage",load);window.removeEventListener("stratum:model-registry-updated",load)};
+    void load();
+    const refresh=()=>{void load()};
+    window.addEventListener("stratum:graph-updated",refresh);window.addEventListener("storage",refresh);window.addEventListener("stratum:model-registry-updated",refresh);
+    return()=>{active=false;window.removeEventListener("stratum:graph-updated",refresh);window.removeEventListener("storage",refresh);window.removeEventListener("stratum:model-registry-updated",refresh)};
   },[]);
 
   const disciplines=useMemo(()=>graph?[...new Set(graph.sources.map(source=>source.discipline||"Unclassified"))].sort():[],[graph]);
