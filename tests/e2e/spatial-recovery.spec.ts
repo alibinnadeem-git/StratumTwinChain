@@ -21,6 +21,10 @@ test('same-origin legacy Spatial graph is automatically recovered instead of sho
  await expect(workspace).toContainText('1 source · 1 object · 0 drawing lines');
  const recovered=await page.evaluate(()=>JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}').entities?.[0]?.name);
  expect(recovered).toBe('Recovered panel');
+ await expect.poll(()=>page.evaluate(async()=>{
+  const db=await new Promise<IDBDatabase>((resolve,reject)=>{const request=indexedDB.open('stratum-spatial-recovery-v1',1);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});
+  return new Promise<string|null>(resolve=>{const request=db.transaction('graphs','readonly').objectStore('graphs').get('current');request.onsuccess=()=>resolve(request.result?.entities?.[0]?.name||null);request.onerror=()=>resolve(null)});
+ })).toBe('Recovered panel');
  await page.goto('/spatial');
  await expect(page.getByRole('region',{name:'Imported project spatial model'})).toBeVisible();
  await expect(page.getByText('PROJECT MODEL',{exact:true})).toBeVisible();
@@ -96,4 +100,28 @@ test('untrusted origin cannot inject a Spatial graph',async({page})=>{
  },graph('Injected panel'));
  const stored=await page.evaluate(()=>localStorage.getItem('stratum_compiled_graph'));
  expect(stored).toBeNull();
+});
+
+
+test('IndexedDB current graph is authoritative over a stale localStorage compatibility shadow',async({page})=>{
+ await page.goto('/compiler');
+ await page.evaluate(async({primary,stale})=>{
+  localStorage.setItem('stratum_compiled_graph',JSON.stringify(stale));
+  const db=await new Promise<IDBDatabase>((resolve,reject)=>{
+   const request=indexedDB.open('stratum-spatial-recovery-v1',1);
+   request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains('graphs'))request.result.createObjectStore('graphs')};
+   request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);
+  });
+  await new Promise<void>((resolve,reject)=>{
+   const tx=db.transaction('graphs','readwrite');
+   tx.objectStore('graphs').put(primary,'current');
+   tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);
+  });
+  db.close();
+ },{primary:graph('IndexedDB primary panel'),stale:graph('Stale localStorage panel')});
+ await page.goto('/spatial');
+ await expect(page.getByRole('heading',{name:'Spatial model'})).toBeVisible();
+ await page.getByLabel('Imported object').selectOption('panel-1');
+ await expect(page.getByRole('heading',{name:'IndexedDB primary panel'})).toBeVisible();
+ await expect.poll(()=>page.evaluate(()=>JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}').entities?.[0]?.name)).toBe('IndexedDB primary panel');
 });
