@@ -60,6 +60,8 @@ jobs:
         run: npm run qa:spatial-viewer
       - name: OEM CAD registry provenance and activation conformance
         run: npm run qa:oem-cad-registry
+      - name: OEM CAD source file verification conformance
+        run: npm run qa:oem-cad-verification
       - name: SLD content recognition and Spatial ingest conformance
         run: npm run qa:sld-spatial
       - name: Expected power and missing-feed intelligence conformance
