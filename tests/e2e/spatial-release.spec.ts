@@ -116,13 +116,12 @@ test('manual plan annotations persist deletion and restore without resurrecting 
  await page.getByRole('button',{name:'Save drawing candidates to Spatial'}).click();
  await expect(page.getByRole('status').filter({hasText:'Drawing candidates saved'})).toBeVisible();
 
- const afterDelete=await page.evaluate(()=>{
+ await expect.poll(()=>page.evaluate(()=>{
   const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
   const annotated=(graph.entities||[]).filter((entity:any)=>entity.meta?.sourceType==='MANUAL_SHEET_REVIEW');
   const records=Object.values(graph.annotationSources||{}) as any[];
   return {entities:annotated.length,marks:records.reduce((sum,record)=>sum+(record.marks?.length||0),0)};
- });
- expect(afterDelete).toEqual({entities:0,marks:0});
+ })).toEqual({entities:0,marks:0});
 
  await page.reload();
  await page.getByText('Advanced compiler details',{exact:true}).click();
