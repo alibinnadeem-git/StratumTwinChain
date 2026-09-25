@@ -79,7 +79,7 @@ export default function ManualSheetXYCalibrationReview(){
     return {...restored,meta};
    });
    current.sheetXYCalibrations=[...(Array.isArray(current.sheetXYCalibrations)?current.sheetXYCalibrations:[]),{frameKey:selected,action:'RESTORE',occurredAt:new Date().toISOString(),physicalPositionVerified:false,zChanged:false}];
-   await replaceCurrentSpatialGraph(current);
+   await replaceCurrentSpatialGraph(current as SpatialGraphLike);
    setMessage(`Restored ${changed} object${changed===1?'':'s'} to original sheet XY. Z was unchanged.`);
   }catch(error){setMessage(error instanceof Error?error.message:'Unable to restore sheet coordinates.')}
  }
