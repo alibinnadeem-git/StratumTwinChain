@@ -19,11 +19,11 @@ export default function SpatialProjectionEngine(){
     const graph=await readPrimarySpatialGraph();if(!graph||!Array.isArray(graph.entities))return;
     const storedRegistry=localStorage.getItem(ELECTRICAL_MODEL_REGISTRY_STORAGE_KEY);
     const registry=storedRegistry?normalizeElectricalModelRegistry(JSON.parse(storedRegistry)):DEFAULT_ELECTRICAL_MODEL_REGISTRY;
-    const spatial=enrichSpatialProjection(graph,registry);
+    const spatial=enrichSpatialProjection(graph as any,registry);
     const power=enrichPowerIntelligence(spatial);
-    const enriched=enrichCoordinationIntelligence(power);
+    const enriched=enrichCoordinationIntelligence(power as any);
     if(JSON.stringify(enriched)===JSON.stringify(graph))return;
-    await writePrimarySpatialGraph(enriched);
+    await writePrimarySpatialGraph(enriched as any);
     window.dispatchEvent(new Event('stratum:graph-updated'));
    }catch{
     // Source graph is preserved if projection enrichment cannot be evaluated.
