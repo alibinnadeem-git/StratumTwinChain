@@ -2,12 +2,9 @@
 
 import {useEffect,useRef} from 'react';
 import {
-  parseSpatialGraph,
   protectSpatialGraph,
   readPrimarySpatialGraph,
   restoreBestSpatialGraph,
-  writePrimarySpatialGraph,
-  SPATIAL_GRAPH_KEY,
 } from '@/lib/spatial-browser-recovery';
 
 export default function SpatialPersistenceGuard(){
@@ -24,13 +21,11 @@ export default function SpatialPersistenceGuard(){
     };
 
     const capture=()=>{
-      const raw=localStorage.getItem(SPATIAL_GRAPH_KEY);
-      const graph=parseSpatialGraph(raw);
-      if(!graph)return;
-      const previous=last.current;
-      last.current=graph;
       void (async()=>{
-        await writePrimarySpatialGraph(graph);
+        const graph=await readPrimarySpatialGraph();
+        if(!graph||!active)return;
+        const previous=last.current;
+        last.current=graph;
         await protectSpatialGraph(graph,previous&&JSON.stringify(previous)!==JSON.stringify(graph)?previous:null);
       })();
     };
