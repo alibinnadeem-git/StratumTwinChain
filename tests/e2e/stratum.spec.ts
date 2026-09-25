@@ -150,7 +150,7 @@ test('electrical component library exposes canonical equipment classes and Spati
  await page.getByLabel('Height dimension meters').fill('1.8');
  await page.getByLabel('Depth dimension meters').fill('1.2');
  await page.getByLabel('Dimension source').fill('OEM submittal');
- await expect(page.getByText('DETAILED MODEL ACTIVE',{exact:true})).toBeVisible();
+ await expect(page.getByText('REFERENCE MODEL ACTIVE',{exact:true})).toBeVisible();
 });
 
 test('project CRUD entry point opens a usable editor',async({page})=>{
