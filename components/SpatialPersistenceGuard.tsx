@@ -38,12 +38,10 @@ export default function SpatialPersistenceGuard(){
     void initialize();
     window.addEventListener('stratum:graph-updated',capture);
     window.addEventListener('storage',capture);
-    window.addEventListener('pagehide',capture);
     return()=>{
       active=false;
       window.removeEventListener('stratum:graph-updated',capture);
       window.removeEventListener('storage',capture);
-      window.removeEventListener('pagehide',capture);
     };
   },[]);
 
