@@ -1,7 +1,7 @@
 'use client';
 
 import {useEffect,useRef} from 'react';
-import {readCurrentSpatialGraph} from '@/lib/spatial-browser-recovery';
+import {readPrimarySpatialGraph} from '@/lib/spatial-browser-recovery';
 
 const PROJECT_KEY='stratum_spatial_project_id';
 export const SERVER_SYNC_EVENT='stratum:server-sync';
@@ -21,7 +21,7 @@ export default function SpatialAutoSync(){
 
     const sync=async()=>{
       if(!active||running.current)return;
-      const graph=readCurrentSpatialGraph();
+      const graph=await readPrimarySpatialGraph();
       if(!graph||!graph.entities.length)return;
       running.current=true;
       try{
