@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {OEM_CAD_CANDIDATES} from '../lib/oem-cad-candidates.ts';
 import {OEM_SOURCES} from '../lib/oem-source-catalog.ts';
+import {oemCadReadiness} from '../lib/oem-cad-readiness.ts';
 
 const byId=new Map(OEM_CAD_CANDIDATES.map(item=>[item.id,item]));
 const sourceById=new Map(OEM_SOURCES.map(item=>[item.id,item]));
@@ -9,11 +10,19 @@ const pending=OEM_CAD_CANDIDATES.filter(item=>item.status!=='GLB_APPROVED');
 
 assert.ok(approved.length>=1,'at least one exact OEM CAD conversion remains approved');
 for(const item of approved){
+ const readiness=oemCadReadiness(item);
+ assert.equal(readiness.readyForActivation,true,`${item.id}: GLB_APPROVED must satisfy all structured activation gates`);
+ assert.ok(item.reuseTerms?.trim(),`${item.id}: approved geometry requires structured reuse terms`);
+ assert.ok(item.verifiedAt,`${item.id}: approved geometry requires verification timestamp`);
+ assert.ok(item.approvedAt,`${item.id}: approved geometry requires approval timestamp`);
  assert.ok(item.modelUrl?.startsWith('/models/oem/'),`${item.id}: approved geometry must resolve to the controlled OEM model path`);
  assert.match(item.sourceSha256||'',/^[a-f0-9]{64}$/,`${item.id}: approved source CAD requires SHA-256`);
  assert.match(item.modelSha256||'',/^[a-f0-9]{64}$/,`${item.id}: approved GLB requires SHA-256`);
 }
 for(const item of pending){
+ const readiness=oemCadReadiness(item);
+ assert.equal(readiness.readyForActivation,false,`${item.id}: pending acquisition record cannot be activation-ready`);
+ assert.ok(readiness.blockers.length>0,`${item.id}: pending acquisition record must expose blockers`);
  assert.equal(item.modelUrl,undefined,`${item.id}: acquisition-only candidate cannot activate a viewer model`);
  assert.equal(item.modelSha256,undefined,`${item.id}: pending candidate cannot claim an approved GLB hash`);
 }
