@@ -1,7 +1,7 @@
 'use client';
 
 import {useEffect} from 'react';
-import {protectSpatialGraph,readCurrentSpatialGraph,replaceCurrentSpatialGraph,type SpatialGraphLike} from '@/lib/spatial-browser-recovery';
+import {readPrimarySpatialGraph,replaceCurrentSpatialGraph,type SpatialGraphLike} from '@/lib/spatial-browser-recovery';
 
 const PROJECT_KEY='stratum_spatial_project_id';
 export const SERVER_HYDRATION_EVENT='stratum:server-hydration';
@@ -34,7 +34,7 @@ export default function SpatialServerHydrator(){
 
   const hydrate=async()=>{
    publish({state:'LOADING'});
-   const current=readCurrentSpatialGraph();
+   const current=await readPrimarySpatialGraph();
    if(current?.entities.length){publish({state:'BROWSER_MODEL_PRESENT'});return}
 
    try{
@@ -64,8 +64,7 @@ export default function SpatialServerHydrator(){
     const graph=body.latest?.graph_json;
     if(!validRenderableGraph(graph)){publish({state:'NO_SERVER_MODEL',projectId});return}
 
-    replaceCurrentSpatialGraph(graph);
-    await protectSpatialGraph(graph,null);
+    await replaceCurrentSpatialGraph(graph);
     if(!active)return;
     publish({state:'RESTORED',projectId,revision:body.latest?.revision||null,entities:graph.entities.length});
    }catch(error){

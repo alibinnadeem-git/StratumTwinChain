@@ -2,15 +2,14 @@
 
 import {useEffect,useState} from 'react';
 import {proposeRooms,reconstructWallLoopCandidates,type RoomEntity,type RoomProposal} from '@/lib/room-reconstruction';
+import {readPrimarySpatialGraph,writePrimarySpatialGraph} from '@/lib/spatial-browser-recovery';
 
-const STORAGE='stratum_compiled_graph';
 type Graph={entities?:RoomEntity[];roomReconstructionProposals?:RoomProposal[];[key:string]:unknown};
-function readGraph():Graph{try{const parsed=JSON.parse(localStorage.getItem(STORAGE)||'{}');return parsed&&typeof parsed==='object'&&!Array.isArray(parsed)?parsed:{}}catch{return{}}}
 
 export default function RoomReconstructionReview(){
  const [proposals,setProposals]=useState<RoomProposal[]>([]);
- function refresh(){
-  const graph=readGraph();
+ async function refresh(){
+  const graph=(await readPrimarySpatialGraph()||{}) as Graph;
   const base=(graph.entities||[]).filter(entity=>entity.meta?.reconstruction!=='wall-segment-loop');
   const stitched=reconstructWallLoopCandidates(base);
   const combined=[...base,...stitched];
@@ -18,11 +17,11 @@ export default function RoomReconstructionReview(){
   const proposalMap=new Map(next.map(item=>[item.candidateId,item]));
   const entities=combined.map(entity=>entity.kind==='vector-boundary-candidate'?{...entity,meta:{...(entity.meta||{}),automaticRoomProposal:proposalMap.get(entity.id)||null}}:entity);
   if(JSON.stringify(graph.roomReconstructionProposals||[])!==JSON.stringify(next)||JSON.stringify(graph.entities||[])!==JSON.stringify(entities)){
-   localStorage.setItem(STORAGE,JSON.stringify({...graph,entities,roomReconstructionProposals:next}));
+   await writePrimarySpatialGraph({...graph,entities,roomReconstructionProposals:next} as any);
    window.dispatchEvent(new Event('stratum:graph-updated'));
   }
  }
- useEffect(()=>{refresh();window.addEventListener('stratum:graph-updated',refresh);return()=>window.removeEventListener('stratum:graph-updated',refresh)},[]);
+ useEffect(()=>{const run=()=>{void refresh()};run();window.addEventListener('stratum:graph-updated',run);return()=>window.removeEventListener('stratum:graph-updated',run)},[]);
  const eligible=proposals.filter(item=>item.eligible);
  const stitchedCount=proposals.filter(item=>item.candidateId.startsWith('wall-loop-')).length;
  return <section className="card" style={{marginTop:16}} aria-label="Automatic room reconstruction review">

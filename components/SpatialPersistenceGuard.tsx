@@ -4,13 +4,14 @@ import {useEffect,useRef} from 'react';
 import {
   parseSpatialGraph,
   protectSpatialGraph,
-  readCurrentSpatialGraph,
+  readPrimarySpatialGraph,
   restoreBestSpatialGraph,
+  writePrimarySpatialGraph,
   SPATIAL_GRAPH_KEY,
 } from '@/lib/spatial-browser-recovery';
 
 export default function SpatialPersistenceGuard(){
-  const last=useRef<ReturnType<typeof readCurrentSpatialGraph>>(null);
+  const last=useRef<Awaited<ReturnType<typeof readPrimarySpatialGraph>>>(null);
 
   useEffect(()=>{
     let active=true;
@@ -28,18 +29,19 @@ export default function SpatialPersistenceGuard(){
       if(!graph)return;
       const previous=last.current;
       last.current=graph;
-      void protectSpatialGraph(graph,previous&&JSON.stringify(previous)!==JSON.stringify(graph)?previous:null);
+      void (async()=>{
+        await writePrimarySpatialGraph(graph);
+        await protectSpatialGraph(graph,previous&&JSON.stringify(previous)!==JSON.stringify(graph)?previous:null);
+      })();
     };
 
     void initialize();
     window.addEventListener('stratum:graph-updated',capture);
     window.addEventListener('storage',capture);
-    window.addEventListener('pagehide',capture);
     return()=>{
       active=false;
       window.removeEventListener('stratum:graph-updated',capture);
       window.removeEventListener('storage',capture);
-      window.removeEventListener('pagehide',capture);
     };
   },[]);
 

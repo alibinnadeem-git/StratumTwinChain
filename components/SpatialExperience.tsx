@@ -4,7 +4,7 @@ import Link from "next/link";
 import {useEffect,useState} from "react";
 import CompiledGraphViewer from "@/components/CompiledGraphViewer";
 import {type RegisteredSpatialAsset} from "@/lib/spatial-asset-link";
-import {protectSpatialGraph,readCurrentSpatialGraph,replaceCurrentSpatialGraph,restoreBestSpatialGraph} from "@/lib/spatial-browser-recovery";
+import {readPrimarySpatialGraph,replaceCurrentSpatialGraph,restoreBestSpatialGraph} from "@/lib/spatial-browser-recovery";
 import {enrichAudiE4SourceReview} from "@/lib/audi-e4-source-review";
 import {SERVER_HYDRATION_EVENT,SERVER_HYDRATION_STATE_KEY} from "@/components/SpatialServerHydrator";
 
@@ -16,12 +16,12 @@ type ExperienceState={
   lineCount:number;
 };
 
-function inspectCompiledGraph():ExperienceState{
+async function inspectCompiledGraph():Promise<ExperienceState>{
   try{
-    const saved=readCurrentSpatialGraph();
+    const saved=await readPrimarySpatialGraph();
     if(!saved)return{ready:true,hasImportedModel:false,sourceCount:0,sourceSheetOnly:false,lineCount:0};
     const graph=enrichAudiE4SourceReview(saved);
-    if(graph!==saved){replaceCurrentSpatialGraph(graph);void protectSpatialGraph(graph,saved)}
+    if(graph!==saved)await replaceCurrentSpatialGraph(graph)
     const entities=(Array.isArray(graph?.entities)?graph.entities:[]) as {kind?:string}[];
     const sources=Array.isArray(graph?.sources)?graph.sources:[];
     return{ready:true,hasImportedModel:entities.length>0,sourceCount:sources.length,
@@ -38,20 +38,21 @@ export default function SpatialExperience({assets,authenticated=false}:{assets:R
 
   useEffect(()=>{
     let active=true;
-    const refresh=()=>{if(active)setState(inspectCompiledGraph())};
+    const refresh=async()=>{const next=await inspectCompiledGraph();if(active)setState(next)};
+    const refreshEvent=()=>{void refresh()};
     const serverState=()=>{try{return JSON.parse(sessionStorage.getItem(SERVER_HYDRATION_STATE_KEY)||'{}')?.state||''}catch{return''}};
     const onServerHydration=(event:Event)=>{
       if(!active)return;
       const detail=(event as CustomEvent).detail||{};
       if(detail.state==='LOADING'){setServerPending(true);setState({ready:false,hasImportedModel:false,sourceCount:0,sourceSheetOnly:false,lineCount:0});return}
       setServerPending(false);
-      refresh();
+      void refresh();
     };
     const hydrate=async()=>{
-      const initial=inspectCompiledGraph();
+      const initial=await inspectCompiledGraph();
       if(initial.hasImportedModel){if(active)setState(initial);return}
       await restoreBestSpatialGraph();
-      const recovered=inspectCompiledGraph();
+      const recovered=await inspectCompiledGraph();
       if(recovered.hasImportedModel){if(active)setState(recovered);return}
       const state=serverState();
       if(state==='LOADING'){if(active){setServerPending(true);setState({...recovered,ready:false})}return}
@@ -59,13 +60,13 @@ export default function SpatialExperience({assets,authenticated=false}:{assets:R
       if(active){setServerPending(false);setState(recovered)};
     };
     void hydrate();
-    window.addEventListener("stratum:graph-updated",refresh);
-    window.addEventListener("storage",refresh);
+    window.addEventListener("stratum:graph-updated",refreshEvent);
+    window.addEventListener("storage",refreshEvent);
     window.addEventListener(SERVER_HYDRATION_EVENT,onServerHydration);
     return()=>{
       active=false;
-      window.removeEventListener("stratum:graph-updated",refresh);
-      window.removeEventListener("storage",refresh);
+      window.removeEventListener("stratum:graph-updated",refreshEvent);
+      window.removeEventListener("storage",refreshEvent);
       window.removeEventListener(SERVER_HYDRATION_EVENT,onServerHydration);
     };
   },[authenticated]);

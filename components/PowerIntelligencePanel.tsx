@@ -2,6 +2,7 @@
 
 import {useCallback,useEffect,useMemo,useState} from 'react';
 import type {PowerIntelligenceSnapshot} from '@/lib/power-intelligence';
+import {readPrimarySpatialGraph} from '@/lib/spatial-browser-recovery';
 
 type Graph={powerIntelligence?:PowerIntelligenceSnapshot};
 type ServerFinding={
@@ -9,7 +10,6 @@ type ServerFinding={
  disposition_action:string|null;disposition_reason:string|null;disposition_occurred_at:string|null;
 };
 type ServerState={schemaReady:boolean;latest:{id:string;spatial_revision:number;finding_count:number;requirement_count:number}|null;findings:ServerFinding[]};
-const STORAGE_KEY='stratum_compiled_graph';
 const PROJECT_KEY='stratum_spatial_project_id';
 
 export default function PowerIntelligencePanel(){
@@ -36,14 +36,16 @@ export default function PowerIntelligencePanel(){
  },[]);
 
  useEffect(()=>{
-  const load=()=>{
-   try{const graph=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null') as Graph|null;setSnapshot(graph?.powerIntelligence||null)}
-   catch{setSnapshot(null)}
+  let active=true;
+  const load=async()=>{
+   try{const graph=await readPrimarySpatialGraph() as Graph|null;if(active)setSnapshot(graph?.powerIntelligence||null)}
+   catch{if(active)setSnapshot(null)}
   };
-  load();void refreshServer();
-  const refresh=()=>{load();void refreshServer()};
-  window.addEventListener('stratum:graph-updated',load);window.addEventListener('storage',refresh);window.addEventListener('stratum:power-snapshot-saved',refreshServer);
-  return()=>{window.removeEventListener('stratum:graph-updated',load);window.removeEventListener('storage',refresh);window.removeEventListener('stratum:power-snapshot-saved',refreshServer)};
+  const graphRefresh=()=>{void load()};
+  void load();void refreshServer();
+  const refresh=()=>{void load();void refreshServer()};
+  window.addEventListener('stratum:graph-updated',graphRefresh);window.addEventListener('storage',refresh);window.addEventListener('stratum:power-snapshot-saved',refreshServer);
+  return()=>{active=false;window.removeEventListener('stratum:graph-updated',graphRefresh);window.removeEventListener('storage',refresh);window.removeEventListener('stratum:power-snapshot-saved',refreshServer)};
  },[refreshServer]);
 
  const findings=useMemo(()=>snapshot?.findings||[],[snapshot]);

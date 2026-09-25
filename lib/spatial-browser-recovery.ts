@@ -17,6 +17,7 @@ export const SPATIAL_RECOVERY_BUNDLE_VERSION=1;
 
 const DB_NAME='stratum-spatial-recovery-v1';
 const STORE='graphs';
+const PRIMARY_KEY='current';
 
 export function isSpatialGraph(value:unknown):value is SpatialGraphLike{
   if(!value||typeof value!=='object')return false;
@@ -79,6 +80,28 @@ export function parseSpatialGraph(raw:string|null):SpatialGraphLike|null{
 
 export function readCurrentSpatialGraph(storage:Storage=localStorage){
   return parseSpatialGraph(storage.getItem(SPATIAL_GRAPH_KEY));
+}
+
+export async function readPrimarySpatialGraph(storage:Storage=localStorage){
+  try{
+    const indexed=await idbGet(PRIMARY_KEY);
+    if(indexed)return indexed;
+  }catch{}
+  return readCurrentSpatialGraph(storage);
+}
+
+export async function writePrimarySpatialGraph(graph:SpatialGraphLike,storage:Storage=localStorage){
+  if(!isSpatialGraph(graph))throw new Error('This file is not a valid STRATUM Spatial graph.');
+  let indexed=false;
+  try{
+    await idbPut(PRIMARY_KEY,graph);
+    indexed=true;
+  }catch{}
+  // Compatibility shadow only. IndexedDB is authoritative when available.
+  try{storage.setItem(SPATIAL_GRAPH_KEY,JSON.stringify(graph));}catch{
+    if(!indexed)throw new Error('Browser storage is full and IndexedDB is unavailable. Export your model backup before importing more sources.');
+  }
+  return{indexed,shadowed:Boolean(parseSpatialGraph(storage.getItem(SPATIAL_GRAPH_KEY)))};
 }
 
 export function findSameOriginRecoveryCandidates(storage:Storage=localStorage){
@@ -160,8 +183,12 @@ export async function protectSpatialGraph(graph:SpatialGraphLike,previous:Spatia
 }
 
 export async function restoreBestSpatialGraph(){
+  const indexedCurrent=await readPrimarySpatialGraph();
+  if(indexedCurrent&&indexedCurrent.entities.length>0){
+    await writePrimarySpatialGraph(indexedCurrent);
+    return{graph:indexedCurrent,source:'current' as const};
+  }
   const current=readCurrentSpatialGraph();
-  if(current&&current.entities.length>0)return{graph:current,source:'current' as const};
 
   const sameOrigin=findSameOriginRecoveryCandidates();
   const localCandidate=sameOrigin.find(item=>item.graph.entities.length>0)?.graph||sameOrigin[0]?.graph||null;
@@ -169,7 +196,7 @@ export async function restoreBestSpatialGraph(){
   const graph=(indexed&&indexed.entities.length>0?indexed:null)||localCandidate||indexed||current;
   if(!graph)return{graph:null,source:null};
 
-  try{localStorage.setItem(SPATIAL_GRAPH_KEY,JSON.stringify(graph))}catch(error){throw new Error('Browser storage is full. Export your model backup before importing more sources.',{cause:error})}
+  await writePrimarySpatialGraph(graph);
   await protectSpatialGraph(graph,current);
   window.dispatchEvent(new Event('stratum:graph-updated'));
   window.dispatchEvent(new Event(SPATIAL_RECOVERY_EVENT));
@@ -177,7 +204,7 @@ export async function restoreBestSpatialGraph(){
 }
 
 export async function createSpatialRecoveryBundle(storage:Storage=localStorage):Promise<SpatialRecoveryBundle>{
-  const current=readCurrentSpatialGraph(storage);
+  const current=await readPrimarySpatialGraph(storage);
   const lastGood=parseSpatialGraph(storage.getItem(SPATIAL_LAST_GOOD_KEY));
   const previous=parseSpatialGraph(storage.getItem(SPATIAL_PREVIOUS_KEY));
   const sameOriginBackups=findSameOriginRecoveryCandidates(storage).map(item=>({key:item.key,graph:item.graph}));
@@ -204,7 +231,7 @@ export async function restoreSpatialRecoveryBundle(value:unknown,storage:Storage
   const primary=bundle.current||bundle.lastGood||bundle.indexedLatest||bundle.sameOriginBackups[0]?.graph||bundle.previous||bundle.indexedPrevious;
   if(!primary)throw new Error('The STRATUM Spatial Recovery bundle does not contain a recoverable graph.');
 
-  const existingCurrent=readCurrentSpatialGraph(storage);
+  const existingCurrent=await readPrimarySpatialGraph(storage);
   const existingLastGood=parseSpatialGraph(storage.getItem(SPATIAL_LAST_GOOD_KEY));
   const existingPrevious=parseSpatialGraph(storage.getItem(SPATIAL_PREVIOUS_KEY));
   const preImport=distinctGraphs([existingCurrent,existingLastGood,existingPrevious]);
@@ -213,7 +240,7 @@ export async function restoreSpatialRecoveryBundle(value:unknown,storage:Storage
     try{storage.setItem(`stratum_spatial_preimport_${preImportStamp}_${index+1}`,JSON.stringify(graph));}catch{}
   });
 
-  storage.setItem(SPATIAL_GRAPH_KEY,JSON.stringify(primary));
+  await writePrimarySpatialGraph(primary,storage);
   // The imported recovery generations live in IndexedDB; do not triple localStorage usage.
   for(const backup of bundle.sameOriginBackups){
     if(!/^stratum/i.test(backup.key)||backup.key===SPATIAL_GRAPH_KEY)continue;
@@ -231,11 +258,11 @@ export async function restoreSpatialRecoveryBundle(value:unknown,storage:Storage
   return{graph:primary,summary:bundle.summary};
 }
 
-export function replaceCurrentSpatialGraph(graph:SpatialGraphLike){
+export async function replaceCurrentSpatialGraph(graph:SpatialGraphLike){
   if(!isSpatialGraph(graph))throw new Error('This file is not a valid STRATUM Spatial graph.');
-  const current=readCurrentSpatialGraph();
-  try{localStorage.setItem(SPATIAL_GRAPH_KEY,JSON.stringify(graph))}catch(error){throw new Error('Browser storage is full. Export the existing model before importing another.',{cause:error})}
-  void protectSpatialGraph(graph,current);
+  const current=await readPrimarySpatialGraph();
+  await writePrimarySpatialGraph(graph);
+  await protectSpatialGraph(graph,current);
   window.dispatchEvent(new Event('stratum:graph-updated'));
   window.dispatchEvent(new Event(SPATIAL_RECOVERY_EVENT));
 }

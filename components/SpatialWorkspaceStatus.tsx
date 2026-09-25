@@ -6,7 +6,7 @@ import {
   findSameOriginRecoveryCandidates,
   graphSummary,
   isSpatialGraph,
-  readCurrentSpatialGraph,
+  readPrimarySpatialGraph,
   readIndexedRecovery,
   replaceCurrentSpatialGraph,
   restoreBestSpatialGraph,
@@ -22,31 +22,34 @@ type Health={
 };
 
 export default function SpatialWorkspaceStatus({compact=false,authenticated=false}:{compact?:boolean;authenticated?:boolean}){
-  const [graph,setGraph]=useState<ReturnType<typeof readCurrentSpatialGraph>>(null);
+  const [graph,setGraph]=useState<Awaited<ReturnType<typeof readPrimarySpatialGraph>>>(null);
   const [health,setHealth]=useState<Health|null>(null);
   const [message,setMessage]=useState('');
   const [recoveryReady,setRecoveryReady]=useState(false);
 
   useEffect(()=>{
-    const refresh=()=>setGraph(readCurrentSpatialGraph());
+    let active=true;
+    const refresh=async()=>{const next=await readPrimarySpatialGraph();if(active)setGraph(next)};
+    const refreshEvent=()=>{void refresh()};
     const receiveLegacy=(event:MessageEvent)=>{
       const allowed=new Set(['https://stratum-twin-chain.vercel.app']);
       if(!allowed.has(event.origin))return;
       const data=event.data as {type?:string;version?:number;graph?:unknown;sourceOrigin?:string}|null;
       if(!data||data.type!=='STRATUM_SPATIAL_RECOVERY'||data.version!==1||!isSpatialGraph(data.graph))return;
       try{localStorage.removeItem('stratum_spatial_project_id')}catch{}
-      replaceCurrentSpatialGraph(data.graph);
+      void replaceCurrentSpatialGraph(data.graph);
       setMessage(`Recovered ${graphSummary(data.graph).entities} Spatial objects from the earlier STRATUM site. Choose the correct project before server sync.`);
     };
-    refresh();
-    window.addEventListener('stratum:graph-updated',refresh);
-    window.addEventListener(SPATIAL_RECOVERY_EVENT,refresh);
+    void refresh();
+    window.addEventListener('stratum:graph-updated',refreshEvent);
+    window.addEventListener(SPATIAL_RECOVERY_EVENT,refreshEvent);
     window.addEventListener('message',receiveLegacy);
     setRecoveryReady(true);
     fetch('/api/health',{cache:'no-store'}).then(r=>r.json()).then(setHealth).catch(()=>setHealth(null));
     return()=>{
-      window.removeEventListener('stratum:graph-updated',refresh);
-      window.removeEventListener(SPATIAL_RECOVERY_EVENT,refresh);
+      active=false;
+      window.removeEventListener('stratum:graph-updated',refreshEvent);
+      window.removeEventListener(SPATIAL_RECOVERY_EVENT,refreshEvent);
       window.removeEventListener('message',receiveLegacy);
     };
   },[]);
@@ -59,7 +62,7 @@ export default function SpatialWorkspaceStatus({compact=false,authenticated=fals
   const serverReady=infrastructureReady&&authenticated;
 
   async function restore(){
-    const before=readCurrentSpatialGraph();
+    const before=await readPrimarySpatialGraph();
     if(before){setMessage('Your current browser model is already present.');return;}
     const recovered=await restoreBestSpatialGraph();
     if(recovered.graph)setMessage(`Recovered ${graphSummary(recovered.graph).entities} Spatial objects from ${recovered.source==='indexeddb'?'the protected browser backup':'a previous same-site STRATUM copy'}.`);
@@ -70,7 +73,7 @@ export default function SpatialWorkspaceStatus({compact=false,authenticated=fals
     const candidates=findSameOriginRecoveryCandidates();
     const graph=candidates[0]?.graph||await readIndexedRecovery('previous');
     if(!graph){setMessage('No previous browser copy is available on this web address.');return;}
-    replaceCurrentSpatialGraph(graph);
+    await replaceCurrentSpatialGraph(graph);
     setMessage(`Restored a previous browser copy with ${graphSummary(graph).entities} Spatial objects.`);
   }
 
@@ -99,7 +102,7 @@ export default function SpatialWorkspaceStatus({compact=false,authenticated=fals
       const parsed=JSON.parse(await file.text());
       if(!isSpatialGraph(parsed))throw new Error('The selected JSON is not a valid STRATUM Spatial graph.');
       try{localStorage.removeItem('stratum_spatial_project_id')}catch{}
-      replaceCurrentSpatialGraph(parsed);
+      await replaceCurrentSpatialGraph(parsed);
       setMessage(`Imported ${graphSummary(parsed).entities} Spatial objects. Existing browser work was preserved as the previous recovery copy. Choose the correct project before server sync.`);
     }catch(error){setMessage(error instanceof Error?error.message:'Backup import failed.');}
   }

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import {useMemo,useState} from 'react';
+import {readPrimarySpatialGraph,replaceCurrentSpatialGraph} from '@/lib/spatial-browser-recovery';
 import AssetActivityPanel from '@/components/AssetActivityPanel';
 import AssetQR from '@/components/AssetQR';
 import {
@@ -22,8 +23,6 @@ type InspectorEntity=SpatialAssetEntity&{
  confidence:number;
  meta?:Record<string,unknown>;
 };
-
-const GRAPH_KEY='stratum_compiled_graph';
 
 function verificationUrl(asset:RegisteredSpatialAsset){
  const base=typeof window==='undefined'?'https://stratumspatialverified.vercel.app':window.location.origin;
@@ -46,13 +45,13 @@ export default function SpatialAssetInspector({
  const dir=useMemo(()=>spatialAssetDirState(binding),[binding]);
  const asset=binding?.asset||null;
 
- function persistBinding(nextAsset:RegisteredSpatialAsset|null){
+ async function persistBinding(nextAsset:RegisteredSpatialAsset|null){
   if(!selected)return;
   try{
-   const graph=JSON.parse(localStorage.getItem(GRAPH_KEY)||'{}');
-   if(!Array.isArray(graph.entities))throw new Error('No compiled graph is available');
+   const graph=await readPrimarySpatialGraph();
+   if(!graph||!Array.isArray(graph.entities))throw new Error('No compiled graph is available');
    let updated:InspectorEntity|null=null;
-   graph.entities=graph.entities.map((entity:InspectorEntity)=>{
+   graph.entities=(graph.entities as InspectorEntity[]).map((entity:InspectorEntity)=>{
     if(entity.id!==selected.id)return entity;
     const meta={...(entity.meta||{})};
     for(const key of ['registeredAssetId','registeredAssetCode','registeredAssetSerial','registryAssetId','registryAssetCode'])delete meta[key];
@@ -69,8 +68,7 @@ export default function SpatialAssetInspector({
     updated={...entity,meta};
     return updated;
    });
-   localStorage.setItem(GRAPH_KEY,JSON.stringify(graph));
-   window.dispatchEvent(new Event('stratum:graph-updated'));
+   await replaceCurrentSpatialGraph(graph);
    if(updated)onEntityUpdated?.(updated);
    setMessage(nextAsset?'Spatial object linked to '+nextAsset.asset_code+'.':'Spatial object unlinked from the registered asset.');
    setLinkId('');

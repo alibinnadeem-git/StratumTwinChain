@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import AutoSheetAlignmentReview from '@/components/AutoSheetAlignmentReview';
+import ManualSheetXYCalibrationReview from '@/components/ManualSheetXYCalibrationReview';
 import CompilerWorkspace from '@/components/CompilerWorkspace';
 import RoomReconstructionReview from '@/components/RoomReconstructionReview';
 import SpatialCompilationPersistence from '@/components/SpatialCompilationPersistence';
@@ -27,6 +28,7 @@ export default async function CompilerPage(){const session=await readSession();r
    <RoomReconstructionReview/>
    <TitleBlockIntelligence/>
    <AutoSheetAlignmentReview/>
+   <ManualSheetXYCalibrationReview/>
   </details>
 
   <details className="secondary-details card">

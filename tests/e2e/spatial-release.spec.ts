@@ -199,13 +199,14 @@ test('sheet review requires explicit room confirmation and alignment remains rev
  expect(state).toEqual({kind:'room-boundary',validated:true,reviewRequired:false,review:'manual-boundary-review'});
 
  await review.getByRole('button',{name:'Undo room confirmation'}).click();
+ await expect.poll(()=>page.evaluate(()=>{
+  const entity=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}').entities?.[0];
+  return entity?{kind:entity.kind,validated:entity.meta?.geometryValidated,reviewRequired:entity.meta?.reviewRequired}:null;
+ })).toEqual({kind:'vector-boundary-candidate',validated:false,reviewRequired:true});
  state=await page.evaluate(()=>{
   const entity=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}').entities[0];
   return {kind:entity.kind,validated:entity.meta.geometryValidated,reviewRequired:entity.meta.reviewRequired,review:entity.meta.geometryReview};
  });
- expect(state.kind).toBe('vector-boundary-candidate');
- expect(state.validated).toBe(false);
- expect(state.reviewRequired).toBe(true);
 
  await review.getByText('Alignment & elevation controls',{exact:true}).click();
  const values:Record<string,string>={
@@ -217,6 +218,10 @@ test('sheet review requires explicit room confirmation and alignment remains rev
  await review.getByRole('button',{name:'Apply sheet alignment'}).click();
  await expect(review.getByRole('status')).toContainText(/Drawing review saved/i);
 
+ await expect.poll(()=>page.evaluate(()=>{
+  const entity=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}').entities?.[0];
+  return entity?{x:entity.x,y:entity.y,z:entity.z,floor:entity.floor,method:entity.meta?.alignmentMethod}:null;
+ })).toEqual({x:110,y:205,z:4,floor:'L2',method:'reviewed-two-control-points'});
  const aligned=await page.evaluate(()=>{
   const entity=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}').entities[0];
   return {x:entity.x,y:entity.y,z:entity.z,floor:entity.floor,units:entity.meta.coordinateUnits,method:entity.meta.alignmentMethod,verified:entity.meta.alignmentVerified,original:entity.meta.sheetOriginal};
@@ -232,9 +237,8 @@ test('sheet review requires explicit room confirmation and alignment remains rev
  expect(aligned.original.y).toBe(2.5);
 
  await review.getByRole('button',{name:'Restore original sheet coordinates'}).click();
- const restored=await page.evaluate(()=>{
-  const entity=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}').entities[0];
-  return {x:entity.x,y:entity.y,z:entity.z,floor:entity.floor,units:entity.meta.coordinateUnits,elevationKnown:entity.meta.elevationKnown,hasTransform:Boolean(entity.meta.sheetTransform)};
- });
- expect(restored).toEqual({x:5,y:2.5,z:0,floor:'UNRESOLVED',units:'sheet',elevationKnown:false,hasTransform:false});
+ await expect.poll(()=>page.evaluate(()=>{
+  const entity=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}').entities?.[0];
+  return entity?{x:entity.x,y:entity.y,z:entity.z,floor:entity.floor,units:entity.meta?.coordinateUnits,elevationKnown:entity.meta?.elevationKnown,hasTransform:Boolean(entity.meta?.sheetTransform)}:null;
+ })).toEqual({x:5,y:2.5,z:0,floor:'UNRESOLVED',units:'sheet',elevationKnown:false,hasTransform:false});
 });
