@@ -5,7 +5,7 @@ import ts from 'typescript';
 const url=new URL(`../lib/.qa-alignment-${randomUUID()}.mjs`,import.meta.url);
 try{
  await writeFile(url,ts.transpileModule(await readFile(new URL('../lib/sheet-alignment.ts',import.meta.url),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText);
- const {solveSheetTransform,applySheetTransform,restoreSheetCoordinates}=await import(url.href);
+ const {solveSheetTransform,applySheetTransform,restoreSheetCoordinates,solveSheetXYTransform,applySheetXYTransform,restoreSheetXYCoordinates,sheetXYValidationResidual}=await import(url.href);
  const source=[{x:2,y:3},{x:6,y:3}],target=[{x:100,y:200},{x:100,y:208}];
  const t=solveSheetTransform(source,target,'L2',4.25);
  const e={id:'a',source:'plan',kind:'line',name:'wall',x:2,y:3,z:0,x2:6,y2:3,z2:0,vertices:source,meta:{sourceSha256:'abc',page:2}};
@@ -19,5 +19,16 @@ try{
  assert.throws(()=>solveSheetTransform([source[0],source[0]],target,'L1',0));
  assert.throws(()=>solveSheetTransform(source,target,'UNRESOLVED',0));
  assert.throws(()=>solveSheetTransform(source,target,'L1',NaN));
- console.log('PASS: control point alignment, rotated scale, elevation, source immutability, idempotent reapply, restoration and invalid input guards');
+ const xy=solveSheetXYTransform(source,target),xyResidual=sheetXYValidationResidual({x:4,y:3},{x:100,y:204},xy);
+ assert.ok(xyResidual<1e-9,'third control point validates independent XY transform');
+ const unknownZ={id:'xy',source:'sheet.pdf',kind:'sheet-callout-candidate',name:'review',x:2,y:3,meta:{elevationKnown:false,physicalElevationKnown:false,coordinateUnits:'sheet'}};
+ const xyApplied=applySheetXYTransform(unknownZ,xy,{residualMeters:xyResidual,toleranceMeters:.25});
+ assert.equal(xyApplied.z,undefined,'XY calibration must not invent Z');
+ assert.equal(xyApplied.meta.elevationKnown,false,'XY calibration must preserve elevation uncertainty');
+ assert.equal(xyApplied.meta.physicalElevationKnown,false,'XY calibration must preserve physical elevation uncertainty');
+ assert.equal(xyApplied.meta.planXYAuthority,'HUMAN_VALIDATED_3_POINT_TRANSFORM');
+ assert.equal(xyApplied.meta.physicalPositionVerified,false,'validated plan transform is not as-built proof');
+ const xyRestored=restoreSheetXYCoordinates(xyApplied);
+ assert.deepEqual([xyRestored.x,xyRestored.y],[2,3]);assert.equal(xyRestored.z,undefined);
+ console.log('PASS: control point alignment, XY-only calibration, independent validation, Z separation, source immutability, restoration and invalid input guards');
 }finally{await unlink(url)}
