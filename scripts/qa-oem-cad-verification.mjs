@@ -14,7 +14,7 @@ assert.match(migration,/UNIQUE \(organization_id,candidate_id,source_sha256\)/i)
 assert.match(migration,/content\s+bytea\s+NOT NULL/i);
 assert.match(migration,/BEFORE UPDATE OR DELETE ON oem_cad_verifications/i);
 assert.match(migration,/BEFORE UPDATE OR DELETE ON oem_cad_source_files/i);
-assert.match(migration,/does not approve browser GLB geometry/i);
+assert.match(migration,/do not approve browser GLB geometry/i);
 
 assert.match(route,/requireSession\(\['SUPER_ADMIN','ORG_ADMIN','PROJECT_MANAGER'\]\)/);
 assert.match(route,/const MAX=25\*1024\*1024/);
