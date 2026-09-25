@@ -63,7 +63,7 @@ export default function ManualSheetXYCalibrationReview(){
     return {...calibrated,meta:{...(calibrated.meta||{}),sheetXYCalibrationId:calibrationId,sheetXYCalibrationAppliedAt:new Date().toISOString(),sheetXYCalibrationReviewRequired:residual>tolerance}};
    });
    current.sheetXYCalibrations=[...(Array.isArray(current.sheetXYCalibrations)?current.sheetXYCalibrations:[]),{id:calibrationId,frameKey:selected,action:'APPLY',transform,controlPoints:{source,target,validationSource,validationTarget},residualMeters:residual,toleranceMeters:tolerance,validated:residual<=tolerance,occurredAt:new Date().toISOString(),physicalPositionVerified:false,zChanged:false}];
-   await replaceCurrentSpatialGraph(current);
+   await replaceCurrentSpatialGraph(current as SpatialGraphLike);
    setMessage(`Applied XY transform to ${changed} object${changed===1?'':'s'}. Third-point residual ${residual.toFixed(3)} m ${residual<=tolerance?'passes':'exceeds'} the ${tolerance.toFixed(3)} m tolerance. Z and elevation authority were not changed.`);
   }catch(error){setMessage(error instanceof Error?error.message:'Unable to apply XY calibration.')}
  }
