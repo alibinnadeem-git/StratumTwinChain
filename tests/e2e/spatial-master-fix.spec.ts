@@ -15,6 +15,7 @@ const graph={
 
 for(const [label,width,height] of [['desktop',1280,900],['tablet',768,1024],['mobile',390,844]] as const){
  test(`Spatial review truth and layout at ${label} width`,async({page})=>{
+  test.skip(test.info().project.name!==`${label}-chromium`,'The other device projects cover their matching viewport.');
   await page.setViewportSize({width,height});
   const errors:string[]=[];
   page.on('pageerror',error=>errors.push(error.message));
