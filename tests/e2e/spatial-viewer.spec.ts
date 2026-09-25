@@ -1,5 +1,15 @@
 import {expect,test} from '@playwright/test';
 
+test('component library exposes source verification workbench without model activation control',async({page})=>{
+ await page.goto('/component-library');
+ const workbench=page.getByRole('region',{name:'OEM CAD file verification workbench'});
+ await expect(workbench.getByRole('heading',{name:'OEM CAD file verification workbench'})).toBeVisible();
+ await expect(workbench).toContainText('This advances evidence to FILE VERIFIED only.');
+ await expect(workbench).toContainText(/does not mean the file has been converted to a controlled GLB/i);
+ await expect(workbench.getByRole('button',{name:'Verify and store source file'})).toBeDisabled();
+ await expect(workbench.getByText(/GLB APPROVED/i)).toHaveCount(0);
+});
+
 test('component library exposes governed exact OEM CAD activation readiness',async({page})=>{
  await page.goto('/component-library');
  const queue=page.getByRole('region',{name:'Exact OEM CAD acquisition queue'});
