@@ -2,6 +2,7 @@
 
 import {ChangeEvent,useEffect,useMemo,useState} from 'react';
 import {extractSheetIdentity,type PositionedSheetText,type SheetIdentityCandidate} from '@/lib/title-block';
+import {readPrimarySpatialGraph,writePrimarySpatialGraph} from '@/lib/spatial-browser-recovery';
 
 type StoredSheetIdentity=SheetIdentityCandidate&{confirmedAt?:string};
 const STORAGE_KEY='stratum_title_block_reviews';
@@ -12,13 +13,13 @@ const keyOf=(item:StoredSheetIdentity)=>`${item.sourceSha256}:${item.page}`;
 function readStored():StoredSheetIdentity[]{
   try{const parsed=JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]');return Array.isArray(parsed)?parsed:[]}catch{return[]}
 }
-function writeStored(next:StoredSheetIdentity[]){
+async function writeStored(next:StoredSheetIdentity[]){
   localStorage.setItem(STORAGE_KEY,JSON.stringify(next));
   try{
-    const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
+    const graph=await readPrimarySpatialGraph();
     if(graph&&typeof graph==='object'&&!Array.isArray(graph)){
       graph.titleBlocks=next;
-      localStorage.setItem('stratum_compiled_graph',JSON.stringify(graph));
+      await writePrimarySpatialGraph(graph);
       window.dispatchEvent(new Event('stratum:graph-updated'));
     }
   }catch{}
@@ -74,7 +75,7 @@ export default function TitleBlockIntelligence(){
           existing.set(keyOf(candidate),prior?.reviewState==='CONFIRMED'?{...candidate,reviewState:'CONFIRMED',confirmedAt:prior.confirmedAt,alignmentEligible:false,geometryScaleAuthority:false}:candidate);
         }
         next=[...existing.values()].sort((a,b)=>a.sourceName.localeCompare(b.sourceName)||a.page-b.page);
-        writeStored(next);setItems(next);
+        await writeStored(next);setItems(next);
       }
       setMessage(`Title-block scan complete: ${next.length} sheet identity candidate${next.length===1?'':'s'} · ${next.filter(item=>item.reviewState==='CONFIRMED').length} human-confirmed. Confirmation does not establish alignment, geometry scale, Verified state or PoVI finality.`);
     }catch(error){setMessage(error instanceof Error?`Title-block scan failed: ${error.message}`:'Title-block scan failed.');}
@@ -90,17 +91,17 @@ export default function TitleBlockIntelligence(){
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
-  function updateReview(target:StoredSheetIdentity,confirmedState:boolean){
+  async function updateReview(target:StoredSheetIdentity,confirmedState:boolean){
     const next=items.map(item=>keyOf(item)===keyOf(target)?{...item,reviewState:confirmedState?'CONFIRMED':'CANDIDATE',confirmedAt:confirmedState?new Date().toISOString():undefined,alignmentEligible:false as const,geometryScaleAuthority:false as const}:item) as StoredSheetIdentity[];
-    setItems(next);writeStored(next);
+    setItems(next);await writeStored(next);
     setMessage(confirmedState?'Sheet identity confirmed for review. Automatic alignment and geometry scale remain disabled until separate validation/calibration steps.':'Sheet identity returned to candidate review state.');
   }
 
-  function clear(){setItems([]);writeStored([]);setMessage('Title-block review candidates cleared from this browser workspace. No source files or server records were deleted.');}
+  async function clear(){setItems([]);await writeStored([]);setMessage('Title-block review candidates cleared from this browser workspace. No source files or server records were deleted.');}
 
   return <section className="card" style={{marginTop:16}}>
     <div className="section-head"><div><div className="eyebrow">Title-block intelligence · Human reviewed</div><h2>Resolve sheet identity before multi-sheet alignment</h2><p className="muted">PDF text and position are used to propose sheet number, title, revision, issue date, discipline, floor/level and drawing scale. Every result remains a candidate until explicitly confirmed. Page dimensions are retained only so alignment review can sanity-check normalized coordinate scale. A parsed scale is reference metadata only: confirmation never establishes geometry scale, alignment, Verified state, DIR finality or physical truth.</p></div><span className="pending">{confirmed}/{items.length} CONFIRMED</span></div>
-    <div className="button-row"><label className="ghost" style={{cursor:'pointer'}}>Analyze PDF title blocks<input hidden type="file" accept=".pdf" multiple disabled={busy} onChange={(event:ChangeEvent<HTMLInputElement>)=>{void process(Array.from(event.target.files||[]));event.target.value=''}}/></label>{items.length>0&&<button type="button" onClick={clear}>Clear review candidates</button>}</div>
+    <div className="button-row"><label className="ghost" style={{cursor:'pointer'}}>Analyze PDF title blocks<input hidden type="file" accept=".pdf" multiple disabled={busy} onChange={(event:ChangeEvent<HTMLInputElement>)=>{void process(Array.from(event.target.files||[]));event.target.value=''}}/></label>{items.length>0&&<button type="button" onClick={()=>void clear()}>Clear review candidates</button>}</div>
     {message&&<div className="notice" style={{marginTop:12}}><strong>{busy?'ANALYZING':'TITLE BLOCK'}</strong><span>{message}</span></div>}
     {!items.length&&<p className="muted" style={{marginBottom:0}}>Drop/select PDFs in the compiler or use the analyzer above. No inferred sheet identity exists yet.</p>}
     {items.length>0&&<div style={{display:'grid',gap:10,marginTop:12}}>{items.map(item=><article className="card" key={keyOf(item)} style={{padding:14}}>
@@ -108,7 +109,7 @@ export default function TitleBlockIntelligence(){
       <div className="grid two" style={{marginTop:8}}><div><div className="label">Sheet number</div><b>{item.sheetNumber.value||'Unresolved'}</b><small style={{display:'block'}}>confidence {Math.round(item.sheetNumber.confidence*100)}% · {item.sheetNumber.method}</small></div><div><div className="label">Sheet title</div><b>{item.sheetTitle.value||'Unresolved'}</b><small style={{display:'block'}}>confidence {Math.round(item.sheetTitle.confidence*100)}% · {item.sheetTitle.method}</small></div><div><div className="label">Discipline</div><b>{item.discipline.value||'Unresolved'}</b><small style={{display:'block'}}>confidence {Math.round(item.discipline.confidence*100)}% · {item.discipline.method}</small></div><div><div className="label">Floor / level</div><b>{item.floor.value||'Unresolved'}</b><small style={{display:'block'}}>confidence {Math.round(item.floor.confidence*100)}% · {item.floor.method}</small></div><div><div className="label">Drawing scale</div><b>{item.drawingScale.value||'Unresolved'}</b><small style={{display:'block'}}>confidence {Math.round(item.drawingScale.confidence*100)}% · {item.drawingScale.method} · REVIEW ONLY{item.pageGeometry?.maxDimensionPoints?` · page max ${Math.round(item.pageGeometry.maxDimensionPoints)} pt`:''}</small></div><div><div className="label">Revision / issue date</div><b>{item.revision.value||'—'} · {item.issueDate.value||'—'}</b></div></div>
       <p className="muted" style={{marginBottom:8}}>Evidence: {[...new Set([...item.sheetNumber.evidence,...item.sheetTitle.evidence,...item.revision.evidence,...item.issueDate.evidence,...item.discipline.evidence,...item.floor.evidence,...item.drawingScale.evidence])].filter(Boolean).slice(0,10).join(' · ')||'No strong labeled evidence; review required.'}</p>
       {item.drawingScale.value&&<div className="notice" style={{marginBottom:8}}><strong>SCALE IS NOT GEOMETRY AUTHORITY</strong><span>{item.drawingScale.value} was extracted as title-block metadata. It does not rescale source geometry. Page dimensions and declared scale may only be used later to detect a suspicious anchor-derived transform; they never create that transform.</span></div>}
-      <div className="button-row">{item.reviewState==='CONFIRMED'?<button type="button" onClick={()=>updateReview(item,false)}>Reopen identity review</button>:<button type="button" onClick={()=>updateReview(item,true)} disabled={!item.sheetNumber.value}>Confirm sheet identity</button>}</div>
+      <div className="button-row">{item.reviewState==='CONFIRMED'?<button type="button" onClick={()=>void updateReview(item,false)}>Reopen identity review</button>:<button type="button" onClick={()=>void updateReview(item,true)} disabled={!item.sheetNumber.value}>Confirm sheet identity</button>}</div>
     </article>)}</div>}
   </section>;
 }
