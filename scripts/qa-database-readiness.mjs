@@ -9,6 +9,7 @@ assert.equal(full.lifecycleReady,true);
 assert.equal(full.evidenceReady,true);
 assert.equal(full.archiveReady,true);
 assert.equal(full.spatialPersistenceReady,true);
+assert.equal(full.oemCadVerificationReady,true);
 assert.equal(full.attestationsReady,true);
 assert.equal(full.dirRuntimeReady,true);
 assert.equal(full.missingTables.length,0);
@@ -43,10 +44,12 @@ assert.ok(DATABASE_CAPABILITY_TABLES.spatialPersistence.includes('spatial_compil
 assert.ok(DATABASE_CAPABILITY_TABLES.spatialPersistence.includes('spatial_compilation_reviews'));
 assert.ok(DATABASE_CAPABILITY_TABLES.attestations.includes('human_attestations'));
 assert.ok(DATABASE_CAPABILITY_TABLES.archive.includes('asset_archive_events'));
+assert.ok(DATABASE_CAPABILITY_TABLES.oemCadVerification.includes('oem_cad_verifications'));
+assert.ok(DATABASE_CAPABILITY_TABLES.oemCadVerification.includes('oem_cad_source_files'));
 assert.ok(DATABASE_CAPABILITY_TABLES.dirRuntime.includes('approval_policies'));
 assert.ok(DATABASE_CAPABILITY_TABLES.dirRuntime.includes('ledger_records'));
 assert.ok(!DATABASE_CAPABILITY_TABLES.dirRuntime.some(table=>table.startsWith('sv_chain_')),'validator chain tables must not be duplicated into the Spatial application database');
-console.log('✓ post-baseline Spatial, attestation and archive migrations are part of readiness');
+console.log('✓ post-baseline Spatial, OEM CAD verification, attestation and archive migrations are part of readiness');
 
 const health=fs.readFileSync('app/api/health/route.ts','utf8');
 assert.match(health,/DATABASE_READINESS_SQL/);
