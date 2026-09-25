@@ -51,7 +51,7 @@ export default function SpatialAssetInspector({
    const graph=await readPrimarySpatialGraph();
    if(!graph||!Array.isArray(graph.entities))throw new Error('No compiled graph is available');
    let updated:InspectorEntity|null=null;
-   graph.entities=graph.entities.map((entity:InspectorEntity)=>{
+   graph.entities=(graph.entities as InspectorEntity[]).map((entity:InspectorEntity)=>{
     if(entity.id!==selected.id)return entity;
     const meta={...(entity.meta||{})};
     for(const key of ['registeredAssetId','registeredAssetCode','registeredAssetSerial','registryAssetId','registryAssetCode'])delete meta[key];
