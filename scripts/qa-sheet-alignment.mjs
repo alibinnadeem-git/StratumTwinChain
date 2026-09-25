@@ -30,5 +30,11 @@ try{
  assert.equal(xyApplied.meta.physicalPositionVerified,false,'validated plan transform is not as-built proof');
  const xyRestored=restoreSheetXYCoordinates(xyApplied);
  assert.deepEqual([xyRestored.x,xyRestored.y],[2,3]);assert.equal(xyRestored.z,undefined);
+ const legacyUi=await readFile(new URL('../components/SheetReview.tsx',import.meta.url),'utf8');
+ const governedUi=await readFile(new URL('../components/ManualSheetXYCalibrationReview.tsx',import.meta.url),'utf8');
+ assert.equal(legacyUi.includes('solveSheetTransform'),false,'drawing review UI must not invoke the legacy combined XY+Z transform');
+ assert.equal(legacyUi.includes('Measured elevation'),false,'drawing review UI must not expose elevation authority inside two-point alignment');
+ assert.ok(legacyUi.includes('manual-sheet-xy-calibration'),'drawing review must route to governed XY-only calibration');
+ assert.ok(governedUi.includes('id="manual-sheet-xy-calibration"'),'governed XY calibration target must remain addressable');
  console.log('PASS: control point alignment, XY-only calibration, independent validation, Z separation, source immutability, restoration and invalid input guards');
 }finally{await unlink(url)}
