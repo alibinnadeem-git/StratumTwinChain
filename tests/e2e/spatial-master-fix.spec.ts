@@ -13,9 +13,13 @@ const graph={
  ],links:[],stats:{L0:1,L1:15,L2:5,L3:0,L4:0}
 };
 
-for(const [label,width,height] of [['desktop',1280,900],['tablet',768,1024],['mobile',390,844]] as const){
- test(`Spatial review truth and layout at ${label} width`,async({page})=>{
-  test.skip(test.info().project.name!==`${label}-chromium`,'The other device projects cover their matching viewport.');
+test('Spatial review truth and layout at device width',async({page},testInfo)=>{
+  const viewports:Record<string,{label:string;width:number;height:number}>={
+   'desktop-chromium':{label:'desktop',width:1280,height:900},
+   'tablet-chromium':{label:'tablet',width:768,height:1024},
+   'mobile-chromium':{label:'mobile',width:390,height:844},
+  };
+  const {label,width,height}=viewports[testInfo.project.name];
   await page.setViewportSize({width,height});
   const errors:string[]=[];
   page.on('pageerror',error=>errors.push(error.message));
@@ -47,5 +51,4 @@ for(const [label,width,height] of [['desktop',1280,900],['tablet',768,1024],['mo
   await expect(page.getByText('No SLD topology in this project yet')).toBeVisible();
   await expect(page.getByRole('heading',{name:'(E) C1'})).toBeVisible();
   expect(errors).toEqual([]);
- });
-}
+});
