@@ -20,6 +20,7 @@
     "qa:release-uat": "node scripts/qa-release-uat.mjs",
     "qa:spatial-viewer": "node --experimental-strip-types scripts/qa-spatial-viewer.mjs",
     "qa:oem-cad-registry": "node --experimental-strip-types scripts/qa-oem-cad-registry.mjs",
+    "qa:oem-cad-verification": "node --experimental-strip-types scripts/qa-oem-cad-verification.mjs",
     "qa:power-intelligence": "node --experimental-strip-types scripts/qa-power-intelligence.mjs",
     "qa:equipment-schedule": "node --experimental-strip-types scripts/qa-equipment-schedule.mjs",
     "qa:engineering-knowledge": "node scripts/qa-engineering-knowledge.mjs",
