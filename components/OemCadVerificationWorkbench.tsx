@@ -70,6 +70,7 @@ export default function OemCadVerificationWorkbench(){
    setFile(null);setRevision('');setReuseTerms('');setNotes('');
    const input=document.getElementById('oem-cad-source-file') as HTMLInputElement|null;if(input)input.value='';
    await refresh();
+   window.dispatchEvent(new Event('stratum:oem-cad-verification-updated'));
   }catch(error){setMessage(error instanceof Error?error.message:'Unable to verify OEM CAD source file')}
   finally{setBusy(false)}
  }
