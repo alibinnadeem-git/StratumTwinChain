@@ -85,16 +85,17 @@ export default function SpatialAssetInspector({
   <p className="subtitle">Identity, placement, lifecycle work, evidence and DIR state will appear here.</p>
  </div>;
 
- const z=Number.isFinite(Number(selected.z))?Number(selected.z):0;
+ const z=Number.isFinite(Number(selected.z))?Number(selected.z):null;
  const qr=asset?verificationUrl(asset):'';
- const zReviewed=selected.meta?.elevationKnown===true||selected.meta?.physicalElevationKnown===true||selected.meta?.zPlacementAuthority==='MEASURED_OR_REVIEWED';
+ const zReviewed=selected.meta?.elevationKnown!==false&&selected.meta?.physicalElevationKnown!==false&&(selected.meta?.elevationKnown===true||selected.meta?.physicalElevationKnown===true||selected.meta?.zPlacementAuthority==='MEASURED_OR_REVIEWED');
+ const tierLabel:Record<string,string>={L0:'Tier 0 · Source',L1:'Tier 1 · Drawing geometry',L2:'Tier 2 · Drawing callout, review required',L3:'Tier 3 · Electrical topology',L4:'Tier 4 · Registered asset'};
 
  return <div className="asset-inspector">
   <div className="section-head">
    <div>
     <div className="eyebrow">{asset?'Registered asset':'Spatial object'}</div>
     <h2 style={{margin:'4px 0'}}>{asset?.name||selected.name}</h2>
-    <p className="subtitle" style={{margin:0}}>{asset?(asset.asset_code+' · '+asset.status):(selected.layer+' · '+selected.kind)}</p>
+    <p className="subtitle" style={{margin:0}}>{asset?(asset.asset_code+' · '+asset.status):(tierLabel[selected.layer]||'Source candidate')}</p>
    </div>
    <span className={asset?(dir.finalized?'proof':'status-chip'):'pending'}>{asset?(dir.finalized?'DIR FINALIZED':'DIR PENDING'):'UNLINKED'}</span>
   </div>
@@ -103,7 +104,7 @@ export default function SpatialAssetInspector({
     <div><span>Z placement</span><strong>{zReviewed?'Measured / reviewed':'Unverified elevation'}</strong></div>
   </div>
   {selected.kind==='imported-3d-model'&&<div className="notice" role="status"><strong>IMPORTED 3D GEOMETRY</strong><span>This is the uploaded model file. Its location and model-space dimensions are unverified; importing it does not register an installed asset or establish its DIR state.</span></div>}
-  {selected.kind==='sheet-callout-candidate'&&<div className="notice" role="status"><strong>DRAWING CALLOUT · REVIEW REQUIRED</strong><span>{selected.name} appears on sheet {String(selected.meta?.sheet||'unknown')}, page {String(selected.meta?.page||'?')}, near {selected.zone||'an unresolved room'}. Equipment type, physical position and asset identity need confirmation. Maintenance can be recorded later for both existing and new registered assets; no history is implied by this drawing.</span></div>}
+  {selected.kind==='sheet-callout-candidate'&&<div className="notice" role="status"><strong>DRAWING CALLOUT · REVIEW REQUIRED</strong><span>{selected.name} appears on sheet {String(selected.meta?.sheet||'unknown')}, page {String(selected.meta?.page||'?')}, at sheet X {String(selected.meta?.sheetX??'unresolved')} / Y {String(selected.meta?.sheetY??'unresolved')}, near {selected.zone||'an unresolved room'}. Equipment type, physical position and asset identity need confirmation. Maintenance can be recorded later for both existing and new registered assets. No history recorded by this drawing.</span></div>}
   {selected.kind==='annotated-asset-candidate'&&<div className="notice" role="status"><strong>REVIEWED DRAWING SYMBOL · CANDIDATE</strong><span>{selected.name} was marked on page {String(selected.meta?.page||1)} of {selected.source}. Drawing reference: {String(selected.meta?.reference||'unresolved')}. Legend or schedule: {String(selected.meta?.legendReference||'unresolved')}. Type: {String(selected.meta?.electricalComponentHint||'unresolved')}. Drawing state: {String(selected.meta?.drawingState||'unresolved')}. Sheet location is not a verified 3D position or proof of installation. Maintenance history starts when actual events are recorded.</span></div>}
 
   {asset?<>
@@ -179,7 +180,7 @@ export default function SpatialAssetInspector({
    </div>
    {registeredAssets.length>0?<div className="binding-panel">
     <label>Registered asset
-     <select value={linkId} onChange={event=>setLinkId(event.target.value)} style={{width:'100%'}}>
+     <select className="spatial-asset-select" value={linkId} onChange={event=>setLinkId(event.target.value)} style={{width:'100%'}}>
       <option value="">Choose an asset</option>
       {registeredAssets.map(item=><option key={item.id} value={item.id}>{item.asset_code} · {item.name}</option>)}
      </select>
@@ -196,12 +197,12 @@ export default function SpatialAssetInspector({
    <div className="passport-facts" style={{marginTop:10}}>
     <div><span>Floor</span><strong>{selected.floor||'UNRESOLVED'}</strong></div>
     <div><span>Plan X / Y</span><strong>{selected.x.toFixed(2)} / {selected.y.toFixed(2)}</strong></div>
-    <div><span>Z</span><strong>{z.toFixed(2)} m</strong></div>
+    <div><span>Z</span><strong>{zReviewed&&z!==null?`${z.toFixed(2)} m`:'Z unverified'}</strong></div>
     <div><span>Source</span><strong>{selected.source}</strong></div>
     <div><span>Confidence</span><strong>{Math.round(selected.confidence*100)}%</strong></div>
     <div><span>Zone</span><strong>{selected.zone||'Unresolved'}</strong></div>
    </div>
-   <details className="proof-details"><summary>Raw source details</summary><dl>{Object.entries(selected.meta||{}).filter(([key])=>key!=='embeddedGlb').map(([key,value])=><div key={key}><dt>{key}</dt><dd style={{overflowWrap:'anywhere'}}>{typeof value==='object'?JSON.stringify(value):String(value)}</dd></div>)}</dl></details>
+   <details className="proof-details"><summary>Raw source details</summary><dl>{Object.entries(selected.meta||{}).filter(([key])=>key!=='embeddedGlb'&&(zReviewed||!/(?:^z$|^inferredZCandidate$)/i.test(key))).map(([key,value])=><div key={key}><dt>{key}</dt><dd style={{overflowWrap:'anywhere'}}>{typeof value==='object'?JSON.stringify(value):String(value)}</dd></div>)}</dl></details>
   </details>
   {message&&<p role="status" className="muted">{message}</p>}
  </div>;

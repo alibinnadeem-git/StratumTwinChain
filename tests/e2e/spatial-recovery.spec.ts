@@ -18,7 +18,7 @@ test('same-origin legacy Spatial graph is automatically recovered instead of sho
  await page.goto('/');
  const workspace=page.getByRole('region',{name:'Project workspace status'});
  await expect(workspace).toContainText('MODEL FOUND');
- await expect(workspace).toContainText('1 source · 1 Spatial object');
+ await expect(workspace).toContainText('1 source · 1 object · 0 drawing lines');
  const recovered=await page.evaluate(()=>JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}').entities?.[0]?.name);
  expect(recovered).toBe('Recovered panel');
  await page.goto('/spatial');
@@ -33,9 +33,9 @@ test('graph updates create a protected last-good browser copy',async({page})=>{
   localStorage.setItem('stratum_compiled_graph',JSON.stringify(value));
   window.dispatchEvent(new Event('stratum:graph-updated'));
  },graph('Protected panel'));
- await expect.poll(()=>page.evaluate(()=>{
-  const saved=JSON.parse(localStorage.getItem('stratum_compiled_graph_last_good_v2')||'{}');
-  return saved.entities?.[0]?.name||null;
+ await expect.poll(()=>page.evaluate(async()=>{
+  const db=await new Promise<IDBDatabase>((resolve,reject)=>{const request=indexedDB.open('stratum-spatial-recovery-v1',1);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});
+  return new Promise<string|null>((resolve)=>{const request=db.transaction('graphs','readonly').objectStore('graphs').get('latest');request.onsuccess=()=>resolve(request.result?.entities?.[0]?.name||null);request.onerror=()=>resolve(null)});
  })).toBe('Protected panel');
 });
 

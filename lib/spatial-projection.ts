@@ -114,6 +114,18 @@ export function enrichSpatialProjection<T extends SpatialProjectionGraph>(graph:
  const entities=metricEntities.map(entity=>{
   if(entity.meta?.nonSpatial===true)return entity;
   const meta={...(entity.meta||{})};
+  if((entity.kind==='sheet-callout-candidate'||entity.kind==='annotated-asset-candidate')&&meta.elevationKnown!==true&&meta.physicalElevationKnown!==true){
+   delete meta.inferredZCandidate;
+   delete meta.assetDimensionsMeters;
+   if(entity.kind==='sheet-callout-candidate'&&meta.sheetX!==undefined&&meta.sheetY!==undefined){
+    meta.description=`${entity.name} · sheet ${String(meta.sheet||'unresolved')} · sheet X ${String(meta.sheetX)} / Y ${String(meta.sheetY)}. Identity, equipment type and physical placement require review.`;
+   }
+   meta.elevationKnown=false;
+   meta.physicalElevationKnown=false;
+   meta.zPlacementAuthority='UNVERIFIED_DRAWING_CALLOUT';
+   meta.zReviewRequired=true;
+   return {...entity,z:undefined,meta};
+  }
   const frame=sourceFrame(entity),isSld=entity.layer==='L2'&&sldFrames.has(frame);
   let z=Number.isFinite(Number(entity.z))?Number(entity.z):0;
   let scale=entity.scale;

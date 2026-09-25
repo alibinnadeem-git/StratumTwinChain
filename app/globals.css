@@ -14,6 +14,8 @@
 .asset-identity-panel{display:grid;grid-template-columns:1fr 120px;gap:14px;align-items:start;margin-top:12px}
 .qr-inline{display:grid;justify-items:center;gap:6px;text-align:center}
 .binding-panel{display:grid;gap:10px;margin-top:12px}
+.shell{min-width:0}.main{min-width:0}.sidebar{align-self:start;height:100dvh;min-height:100dvh}.nav{min-height:0}.asset-inspector .notice{flex-direction:column;align-items:flex-start;gap:5px}.asset-inspector .notice strong{overflow-wrap:anywhere}.asset-inspector .section-head{flex-wrap:wrap}.spatial-asset-select{background:#08131d;color:#d8edf6;border:1px solid #28465f;border-radius:9px;padding:10px 12px;min-width:0;max-width:100%}@media(max-width:1050px){.sidebar{height:auto;min-height:0}}@media(max-width:450px){.main{padding:12px}.asset-inspector,.asset-inspector .passport-facts{min-width:0}.asset-inspector .passport-facts{grid-template-columns:1fr}.asset-inspector strong,.asset-inspector p{overflow-wrap:anywhere}}
+.compiled-twin-grid aside .notice{flex-direction:column;align-items:flex-start;gap:5px}.compiled-twin-grid aside .notice strong{overflow-wrap:anywhere}
 .activity-list{display:grid;gap:10px}
 .activity-card{padding:14px}
 .activity-note{margin:8px 0}

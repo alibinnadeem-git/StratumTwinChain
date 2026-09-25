@@ -117,6 +117,16 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Run desktop tablet mobile browser UAT
         run: npm run qa:e2e
+        env:
+          STRATUM_CAPTURE_DIR: test-results/spatial-master-fix-screenshots
+      - name: Attach sanitized Spatial screenshots to PR checks
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spatial-master-fix-desktop-tablet-mobile
+          path: test-results/spatial-master-fix-screenshots
+          if-no-files-found: ignore
+          retention-days: 30
       - name: Upload browser UAT report on failure
         if: failure()
         uses: actions/upload-artifact@v4
