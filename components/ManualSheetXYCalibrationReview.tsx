@@ -5,7 +5,7 @@ import {applySheetXYTransform,restoreSheetXYCoordinates,sheetXYValidationResidua
 import {readPrimarySpatialGraph,replaceCurrentSpatialGraph,type SpatialGraphLike} from '@/lib/spatial-browser-recovery';
 
 type Entity={id:string;source:string;x:number;y:number;z?:number;x2?:number;y2?:number;z2?:number;vertices?:Point[];floor?:string;kind:string;name:string;meta?:Record<string,unknown>};
-type Graph=SpatialGraphLike&{entities:Entity[];sheetXYCalibrations?:unknown[]};
+type Graph=Omit<SpatialGraphLike,'entities'>&{entities:Entity[];sheetXYCalibrations?:unknown[]};
 type Inputs={s1x:string;s1y:string;s2x:string;s2y:string;t1x:string;t1y:string;t2x:string;t2y:string;s3x:string;s3y:string;t3x:string;t3y:string;tolerance:string};
 const initial:Inputs={s1x:'',s1y:'',s2x:'',s2y:'',t1x:'',t1y:'',t2x:'',t2y:'',s3x:'',s3y:'',t3x:'',t3y:'',tolerance:'0.25'};
 
