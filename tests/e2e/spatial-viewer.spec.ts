@@ -367,8 +367,8 @@ test('IFC BIM source preserves source-design placement and feeds Expected Power'
  await expect(page.getByText(/IFC STEP records.*placement\(s\) resolved/i)).toBeVisible();
  await expect.poll(()=>page.evaluate(()=>{
   const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
-  const entity=(graph.entities||[]).find((item:any)=>item.meta?.ifcGlobalId==='0ABCDEF123456789012345');
-  return entity?{x:entity.x,y:entity.y,z:entity.z,floor:entity.floor,physicalTruth:entity.meta?.physicalTruth,authority:entity.meta?.placementAuthority,geometry:entity.meta?.geometryAuthority,unit:entity.meta?.ifcUnitToMeters}:null;
+  const entity=(graph.entities||[]).find((item:any)=>item.meta?.assetTag==='P-1'&&item.meta?.ifcType==='IFCPUMP');
+  return entity?{x:entity.x,y:entity.y,z:entity.z,floor:entity.floor,physicalTruth:entity.meta?.physicalTruth,authority:entity.meta?.zPlacementAuthority,geometry:entity.meta?.geometryAuthority,unit:entity.meta?.ifcUnitToMeters}:null;
  })).toEqual({x:4,y:6,z:1,floor:'Level 1',physicalTruth:false,authority:'SOURCE_IFC_DESIGN_PLACEMENT',geometry:'IFC_PLACEMENT_ONLY_NO_SHAPE_MESH',unit:.001});
  await page.getByRole('link',{name:'Render Spatial Environment'}).click();
  await expect(page.getByRole('heading',{name:'Expected power review'})).toBeVisible();
