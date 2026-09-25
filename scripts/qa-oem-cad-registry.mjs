@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import {OEM_CAD_CANDIDATES} from '../lib/oem-cad-candidates.ts';
+import {OEM_SOURCES} from '../lib/oem-source-catalog.ts';
 
 const byId=new Map(OEM_CAD_CANDIDATES.map(item=>[item.id,item]));
+const sourceById=new Map(OEM_SOURCES.map(item=>[item.id,item]));
 const approved=OEM_CAD_CANDIDATES.filter(item=>item.status==='GLB_APPROVED');
 const pending=OEM_CAD_CANDIDATES.filter(item=>item.status!=='GLB_APPROVED');
 
@@ -28,5 +30,18 @@ assert.equal(eaton.status,'CAD_DOWNLOAD_IDENTIFIED');
 assert.equal(eaton.sku,'PDG23M0100E2WL');
 assert.deepEqual(eaton.dimensionsMeters,[.1046,.1524,.0889]);
 assert.match(eaton.cadFormat,/3D CAD drawing package/i);
+
+const siemens=byId.get('siemens-3va2116-0hl36-0aa0');
+assert.ok(siemens,'Siemens exact 3VA acquisition record exists');
+assert.equal(siemens.status,'CAD_DOWNLOAD_IDENTIFIED');
+assert.equal(siemens.sku,'3VA2116-0HL36-0AA0');
+assert.equal(siemens.modelUrl,undefined,'Siemens acquisition record must remain inactive until file verification');
+assert.match(siemens.cadFormat,/M-CAD \/ E-CAD/i);
+assert.ok(sourceById.get('siemens-3va')?.componentKeys.includes('mccb'),'Siemens 3VA source must bind to MCCB');
+
+const abb=sourceById.get('abb-tmax-xt');
+assert.ok(abb,'ABB Tmax XT family acquisition source exists');
+assert.ok(abb.componentKeys.includes('mccb'),'ABB Tmax XT source must bind to MCCB');
+assert.equal(OEM_CAD_CANDIDATES.some(item=>item.sourceId==='abb-tmax-xt'),false,'Family-level ABB selector must not create a fictitious exact SKU candidate');
 
 console.log(`OEM CAD registry contract passed: ${approved.length} approved exact model(s), ${pending.length} acquisition/review candidate(s), and no pending CAD lead is active geometry.`);

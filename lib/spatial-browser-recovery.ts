@@ -82,11 +82,13 @@ export function readCurrentSpatialGraph(storage:Storage=localStorage){
   return parseSpatialGraph(storage.getItem(SPATIAL_GRAPH_KEY));
 }
 
+export async function readIndexedCurrentSpatialGraph(){
+  try{return await idbGet(PRIMARY_KEY)}catch{return null}
+}
+
 export async function readPrimarySpatialGraph(storage:Storage=localStorage){
-  try{
-    const indexed=await idbGet(PRIMARY_KEY);
-    if(indexed)return indexed;
-  }catch{}
+  const indexed=await readIndexedCurrentSpatialGraph();
+  if(indexed)return indexed;
   return readCurrentSpatialGraph(storage);
 }
 
@@ -183,7 +185,7 @@ export async function protectSpatialGraph(graph:SpatialGraphLike,previous:Spatia
 }
 
 export async function restoreBestSpatialGraph(){
-  const indexedCurrent=await readPrimarySpatialGraph();
+  const indexedCurrent=await readIndexedCurrentSpatialGraph();
   if(indexedCurrent&&indexedCurrent.entities.length>0){
     await writePrimarySpatialGraph(indexedCurrent);
     return{graph:indexedCurrent,source:'current' as const};
@@ -195,6 +197,14 @@ export async function restoreBestSpatialGraph(){
   const indexed=await readIndexedRecovery('latest');
   const graph=(indexed&&indexed.entities.length>0?indexed:null)||localCandidate||indexed||current;
   if(!graph)return{graph:null,source:null};
+
+  // Initialization may overlap a newer writer. Re-check IndexedDB immediately
+  // before promoting any legacy/recovery fallback so authority cannot move backward.
+  const concurrentCurrent=await readIndexedCurrentSpatialGraph();
+  if(concurrentCurrent){
+    await writePrimarySpatialGraph(concurrentCurrent);
+    return{graph:concurrentCurrent,source:'current' as const};
+  }
 
   await writePrimarySpatialGraph(graph);
   await protectSpatialGraph(graph,current);
