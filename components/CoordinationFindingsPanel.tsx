@@ -2,6 +2,7 @@
 
 import {useCallback,useEffect,useMemo,useState} from 'react';
 import type {CoordinationSnapshot} from '@/lib/coordination-intelligence';
+import {readPrimarySpatialGraph} from '@/lib/spatial-browser-recovery';
 
 type Graph={coordinationIntelligence?:CoordinationSnapshot};
 type ServerFinding={
@@ -11,7 +12,6 @@ type ServerFinding={
 type ActionRequest={id:string;finding_id:string;action_type:string;title:string;status:string;created_at:string};
 type ServerState={schemaReady:boolean;latest:{id:string;spatial_revision:number;finding_count:number}|null;findings:ServerFinding[];actionRequests:ActionRequest[]};
 
-const STORAGE_KEY='stratum_compiled_graph';
 const PROJECT_KEY='stratum_spatial_project_id';
 
 export default function CoordinationFindingsPanel(){
@@ -41,16 +41,18 @@ export default function CoordinationFindingsPanel(){
  },[]);
 
  useEffect(()=>{
-  const load=()=>{
-   try{const graph=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null') as Graph|null;setSnapshot(graph?.coordinationIntelligence||null)}
-   catch{setSnapshot(null)}
+  let active=true;
+  const load=async()=>{
+   try{const graph=await readPrimarySpatialGraph() as Graph|null;if(active)setSnapshot(graph?.coordinationIntelligence||null)}
+   catch{if(active)setSnapshot(null)}
   };
-  const refresh=()=>{load();void refreshServer()};
-  load();void refreshServer();
-  window.addEventListener('stratum:graph-updated',load);
+  const graphRefresh=()=>{void load()};
+  const refresh=()=>{void load();void refreshServer()};
+  void load();void refreshServer();
+  window.addEventListener('stratum:graph-updated',graphRefresh);
   window.addEventListener('storage',refresh);
   window.addEventListener('stratum:coordination-snapshot-saved',refreshServer);
-  return()=>{window.removeEventListener('stratum:graph-updated',load);window.removeEventListener('storage',refresh);window.removeEventListener('stratum:coordination-snapshot-saved',refreshServer)};
+  return()=>{active=false;window.removeEventListener('stratum:graph-updated',graphRefresh);window.removeEventListener('storage',refresh);window.removeEventListener('stratum:coordination-snapshot-saved',refreshServer)};
  },[refreshServer]);
 
  const localFindings=useMemo(()=>snapshot?.findings||[],[snapshot]);
