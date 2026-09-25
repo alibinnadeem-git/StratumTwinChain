@@ -37,9 +37,17 @@ test('Spatial review truth and layout at device width',async({page},testInfo)=>{
   await expect(page.locator('.placement-details').getByText('Z unverified',{exact:true})).toBeVisible();
   await expect(page.getByText('Tier 2 · Drawing callout, review required')).toBeVisible();
   await expect(page.getByText('No history recorded by this drawing.',{exact:false})).toBeVisible();
-  await page.getByRole('button',{name:/^Review Source candidates$/}).click();
+  const reviewTab=page.getByRole('button',{name:/^Review Source candidates$/});
+  await reviewTab.scrollIntoViewIfNeeded();
+  const scrollBefore=await page.evaluate(()=>window.scrollY);
+  await reviewTab.click();
+  expect(await page.evaluate(()=>window.scrollY)).toBe(scrollBefore);
   await expect.poll(()=>canvas.getAttribute('data-clickable-assets')).toBe('5');
   await expect(page.getByLabel('Review pin labels').getByRole('button')).toHaveCount(5);
+  const lastPin=page.getByLabel('Review pin labels').getByRole('button').last();
+  const pinBox=await lastPin.boundingBox();
+  const listBox=await page.getByLabel('Review pin labels').boundingBox();
+  expect(pinBox&&listBox&&pinBox.y+pinBox.height<=listBox.y+listBox.height).toBeTruthy();
   await expect(page.getByText('5 objects · 15 drawing lines')).toBeVisible();
   const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth);
   expect(overflow).toBe(false);
