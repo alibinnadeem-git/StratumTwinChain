@@ -3,23 +3,21 @@
 import {useEffect,useState} from 'react';
 import {proposeSheetAlignments,type AlignmentProposal,type AlignmentSheet} from '@/lib/auto-sheet-alignment';
 import {transformSheetPoint} from '@/lib/sheet-similarity';
+import {readPrimarySpatialGraph,writePrimarySpatialGraph} from '@/lib/spatial-browser-recovery';
 
-type GraphEntity={id:string;name:string;x:number;y:number;z:number;kind:string;confidence:number;meta?:Record<string,unknown>};
+type GraphEntity={id:string;name:string;x:number;y:number;z?:number;kind:string;confidence:number;meta?:Record<string,unknown>};
 type Graph={entities?:GraphEntity[];titleBlocks?:AlignmentSheet[];alignmentCandidates?:AlignmentProposal[];autoAlignmentReviews?:unknown[];[key:string]:unknown};
-const GRAPH_KEY='stratum_compiled_graph';
-
-function readGraph():Graph{try{const parsed=JSON.parse(localStorage.getItem(GRAPH_KEY)||'{}');return parsed&&typeof parsed==='object'&&!Array.isArray(parsed)?parsed:{}}catch{return{}}}
 function entityKey(entity:GraphEntity){const sha=String(entity.meta?.sourceSha256||'').toLowerCase(),page=Number(entity.meta?.page||0);return sha&&page?`${sha}:${page}`:null}
-function saveGraph(graph:Graph){localStorage.setItem(GRAPH_KEY,JSON.stringify(graph));window.dispatchEvent(new Event('stratum:graph-updated'))}
+async function saveGraph(graph:Graph){await writePrimarySpatialGraph(graph as any);window.dispatchEvent(new Event('stratum:graph-updated'))}
 
 export default function AutoSheetAlignmentReview(){
  const [proposals,setProposals]=useState<AlignmentProposal[]>([]),[message,setMessage]=useState('');
- function refresh(){const graph=readGraph(),next=proposeSheetAlignments(graph.entities||[],graph.titleBlocks||[]);setProposals(next);if(JSON.stringify(graph.alignmentCandidates||[])!==JSON.stringify(next)){graph.alignmentCandidates=next;localStorage.setItem(GRAPH_KEY,JSON.stringify(graph))}}
- useEffect(()=>{refresh();window.addEventListener('stratum:graph-updated',refresh);return()=>window.removeEventListener('stratum:graph-updated',refresh)},[]);
+ async function refresh(){const graph=(await readPrimarySpatialGraph()||{}) as Graph,next=proposeSheetAlignments(graph.entities||[],graph.titleBlocks||[]);setProposals(next);if(JSON.stringify(graph.alignmentCandidates||[])!==JSON.stringify(next)){graph.alignmentCandidates=next;await writePrimarySpatialGraph(graph as any)}}
+ useEffect(()=>{const run=()=>{void refresh()};run();window.addEventListener('stratum:graph-updated',run);return()=>window.removeEventListener('stratum:graph-updated',run)},[]);
 
- function apply(proposal:AlignmentProposal){
+ async function apply(proposal:AlignmentProposal){
   if(!proposal.eligible){setMessage('This proposal is not eligible for application. Resolve its anchor, residual, discipline, floor or scale cross-check blockers first.');return}
-  const graph=readGraph(),entities=graph.entities||[];let changed=0;
+  const graph=(await readPrimarySpatialGraph()||{}) as Graph,entities=graph.entities||[];let changed=0;
   graph.entities=entities.map(entity=>{
    if(entityKey(entity)!==proposal.movingKey)return entity;
    const meta={...(entity.meta||{})};
@@ -29,11 +27,11 @@ export default function AutoSheetAlignmentReview(){
    return{...entity,x:point.x,y:point.y,meta:{...meta,autoSheetAlignmentOriginal:original,autoSheetAlignmentCandidateId:proposal.id,alignmentMethod:'auto-common-anchor-human-confirmed',alignmentAppliedAt:new Date().toISOString(),alignmentVerified:false}};
   });
   graph.autoAlignmentReviews=[...(Array.isArray(graph.autoAlignmentReviews)?graph.autoAlignmentReviews:[]),{candidateId:proposal.id,action:'APPLY',occurredAt:new Date().toISOString(),reviewRequired:true,verified:false,crossChecks:proposal.crossChecks}];
-  saveGraph(graph);setMessage(`Applied anchor-derived transform to ${changed} object${changed===1?'':'s'} on ${proposal.movingSheet}. Title-block floor/scale were safety cross-checks only and did not create the transform. Original sheet coordinates were preserved. This remains human-confirmed alignment, not Verified infrastructure state.`);
+  await saveGraph(graph);setMessage(`Applied anchor-derived transform to ${changed} object${changed===1?'':'s'} on ${proposal.movingSheet}. Title-block floor/scale were safety cross-checks only and did not create the transform. Original sheet coordinates were preserved. This remains human-confirmed alignment, not Verified infrastructure state.`);
  }
 
- function restore(proposal:AlignmentProposal){
-  const graph=readGraph(),entities=graph.entities||[];let changed=0;
+ async function restore(proposal:AlignmentProposal){
+  const graph=(await readPrimarySpatialGraph()||{}) as Graph,entities=graph.entities||[];let changed=0;
   graph.entities=entities.map(entity=>{
    const meta={...(entity.meta||{})},original=meta.autoSheetAlignmentOriginal as {x:number;y:number}|undefined;
    if(meta.autoSheetAlignmentCandidateId!==proposal.id||!original)return entity;
@@ -41,7 +39,7 @@ export default function AutoSheetAlignmentReview(){
    return{...entity,x:original.x,y:original.y,meta};
   });
   graph.autoAlignmentReviews=[...(Array.isArray(graph.autoAlignmentReviews)?graph.autoAlignmentReviews:[]),{candidateId:proposal.id,action:'RESTORE',occurredAt:new Date().toISOString(),reviewRequired:true,verified:false}];
-  saveGraph(graph);setMessage(`Restored ${changed} object${changed===1?'':'s'} to original sheet coordinates for ${proposal.movingSheet}.`);
+  await saveGraph(graph);setMessage(`Restored ${changed} object${changed===1?'':'s'} to original sheet coordinates for ${proposal.movingSheet}.`);
  }
 
  return <section className="card" style={{marginTop:16}} aria-label="Automatic sheet alignment review">
