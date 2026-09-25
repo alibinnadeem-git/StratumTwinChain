@@ -1,6 +1,7 @@
 'use client';
 
 import {useCallback,useEffect,useMemo,useState} from 'react';
+import {readPrimarySpatialGraph,replaceCurrentSpatialGraph} from '@/lib/spatial-browser-recovery';
 
 type Project={id:string;project_code:string;name:string};
 type LatestCompilation={
@@ -33,11 +34,10 @@ const PROJECT_KEY='stratum_spatial_project_id';
 function shortHash(value:string|undefined){return value?`${value.slice(0,12)}…${value.slice(-8)}`:'—';}
 function timestamp(value:string|undefined|null){return value?new Date(value).toLocaleString():'—';}
 
-function readLocalGraph():LocalGraph{
-  const raw=localStorage.getItem('stratum_compiled_graph');
-  if(!raw)throw new Error('No compiled Spatial graph is saved in this browser yet. Compile or review sources first.');
-  const graph=JSON.parse(raw) as Partial<LocalGraph>;
-  if(!graph||typeof graph!=='object'||typeof graph.version!=='string'||!Array.isArray(graph.sources)||!Array.isArray(graph.entities)||!Array.isArray(graph.links)||!graph.stats||typeof graph.stats!=='object'){
+async function readLocalGraph():Promise<LocalGraph>{
+  const graph=await readPrimarySpatialGraph() as Partial<LocalGraph>|null;
+  if(!graph)throw new Error('No compiled Spatial graph is saved in this browser yet. Compile or review sources first.');
+  if(typeof graph.version!=='string'||!Array.isArray(graph.sources)||!Array.isArray(graph.entities)||!Array.isArray(graph.links)||!graph.stats||typeof graph.stats!=='object'){
     throw new Error('The saved browser graph is not a valid STRATUM Spatial compilation. Existing data was not changed.');
   }
   return graph as LocalGraph;
@@ -95,7 +95,7 @@ export default function SpatialCompilationPersistence(){
     if(!projectId||busy)return;
     setBusy(true);setLoadArmed(false);
     try{
-      const graph=readLocalGraph();
+      const graph=await readLocalGraph();
       const response=await fetch('/api/spatial/compilations',{
         method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({projectId,graph})
       });
@@ -109,14 +109,13 @@ export default function SpatialCompilationPersistence(){
     finally{setBusy(false);}
   }
 
-  function loadServerSnapshot(){
+  async function loadServerSnapshot(){
     if(!latest)return;
     if(!loadArmed){setLoadArmed(true);setMessage('Loading will replace the browser working graph with this server snapshot. Select “Confirm load” to continue.');return;}
     try{
       const graph=latest.graph_json as Partial<LocalGraph>;
       if(!graph||!Array.isArray(graph.sources)||!Array.isArray(graph.entities)||!Array.isArray(graph.links))throw new Error('The server snapshot is malformed; browser data was not changed.');
-      localStorage.setItem('stratum_compiled_graph',JSON.stringify(graph));
-      window.dispatchEvent(new Event('stratum:graph-updated'));
+      await replaceCurrentSpatialGraph(graph as LocalGraph);
       setLoadArmed(false);
       setMessage(`Loaded server revision ${latest.revision} into the browser review workspace. This did not create or verify any STRATUM Asset.`);
     }catch(error){setLoadArmed(false);setMessage(error instanceof Error?error.message:'Unable to load the server review snapshot.');}
