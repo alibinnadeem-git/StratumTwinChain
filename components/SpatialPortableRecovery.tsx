@@ -4,7 +4,7 @@ import {ChangeEvent,useEffect,useState} from 'react';
 import {
   createSpatialRecoveryBundle,
   graphSummary,
-  readCurrentSpatialGraph,
+  readPrimarySpatialGraph,
   restoreSpatialRecoveryBundle,
   SPATIAL_RECOVERY_EVENT,
 } from '@/lib/spatial-browser-recovery';
@@ -19,13 +19,16 @@ export default function SpatialPortableRecovery(){
   const [busy,setBusy]=useState(false);
 
   useEffect(()=>{
-    const refresh=()=>setSummary(graphSummary(readCurrentSpatialGraph()));
-    refresh();
-    window.addEventListener('stratum:graph-updated',refresh);
-    window.addEventListener(SPATIAL_RECOVERY_EVENT,refresh);
+    let active=true;
+    const refresh=async()=>{const graph=await readPrimarySpatialGraph();if(active)setSummary(graphSummary(graph))};
+    const run=()=>{void refresh()};
+    run();
+    window.addEventListener('stratum:graph-updated',run);
+    window.addEventListener(SPATIAL_RECOVERY_EVENT,run);
     return()=>{
-      window.removeEventListener('stratum:graph-updated',refresh);
-      window.removeEventListener(SPATIAL_RECOVERY_EVENT,refresh);
+      active=false;
+      window.removeEventListener('stratum:graph-updated',run);
+      window.removeEventListener(SPATIAL_RECOVERY_EVENT,run);
     };
   },[]);
 
