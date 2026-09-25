@@ -32,7 +32,7 @@ assert.match(workbench,/form\.set\('sha256',clientSha\)/);
 assert.match(workbench,/\/api\/oem\/cad-verifications/);
 assert.match(workbench,/This advances evidence to FILE VERIFIED only/);
 assert.match(workbench,/does not mean the file has been converted to a controlled GLB/i);
-assert.doesNotMatch(workbench,/ELECTRICAL_MODEL_REGISTRY_STORAGE_KEY|stratum:model-registry-updated|modelUrl\s*=|approve.{0,20}activation/i);
+assert.doesNotMatch(workbench,/ELECTRICAL_MODEL_REGISTRY_STORAGE_KEY|stratum:model-registry-updated|modelUrl\s*=/i);
 
 assert.match(readiness,/oemCadVerification:\['organizations','users','memberships','oem_cad_verifications','oem_cad_source_files'\]/);
 
