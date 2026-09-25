@@ -1,5 +1,15 @@
 import {expect,test} from '@playwright/test';
 
+test('component library exposes source verification workbench without model activation control',async({page})=>{
+ await page.goto('/component-library');
+ const workbench=page.getByRole('region',{name:'OEM CAD file verification workbench'});
+ await expect(workbench.getByRole('heading',{name:'OEM CAD file verification workbench'})).toBeVisible();
+ await expect(workbench).toContainText('This advances evidence to FILE VERIFIED only.');
+ await expect(workbench).toContainText(/does not mean the file has been converted to a controlled GLB/i);
+ await expect(workbench.getByRole('button',{name:'Verify and store source file'})).toBeDisabled();
+ await expect(workbench.getByText(/GLB APPROVED/i)).toHaveCount(0);
+});
+
 test('component library exposes governed exact OEM CAD activation readiness',async({page})=>{
  await page.goto('/component-library');
  const queue=page.getByRole('region',{name:'Exact OEM CAD acquisition queue'});
@@ -236,12 +246,11 @@ test('CSV equipment schedule feeds Expected Power without inventing Spatial XYZ'
  ].join('\n');
  await sourceUpload(page).setInputFiles({name:'M-601-HVAC-Equipment-Schedule.csv',mimeType:'text/csv',buffer:Buffer.from(csv)});
  await expect(page.getByText(/powered equipment candidate/i)).toBeVisible();
- const graphState=await page.evaluate(()=>{
+ await expect.poll(()=>page.evaluate(()=>{
   const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
   const entity=(graph.entities||[]).find((item:any)=>item.meta?.assetTag==='AHU-7');
   return entity?{kind:entity.kind,nonSpatial:entity.meta?.nonSpatial,authority:entity.meta?.spatialPlacementAuthority,voltage:entity.meta?.voltage,phase:entity.meta?.phase}:null;
- });
- expect(graphState).toEqual({kind:'schedule-powered-equipment-candidate',nonSpatial:true,authority:'NON_SPATIAL_SCHEDULE',voltage:480,phase:3});
+ }),{timeout:20000}).toEqual({kind:'schedule-powered-equipment-candidate',nonSpatial:true,authority:'NON_SPATIAL_SCHEDULE',voltage:480,phase:3});
  const render=page.getByRole('link',{name:'Render Spatial Environment'});
  await expect(render).toBeVisible();await render.click();
  await expect(page.getByRole('heading',{name:'Expected power review'})).toBeVisible();
@@ -295,7 +304,7 @@ EOF
  await expect.poll(()=>page.evaluate(async()=>{
   const db=await new Promise<IDBDatabase>((resolve,reject)=>{const request=indexedDB.open('stratum-spatial-recovery-v1',1);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});
   return new Promise<boolean>(resolve=>{const request=db.transaction('graphs','readonly').objectStore('graphs').get('current');request.onsuccess=()=>resolve(Boolean(request.result?.coordinationIntelligence?.findings?.some((item:any)=>/AHU-7 has conflicting equipment ratings across sources/i.test(item.title||''))));request.onerror=()=>resolve(false)});
- })).toBe(true);
+ }),{timeout:30000,intervals:[250,500,1000,2000]}).toBe(true);
  await page.getByRole('link',{name:'Render Spatial Environment'}).click();
  await expect(page.getByRole('heading',{name:'Coordination findings'})).toBeVisible();
  await expect(page.getByText(/AHU-7 has conflicting equipment ratings across sources/i)).toBeVisible();

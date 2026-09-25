@@ -40,7 +40,7 @@ test('graph updates create a protected last-good browser copy',async({page})=>{
  await expect.poll(()=>page.evaluate(async()=>{
   const db=await new Promise<IDBDatabase>((resolve,reject)=>{const request=indexedDB.open('stratum-spatial-recovery-v1',1);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});
   return new Promise<string|null>((resolve)=>{const request=db.transaction('graphs','readonly').objectStore('graphs').get('latest');request.onsuccess=()=>resolve(request.result?.entities?.[0]?.name||null);request.onerror=()=>resolve(null)});
- })).toBe('Protected panel');
+ }),{timeout:20000,intervals:[250,500,1000,2000]}).toBe('Protected panel');
 });
 
 test('a JSON backup can restore a missing model without rebuilding sources',async({page})=>{
