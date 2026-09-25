@@ -86,7 +86,7 @@ export default function ManualSheetXYCalibrationReview(){
 
  const field=(key:keyof Inputs,label:string)=><label><span>{label}</span><input inputMode="decimal" value={inputs[key]} onChange={event=>setInputs(current=>({...current,[key]:event.target.value}))}/></label>;
 
- return <section className="card" style={{marginTop:16}} aria-label="Manual sheet XY calibration review">
+ return <section id="manual-sheet-xy-calibration" className="card" style={{marginTop:16}} aria-label="Manual sheet XY calibration review">
   <div className="section-head"><div><div className="eyebrow">Manual plan calibration · XY only</div><h2>Calibrate sheet coordinates without inventing elevation</h2><p className="muted">Two control pairs establish scale, rotation and translation. A third pair independently validates the transform. Passing XY validation does not establish Z, installed condition, asset identity or as-built truth.</p></div><span className="pending">HUMAN REVIEW</span></div>
   <label><span>Source sheet frame</span><select aria-label="Manual XY calibration sheet" value={selected} onChange={event=>setSelected(event.target.value)}><option value="">Select sheet</option>{frames.map(frame=><option key={frame.key} value={frame.key}>{frame.label} · {frame.count} objects{frame.autoAligned?' · auto-aligned':''}{frame.manualAligned?' · manually calibrated':''}</option>)}</select></label>
   <div className="grid two" style={{marginTop:12}}>
