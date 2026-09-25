@@ -292,6 +292,10 @@ EOF
   {name:'M-201-HVAC-Plan.dxf',mimeType:'application/dxf',buffer:Buffer.from(dxf)}
  ]);
  await expect(page.getByText(/powered equipment candidate/i)).toBeVisible();
+ await expect.poll(()=>page.evaluate(async()=>{
+  const db=await new Promise<IDBDatabase>((resolve,reject)=>{const request=indexedDB.open('stratum-spatial-recovery-v1',1);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});
+  return new Promise<boolean>(resolve=>{const request=db.transaction('graphs','readonly').objectStore('graphs').get('current');request.onsuccess=()=>resolve(Boolean(request.result?.coordinationIntelligence?.findings?.some((item:any)=>/AHU-7 has conflicting equipment ratings across sources/i.test(item.title||''))));request.onerror=()=>resolve(false)});
+ })).toBe(true);
  await page.getByRole('link',{name:'Render Spatial Environment'}).click();
  await expect(page.getByRole('heading',{name:'Coordination findings'})).toBeVisible();
  await expect(page.getByText(/AHU-7 has conflicting equipment ratings across sources/i)).toBeVisible();
@@ -361,12 +365,11 @@ test('IFC BIM source preserves source-design placement and feeds Expected Power'
  ].join('\n');
  await sourceUpload(page).setInputFiles({name:'M-201-Mechanical.ifc',mimeType:'application/x-step',buffer:Buffer.from(ifc)});
  await expect(page.getByText(/IFC STEP records.*placement\(s\) resolved/i)).toBeVisible();
- const evidence=await page.evaluate(()=>{
+ await expect.poll(()=>page.evaluate(()=>{
   const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
-  const entity=(graph.entities||[]).find((item:any)=>item.meta?.assetTag==='P-1'&&item.meta?.ifcType==='IFCPUMP');
-  return entity?{x:entity.x,y:entity.y,z:entity.z,floor:entity.floor,physicalTruth:entity.meta?.physicalTruth,authority:entity.meta?.zPlacementAuthority,geometry:entity.meta?.geometryAuthority,unit:entity.meta?.ifcUnitToMeters}:null;
- });
- expect(evidence).toEqual({x:4,y:6,z:1,floor:'Level 1',physicalTruth:false,authority:'SOURCE_IFC_DESIGN_PLACEMENT',geometry:'IFC_PLACEMENT_ONLY_NO_SHAPE_MESH',unit:.001});
+  const entity=(graph.entities||[]).find((item:any)=>item.meta?.ifcGlobalId==='0ABCDEF123456789012345');
+  return entity?{x:entity.x,y:entity.y,z:entity.z,floor:entity.floor,physicalTruth:entity.meta?.physicalTruth,authority:entity.meta?.placementAuthority,geometry:entity.meta?.geometryAuthority,unit:entity.meta?.ifcUnitToMeters}:null;
+ })).toEqual({x:4,y:6,z:1,floor:'Level 1',physicalTruth:false,authority:'SOURCE_IFC_DESIGN_PLACEMENT',geometry:'IFC_PLACEMENT_ONLY_NO_SHAPE_MESH',unit:.001});
  await page.getByRole('link',{name:'Render Spatial Environment'}).click();
  await expect(page.getByRole('heading',{name:'Expected power review'})).toBeVisible();
  await expect(page.getByText(/P-1 has no reconciled electrical feed/i)).toBeVisible();
