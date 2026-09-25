@@ -1,5 +1,25 @@
 import {expect,test} from '@playwright/test';
 
+test('component library exposes governed exact OEM CAD activation readiness',async({page})=>{
+ await page.goto('/component-library');
+ const queue=page.getByRole('region',{name:'Exact OEM CAD acquisition queue'});
+ await expect(queue.getByRole('heading',{name:'Exact OEM CAD acquisition queue'})).toBeVisible();
+
+ await queue.getByLabel('Search exact OEM CAD queue').fill('C10N32D100');
+ const schneider=queue.locator('article').filter({hasText:'C10N32D100'});
+ await expect(schneider).toContainText('CAD FOUND');
+ await expect(schneider).toContainText('BLOCKED');
+ await expect(schneider).toContainText('Downloaded source CAD file has not been hash-verified.');
+ await expect(schneider).toContainText('Reuse/redistribution terms have not been recorded.');
+
+ await queue.getByLabel('Search exact OEM CAD queue').fill('2652');
+ const adafruit=queue.locator('article').filter({hasText:'2652'});
+ await expect(adafruit).toContainText('OEM ACTIVE');
+ await expect(adafruit).toContainText('ELIGIBLE');
+ await expect(adafruit).toContainText('Required provenance gates are complete.');
+ await expect(adafruit).toContainText('MIT license');
+});
+
 test('component library exposes searchable official OEM sources without treating CAD links as installed models',async({page})=>{
  await page.goto('/component-library');
  const directory=page.getByRole('region',{name:'OEM source directory'});
