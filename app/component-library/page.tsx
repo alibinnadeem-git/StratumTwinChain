@@ -1,4 +1,5 @@
 import ModelRegistryManager from '@/components/ModelRegistryManager';
+import OemCadAcquisitionQueue from '@/components/OemCadAcquisitionQueue';
 import OemSourceDirectory from '@/components/OemSourceDirectory';
 import {ELECTRICAL_CATEGORIES,ELECTRICAL_COMPONENTS} from '@/lib/electrical-component-library';
 import styles from './page.module.css';
@@ -10,6 +11,7 @@ export default function ComponentLibraryPage(){
    <div className={styles.stats}><b>{ELECTRICAL_COMPONENTS.length}</b><span>component classes</span></div>
   </header>
   <div className={styles.notice}>Each class carries recognition aliases, a visual fallback, whether it should normally become a durable STRATUM Asset identity, and an optional detailed GLB/GLTF/OpenUSD model mapping. Representative geometry does not establish an OEM, SKU or installed dimensions.</div>
+  <OemCadAcquisitionQueue/>
   <OemSourceDirectory/>
   <ModelRegistryManager/>
   <div className={styles.grid}>{ELECTRICAL_CATEGORIES.map(category=>{
