@@ -34,15 +34,17 @@ test('Spatial review truth and layout at device width',async({page},testInfo)=>{
   await page.getByLabel('Imported object').selectOption('candidate-0');
   await expect(page.getByText('Unverified elevation',{exact:true})).toBeVisible();
   await page.getByText('Placement & source confidence').click();
-  await expect(page.getByText('Z unverified',{exact:true})).toBeVisible();
+  await expect(page.locator('.placement-details').getByText('Z unverified',{exact:true})).toBeVisible();
   await expect(page.getByText('Tier 2 · Drawing callout, review required')).toBeVisible();
   await expect(page.getByText('No history recorded by this drawing.',{exact:false})).toBeVisible();
   await page.getByRole('button',{name:/^Review Source candidates$/}).click();
   await expect.poll(()=>canvas.getAttribute('data-clickable-assets')).toBe('5');
+  await expect(page.getByLabel('Review pin labels').getByRole('button')).toHaveCount(5);
   await expect(page.getByText('5 objects · 15 drawing lines')).toBeVisible();
   const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth);
   expect(overflow).toBe(false);
   expect(errors).toEqual([]);
+  await page.evaluate(()=>{(document.activeElement as HTMLElement)?.blur();window.scrollTo(0,0)});
   if(process.env.STRATUM_CAPTURE_DIR){
    await mkdir(process.env.STRATUM_CAPTURE_DIR,{recursive:true});
    await page.screenshot({path:join(process.env.STRATUM_CAPTURE_DIR,`spatial-${label}.png`),fullPage:true});
