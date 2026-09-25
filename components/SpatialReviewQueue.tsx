@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import {useEffect,useMemo,useState} from 'react';
+import {readPrimarySpatialGraph} from '@/lib/spatial-browser-recovery';
 
 type Layer='L0'|'L1'|'L2'|'L3'|'L4';
 type Entity={id:string;name:string;source:string;layer:Layer;kind:string;floor?:string;meta?:Record<string,unknown>};
@@ -19,11 +20,13 @@ function reasonFor(entity:Entity){
 export default function SpatialReviewQueue(){
  const [graph,setGraph]=useState<Graph|null>(null);
  useEffect(()=>{
-  const load=()=>{try{setGraph(JSON.parse(localStorage.getItem('stratum_compiled_graph')||'null'))}catch{setGraph(null)}};
-  load();
-  window.addEventListener('stratum:graph-updated',load);
-  window.addEventListener('storage',load);
-  return()=>{window.removeEventListener('stratum:graph-updated',load);window.removeEventListener('storage',load)};
+  let active=true;
+  const load=async()=>{try{const next=await readPrimarySpatialGraph();if(active)setGraph(next as Graph|null)}catch{if(active)setGraph(null)}};
+  const refresh=()=>{void load()};
+  void load();
+  window.addEventListener('stratum:graph-updated',refresh);
+  window.addEventListener('storage',refresh);
+  return()=>{active=false;window.removeEventListener('stratum:graph-updated',refresh);window.removeEventListener('storage',refresh)};
  },[]);
  const items=useMemo<ReviewItem[]>(()=>{
   const seen=new Set<string>();
