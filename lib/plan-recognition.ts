@@ -67,6 +67,8 @@ const titleLike=(value:string)=>value.length<=140&&!referenceLead.test(value)&&!
 
 export function detectNonSldPlanPage(labels:string[],vectorOperatorCount=0):NonSldPlanEvidence{
  const text=labels.map(value=>String(value||'').replace(/\s+/g,' ').trim()).filter(Boolean);
+ const coverOrIndexPage=text.some(value=>/^(?:COVER\s+SHEET|DRAWING\s+INDEX|SHEET\s+INDEX)$/i.test(value));
+ if(coverOrIndexPage)return{isPlan:false,planType:null,discipline:null,score:0,titleEvidence:[],reasons:['cover/index page excluded from plan-frame recognition']};
  let best:{rule:Rule;matches:string[]}|null=null;
  for(const rule of RULES){
   const matches:string[]=[];
