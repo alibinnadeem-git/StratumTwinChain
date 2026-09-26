@@ -2,6 +2,7 @@
 
 import {useCallback,useEffect,useMemo,useState} from 'react';
 import {readPrimarySpatialGraph,replaceCurrentSpatialGraph} from '@/lib/spatial-browser-recovery';
+import {writeSelectedSpatialProjectId} from '@/lib/spatial-project-selection';
 
 type Project={id:string;project_code:string;name:string};
 type LatestCompilation={
@@ -29,7 +30,6 @@ type CompilationResponse={
 };
 
 type LocalGraph={version:string;createdAt:string;sources:unknown[];entities:unknown[];links:unknown[];stats:Record<string,number>};
-const PROJECT_KEY='stratum_spatial_project_id';
 
 function shortHash(value:string|undefined){return value?`${value.slice(0,12)}…${value.slice(-8)}`:'—';}
 function timestamp(value:string|undefined|null){return value?new Date(value).toLocaleString():'—';}
@@ -69,7 +69,7 @@ export default function SpatialCompilationPersistence(){
     if(!selected&&data.projects?.length){
       const first=data.projects[0].id;
       setProjectId(first);
-      try{localStorage.setItem(PROJECT_KEY,first)}catch{}
+      writeSelectedSpatialProjectId(first)
       return refresh(first);
     }
     setMessage(data.schemaReady
@@ -87,7 +87,7 @@ export default function SpatialCompilationPersistence(){
   },[]); // Explicitly load server state once; compilation saves remain user-triggered.
 
   async function selectProject(next:string){
-    setProjectId(next);try{if(next)localStorage.setItem(PROJECT_KEY,next);else localStorage.removeItem(PROJECT_KEY)}catch{};setLatest(null);setLoadArmed(false);setReason('');setMessage('Loading project review history…');
+    setProjectId(next);writeSelectedSpatialProjectId(next);setLatest(null);setLoadArmed(false);setReason('');setMessage('Loading project review history…');
     try{await refresh(next)}catch(error){setMessage(error instanceof Error?error.message:'Unable to load project review history.');}
   }
 
