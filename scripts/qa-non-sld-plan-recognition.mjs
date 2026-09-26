@@ -46,7 +46,7 @@ assert.match(compiler,/nonSldPlan:true/);
 assert.match(compiler,/planRecognition:'CONTENT_PLAN_V1'/);
 assert.match(compiler,/PDF_RASTER_UNDERLAY/,'image-only PDF plan pages must retain a review-only raster underlay');
 assert.match(compiler,/pageCount>=4000\|\|sourcePlanSegments>=40000/,'large drawing sets must be bounded per page and globally');
-assert.match(compiler,/!pageEvidence\.get\(segment\.page\)\?\.isSld\|\|!planEvidence\.get\(segment\.page\)\?\.isPlan/,'vector retention must be restricted to recognized non-SLD plan pages');
+assert.match(compiler,/pageEvidence\.get\(segment\.page\)\?\.isSld\|\|!planEvidence\.get\(segment\.page\)\?\.isPlan/,'vector retention must be restricted to recognized non-SLD plan pages');
 assert.match(compiler,/parsed\.disciplines\.length>1\?'Multi-discipline'/,'multi-discipline sets must not be mislabeled as electrical only');
 assert.match(compiler,/OCR_CONTENT_PLAN_V1/,'standalone JPG\/PNG plans must also receive non-SLD plan recognition');
 
