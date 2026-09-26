@@ -11,6 +11,7 @@ import {readPrimarySpatialGraph} from "@/lib/spatial-browser-recovery";
 import {buildSpatialCoordinationReviewIndex,findingsForEntity} from "@/lib/spatial-coordination-review";
 import type {CoordinationSnapshot} from "@/lib/coordination-intelligence";
 import {type RegisteredSpatialAsset} from "@/lib/spatial-asset-link";
+import {findDrawingSourcesNeedingReprocess} from "@/lib/spatial-source-reprocess";
 import {
   DEFAULT_ELECTRICAL_MODEL_REGISTRY,
   ELECTRICAL_MODEL_REGISTRY_STORAGE_KEY,
@@ -31,7 +32,7 @@ type Entity={
 type GraphLink={id:string;from:string;to:string;type:string;confidence:number};
 type Graph={
   version:string;createdAt:string;
-  sources:{name:string;ext:string;sha256:string;discipline:string;floor?:string;elevation?:number;unitName?:string;unitToMeters?:number}[];
+  sources:{name:string;ext:string;sha256:string;discipline:string;floor?:string;elevation?:number;unitName?:string;unitToMeters?:number;state?:string;entities?:number;vectors?:number;textItems?:number;sldPages?:number;nonSldPlanPages?:number;planTypes?:string[]}[];
   entities:Entity[];links?:GraphLink[];stats:Record<Layer,number>;
   coordinationIntelligence?:CoordinationSnapshot;
 };
@@ -116,6 +117,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
 
   const disciplines=useMemo(()=>graph?[...new Set([...graph.sources.map(source=>source.discipline||"Unclassified"),...graph.entities.map(entity=>String(entity.meta?.planDiscipline||entity.meta?.discipline||'')).filter(Boolean)])].sort():[],[graph]);
   const sourceLayers=useMemo(()=>graph?.sources||[],[graph]);
+  const staleDrawingSources=useMemo(()=>graph?findDrawingSourcesNeedingReprocess(graph.sources,graph.entities):[],[graph]);
   const hiddenSourceSet=useMemo(()=>new Set(hiddenSources),[hiddenSources]);
   const sourceDisciplines=useMemo(()=>new Map((graph?.sources||[]).map(source=>[source.name,source.discipline||"Unclassified"])),[graph]);
   const sheetFrames=useMemo(()=>{
@@ -443,6 +445,12 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       <div><div className="eyebrow">STRATUM Spatial Verified</div><h2 style={{margin:"3px 0"}}>Spatial model</h2><p className="muted" style={{margin:0}}>{plural(graph.sources.length,'source')} · {plural(sheetFrames.length,'drawing frame')} · {plural(nonSldPlanSheets,'non-SLD plan')} · {plural(levels.length,'level')} · {plural(rooms,'room')} · {plural(visibleLines,'drawing line')} · {plural(rasterUnderlays,'drawing underlay')} · {plural(sldObjects,'SLD object')}</p></div>
       <div className="button-row"><Link className="ghost" href="/compiler">Edit sources</Link><Link className="ghost" href="/component-library">3D models</Link></div>
     </div>
+
+    {staleDrawingSources.length>0&&<div className="notice" role="alert" style={{margin:"12px 14px"}}>
+      <strong>DRAWING REPROCESS REQUIRED</strong>
+      <span>{staleDrawingSources.length} drawing source{staleDrawingSources.length===1?' was':'s were'} compiled without the current retained-basemap/non-SLD plan pipeline: {staleDrawingSources.slice(0,3).map(item=>item.source.name).join(' · ')}{staleDrawingSources.length>3?` · +${staleDrawingSources.length-3} more`:''}. Existing extracted objects are preserved, but the original source file must be re-imported to rebuild the missing drawing frame.</span>
+      <Link className="action" href="/compiler">Reprocess drawing source</Link>
+    </div>}
 
     <div className="spatial-mode-tabs" role="group" aria-label="Spatial view mode">
       <button type="button" className={mode==="MODEL"?"action":"ghost"} aria-pressed={mode==="MODEL"} onMouseDown={event=>event.preventDefault()} onClick={()=>setMode("MODEL")}><b>Model</b><small>Rooms and source placement</small></button>
