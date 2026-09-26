@@ -150,14 +150,15 @@ export async function PATCH(req:Request){
    const existing=await client.query<any>(`SELECT id::text,sha256,byte_size::text,chunk_count,verified_at
      FROM spatial_project_source_verifications WHERE source_id=$1 LIMIT 1`,[body.sourceId]);
    if(existing.rows[0])return{...existing.rows[0],sourceId:body.sourceId,complete:true,idempotent:true};
-   const chunks=await client.query<{chunk_index:number;chunk_sha256:string;byte_size:number;content:Buffer}>(`SELECT chunk_index,chunk_sha256,byte_size,content
-     FROM spatial_project_source_chunks WHERE source_id=$1 ORDER BY chunk_index ASC`,[body.sourceId]);
    const total=Number(source.byte_size),expectedCount=spatialSourceVaultChunkCount(total);
-   if(chunks.rows.length!==expectedCount)throw Object.assign(new Error(`Source upload is incomplete: ${chunks.rows.length}/${expectedCount} chunks stored`),{status:409});
+   const storedCount=await client.query<{count:number}>('SELECT COUNT(*)::int count FROM spatial_project_source_chunks WHERE source_id=$1',[body.sourceId]);
+   if((storedCount.rows[0]?.count||0)!==expectedCount)throw Object.assign(new Error(`Source upload is incomplete: ${storedCount.rows[0]?.count||0}/${expectedCount} chunks stored`),{status:409});
    const hash=createHash('sha256');let bytesSeen=0;
-   for(let index=0;index<chunks.rows.length;index++){
-    const chunk=chunks.rows[index];
-    if(chunk.chunk_index!==index)throw Object.assign(new Error(`Source upload is missing chunk ${index}`),{status:409});
+   for(let index=0;index<expectedCount;index++){
+    const chunkResult=await client.query<{chunk_index:number;chunk_sha256:string;byte_size:number;content:Buffer}>(`SELECT chunk_index,chunk_sha256,byte_size,content
+      FROM spatial_project_source_chunks WHERE source_id=$1 AND chunk_index=$2 LIMIT 1`,[body.sourceId,index]);
+    const chunk=chunkResult.rows[0];
+    if(!chunk||chunk.chunk_index!==index)throw Object.assign(new Error(`Source upload is missing chunk ${index}`),{status:409});
     const expectedSize=index===expectedCount-1?total-SPATIAL_SOURCE_VAULT_CHUNK_BYTES*(expectedCount-1):SPATIAL_SOURCE_VAULT_CHUNK_BYTES;
     if(chunk.byte_size!==expectedSize||chunk.content.length!==expectedSize)throw Object.assign(new Error(`Stored chunk ${index} has an invalid byte length`),{status:409});
     if(sha256(chunk.content)!==chunk.chunk_sha256)throw Object.assign(new Error(`Stored chunk ${index} failed integrity verification`),{status:422});
