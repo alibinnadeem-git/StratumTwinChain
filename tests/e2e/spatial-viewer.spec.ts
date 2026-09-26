@@ -58,6 +58,31 @@ import {readFileSync} from 'node:fs';
 
 const sourceUpload=(page:import('@playwright/test').Page)=>page.locator('input[type=file][accept*=".dxf"]');
 
+test('stale pre-basemap drawing graph warns that the original source must be reprocessed',async({page})=>{
+ await page.goto('/spatial');
+ await page.evaluate(()=>{
+  const drawing='G101 Tesla Supercharger Site Plan.pdf',drawingSha='legacy-g101';
+  localStorage.setItem('stratum_compiled_graph',JSON.stringify({
+   version:'1.1',createdAt:new Date().toISOString(),reviewState:'REVIEW_REQUIRED',
+   sources:[
+    {name:drawing,ext:'pdf',sha256:drawingSha,discipline:'Electrical',floor:'L1',elevation:0,state:'parsed',entities:5,vectors:587,textItems:84,sldPages:0},
+    {name:'Tesla Supercharger V3 reference.glb',ext:'glb',sha256:'tesla-reference',discipline:'Unclassified',floor:'L1',elevation:0,state:'parsed',entities:1}
+   ],
+   entities:[
+    {id:'legacy-callout',source:drawing,layer:'L2',kind:'text-asset-candidate',name:'NEW TESLA PSU & SUPERCHARGER',x:1,y:1,z:0,confidence:.86,floor:'L1',meta:{sourceSha256:drawingSha,elevationKnown:false,physicalTruth:false,reviewRequired:true}},
+    {id:'tesla-model',source:'Tesla Supercharger V3 reference.glb',layer:'L2',kind:'imported-3d-model',name:'Tesla Supercharger V3 reference',x:5,y:0,z:0,confidence:1,floor:'L1',meta:{sourceSha256:'tesla-reference',sourceType:'GLB',placementAuthority:'UNRESOLVED',physicalTruth:false,referenceOnly:true}}
+   ],links:[],stats:{L0:2,L1:0,L2:2,L3:0,L4:0}
+  }));
+  window.dispatchEvent(new Event('stratum:graph-updated'));
+ });
+ await expect(page.getByRole('heading',{name:'Spatial model'})).toBeVisible();
+ const warning=page.getByRole('alert').filter({hasText:'DRAWING REPROCESS REQUIRED'});
+ await expect(warning).toBeVisible();
+ await expect(warning).toContainText('G101 Tesla Supercharger Site Plan.pdf');
+ await expect(warning).toContainText(/original source file must be re-imported/i);
+ await expect(warning.getByRole('link',{name:'Reprocess drawing source'})).toHaveAttribute('href','/compiler');
+});
+
 test('raster site plan appears as a review-only drawing underlay instead of disappearing',async({page})=>{
  await page.goto('/spatial');
  await page.evaluate(()=>{
