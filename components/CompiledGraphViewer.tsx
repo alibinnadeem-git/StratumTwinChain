@@ -398,7 +398,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
 
   return <section style={{border:"1px solid #1b3a50",borderRadius:18,overflow:"hidden",background:"#07111b",marginBottom:18}} aria-label="Spatial viewer">
     <div style={{padding:"16px 18px",display:"flex",justifyContent:"space-between",gap:14,alignItems:"center",flexWrap:"wrap",borderBottom:"1px solid #17334a"}}>
-      <div><div className="eyebrow">STRATUM Spatial Verified</div><h2 style={{margin:"3px 0"}}>Spatial model</h2><p className="muted" style={{margin:0}}>{plural(graph.sources.length,'source')} · {plural(levels.length,'level')} · {plural(rooms,'room')} · {plural(sldObjects,'SLD object')}</p></div>
+      <div><div className="eyebrow">STRATUM Spatial Verified</div><h2 style={{margin:"3px 0"}}>Spatial model</h2><p className="muted" style={{margin:0}}>{plural(graph.sources.length,'source')} · {plural(levels.length,'level')} · {plural(rooms,'room')} · {plural(visibleLines,'drawing line')} · {plural(sldObjects,'SLD object')}</p></div>
       <div className="button-row"><Link className="ghost" href="/compiler">Edit sources</Link><Link className="ghost" href="/component-library">3D models</Link></div>
     </div>
 
@@ -408,6 +408,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       <button type="button" className={mode==="REVIEW"?"action":"ghost"} aria-pressed={mode==="REVIEW"} onMouseDown={event=>event.preventDefault()} onClick={()=>setMode("REVIEW")}><b>Review</b><small>Source candidates</small></button>
     </div>
 
+    {graph.entities.some(e=>e.meta?.drawingBasemap===true)&&<p className="muted" style={{padding:'0 14px',fontSize:11,margin:'8px 0'}}>Source-plan vector linework is shown on the drawing plane. Sheet XY is preserved for review; physical scale/alignment and Z remain unverified until calibrated or otherwise source-established.</p>}
     {graph.entities.some(e=>e.kind==='sheet-callout-candidate'&&e.meta?.coordinateUnits==='sheet')&&<p className="muted" style={{padding:'0 14px',fontSize:11,margin:'8px 0'}}>Drawing callout pins are separated for review. Their spacing is diagrammatic until sheet scale and alignment are verified.</p>}
     {modelLoadErrors.length>0&&<div className="notice" role="alert"><strong>3D IMPORT NEEDS ATTENTION</strong><span>{modelLoadErrors.length} uploaded model{modelLoadErrors.length===1?'':'s'} could not be rendered. Its source record remains available for review; no substitute geometry was displayed.</span></div>}
 
