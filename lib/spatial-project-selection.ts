@@ -6,9 +6,11 @@ export function readSelectedSpatialProjectId(){
 }
 
 export function writeSelectedSpatialProjectId(projectId:string){
+ let previous='';
  try{
+  previous=localStorage.getItem(SPATIAL_PROJECT_KEY)||'';
   if(projectId)localStorage.setItem(SPATIAL_PROJECT_KEY,projectId);
   else localStorage.removeItem(SPATIAL_PROJECT_KEY);
  }catch{}
- if(typeof window!=='undefined')window.dispatchEvent(new CustomEvent(SPATIAL_PROJECT_SELECTION_EVENT,{detail:{projectId}}));
+ if(previous!==projectId&&typeof window!=='undefined')window.dispatchEvent(new CustomEvent(SPATIAL_PROJECT_SELECTION_EVENT,{detail:{projectId}}));
 }
