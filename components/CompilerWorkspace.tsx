@@ -17,6 +17,7 @@ import {enrichAudiE4SourceReview} from '../lib/audi-e4-source-review';
 import {readPrimarySpatialGraph,replaceCurrentSpatialGraph} from '../lib/spatial-browser-recovery';
 import {encodeGlbBase64,inspectStandaloneGlb} from '../lib/spatial-glb-import';
 import {drawingSourceReprocessReason,findDrawingSourcesNeedingReprocess} from '../lib/spatial-source-reprocess';
+import {archiveSourceBytes,archivedSourceToFile,listArchivedSourceMetadata,readArchivedSource} from '../lib/source-browser-archive';
 import {enrichCoordinationIntelligence} from '../lib/coordination-intelligence';
 import {ChangeEvent,DragEvent,useEffect,useMemo,useState} from 'react';
 
@@ -177,9 +178,12 @@ async function parseGlb(file:File,buf:ArrayBuffer,digest:string,level:{floor:str
 
 export default function CompilerWorkspace(){
  const [files,setFiles]=useState<SourceFile[]>([]),[entities,setEntities]=useState<GraphEntity[]>([]),[busy,setBusy]=useState(false),[dragging,setDragging]=useState(false),[message,setMessage]=useState('');
+ const [archivedShas,setArchivedShas]=useState<Set<string>>(new Set()),[archiveNote,setArchiveNote]=useState('');
  useEffect(()=>{let active=true;const restore=async()=>{try{const graph=await readPrimarySpatialGraph();if(!active||!graph)return;if(!Array.isArray(graph.sources)||!Array.isArray(graph.entities))throw new Error();setEntities(graph.entities as GraphEntity[]);const restored=(graph.sources as CompiledGraph['sources']).map((source:CompiledGraph['sources'][number]&Partial<SourceFile>)=>({...source,size:source.size||0,state:(source.state||'review') as ParseState,summary:source.summary||'Restored saved source; extraction and alignment remain subject to review.',entities:Number.isFinite(Number(source.entities))?Number(source.entities):(graph.entities as GraphEntity[]).filter((e:GraphEntity)=>e.meta?.sourceSha256===source.sha256||e.source===source.name).length,floor:source.floor||'UNRESOLVED',elevation:source.elevation||0}));setFiles(current=>{const existing=new Map(current.map(item=>[item.sha256,item]));return restored.map((item:SourceFile)=>{const prior=existing.get(item.sha256);return prior?{...item,...prior}:item})});}catch{if(active)setMessage('Saved graph could not be read. Existing data has been preserved.');}};const refresh=()=>{void restore()};void restore();window.addEventListener('stratum:graph-updated',refresh);return()=>{active=false;window.removeEventListener('stratum:graph-updated',refresh)};},[]);
+ useEffect(()=>{let active=true;void listArchivedSourceMetadata().then(records=>{if(active)setArchivedShas(new Set(records.map(record=>record.sha256)))});return()=>{active=false}},[]);
  const staleDrawingSources=useMemo(()=>findDrawingSourcesNeedingReprocess(files,entities),[files,entities]);
  const staleBySha=useMemo(()=>new Map(staleDrawingSources.map(item=>[item.source.sha256,item.reason])),[staleDrawingSources]);
+ const archivedStaleSources=useMemo(()=>staleDrawingSources.filter(item=>archivedShas.has(item.source.sha256)),[staleDrawingSources,archivedShas]);
  const totals=useMemo(()=>({files:files.length,parsed:files.filter(f=>f.state==='parsed').length,entities:entities.length,assets:entities.filter(e=>e.layer==='L4').length,levels:new Set(entities.map(e=>e.floor).filter(f=>f&&f!=='UNRESOLVED')).size,rooms:entities.filter(e=>e.kind==='room-boundary').length,nonSldPlanPages:files.reduce((sum,file)=>sum+(file.nonSldPlanPages||0),0),reprocess:staleDrawingSources.length}),[files,entities,staleDrawingSources.length]);
  const layerStats=useMemo(()=>['L0','L1','L2','L3','L4'].reduce((a,l)=>({...a,[l]:entities.filter(e=>e.layer===l).length}),{} as Record<string,number>),[entities]);
  async function saveGraph(nextFiles:SourceFile[],rawEntities:GraphEntity[],replaceSources:{sha256:string;name:string}[]=[]){
