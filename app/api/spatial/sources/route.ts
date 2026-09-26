@@ -115,6 +115,7 @@ export async function PUT(req:Request){
    const source=await client.query<{id:string;byte_size:string}>(`SELECT id::text,byte_size::text
      FROM spatial_project_sources WHERE id=$1 AND organization_id=$2 FOR SHARE`,[sourceId,session.organizationId]);
    if(!source.rows[0])throw Object.assign(new Error('Project source not found in this organization'),{status:404});
+   await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`spatial-source-vault:${sourceId}`]);
    const verified=await client.query('SELECT 1 FROM spatial_project_source_verifications WHERE source_id=$1 LIMIT 1',[sourceId]);
    if(verified.rows[0])throw Object.assign(new Error('Verified project source bytes are immutable'),{status:409});
    const total=Number(source.rows[0].byte_size),expectedCount=spatialSourceVaultChunkCount(total);
@@ -145,6 +146,7 @@ export async function PATCH(req:Request){
      FROM spatial_project_sources WHERE id=$1 AND organization_id=$2 FOR SHARE`,[body.sourceId,session.organizationId]);
    const source=sourceResult.rows[0];
    if(!source)throw Object.assign(new Error('Project source not found in this organization'),{status:404});
+   await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`spatial-source-vault:${body.sourceId}`]);
    const existing=await client.query<any>(`SELECT id::text,sha256,byte_size::text,chunk_count,verified_at
      FROM spatial_project_source_verifications WHERE source_id=$1 LIMIT 1`,[body.sourceId]);
    if(existing.rows[0])return{...existing.rows[0],sourceId:body.sourceId,complete:true,idempotent:true};
