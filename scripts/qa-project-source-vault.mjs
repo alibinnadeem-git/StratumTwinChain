@@ -30,6 +30,7 @@ assert.match(route,/Project not found in this organization/);
 assert.match(route,/SPATIAL_SOURCE_VAULT_CHUNK_BYTES/);
 assert.match(route,/Client chunk SHA-256 does not match server SHA-256/);
 assert.match(route,/createHash\('sha256'\)/);
+assert.match(route,/WHERE source_id=\$1 AND chunk_index=\$2 LIMIT 1/,'full-file verification must read one bounded chunk at a time');
 assert.match(route,/Assembled source bytes do not match the source manifest SHA-256/);
 assert.match(route,/spatial-source-vault:\$\{sourceId\}/);
 assert.match(route,/spatial-source-vault:\$\{body\.sourceId\}/);
