@@ -9,6 +9,7 @@ assert.equal(full.lifecycleReady,true);
 assert.equal(full.evidenceReady,true);
 assert.equal(full.archiveReady,true);
 assert.equal(full.spatialPersistenceReady,true);
+assert.equal(full.spatialSourceVaultReady,true);
 assert.equal(full.oemCadVerificationReady,true);
 assert.equal(full.attestationsReady,true);
 assert.equal(full.dirRuntimeReady,true);
@@ -22,6 +23,13 @@ assert.equal(evidenceMissing.lifecycleReady,true);
 assert.equal(evidenceMissing.evidenceReady,false);
 assert.deepEqual(evidenceMissing.missingTables.filter(table=>table.startsWith('evidence')),['evidence','evidence_files']);
 console.log('✓ evidence readiness fails independently without degrading core/lifecycle readiness');
+
+
+const withoutSourceVault=REQUIRED_DATABASE_TABLES.filter(table=>!['spatial_project_sources','spatial_project_source_chunks','spatial_project_source_verifications'].includes(table));
+const sourceVaultMissing=summarizeDatabaseReadiness(withoutSourceVault);
+assert.equal(sourceVaultMissing.spatialPersistenceReady,true);
+assert.equal(sourceVaultMissing.spatialSourceVaultReady,false);
+console.log('✓ source-vault readiness fails independently without disabling Spatial graph persistence');
 
 const withoutLifecycle=REQUIRED_DATABASE_TABLES.filter(table=>table!=='lifecycle_events');
 const lifecycleMissing=summarizeDatabaseReadiness(withoutLifecycle);
@@ -42,6 +50,9 @@ console.log('✓ missing core tenant/asset schema fails dependent readiness clos
 
 assert.ok(DATABASE_CAPABILITY_TABLES.spatialPersistence.includes('spatial_compilations'));
 assert.ok(DATABASE_CAPABILITY_TABLES.spatialPersistence.includes('spatial_compilation_reviews'));
+assert.ok(DATABASE_CAPABILITY_TABLES.spatialSourceVault.includes('spatial_project_sources'));
+assert.ok(DATABASE_CAPABILITY_TABLES.spatialSourceVault.includes('spatial_project_source_chunks'));
+assert.ok(DATABASE_CAPABILITY_TABLES.spatialSourceVault.includes('spatial_project_source_verifications'));
 assert.ok(DATABASE_CAPABILITY_TABLES.attestations.includes('human_attestations'));
 assert.ok(DATABASE_CAPABILITY_TABLES.archive.includes('asset_archive_events'));
 assert.ok(DATABASE_CAPABILITY_TABLES.oemCadVerification.includes('oem_cad_verifications'));
@@ -49,7 +60,7 @@ assert.ok(DATABASE_CAPABILITY_TABLES.oemCadVerification.includes('oem_cad_source
 assert.ok(DATABASE_CAPABILITY_TABLES.dirRuntime.includes('approval_policies'));
 assert.ok(DATABASE_CAPABILITY_TABLES.dirRuntime.includes('ledger_records'));
 assert.ok(!DATABASE_CAPABILITY_TABLES.dirRuntime.some(table=>table.startsWith('sv_chain_')),'validator chain tables must not be duplicated into the Spatial application database');
-console.log('✓ post-baseline Spatial, OEM CAD verification, attestation and archive migrations are part of readiness');
+console.log('✓ post-baseline Spatial, source-vault, OEM CAD verification, attestation and archive migrations are part of readiness');
 
 const health=fs.readFileSync('app/api/health/route.ts','utf8');
 assert.match(health,/DATABASE_READINESS_SQL/);
