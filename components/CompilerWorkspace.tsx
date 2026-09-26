@@ -6,6 +6,7 @@ import SheetReview from './SheetReview';
 import SpatialPortableRecovery from './SpatialPortableRecovery';
 import {inferPdfPageFloor,sameSourceFrame,scopeSourceEntities} from '../lib/compiler-source';
 import {classifyElectricalLabel,detectSldPage,isElectricalAssetLabel,isElectricalCircuitLabel} from '../lib/sld-recognition';
+import {detectNonSldPlanPage} from '../lib/plan-recognition';
 import {buildSldVectorTopology} from '../lib/sld-vector-topology';
 import {poweredEquipmentClass} from '../lib/power-intelligence';
 import {parseEquipmentScheduleText} from '../lib/equipment-schedule';
@@ -21,7 +22,7 @@ type Layer='L0'|'L1'|'L2'|'L3'|'L4';
 type ParseState='parsed'|'adapter'|'review'|'failed';
 type XY={x:number;y:number};
 type GraphEntity={id:string;source:string;layer:Layer;kind:string;name:string;x:number;y:number;z?:number;x2?:number;y2?:number;z2?:number;rotation?:number;scale?:number;floor?:string;zone?:string;vertices?:XY[];confidence:number;meta?:Record<string,unknown>};
-type SourceFile={name:string;size:number;ext:string;discipline:string;sha256:string;state:ParseState;summary:string;entities:number;floor:string;elevation:number;unitName?:string;unitToMeters?:number;pages?:number;vectors?:number;textItems?:number;sldPages?:number};
+type SourceFile={name:string;size:number;ext:string;discipline:string;sha256:string;state:ParseState;summary:string;entities:number;floor:string;elevation:number;unitName?:string;unitToMeters?:number;pages?:number;vectors?:number;textItems?:number;sldPages?:number;nonSldPlanPages?:number;planTypes?:string[]};
 type GraphLink={id:string;from:string;to:string;type:'SAME_TAG'|'DERIVED_ASSET'|'SOURCE_RELATION';confidence:number};
 type CompiledGraph={version:string;createdAt:string;reviewState?:string;sources:{name:string;ext:string;sha256:string;discipline:string;floor:string;elevation:number;unitName?:string;unitToMeters?:number}[];entities:GraphEntity[];links:GraphLink[];stats:Record<Layer,number>};
 
