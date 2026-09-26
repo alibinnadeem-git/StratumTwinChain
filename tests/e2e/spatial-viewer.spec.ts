@@ -58,6 +58,35 @@ import {readFileSync} from 'node:fs';
 
 const sourceUpload=(page:import('@playwright/test').Page)=>page.locator('input[type=file][accept*=".dxf"]');
 
+test('non-SLD site plan renders retained source vectors with Tesla equipment candidate',async({page})=>{
+ await page.goto('/spatial');
+ await page.evaluate(()=>{
+  const source='G101 Tesla Supercharger Site Plan.pdf';
+  localStorage.setItem('stratum_compiled_graph',JSON.stringify({
+   version:'site-plan-fixture',createdAt:new Date().toISOString(),reviewState:'REVIEW_REQUIRED',
+   sources:[{name:source,ext:'pdf',sha256:'g101-fixture',discipline:'Electrical',floor:'UNRESOLVED',elevation:0}],
+   entities:[
+    {id:'l1',source,layer:'L1',kind:'line',name:'Source plan line · page 1',x:-8,y:-5,x2:8,y2:-5,z:0,z2:0,confidence:1,floor:'UNRESOLVED',meta:{drawingBasemap:true,coordinateUnits:'sheet',physicalElevationKnown:false,physicalTruth:false}},
+    {id:'l2',source,layer:'L1',kind:'line',name:'Source plan line · page 1',x:8,y:-5,x2:8,y2:5,z:0,z2:0,confidence:1,floor:'UNRESOLVED',meta:{drawingBasemap:true,coordinateUnits:'sheet',physicalElevationKnown:false,physicalTruth:false}},
+    {id:'l3',source,layer:'L1',kind:'line',name:'Source plan line · page 1',x:8,y:5,x2:-8,y2:5,z:0,z2:0,confidence:1,floor:'UNRESOLVED',meta:{drawingBasemap:true,coordinateUnits:'sheet',physicalElevationKnown:false,physicalTruth:false}},
+    {id:'l4',source,layer:'L1',kind:'line',name:'Source plan line · page 1',x:-8,y:5,x2:-8,y2:-5,z:0,z2:0,confidence:1,floor:'UNRESOLVED',meta:{drawingBasemap:true,coordinateUnits:'sheet',physicalElevationKnown:false,physicalTruth:false}},
+    {id:'tesla-callout',source,layer:'L2',kind:'text-asset-candidate',name:'NEW TESLA PSU & SUPERCHARGER',x:1,y:1,z:0,confidence:.86,floor:'UNRESOLVED',meta:{page:1,coordinateUnits:'sheet',elevationKnown:false,physicalElevationKnown:false,spatialPlacementAuthority:'SOURCE_SHEET_POSITION_ONLY',physicalTruth:false,reviewRequired:true}}
+   ],links:[],stats:{L0:1,L1:4,L2:1,L3:0,L4:0}
+  }));
+  window.dispatchEvent(new Event('stratum:graph-updated'));
+ });
+ await expect(page.getByRole('heading',{name:'Spatial model'})).toBeVisible();
+ await expect(page.getByText(/1 source · 1 level · 0 rooms · 4 drawing lines/i)).toBeVisible();
+ await expect(page.getByText(/Source-plan vector linework is shown on the drawing plane/i)).toBeVisible();
+ await expect(page.getByLabel('Imported object').locator('option').filter({hasText:'NEW TESLA PSU & SUPERCHARGER'})).toHaveCount(1);
+ const canvas=page.locator('canvas[aria-label="Interactive Spatial model"]');
+ await expect(canvas).toBeVisible();
+ await expect.poll(()=>canvas.getAttribute('data-clickable-assets')).toBe('1');
+ await page.getByRole('button',{name:/Infrastructure HUD/i}).click();
+ await expect(page.getByText('DRAWING LINES',{exact:true})).toBeVisible();
+ await expect(page.getByText('3D MODELS',{exact:true})).toBeVisible();
+});
+
 test('Audi E4.0 snapshot restores five source-linked selectable callouts without inventing asset history',async({page})=>{
  await page.goto('/spatial');
  await page.evaluate(()=>{
