@@ -1,5 +1,6 @@
 export const SOURCE_ARCHIVE_DB='stratum-source-archive-v1';
 export const SOURCE_ARCHIVE_STORE='sources';
+export const SOURCE_ARCHIVE_EVENT='stratum:source-archive-updated';
 export const SOURCE_ARCHIVE_MAX_FILE_BYTES=250*1024*1024;
 
 export type ArchivedSourceRecord={
@@ -55,6 +56,7 @@ export async function archiveSourceBytes(input:{sha256:string;name:string;mimeTy
    tx.onerror=()=>{const error=tx.error;db.close();reject(error||new Error('Local source archive write failed.'))};
    tx.onabort=()=>{const error=tx.error;db.close();reject(error||new Error('Local source archive write was aborted.'))};
   });
+  if(typeof window!=='undefined')window.dispatchEvent(new CustomEvent(SOURCE_ARCHIVE_EVENT,{detail:{sha256:record.sha256,name:record.name}}));
   return{archived:true as const,metadata:sourceMetadata(record)};
  }catch(error){
   return{archived:false as const,reason:error instanceof Error?error.message:'Local source archive write failed.'};
