@@ -1,3 +1,5 @@
+import {detectSldPage,type SldPageEvidence} from './sld-recognition.ts';
+
 export type NonSldPlanType=
  |'ELECTRICAL_POWER_PLAN'
  |'ELECTRICAL_LIGHTING_PLAN'
@@ -90,4 +92,11 @@ export function detectNonSldPlanPage(labels:string[],vectorOperatorCount=0):NonS
   return{isPlan:true,planType:'PLAN_VIEW_UNCLASSIFIED',discipline:null,score:5,titleEvidence:genericPlan.slice(0,5),reasons};
  }
  return{isPlan:false,planType:null,discipline:null,score:0,titleEvidence:[],reasons:[]};
+}
+
+
+export function resolveDrawingPageRecognition(labels:string[],vectorOperatorCount=0):{sld:SldPageEvidence;plan:NonSldPlanEvidence}{
+ const plan=detectNonSldPlanPage(labels,vectorOperatorCount),detectedSld=detectSldPage(labels,vectorOperatorCount),explicitSldTitle=detectedSld.reasons.includes('explicit SLD/riser/one-line title');
+ const sld=plan.isPlan&&!explicitSldTitle?{...detectedSld,isSld:false,reasons:[...detectedSld.reasons,'suppressed by explicit non-SLD plan title/content']}:detectedSld;
+ return{sld,plan:sld.isSld?{isPlan:false,planType:null,discipline:null,score:0,titleEvidence:[],reasons:[]}:plan};
 }
