@@ -18,6 +18,8 @@ const cases=[
  ['GENERAL LAYOUT','GENERAL_LAYOUT_PLAN','General / Equipment'],
  ['SHOP LAYOUT','SHOP_LAYOUT_PLAN','Equipment'],
  ['PIT LAYOUT','PIT_LAYOUT_PLAN','Equipment / Structural'],
+ ['TITAN PIT PERMIT','PIT_PERMIT_PLAN','Equipment / Structural'],
+ ['MX PIT PERMIT','PIT_PERMIT_PLAN','Equipment / Structural'],
  ['FLOOR ANCHOR PLAN','FLOOR_ANCHOR_PLAN','Equipment / Structural'],
  ['TITAN BOOTH PERMIT 1 PLAN AND ELEVATION VIEWS','PERMIT_PLAN_ELEVATION','Equipment / Permit'],
 ];
@@ -36,6 +38,8 @@ const notes=detectNonSldPlanPage(['GENERAL NOTES','SEE PLAN FOR LOCATIONS','DETA
 assert.equal(notes.isPlan,false,'notes/detail sheets must not become plan frames merely because they say plan');
 const revisionOnly=detectNonSldPlanPage(['REV-H UPDATED ANCHOR PLAN AND XCELERATORS','REV-I REVISED ADDRESS'],180);
 assert.equal(revisionOnly.isPlan,false,'revision references to an anchor plan must not turn unrelated sheets into floor-anchor plan frames');
+const detailPlanView=detectNonSldPlanPage(['FOUNDATION DETAILS','PLAN VIEW','SECTION 3','TYPICAL FOOTING'],220);
+assert.equal(detailPlanView.isPlan,false,'a plan-view detail inside a details sheet must not be promoted to a whole drawing plan frame');
 
 const compiler=fs.readFileSync('components/CompilerWorkspace.tsx','utf8');
 const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
