@@ -98,8 +98,7 @@ test('non-SLD site plan renders retained source vectors with Tesla equipment can
   window.dispatchEvent(new Event('stratum:graph-updated'));
  });
  await expect(page.getByRole('heading',{name:'Spatial model'})).toBeVisible();
- await expect(page.getByText(/1 source · 1 drawing frame · 1 non-SLD plan/i)).toBeVisible();
- await expect(page.getByText(/4 drawing lines/i)).toBeVisible();
+ await expect(page.getByText(/1 source · 1 drawing frame · 1 non-SLD plan · .*4 drawing lines/i)).toBeVisible();
  await expect(page.getByText(/Source drawing basemap is shown on the drawing plane/i)).toBeVisible();
  await expect(page.getByLabel('Imported object').locator('option').filter({hasText:'NEW TESLA PSU & SUPERCHARGER'})).toHaveCount(1);
  const canvas=page.locator('canvas[aria-label="Interactive Spatial model"]');
