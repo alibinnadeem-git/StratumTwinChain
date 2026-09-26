@@ -40,14 +40,17 @@ const revisionOnly=detectNonSldPlanPage(['REV-H UPDATED ANCHOR PLAN AND XCELERAT
 assert.equal(revisionOnly.isPlan,false,'revision references to an anchor plan must not turn unrelated sheets into floor-anchor plan frames');
 const detailPlanView=detectNonSldPlanPage(['FOUNDATION DETAILS','PLAN VIEW','SECTION 3','TYPICAL FOOTING'],220);
 assert.equal(detailPlanView.isPlan,false,'a plan-view detail inside a details sheet must not be promoted to a whole drawing plan frame');
-const drawingIndex=detectNonSldPlanPage(['COVER SHEET','Drawing Title:','Shop Layout','General Layout 1','Pit Layout','Utility Plan','Fire Suppression','Floor Anchor Plan'],260);
+const drawingIndexLabels=['COVER SHEET','Drawing Title:','Shop Layout','General Layout 1','Pit Layout','Utility Plan','Fire Suppression','Floor Anchor Plan','UTILITY SERVICE','TRANSFORMER T1','MAIN SWITCHBOARD MSB'];
+const drawingIndex=detectNonSldPlanPage(drawingIndexLabels,260);
 assert.equal(drawingIndex.isPlan,false,'a drawing index listing many plan names must remain a cover/index page, not become one of the listed plans');
+const drawingIndexResolution=resolveDrawingPageRecognition(drawingIndexLabels,260);
+assert.equal(drawingIndexResolution.sld.isSld,false,'electrical words on a cover/index page must not promote the page into an SLD');
 
 const compiler=fs.readFileSync('components/CompilerWorkspace.tsx','utf8');
 const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
 
 assert.match(compiler,/resolveDrawingPageRecognition/);
-const powerPlanResolution=resolveDrawingPageRecognition(['ELECTRICAL POWER PLAN','TRANSFORMER T1','MAIN SWITCHBOARD MSB'],180);
+const powerPlanResolution=resolveDrawingPageRecognition(['ELECTRICAL POWER PLAN','UTILITY SERVICE','TRANSFORMER T1','MAIN SWITCHBOARD MSB','PANEL LP-1'],180);
 assert.equal(powerPlanResolution.plan.planType,'ELECTRICAL_POWER_PLAN');
 assert.equal(powerPlanResolution.sld.isSld,false,'explicit power-plan title must override equipment-density SLD heuristic');
 const trueSld=resolveDrawingPageRecognition(['SINGLE LINE DIAGRAM','UTILITY SERVICE','TRANSFORMER T1','MAIN SWITCHBOARD MSB'],180);
