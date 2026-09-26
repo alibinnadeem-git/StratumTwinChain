@@ -11,30 +11,36 @@ const REGISTRY_EVENT='stratum:model-registry-updated';
 
 export default function SpatialProjectionEngine(){
  useEffect(()=>{
-  let applying=false;
+  let active=true,applying=false,queued=false;
   const apply=async()=>{
-   if(applying)return;
+   if(applying){queued=true;return}
    applying=true;
    try{
-    const graph=await readPrimarySpatialGraph();if(!graph||!Array.isArray(graph.entities))return;
-    const storedRegistry=localStorage.getItem(ELECTRICAL_MODEL_REGISTRY_STORAGE_KEY);
-    const registry=storedRegistry?normalizeElectricalModelRegistry(JSON.parse(storedRegistry)):DEFAULT_ELECTRICAL_MODEL_REGISTRY;
-    const spatial=enrichSpatialProjection(graph as any,registry);
-    const power=enrichPowerIntelligence(spatial);
-    const enriched=enrichCoordinationIntelligence(power as any);
-    if(JSON.stringify(enriched)===JSON.stringify(graph))return;
-    await writePrimarySpatialGraph(enriched as any);
-    window.dispatchEvent(new Event('stratum:graph-updated'));
+    do{
+     queued=false;
+     const graph=await readPrimarySpatialGraph();if(!graph||!Array.isArray(graph.entities))continue;
+     const storedRegistry=localStorage.getItem(ELECTRICAL_MODEL_REGISTRY_STORAGE_KEY);
+     const registry=storedRegistry?normalizeElectricalModelRegistry(JSON.parse(storedRegistry)):DEFAULT_ELECTRICAL_MODEL_REGISTRY;
+     const spatial=enrichSpatialProjection(graph as any,registry);
+     const power=enrichPowerIntelligence(spatial);
+     const enriched=enrichCoordinationIntelligence(power as any);
+     if(JSON.stringify(enriched)===JSON.stringify(graph))continue;
+     await writePrimarySpatialGraph(enriched as any);
+     if(active)window.dispatchEvent(new Event('stratum:graph-updated'));
+    }while(active&&queued);
    }catch{
     // Source graph is preserved if projection enrichment cannot be evaluated.
-   }finally{applying=false}
+   }finally{
+    applying=false;
+    if(active&&queued)void apply();
+   }
   };
   const refresh=()=>{void apply()};
   void apply();
   window.addEventListener('stratum:graph-updated',refresh);
   window.addEventListener(REGISTRY_EVENT,refresh);
   window.addEventListener('storage',refresh);
-  return()=>{window.removeEventListener('stratum:graph-updated',refresh);window.removeEventListener(REGISTRY_EVENT,refresh);window.removeEventListener('storage',refresh)};
+  return()=>{active=false;window.removeEventListener('stratum:graph-updated',refresh);window.removeEventListener(REGISTRY_EVENT,refresh);window.removeEventListener('storage',refresh)};
  },[]);
  return null;
 }
