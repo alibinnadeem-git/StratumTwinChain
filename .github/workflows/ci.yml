@@ -58,6 +58,8 @@ jobs:
         run: npm run qa:database-readiness
       - name: Metric Spatial viewer, Z placement and SLD projection conformance
         run: npm run qa:spatial-viewer
+      - name: Site-plan PDF basemap retention and truth-boundary conformance
+        run: npm run qa:site-plan-basemap
       - name: OEM CAD registry provenance and activation conformance
         run: npm run qa:oem-cad-registry
       - name: OEM CAD source file verification conformance
