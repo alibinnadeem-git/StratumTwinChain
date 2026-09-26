@@ -45,6 +45,8 @@ const systemOptions:{id:SystemMode;label:string}[]=[
 ];
 
 function n(value:unknown,fallback=0){const x=Number(value);return Number.isFinite(x)?x:fallback}
+function sheetFrameKey(e:Entity){const page=Number(e.meta?.page||0),sourceKey=String(e.meta?.sourceSha256||e.source||'').trim();return sourceKey&&Number.isInteger(page)&&page>0?`${sourceKey}:${page}`:null}
+function planTypeLabel(value:unknown){return String(value||'').replaceAll('_',' ').toLowerCase().replace(/\b\w/g,letter=>letter.toUpperCase())}
 function metaNumber(e:Entity,key:string){const value=e.meta?.[key];const x=Number(value);return Number.isFinite(x)?x:null}
 function isSld(e:Entity){return Boolean(e.meta?.sldCandidate===true||e.meta?.sldSpatialProjection||e.meta?.sldLogicalDepth!==undefined||/single.?line|one.?line|\bsld\b|riser/i.test(String(e.meta?.sheetTitle||e.source)))}
 function physicalElevationKnown(e:Entity){if(e.meta?.elevationKnown===false||e.meta?.physicalElevationKnown===false)return false;return e.meta?.elevationKnown===true||e.meta?.physicalElevationKnown===true||e.meta?.sourceType==="DXF"||e.meta?.coordinateUnits==="m"&&e.floor!=="UNRESOLVED"}
@@ -82,6 +84,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
   const [systemMode,setSystemMode]=useState<SystemMode>("ALL");
   const [floor,setFloor]=useState("ALL");
   const [discipline,setDiscipline]=useState("ALL");
+  const [sheetFrame,setSheetFrame]=useState("AUTO");
   const [hiddenSources,setHiddenSources]=useState<string[]>([]);
   const [exploded,setExploded]=useState(false);
   const [xray,setXray]=useState(false);
@@ -111,10 +114,33 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
     return()=>{active=false;window.removeEventListener("stratum:graph-updated",refresh);window.removeEventListener("storage",refresh);window.removeEventListener("stratum:model-registry-updated",refresh)};
   },[]);
 
-  const disciplines=useMemo(()=>graph?[...new Set(graph.sources.map(source=>source.discipline||"Unclassified"))].sort():[],[graph]);
+  const disciplines=useMemo(()=>graph?[...new Set([...graph.sources.map(source=>source.discipline||"Unclassified"),...graph.entities.map(entity=>String(entity.meta?.planDiscipline||entity.meta?.discipline||'')).filter(Boolean)])].sort():[],[graph]);
   const sourceLayers=useMemo(()=>graph?.sources||[],[graph]);
   const hiddenSourceSet=useMemo(()=>new Set(hiddenSources),[hiddenSources]);
   const sourceDisciplines=useMemo(()=>new Map((graph?.sources||[]).map(source=>[source.name,source.discipline||"Unclassified"])),[graph]);
+  const sheetFrames=useMemo(()=>{
+    if(!graph)return[] as {key:string;source:string;page:number;planType:string;discipline:string;aligned:boolean;count:number}[];
+    const map=new Map<string,{key:string;source:string;page:number;planType:string;discipline:string;aligned:boolean;count:number}>();
+    for(const entity of graph.entities){
+      if(entity.meta?.nonSpatial===true)continue;
+      const key=sheetFrameKey(entity);if(!key)continue;
+      const plan=Boolean(entity.meta?.nonSldPlan===true),sld=isSld(entity),underlay=entity.kind==="source-raster-underlay";
+      if(!plan&&!sld&&!underlay)continue;
+      const page=Number(entity.meta?.page),prior=map.get(key),planType=plan?String(entity.meta?.planType||"PLAN_VIEW_UNCLASSIFIED"):sld?"SLD":String(entity.meta?.planType||"RASTER_DRAWING");
+      const entityDiscipline=String(entity.meta?.planDiscipline||entity.meta?.discipline||sourceDisciplines.get(entity.source)||"Unclassified");
+      const aligned=Boolean(entity.meta?.planXYValidated===true||entity.meta?.sheetXYTransform||entity.meta?.autoSheetAlignmentCandidateId||entity.meta?.sheetTransform);
+      map.set(key,{key,source:entity.source,page,planType:prior?.planType&&prior.planType!=="RASTER_DRAWING"?prior.planType:planType,discipline:prior?.discipline&&prior.discipline!=="Unclassified"?prior.discipline:entityDiscipline,aligned:Boolean(prior?.aligned||aligned),count:(prior?.count||0)+1});
+    }
+    return[...map.values()].sort((a,b)=>a.source.localeCompare(b.source)||a.page-b.page);
+  },[graph,sourceDisciplines]);
+  const activeSheetFrame=useMemo(()=>{
+    if(sheetFrame==="ALL")return null;
+    if(sheetFrame!=="AUTO")return sheetFrame;
+    if(sheetFrames.length<=1)return null;
+    const preferred=mode==="ELECTRICAL"?sheetFrames.find(frame=>frame.planType==="SLD"):sheetFrames[0];
+    return preferred?.key||sheetFrames[0]?.key||null;
+  },[sheetFrame,sheetFrames,mode]);
+  const nonSldPlanSheets=useMemo(()=>sheetFrames.filter(frame=>frame.planType!=="SLD"&&frame.planType!=="RASTER_DRAWING").length,[sheetFrames]);
   const coordinationReview=useMemo(()=>buildSpatialCoordinationReviewIndex(graph?.coordinationIntelligence),[graph?.coordinationIntelligence]);
   const levels=useMemo(()=>{
     if(!graph)return[] as [string,number][];
@@ -129,15 +155,16 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
     return graph.entities.filter(e=>{
       if(e.meta?.nonSpatial===true)return false;
       if(hiddenSourceSet.has(e.source))return false;
+      const frame=sheetFrameKey(e);if(activeSheetFrame&&frame&&frame!==activeSheetFrame)return false;
       if(floor!=="ALL"&&(e.floor||"UNRESOLVED")!==floor)return false;
-      const entityDiscipline=sourceDisciplines.get(e.source)||String(e.meta?.discipline||"Unclassified");
+      const entityDiscipline=String(e.meta?.planDiscipline||e.meta?.discipline||sourceDisciplines.get(e.source)||"Unclassified");
       if(discipline!=="ALL"&&entityDiscipline!==discipline)return false;
       if(mode==="ELECTRICAL"&&(!(["L2","L3","L4"] as Layer[]).includes(e.layer)||!isSld(e)))return false;
       if(systemMode!=="ALL"&&e.layer==="L2"&&entitySystem(e)!==systemMode)return false;
       if(q&&!`${e.name} ${e.source} ${e.floor||""} ${e.zone||""}`.toLowerCase().includes(q))return false;
       return true;
     });
-  },[graph,floor,discipline,mode,systemMode,search,sourceDisciplines,hiddenSourceSet]);
+  },[graph,floor,discipline,mode,systemMode,search,sourceDisciplines,hiddenSourceSet,activeSheetFrame]);
   const inventory=useMemo(()=>visible.filter(e=>e.kind!=="line"&&e.kind!=="sld-feeder-candidate"&&e.kind!=="wall-segment"&&e.kind!=="source-raster-underlay"),[visible]);
   const visibleLines=useMemo(()=>visible.filter(e=>e.kind==="line").length,[visible]);
   const rasterUnderlays=useMemo(()=>visible.filter(e=>e.kind==="source-raster-underlay").length,[visible]);
@@ -156,7 +183,8 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
     if(!graph)return;
     const valid=new Set(graph.sources.map(source=>source.name));
     setHiddenSources(current=>current.filter(source=>valid.has(source)));
-  },[graph?.createdAt]);
+    if(sheetFrame!=="AUTO"&&sheetFrame!=="ALL"&&!sheetFrames.some(frame=>frame.key===sheetFrame))setSheetFrame("AUTO");
+  },[graph?.createdAt,sheetFrames,sheetFrame]);
 
   function toggleSource(name:string){
     setHiddenSources(current=>current.includes(name)?current.filter(source=>source!==name):[...current,name]);
@@ -412,7 +440,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
 
   return <section style={{border:"1px solid #1b3a50",borderRadius:18,overflow:"hidden",background:"#07111b",marginBottom:18}} aria-label="Spatial viewer">
     <div style={{padding:"16px 18px",display:"flex",justifyContent:"space-between",gap:14,alignItems:"center",flexWrap:"wrap",borderBottom:"1px solid #17334a"}}>
-      <div><div className="eyebrow">STRATUM Spatial Verified</div><h2 style={{margin:"3px 0"}}>Spatial model</h2><p className="muted" style={{margin:0}}>{plural(graph.sources.length,'source')} · {plural(levels.length,'level')} · {plural(rooms,'room')} · {plural(visibleLines,'drawing line')} · {plural(rasterUnderlays,'drawing underlay')} · {plural(sldObjects,'SLD object')}</p></div>
+      <div><div className="eyebrow">STRATUM Spatial Verified</div><h2 style={{margin:"3px 0"}}>Spatial model</h2><p className="muted" style={{margin:0}}>{plural(graph.sources.length,'source')} · {plural(sheetFrames.length,'drawing frame')} · {plural(nonSldPlanSheets,'non-SLD plan')} · {plural(levels.length,'level')} · {plural(rooms,'room')} · {plural(visibleLines,'drawing line')} · {plural(rasterUnderlays,'drawing underlay')} · {plural(sldObjects,'SLD object')}</p></div>
       <div className="button-row"><Link className="ghost" href="/compiler">Edit sources</Link><Link className="ghost" href="/component-library">3D models</Link></div>
     </div>
 
@@ -422,6 +450,8 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       <button type="button" className={mode==="REVIEW"?"action":"ghost"} aria-pressed={mode==="REVIEW"} onMouseDown={event=>event.preventDefault()} onClick={()=>setMode("REVIEW")}><b>Review</b><small>Source candidates</small></button>
     </div>
 
+    {sheetFrames.length>1&&sheetFrame==="AUTO"&&activeSheetFrame&&<p className="muted" style={{padding:'0 14px',fontSize:11,margin:'8px 0'}}>Multiple drawing frames were recognized. Auto-safe isolation is showing one sheet frame at a time so unrelated plans do not stack at the same origin. Choose another sheet above, or explicitly select the review overlay.</p>}
+    {sheetFrames.length>1&&sheetFrame==="ALL"&&<p className="muted" style={{padding:'0 14px',fontSize:11,margin:'8px 0'}}>Review overlay is showing multiple source sheets together. Overlap is not evidence of shared coordinates, physical alignment, clash, or as-built position unless the individual sheet transforms have been reviewed.</p>}
     {graph.entities.some(e=>e.meta?.drawingBasemap===true)&&<p className="muted" style={{padding:'0 14px',fontSize:11,margin:'8px 0'}}>Source drawing basemap is shown on the drawing plane. Sheet/image XY is preserved for review; physical scale/alignment and Z remain unverified until calibrated or otherwise source-established.</p>}
     {graph.entities.some(e=>e.kind==='sheet-callout-candidate'&&e.meta?.coordinateUnits==='sheet')&&<p className="muted" style={{padding:'0 14px',fontSize:11,margin:'8px 0'}}>Drawing callout pins are separated for review. Their spacing is diagrammatic until sheet scale and alignment are verified.</p>}
     {modelLoadErrors.length>0&&<div className="notice" role="alert"><strong>3D IMPORT NEEDS ATTENTION</strong><span>{modelLoadErrors.length} uploaded model{modelLoadErrors.length===1?'':'s'} could not be rendered. Its source record remains available for review; no substitute geometry was displayed.</span></div>}
@@ -429,6 +459,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
     <div style={{display:"flex",gap:8,padding:"10px 12px",alignItems:"center",flexWrap:"wrap",borderBottom:"1px solid #17334a"}}>
       <select aria-label="Floor isolation" value={floor} onChange={e=>setFloor(e.target.value)}><option value="ALL">All floors</option>{levels.map(([f])=><option key={f} value={f}>{f}</option>)}</select>
       <select aria-label="Discipline isolation" value={discipline} onChange={e=>setDiscipline(e.target.value)}><option value="ALL">All disciplines</option>{disciplines.map(value=><option key={value} value={value}>{value}</option>)}</select>
+      <select aria-label="Sheet page isolation" value={sheetFrame} onChange={e=>setSheetFrame(e.target.value)} style={{maxWidth:360}}><option value="AUTO">Auto-safe sheet isolation</option>{sheetFrames.length>1&&<option value="ALL">All sheet frames · review overlay</option>}{sheetFrames.map(frame=><option key={frame.key} value={frame.key}>{frame.source} · p{frame.page} · {planTypeLabel(frame.planType)}{frame.aligned?' · aligned':''}</option>)}</select>
       <input aria-label="Search objects" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search equipment, room or source" style={{minWidth:220,flex:"1 1 240px"}}/>
       <button className="ghost" onClick={()=>setFitRevision(v=>v+1)}>Fit model</button>
       <button className="ghost" onClick={()=>setLabels(v=>!v)}>{labels?"Hide labels":"Show labels"}</button>
@@ -472,7 +503,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
             {visible.filter(e=>e.kind!=="source-raster-underlay").map(e=>(e.kind==="line"||e.kind==="sld-feeder-candidate")&&Number.isFinite(e.x2)&&Number.isFinite(e.y2)?<line key={e.id} x1={sx(e.x)} y1={sy(e.y)} x2={sx(e.x2!)} y2={sy(e.y2!)} stroke={e.layer==="L3"?"#62bfff":"#7895a4"} strokeWidth=".28"/>:<g key={e.id} onClick={()=>setSelected(e)} style={{cursor:"pointer"}}><circle cx={sx(e.x)} cy={sy(e.y)} r={e.layer==="L2"?1.25:.75} fill={e.layer==="L2"?"#e5a14d":e.layer==="L4"?"#43d98f":"#7f98a6"}/>{labels&&e.layer==="L2"&&<text x={sx(e.x)+1.7} y={sy(e.y)-1+Math.max(0,inventory.findIndex(item=>item.id===e.id))*3} fill="#d8edf6" fontSize="2.2">{e.name.slice(0,24)}{physicalElevationKnown(e)?'':' · Z unverified'}</text>}</g>)}
           </svg><p className="muted" style={{margin:"8px 0 0"}}>Interactive 2D fallback active. Source placement and selection remain available while this device/browser cannot initialize WebGL.</p>
         </div>}
-        <div className="spatial-hud"><button type="button" className="ghost" aria-expanded={hudOpen} onClick={()=>setHudOpen(value=>!value)}>Infrastructure HUD · {inventory.length} objects {hudOpen?'▴':'▾'}</button>{hudOpen&&<div className="spatial-hud-body"><small>{renderStatus==="WEBGL"?"3D WEBGL":"2D FALLBACK"} · {mode}</small><div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:"4px 12px",marginTop:6,fontSize:12}}><span>DRAWING LINES</span><b>{visibleLines}</b><span>DRAWING UNDERLAYS</span><b>{rasterUnderlays}</b><span>SELECTABLE OBJECTS</span><b>{inventory.length}</b><span>SLD</span><b>{sldObjects}</b><span>UNRESOLVED Z</span><b>{unresolvedZ}</b><span>3D MODELS</span><b>{modelMapped}</b>{mode==="REVIEW"&&<><span>COORDINATION</span><b>{[...coordinationReview.values()].filter(item=>visible.some(entity=>entity.id===item.entityId)).length}</b></>}</div></div>}</div>
+        <div className="spatial-hud"><button type="button" className="ghost" aria-expanded={hudOpen} onClick={()=>setHudOpen(value=>!value)}>Infrastructure HUD · {inventory.length} objects {hudOpen?'▴':'▾'}</button>{hudOpen&&<div className="spatial-hud-body"><small>{renderStatus==="WEBGL"?"3D WEBGL":"2D FALLBACK"} · {mode}</small><div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:"4px 12px",marginTop:6,fontSize:12}}><span>PLAN FRAMES</span><b>{sheetFrames.length}</b><span>NON-SLD PLANS</span><b>{nonSldPlanSheets}</b><span>DRAWING LINES</span><b>{visibleLines}</b><span>DRAWING UNDERLAYS</span><b>{rasterUnderlays}</b><span>SELECTABLE OBJECTS</span><b>{inventory.length}</b><span>SLD</span><b>{sldObjects}</b><span>UNRESOLVED Z</span><b>{unresolvedZ}</b><span>3D MODELS</span><b>{modelMapped}</b>{mode==="REVIEW"&&<><span>COORDINATION</span><b>{[...coordinationReview.values()].filter(item=>visible.some(entity=>entity.id===item.entityId)).length}</b></>}</div></div>}</div>
       </div>
 
       <aside style={{padding:15,borderLeft:"1px solid #17334a",overflow:"auto"}}>

@@ -66,12 +66,13 @@ test('raster site plan appears as a review-only drawing underlay instead of disa
   localStorage.setItem('stratum_compiled_graph',JSON.stringify({
    version:'raster-site-plan-fixture',createdAt:new Date().toISOString(),reviewState:'REVIEW_REQUIRED',
    sources:[{name:source,ext:'jpg',sha256:'raster-fixture',discipline:'Electrical',floor:'UNRESOLVED',elevation:0}],
-   entities:[{id:'raster-underlay',source,layer:'L1',kind:'source-raster-underlay',name:'G101 Site Plan.jpg · raster source plane',x:-10,y:-6.5,z:0,x2:10,y2:6.5,z2:0,confidence:1,floor:'UNRESOLVED',meta:{drawingBasemap:true,embeddedRasterDataUrl:preview,coordinateUnits:'image_preview',geometryAuthority:'RASTER_PREVIEW_ONLY',spatialPlacementAuthority:'SOURCE_IMAGE_PLANE_ONLY',physicalElevationKnown:false,physicalTruth:false}}],
+   entities:[{id:'raster-underlay',source,layer:'L1',kind:'source-raster-underlay',name:'G101 Site Plan.jpg · raster source plane',x:-10,y:-6.5,z:0,x2:10,y2:6.5,z2:0,confidence:1,floor:'UNRESOLVED',meta:{page:1,sourceSha256:'raster-fixture',drawingBasemap:true,nonSldPlan:true,planType:'ELECTRICAL_POWER_PLAN',planDiscipline:'Electrical',embeddedRasterDataUrl:preview,coordinateUnits:'image_preview',geometryAuthority:'RASTER_PREVIEW_ONLY',spatialPlacementAuthority:'SOURCE_IMAGE_PLANE_ONLY',physicalElevationKnown:false,physicalTruth:false}}],
    links:[],stats:{L0:1,L1:1,L2:0,L3:0,L4:0}
   }));
   window.dispatchEvent(new Event('stratum:graph-updated'));
  });
  await expect(page.getByRole('heading',{name:'Spatial model'})).toBeVisible();
+ await expect(page.getByText(/1 drawing frame · 1 non-SLD plan/i)).toBeVisible();
  await expect(page.getByText(/1 drawing underlay/i)).toBeVisible();
  await expect(page.getByText(/Source drawing basemap is shown on the drawing plane/i)).toBeVisible();
  await expect(page.getByLabel('Imported object').locator('option')).toHaveText(['No selectable objects in this view']);
@@ -87,17 +88,17 @@ test('non-SLD site plan renders retained source vectors with Tesla equipment can
    version:'site-plan-fixture',createdAt:new Date().toISOString(),reviewState:'REVIEW_REQUIRED',
    sources:[{name:source,ext:'pdf',sha256:'g101-fixture',discipline:'Electrical',floor:'UNRESOLVED',elevation:0}],
    entities:[
-    {id:'l1',source,layer:'L1',kind:'line',name:'Source plan line · page 1',x:-8,y:-5,x2:8,y2:-5,z:0,z2:0,confidence:1,floor:'UNRESOLVED',meta:{drawingBasemap:true,coordinateUnits:'sheet',physicalElevationKnown:false,physicalTruth:false}},
-    {id:'l2',source,layer:'L1',kind:'line',name:'Source plan line · page 1',x:8,y:-5,x2:8,y2:5,z:0,z2:0,confidence:1,floor:'UNRESOLVED',meta:{drawingBasemap:true,coordinateUnits:'sheet',physicalElevationKnown:false,physicalTruth:false}},
-    {id:'l3',source,layer:'L1',kind:'line',name:'Source plan line · page 1',x:8,y:5,x2:-8,y2:5,z:0,z2:0,confidence:1,floor:'UNRESOLVED',meta:{drawingBasemap:true,coordinateUnits:'sheet',physicalElevationKnown:false,physicalTruth:false}},
-    {id:'l4',source,layer:'L1',kind:'line',name:'Source plan line · page 1',x:-8,y:5,x2:-8,y2:-5,z:0,z2:0,confidence:1,floor:'UNRESOLVED',meta:{drawingBasemap:true,coordinateUnits:'sheet',physicalElevationKnown:false,physicalTruth:false}},
-    {id:'tesla-callout',source,layer:'L2',kind:'text-asset-candidate',name:'NEW TESLA PSU & SUPERCHARGER',x:1,y:1,z:0,confidence:.86,floor:'UNRESOLVED',meta:{page:1,coordinateUnits:'sheet',elevationKnown:false,physicalElevationKnown:false,spatialPlacementAuthority:'SOURCE_SHEET_POSITION_ONLY',physicalTruth:false,reviewRequired:true}}
+    {id:'l1',source,layer:'L1',kind:'line',name:'Source plan line · page 1',x:-8,y:-5,x2:8,y2:-5,z:0,z2:0,confidence:1,floor:'UNRESOLVED',meta:{page:1,sourceSha256:'g101-fixture',drawingBasemap:true,nonSldPlan:true,planType:'SITE_PLAN',planDiscipline:'Civil / Site',coordinateUnits:'sheet',physicalElevationKnown:false,physicalTruth:false}},
+    {id:'l2',source,layer:'L1',kind:'line',name:'Source plan line · page 1',x:8,y:-5,x2:8,y2:5,z:0,z2:0,confidence:1,floor:'UNRESOLVED',meta:{page:1,sourceSha256:'g101-fixture',drawingBasemap:true,nonSldPlan:true,planType:'SITE_PLAN',planDiscipline:'Civil / Site',coordinateUnits:'sheet',physicalElevationKnown:false,physicalTruth:false}},
+    {id:'l3',source,layer:'L1',kind:'line',name:'Source plan line · page 1',x:8,y:5,x2:-8,y2:5,z:0,z2:0,confidence:1,floor:'UNRESOLVED',meta:{page:1,sourceSha256:'g101-fixture',drawingBasemap:true,nonSldPlan:true,planType:'SITE_PLAN',planDiscipline:'Civil / Site',coordinateUnits:'sheet',physicalElevationKnown:false,physicalTruth:false}},
+    {id:'l4',source,layer:'L1',kind:'line',name:'Source plan line · page 1',x:-8,y:5,x2:-8,y2:-5,z:0,z2:0,confidence:1,floor:'UNRESOLVED',meta:{page:1,sourceSha256:'g101-fixture',drawingBasemap:true,nonSldPlan:true,planType:'SITE_PLAN',planDiscipline:'Civil / Site',coordinateUnits:'sheet',physicalElevationKnown:false,physicalTruth:false}},
+    {id:'tesla-callout',source,layer:'L2',kind:'text-asset-candidate',name:'NEW TESLA PSU & SUPERCHARGER',x:1,y:1,z:0,confidence:.86,floor:'UNRESOLVED',meta:{page:1,sourceSha256:'g101-fixture',nonSldPlan:true,planType:'SITE_PLAN',planDiscipline:'Civil / Site',coordinateUnits:'sheet',elevationKnown:false,physicalElevationKnown:false,spatialPlacementAuthority:'SOURCE_SHEET_POSITION_ONLY',physicalTruth:false,reviewRequired:true}}
    ],links:[],stats:{L0:1,L1:4,L2:1,L3:0,L4:0}
   }));
   window.dispatchEvent(new Event('stratum:graph-updated'));
  });
  await expect(page.getByRole('heading',{name:'Spatial model'})).toBeVisible();
- await expect(page.getByText(/1 source · 1 level · 0 rooms · 4 drawing lines/i)).toBeVisible();
+ await expect(page.getByText(/1 source · 1 drawing frame · 1 non-SLD plan · .*4 drawing lines/i)).toBeVisible();
  await expect(page.getByText(/Source drawing basemap is shown on the drawing plane/i)).toBeVisible();
  await expect(page.getByLabel('Imported object').locator('option').filter({hasText:'NEW TESLA PSU & SUPERCHARGER'})).toHaveCount(1);
  const canvas=page.locator('canvas[aria-label="Interactive Spatial model"]');
@@ -106,6 +107,41 @@ test('non-SLD site plan renders retained source vectors with Tesla equipment can
  await page.getByRole('button',{name:/Infrastructure HUD/i}).click();
  await expect(page.getByText('DRAWING LINES',{exact:true})).toBeVisible();
  await expect(page.getByText('3D MODELS',{exact:true})).toBeVisible();
+});
+
+test('multi-discipline non-SLD plan set isolates sheet frames instead of stacking unrelated pages',async({page})=>{
+ await page.goto('/spatial');
+ await page.evaluate(()=>{
+  const source='Full Rev 3 Set.pdf',sha='full-rev-3-fixture';
+  const meta=(page:number,planType:string,planDiscipline:string)=>({page,sourceSha256:sha,nonSldPlan:true,planType,planDiscipline,planRecognition:'CONTENT_PLAN_V1',coordinateUnits:'sheet',drawingBasemap:true,elevationKnown:false,physicalElevationKnown:false,physicalTruth:false});
+  localStorage.setItem('stratum_compiled_graph',JSON.stringify({
+   version:'multi-plan-fixture',createdAt:new Date().toISOString(),reviewState:'REVIEW_REQUIRED',
+   sources:[{name:source,ext:'pdf',sha256:sha,discipline:'Multi-discipline',floor:'UNRESOLVED',elevation:0}],
+   entities:[
+    {id:'roof-line',source,layer:'L1',kind:'line',name:'Roof framing source line',x:-9,y:-5,x2:9,y2:-5,z:0,z2:0,confidence:1,floor:'UNRESOLVED',meta:meta(14,'STRUCTURAL_FRAMING_PLAN','Structural')},
+    {id:'utility-line',source,layer:'L1',kind:'line',name:'Utility source line',x:-8,y:3,x2:8,y2:3,z:0,z2:0,confidence:1,floor:'UNRESOLVED',meta:meta(147,'UTILITY_PLAN','Multi-discipline / Utilities')},
+    {id:'wheel-balancer',source,layer:'L4',kind:'powered-equipment-candidate',name:'WHEEL BALANCER',x:2,y:2,z:0,confidence:.72,floor:'UNRESOLVED',meta:{...meta(147,'UTILITY_PLAN','Multi-discipline / Utilities'),reviewRequired:true}},
+    {id:'fire-line',source,layer:'L1',kind:'line',name:'Fire suppression source line',x:-7,y:1,x2:7,y2:1,z:0,z2:0,confidence:1,floor:'UNRESOLVED',meta:meta(148,'FIRE_PROTECTION_PLAN','Fire Protection')},
+    {id:'haz-line',source,layer:'L1',kind:'line',name:'Hazardous area source line',x:-6,y:-1,x2:6,y2:-1,z:0,z2:0,confidence:1,floor:'UNRESOLVED',meta:meta(149,'HAZARDOUS_AREA_PLAN','Electrical / Life Safety')}
+   ],links:[],stats:{L0:1,L1:4,L2:0,L3:0,L4:1}
+  }));
+  window.dispatchEvent(new Event('stratum:graph-updated'));
+ });
+ await expect(page.getByText(/4 drawing frames · 4 non-SLD plans/i)).toBeVisible();
+ await expect(page.getByText(/Multiple drawing frames were recognized/i)).toBeVisible();
+ const frame=page.getByLabel('Sheet page isolation');
+ await expect(frame).toHaveValue('AUTO');
+ await expect(page.getByLabel('Imported object').locator('option').filter({hasText:'WHEEL BALANCER'})).toHaveCount(0);
+ await frame.selectOption('full-rev-3-fixture:147');
+ await expect(page.getByLabel('Imported object').locator('option').filter({hasText:'WHEEL BALANCER'})).toHaveCount(1);
+ await page.getByLabel('Discipline isolation').selectOption('Fire Protection');
+ await expect(page.getByLabel('Imported object').locator('option').filter({hasText:'WHEEL BALANCER'})).toHaveCount(0);
+ await page.getByLabel('Discipline isolation').selectOption('ALL');
+ await frame.selectOption('ALL');
+ await expect(page.getByText(/Review overlay is showing multiple source sheets together/i)).toBeVisible();
+ await page.getByRole('button',{name:/Infrastructure HUD/i}).click();
+ await expect(page.getByText('PLAN FRAMES',{exact:true})).toBeVisible();
+ await expect(page.getByText('NON-SLD PLANS',{exact:true})).toBeVisible();
 });
 
 test('Audi E4.0 snapshot restores five source-linked selectable callouts without inventing asset history',async({page})=>{
