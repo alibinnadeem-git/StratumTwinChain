@@ -133,7 +133,13 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
     }
     return[...map.values()].sort((a,b)=>a.source.localeCompare(b.source)||a.page-b.page);
   },[graph,sourceDisciplines]);
-  const activeSheetFrame=useMemo(()=>sheetFrame==="ALL"?null:sheetFrame==="AUTO"?(sheetFrames.length>1?sheetFrames[0]?.key||null:null):sheetFrame,[sheetFrame,sheetFrames]);
+  const activeSheetFrame=useMemo(()=>{
+    if(sheetFrame==="ALL")return null;
+    if(sheetFrame!=="AUTO")return sheetFrame;
+    if(sheetFrames.length<=1)return null;
+    const preferred=mode==="ELECTRICAL"?sheetFrames.find(frame=>frame.planType==="SLD"):sheetFrames[0];
+    return preferred?.key||sheetFrames[0]?.key||null;
+  },[sheetFrame,sheetFrames,mode]);
   const nonSldPlanSheets=useMemo(()=>sheetFrames.filter(frame=>frame.planType!=="SLD"&&frame.planType!=="RASTER_DRAWING").length,[sheetFrames]);
   const coordinationReview=useMemo(()=>buildSpatialCoordinationReviewIndex(graph?.coordinationIntelligence),[graph?.coordinationIntelligence]);
   const levels=useMemo(()=>{
