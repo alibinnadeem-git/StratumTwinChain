@@ -183,7 +183,7 @@ export default function CompilerWorkspace(){
  useEffect(()=>{let active=true;void listArchivedSourceMetadata().then(records=>{if(active)setArchivedShas(new Set(records.map(record=>record.sha256)))});return()=>{active=false}},[]);
  const staleDrawingSources=useMemo(()=>findDrawingSourcesNeedingReprocess(files,entities),[files,entities]);
  const staleBySha=useMemo(()=>new Map(staleDrawingSources.map(item=>[item.source.sha256,item.reason])),[staleDrawingSources]);
- const archivedStaleSources=useMemo(()=>staleDrawingSources.filter(item=>archivedShas.has(item.source.sha256)),[staleDrawingSources,archivedShas]);
+ const archivedStaleSources=useMemo(()=>staleDrawingSources.filter(item=>archivedShas.has(String(item.source.sha256||''))),[staleDrawingSources,archivedShas]);
  const totals=useMemo(()=>({files:files.length,parsed:files.filter(f=>f.state==='parsed').length,entities:entities.length,assets:entities.filter(e=>e.layer==='L4').length,levels:new Set(entities.map(e=>e.floor).filter(f=>f&&f!=='UNRESOLVED')).size,rooms:entities.filter(e=>e.kind==='room-boundary').length,nonSldPlanPages:files.reduce((sum,file)=>sum+(file.nonSldPlanPages||0),0),reprocess:staleDrawingSources.length}),[files,entities,staleDrawingSources.length]);
  const layerStats=useMemo(()=>['L0','L1','L2','L3','L4'].reduce((a,l)=>({...a,[l]:entities.filter(e=>e.layer===l).length}),{} as Record<string,number>),[entities]);
  async function saveGraph(nextFiles:SourceFile[],rawEntities:GraphEntity[],replaceSources:{sha256:string;name:string}[]=[]){
@@ -205,7 +205,7 @@ export default function CompilerWorkspace(){
   if(busy||!archivedStaleSources.length)return;
   const recovered:File[]=[];
   for(const item of archivedStaleSources){
-   const record=await readArchivedSource(item.source.sha256);
+   const record=await readArchivedSource(String(item.source.sha256||''));
    if(record)recovered.push(archivedSourceToFile(record));
   }
   if(!recovered.length){setArchiveNote('The expected local source archive is unavailable on this browser. Re-upload the original drawing file instead.');return}
