@@ -177,7 +177,7 @@ async function parseGlb(file:File,buf:ArrayBuffer,digest:string,level:{floor:str
 export default function CompilerWorkspace(){
  const [files,setFiles]=useState<SourceFile[]>([]),[entities,setEntities]=useState<GraphEntity[]>([]),[busy,setBusy]=useState(false),[dragging,setDragging]=useState(false),[message,setMessage]=useState('');
  useEffect(()=>{let active=true;const restore=async()=>{try{const graph=await readPrimarySpatialGraph();if(!active||!graph)return;if(!Array.isArray(graph.sources)||!Array.isArray(graph.entities))throw new Error();setEntities(graph.entities as GraphEntity[]);const restored=(graph.sources as CompiledGraph['sources']).map((source:CompiledGraph['sources'][number]&Partial<SourceFile>)=>({...source,size:source.size||0,state:(source.state||'review') as ParseState,summary:source.summary||'Restored saved source; extraction and alignment remain subject to review.',entities:Number.isFinite(Number(source.entities))?Number(source.entities):(graph.entities as GraphEntity[]).filter((e:GraphEntity)=>e.meta?.sourceSha256===source.sha256||e.source===source.name).length,floor:source.floor||'UNRESOLVED',elevation:source.elevation||0}));setFiles(current=>{const existing=new Map(current.map(item=>[item.sha256,item]));return restored.map((item:SourceFile)=>{const prior=existing.get(item.sha256);return prior?{...item,...prior}:item})});}catch{if(active)setMessage('Saved graph could not be read. Existing data has been preserved.');}};const refresh=()=>{void restore()};void restore();window.addEventListener('stratum:graph-updated',refresh);return()=>{active=false;window.removeEventListener('stratum:graph-updated',refresh)};},[]);
- const totals=useMemo(()=>({files:files.length,parsed:files.filter(f=>f.state==='parsed').length,entities:entities.length,assets:entities.filter(e=>e.layer==='L4').length,levels:new Set(entities.map(e=>e.floor).filter(f=>f&&f!=='UNRESOLVED')).size,rooms:entities.filter(e=>e.kind==='room-boundary').length}),[files,entities]);
+ const totals=useMemo(()=>({files:files.length,parsed:files.filter(f=>f.state==='parsed').length,entities:entities.length,assets:entities.filter(e=>e.layer==='L4').length,levels:new Set(entities.map(e=>e.floor).filter(f=>f&&f!=='UNRESOLVED')).size,rooms:entities.filter(e=>e.kind==='room-boundary').length,nonSldPlanPages:files.reduce((sum,file)=>sum+(file.nonSldPlanPages||0),0)}),[files,entities]);
  const layerStats=useMemo(()=>['L0','L1','L2','L3','L4'].reduce((a,l)=>({...a,[l]:entities.filter(e=>e.layer===l).length}),{} as Record<string,number>),[entities]);
  async function saveGraph(nextFiles:SourceFile[],rawEntities:GraphEntity[]){
   const saved=(await readPrimarySpatialGraph()||{}) as Partial<CompiledGraph>;
@@ -214,11 +214,12 @@ export default function CompilerWorkspace(){
    {message&&<div className="notice" role="status"><strong>{busy?'PARSING':'IMPORT'}</strong><span>{message}</span></div>}
 
    {files.length>0&&<div className="import-results">
-    {files.map((f,i)=><div className="file-row" key={`${f.name}-${i}`}><div className="file-icon">{f.ext.toUpperCase()}</div><div><strong>{f.name}</strong><small>{f.discipline} · {f.floor} @ {f.elevation}m{f.unitName?` · units ${f.unitName}`:''}</small><small>{f.summary}</small></div><span className={f.state==='parsed'?'proof':'pending'}>{f.state.toUpperCase()}</span></div>)}
+    {files.map((f,i)=><div className="file-row" key={`${f.name}-${i}`}><div className="file-icon">{f.ext.toUpperCase()}</div><div><strong>{f.name}</strong><small>{f.discipline} · {f.floor} @ {f.elevation}m{f.unitName?` · units ${f.unitName}`:''}</small>{Boolean(f.planTypes?.length)&&<small><b>Recognized non-SLD plans:</b> {f.planTypes!.map(value=>value.replaceAll('_',' ')).join(' · ')}</small>}<small>{f.summary}</small></div><span className={f.state==='parsed'?'proof':'pending'}>{f.state.toUpperCase()}</span></div>)}
    </div>}
 
    <div className="import-summary">
     <div><span>Sources</span><strong>{totals.files}</strong></div>
+    <div><span>Non-SLD plan pages</span><strong>{totals.nonSldPlanPages}</strong></div>
     <div><span>Rooms</span><strong>{totals.rooms}</strong></div>
     <div><span>Equipment candidates</span><strong>{totals.assets}</strong></div>
     <div><span>Levels</span><strong>{totals.levels}</strong></div>
