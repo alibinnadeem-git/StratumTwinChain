@@ -2,7 +2,7 @@
 
 import {useCallback,useEffect,useMemo,useState} from 'react';
 import {readPrimarySpatialGraph,replaceCurrentSpatialGraph} from '@/lib/spatial-browser-recovery';
-import {writeSelectedSpatialProjectId} from '@/lib/spatial-project-selection';
+import {readSelectedSpatialProjectId,SPATIAL_PROJECT_SELECTION_EVENT,writeSelectedSpatialProjectId} from '@/lib/spatial-project-selection';
 
 type Project={id:string;project_code:string;name:string};
 type LatestCompilation={
@@ -67,10 +67,11 @@ export default function SpatialCompilationPersistence(){
     setSchemaReady(Boolean(data.schemaReady));
     setLatest(data.latest||null);
     if(!selected&&data.projects?.length){
-      const first=data.projects[0].id;
-      setProjectId(first);
-      writeSelectedSpatialProjectId(first)
-      return refresh(first);
+      const remembered=readSelectedSpatialProjectId();
+      const next=data.projects.some(project=>project.id===remembered)?remembered:data.projects[0].id;
+      setProjectId(next);
+      writeSelectedSpatialProjectId(next);
+      return refresh(next);
     }
     setMessage(data.schemaReady
       ?data.latest?`Loaded server review snapshot revision ${data.latest.revision}.`:'No server review snapshot exists for this project yet.'
@@ -85,6 +86,17 @@ export default function SpatialCompilationPersistence(){
     })();
     return()=>{active=false};
   },[]); // Explicitly load server state once; compilation saves remain user-triggered.
+
+  useEffect(()=>{
+    const onProject=(event:Event)=>{
+      const next=String((event as CustomEvent<{projectId?:string}>).detail?.projectId||'');
+      if(!next||next===projectId)return;
+      setProjectId(next);setLatest(null);setLoadArmed(false);setReason('');setMessage('Loading project review history…');
+      void refresh(next).catch(error=>setMessage(error instanceof Error?error.message:'Unable to load project review history.'));
+    };
+    window.addEventListener(SPATIAL_PROJECT_SELECTION_EVENT,onProject);
+    return()=>window.removeEventListener(SPATIAL_PROJECT_SELECTION_EVENT,onProject);
+  },[projectId,refresh]);
 
   async function selectProject(next:string){
     setProjectId(next);writeSelectedSpatialProjectId(next);setLatest(null);setLoadArmed(false);setReason('');setMessage('Loading project review history…');
