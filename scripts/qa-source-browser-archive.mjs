@@ -20,7 +20,7 @@ assert.doesNotMatch(archive,/fetch\(|\/api\//,'browser-local source archive must
 assert.doesNotMatch(recovery,/SOURCE_ARCHIVE_DB|stratum-source-archive-v1/,'raw source bytes must remain separate from portable graph recovery bundles');
 
 assert.match(compiler,/archiveSourceBytes\(\{sha256:digest,name:file\.name,mimeType:file\.type,size:file\.size,ext,bytes:buf\}\)/,'accepted source bytes must be archived after fingerprinting');
-assert.match(compiler,/readArchivedSource\(item\.source\.sha256\)/,'stale drawing reprocess must load exact archived SHA');
+assert.match(compiler,/readArchivedSource\(String\(item\.source\.sha256\|\|''\)\)/,'stale drawing reprocess must load the exact narrowed archived SHA');
 assert.match(compiler,/archivedSourceToFile\(record\)/,'archived bytes must be reconstructed as the original named File');
 assert.match(compiler,/Reprocess archived drawing/,'Import UI must expose explicit archived-source reprocess control');
 assert.match(compiler,/Sources archived locally/,'Import UI must disclose local archive coverage');
