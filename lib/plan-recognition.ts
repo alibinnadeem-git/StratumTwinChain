@@ -55,7 +55,7 @@ const RULES:Rule[]=[
  {type:'SHOP_LAYOUT_PLAN',discipline:'Equipment',score:9,patterns:[/\bSHOP\s+LAYOUT\b/i]},
  {type:'EQUIPMENT_LAYOUT_PLAN',discipline:'Equipment',score:8,patterns:[/\bEQUIPMENT\s+(?:LAYOUT|PLAN)\b/i]},
  {type:'PIT_LAYOUT_PLAN',discipline:'Equipment / Structural',score:9,patterns:[/\bPIT\s+LAYOUT\b/i,/\bPIT\s+PLAN\b/i]},
- {type:'FLOOR_ANCHOR_PLAN',discipline:'Equipment / Structural',score:10,patterns:[/\bFLOOR\s+ANCHOR\s+PLAN\b/i,/\bANCHOR\s+PLAN\b/i]},
+ {type:'FLOOR_ANCHOR_PLAN',discipline:'Equipment / Structural',score:10,patterns:[/^FLOOR\s+ANCHOR\s+PLAN$/i,/^ANCHOR\s+PLAN$/i]},
  {type:'PERMIT_PLAN_ELEVATION',discipline:'Equipment / Permit',score:8,patterns:[/\b(?:BOOTH|MIXING\s+ROOM)\s+PERMIT(?:\s+\d+)?\b/i,/\bPLAN\s+AND\s+ELEVATION\s+VIEWS\b/i]},
 ];
 
