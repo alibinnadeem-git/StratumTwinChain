@@ -422,7 +422,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       <button type="button" className={mode==="REVIEW"?"action":"ghost"} aria-pressed={mode==="REVIEW"} onMouseDown={event=>event.preventDefault()} onClick={()=>setMode("REVIEW")}><b>Review</b><small>Source candidates</small></button>
     </div>
 
-    {graph.entities.some(e=>e.meta?.drawingBasemap===true)&&<p className="muted" style={{padding:'0 14px',fontSize:11,margin:'8px 0'}}>Source-plan vector linework is shown on the drawing plane. Sheet XY is preserved for review; physical scale/alignment and Z remain unverified until calibrated or otherwise source-established.</p>}
+    {graph.entities.some(e=>e.meta?.drawingBasemap===true)&&<p className="muted" style={{padding:'0 14px',fontSize:11,margin:'8px 0'}}>Source drawing basemap is shown on the drawing plane. Sheet/image XY is preserved for review; physical scale/alignment and Z remain unverified until calibrated or otherwise source-established.</p>}
     {graph.entities.some(e=>e.kind==='sheet-callout-candidate'&&e.meta?.coordinateUnits==='sheet')&&<p className="muted" style={{padding:'0 14px',fontSize:11,margin:'8px 0'}}>Drawing callout pins are separated for review. Their spacing is diagrammatic until sheet scale and alignment are verified.</p>}
     {modelLoadErrors.length>0&&<div className="notice" role="alert"><strong>3D IMPORT NEEDS ATTENTION</strong><span>{modelLoadErrors.length} uploaded model{modelLoadErrors.length===1?'':'s'} could not be rendered. Its source record remains available for review; no substitute geometry was displayed.</span></div>}
 
