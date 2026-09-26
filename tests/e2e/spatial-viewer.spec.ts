@@ -73,7 +73,7 @@ test('raster site plan appears as a review-only drawing underlay instead of disa
  });
  await expect(page.getByRole('heading',{name:'Spatial model'})).toBeVisible();
  await expect(page.getByText(/1 drawing underlay/i)).toBeVisible();
- await expect(page.getByText(/Source-plan vector linework is shown on the drawing plane/i)).toBeVisible();
+ await expect(page.getByText(/Source drawing basemap is shown on the drawing plane/i)).toBeVisible();
  await expect(page.getByLabel('Imported object').locator('option')).toHaveText(['No selectable objects in this view']);
  await page.getByRole('button',{name:/Infrastructure HUD/i}).click();
  await expect(page.getByText('DRAWING UNDERLAYS',{exact:true})).toBeVisible();
@@ -98,7 +98,7 @@ test('non-SLD site plan renders retained source vectors with Tesla equipment can
  });
  await expect(page.getByRole('heading',{name:'Spatial model'})).toBeVisible();
  await expect(page.getByText(/1 source · 1 level · 0 rooms · 4 drawing lines/i)).toBeVisible();
- await expect(page.getByText(/Source-plan vector linework is shown on the drawing plane/i)).toBeVisible();
+ await expect(page.getByText(/Source drawing basemap is shown on the drawing plane/i)).toBeVisible();
  await expect(page.getByLabel('Imported object').locator('option').filter({hasText:'NEW TESLA PSU & SUPERCHARGER'})).toHaveCount(1);
  const canvas=page.locator('canvas[aria-label="Interactive Spatial model"]');
  await expect(canvas).toBeVisible();
