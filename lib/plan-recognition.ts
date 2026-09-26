@@ -57,7 +57,6 @@ const titleLike=(value:string)=>value.length<=140&&!referenceLead.test(value)&&!
 
 export function detectNonSldPlanPage(labels:string[],vectorOperatorCount=0):NonSldPlanEvidence{
  const text=labels.map(value=>String(value||'').replace(/\s+/g,' ').trim()).filter(Boolean);
- const joined=text.join(' ');
  let best:{rule:Rule;matches:string[]}|null=null;
  for(const rule of RULES){
   const matches:string[]=[];
