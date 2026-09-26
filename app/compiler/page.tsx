@@ -7,6 +7,7 @@ import SpatialCompilationPersistence from '@/components/SpatialCompilationPersis
 import SpatialAutoSync from '@/components/SpatialAutoSync';
 import SpatialServerHydrator from '@/components/SpatialServerHydrator';
 import SpatialProjectionEngine from '@/components/SpatialProjectionEngine';
+import SpatialProjectSourceVault from '@/components/SpatialProjectSourceVault';
 import SpatialWorkspaceStatus from '@/components/SpatialWorkspaceStatus';
 import TitleBlockIntelligence from '@/components/TitleBlockIntelligence';
 import {readSession} from '@/lib/server/auth';
@@ -32,7 +33,8 @@ export default async function CompilerPage(){const session=await readSession();r
   </details>
 
   <details className="secondary-details card">
-   <summary>Server sync & review baseline</summary>
+   <summary>Server sync, source backup & review baseline</summary>
+   {session&&<SpatialProjectSourceVault/>}
    <SpatialCompilationPersistence/>
   </details>
  </>}
