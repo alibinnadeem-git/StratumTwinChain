@@ -12,6 +12,7 @@ import {
   restoreBestSpatialGraph,
   SPATIAL_RECOVERY_EVENT,
 } from '@/lib/spatial-browser-recovery';
+import {writeSelectedSpatialProjectId} from '@/lib/spatial-project-selection';
 
 type Health={
   liveDataReady?:boolean;
@@ -36,7 +37,7 @@ export default function SpatialWorkspaceStatus({compact=false,authenticated=fals
       if(!allowed.has(event.origin))return;
       const data=event.data as {type?:string;version?:number;graph?:unknown;sourceOrigin?:string}|null;
       if(!data||data.type!=='STRATUM_SPATIAL_RECOVERY'||data.version!==1||!isSpatialGraph(data.graph))return;
-      try{localStorage.removeItem('stratum_spatial_project_id')}catch{}
+      writeSelectedSpatialProjectId('')
       void replaceCurrentSpatialGraph(data.graph);
       setMessage(`Recovered ${graphSummary(data.graph).entities} Spatial objects from the earlier STRATUM site. Choose the correct project before server sync.`);
     };
@@ -101,7 +102,7 @@ export default function SpatialWorkspaceStatus({compact=false,authenticated=fals
     try{
       const parsed=JSON.parse(await file.text());
       if(!isSpatialGraph(parsed))throw new Error('The selected JSON is not a valid STRATUM Spatial graph.');
-      try{localStorage.removeItem('stratum_spatial_project_id')}catch{}
+      writeSelectedSpatialProjectId('')
       await replaceCurrentSpatialGraph(parsed);
       setMessage(`Imported ${graphSummary(parsed).entities} Spatial objects. Existing browser work was preserved as the previous recovery copy. Choose the correct project before server sync.`);
     }catch(error){setMessage(error instanceof Error?error.message:'Backup import failed.');}
