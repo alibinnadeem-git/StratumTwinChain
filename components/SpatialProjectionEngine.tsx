@@ -19,12 +19,18 @@ export default function SpatialProjectionEngine(){
     do{
      queued=false;
      const graph=await readPrimarySpatialGraph();if(!graph||!Array.isArray(graph.entities))continue;
+     const baseline=JSON.stringify(graph);
      const storedRegistry=localStorage.getItem(ELECTRICAL_MODEL_REGISTRY_STORAGE_KEY);
      const registry=storedRegistry?normalizeElectricalModelRegistry(JSON.parse(storedRegistry)):DEFAULT_ELECTRICAL_MODEL_REGISTRY;
      const spatial=enrichSpatialProjection(graph as any,registry);
      const power=enrichPowerIntelligence(spatial);
      const enriched=enrichCoordinationIntelligence(power as any);
-     if(JSON.stringify(enriched)===JSON.stringify(graph))continue;
+     if(JSON.stringify(enriched)===baseline)continue;
+     // Automatic enrichment must never overwrite a newer browser-authoritative graph.
+     // Re-read immediately before committing; if another writer changed authority,
+     // discard this stale projection pass and rerun against the newer graph.
+     const current=await readPrimarySpatialGraph();
+     if(!current||JSON.stringify(current)!==baseline){queued=true;continue}
      await writePrimarySpatialGraph(enriched as any);
      if(active)window.dispatchEvent(new Event('stratum:graph-updated'));
     }while(active&&queued);
