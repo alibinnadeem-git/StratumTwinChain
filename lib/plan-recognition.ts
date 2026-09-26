@@ -17,8 +17,11 @@ export type NonSldPlanType=
  |'LIFE_SAFETY_PLAN'
  |'LOW_VOLTAGE_PLAN'
  |'GENERAL_LAYOUT_PLAN'
+ |'SHOP_LAYOUT_PLAN'
  |'EQUIPMENT_LAYOUT_PLAN'
  |'PIT_LAYOUT_PLAN'
+ |'FLOOR_ANCHOR_PLAN'
+ |'PERMIT_PLAN_ELEVATION'
  |'PLAN_VIEW_UNCLASSIFIED';
 
 export type NonSldPlanEvidence={
@@ -49,8 +52,11 @@ const RULES:Rule[]=[
  {type:'ARCHITECTURAL_FLOOR_PLAN',discipline:'Architectural',score:9,patterns:[/\b(?:ARCHITECTURAL\s+)?FLOOR\s+PLAN\b/i,/\b(?:FIRST|SECOND|THIRD|FOURTH|FIFTH|SIXTH|GROUND)\s+FLOOR\s+PLAN\b/i]},
  {type:'ROOF_PLAN',discipline:'Architectural / Structural',score:8,patterns:[/\bROOF\s+PLAN\b/i]},
  {type:'GENERAL_LAYOUT_PLAN',discipline:'General / Equipment',score:8,patterns:[/\bGENERAL\s+LAYOUT\b/i,/\bGENERAL\s+LAYOUT\s+PLAN\b/i]},
- {type:'EQUIPMENT_LAYOUT_PLAN',discipline:'Equipment',score:8,patterns:[/\bEQUIPMENT\s+(?:LAYOUT|PLAN)\b/i,/\bSHOP\s+LAYOUT\b/i]},
- {type:'PIT_LAYOUT_PLAN',discipline:'Equipment / Structural',score:8,patterns:[/\bPIT\s+LAYOUT\b/i,/\bPIT\s+PLAN\b/i]},
+ {type:'SHOP_LAYOUT_PLAN',discipline:'Equipment',score:9,patterns:[/\bSHOP\s+LAYOUT\b/i]},
+ {type:'EQUIPMENT_LAYOUT_PLAN',discipline:'Equipment',score:8,patterns:[/\bEQUIPMENT\s+(?:LAYOUT|PLAN)\b/i]},
+ {type:'PIT_LAYOUT_PLAN',discipline:'Equipment / Structural',score:9,patterns:[/\bPIT\s+LAYOUT\b/i,/\bPIT\s+PLAN\b/i]},
+ {type:'FLOOR_ANCHOR_PLAN',discipline:'Equipment / Structural',score:10,patterns:[/\bFLOOR\s+ANCHOR\s+PLAN\b/i,/\bANCHOR\s+PLAN\b/i]},
+ {type:'PERMIT_PLAN_ELEVATION',discipline:'Equipment / Permit',score:8,patterns:[/\b(?:BOOTH|MIXING\s+ROOM)\s+PERMIT(?:\s+\d+)?\b/i,/\bPLAN\s+AND\s+ELEVATION\s+VIEWS\b/i]},
 ];
 
 const noise=/\b(?:GENERAL\s+NOTES?|DETAILS?|SECTIONS?|SCHEDULES?|SPECIFICATIONS?|COVER\s+SHEET|DRAWING\s+INDEX)\b/i;
