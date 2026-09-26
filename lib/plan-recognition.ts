@@ -52,6 +52,8 @@ const RULES:Rule[]=[
 ];
 
 const noise=/\b(?:GENERAL\s+NOTES?|DETAILS?|SECTIONS?|SCHEDULES?|SPECIFICATIONS?|COVER\s+SHEET|DRAWING\s+INDEX)\b/i;
+const referenceLead=/^(?:SEE|REFER(?:ENCE)?|REF\.?|PER|VERIFY|COORDINATE|SHOWN|AS\s+SHOWN)\b/i;
+const titleLike=(value:string)=>value.length<=140&&!referenceLead.test(value)&&!noise.test(value);
 
 export function detectNonSldPlanPage(labels:string[],vectorOperatorCount=0):NonSldPlanEvidence{
  const text=labels.map(value=>String(value||'').replace(/\s+/g,' ').trim()).filter(Boolean);
@@ -60,9 +62,14 @@ export function detectNonSldPlanPage(labels:string[],vectorOperatorCount=0):NonS
  for(const rule of RULES){
   const matches:string[]=[];
   for(const value of text){
-   if(rule.patterns.some(pattern=>pattern.test(value)))matches.push(value);
+   if(titleLike(value)&&rule.patterns.some(pattern=>pattern.test(value)))matches.push(value);
   }
-  if(!matches.length&&rule.patterns.some(pattern=>pattern.test(joined)))matches.push(joined.slice(0,220));
+  if(!matches.length){
+   for(let i=0;i<text.length;i++){
+    const window=text.slice(i,i+4).join(' ');
+    if(titleLike(window)&&rule.patterns.some(pattern=>pattern.test(window))){matches.push(window);break}
+   }
+  }
   if(matches.length&&(!best||rule.score>best.rule.score))best={rule,matches};
  }
  const reasons:string[]=[];
