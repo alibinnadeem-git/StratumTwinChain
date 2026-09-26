@@ -32,6 +32,8 @@ assert.match(compiler,/saveGraph\(nextFiles,nextEntities,replacementSource\?\[re
 assert.match(compiler,/reprocess failed; the previous saved compilation was preserved/i,'failed reprocessing must restore the previous compiled source rather than delete it');
 assert.match(compiler,/replaceShas=new Set\(replaceSources\.map/,'saved graph must exclude replaced source entities and metadata');
 assert.match(compiler,/version:'1\.2'/,'fresh compilation must advance graph schema marker');
+assert.match(compiler,/coordinationIntelligence:undefined/,'authoritative source saves must discard stale derived coordination before recomputation');
+assert.match(compiler,/enrichCoordinationIntelligence\(enrichAudiE4SourceReview\(base\)/,'coordination intelligence must be rebuilt from the exact graph being committed');
 assert.match(compiler,/REPROCESS SAVED DRAWING/,'Import UI must tell the user why the original file is needed');
 assert.match(compiler,/REPROCESS':f\.state\.toUpperCase/,'stale source row must not present as ordinary parsed state');
 
