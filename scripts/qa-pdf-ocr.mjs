@@ -40,7 +40,7 @@ assert.match(compiler,/coordinateUnits:'NONE'/);
 assert.match(compiler,/geometryAuthority:'NONE'/);
 assert.match(compiler,/spatialPlacementAuthority:'OCR_NON_SPATIAL'/);
 assert.match(compiler,/ocrTextByPage/);
-assert.match(compiler,/detectSldPage\(\[\.\.\.raw[\s\S]*ocrTextByPage/);
+assert.match(compiler,/labels=\[\.\.\.raw[\s\S]*ocrTextByPage[\s\S]*resolveDrawingPageRecognition\(labels/);
 assert.match(compiler,/if\(ocrWorker\)await ocrWorker\.terminate\(\)/);
 assert.doesNotMatch(compiler,/PDF_RASTER_OCR_TEXT'[\s\S]{0,300}(?:x:.*ocr|y:.*ocr|coordinateUnits:'sheet')/);
 console.log('Image-only PDF OCR fallback, non-spatial truth boundary and Expected Power integration passed');
