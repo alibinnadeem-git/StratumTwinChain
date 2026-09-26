@@ -20,6 +20,7 @@ export type NonSldPlanType=
  |'SHOP_LAYOUT_PLAN'
  |'EQUIPMENT_LAYOUT_PLAN'
  |'PIT_LAYOUT_PLAN'
+ |'PIT_PERMIT_PLAN'
  |'FLOOR_ANCHOR_PLAN'
  |'PERMIT_PLAN_ELEVATION'
  |'PLAN_VIEW_UNCLASSIFIED';
@@ -55,6 +56,7 @@ const RULES:Rule[]=[
  {type:'SHOP_LAYOUT_PLAN',discipline:'Equipment',score:9,patterns:[/\bSHOP\s+LAYOUT\b/i]},
  {type:'EQUIPMENT_LAYOUT_PLAN',discipline:'Equipment',score:8,patterns:[/\bEQUIPMENT\s+(?:LAYOUT|PLAN)\b/i]},
  {type:'PIT_LAYOUT_PLAN',discipline:'Equipment / Structural',score:9,patterns:[/\bPIT\s+LAYOUT\b/i,/\bPIT\s+PLAN\b/i]},
+ {type:'PIT_PERMIT_PLAN',discipline:'Equipment / Structural',score:10,patterns:[/^(?:TITAN|MX)\s+PIT\s+PERMIT$/i]},
  {type:'FLOOR_ANCHOR_PLAN',discipline:'Equipment / Structural',score:10,patterns:[/^FLOOR\s+ANCHOR\s+PLAN$/i,/^ANCHOR\s+PLAN$/i]},
  {type:'PERMIT_PLAN_ELEVATION',discipline:'Equipment / Permit',score:8,patterns:[/\b(?:BOOTH|MIXING\s+ROOM)\s+PERMIT(?:\s+\d+)?\b/i,/\bPLAN\s+AND\s+ELEVATION\s+VIEWS\b/i]},
 ];
@@ -89,7 +91,7 @@ export function detectNonSldPlanPage(labels:string[],vectorOperatorCount=0):NonS
  const genericPlan=text.filter(value=>/\bPLAN\b/i.test(value)&&!noise.test(value));
  const nonPlanSheetContext=text.some(value=>/^(?:GENERAL\s+|ELECTRICAL\s+|MECHANICAL\s+|PLUMBING\s+|STRUCTURAL\s+)?NOTES?\b|^(?:DETAILS?|SECTIONS?|SCHEDULES?|SPECIFICATIONS?|COVER\s+SHEET|DRAWING\s+INDEX)\b/i.test(value));
  const geometric=vectorOperatorCount>=40;
- if(planView.length&&(geometric||text.length>=8)){
+ if(planView.length&&!nonPlanSheetContext&&(geometric||text.length>=8)){
   reasons.push('plan-view label present');if(geometric)reasons.push('drawing-vector content present');
   return{isPlan:true,planType:'PLAN_VIEW_UNCLASSIFIED',discipline:null,score:5+(geometric?1:0),titleEvidence:planView.slice(0,5),reasons};
  }
