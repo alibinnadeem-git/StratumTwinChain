@@ -103,6 +103,15 @@ async function parseImage(file:File,level:{floor:string;elevation:number},discip
  const url=URL.createObjectURL(file);
  try {
   const image=await new Promise<HTMLImageElement>((resolve,reject)=>{const i=new Image();i.onload=()=>resolve(i);i.onerror=reject;i.src=url});
+  const maxPreviewSide=1800,previewScale=Math.min(1,maxPreviewSide/Math.max(image.naturalWidth,image.naturalHeight,1));
+  const preview=document.createElement('canvas'),previewCtx=preview.getContext('2d');
+  preview.width=Math.max(1,Math.round(image.naturalWidth*previewScale));preview.height=Math.max(1,Math.round(image.naturalHeight*previewScale));
+  if(previewCtx)previewCtx.drawImage(image,0,0,preview.width,preview.height);
+  const embeddedRasterDataUrl=previewCtx?preview.toDataURL('image/jpeg',.76):'';
+  const landscape=image.naturalWidth>=image.naturalHeight;
+  const planeWidth=landscape?20:20*image.naturalWidth/Math.max(image.naturalHeight,1);
+  const planeHeight=landscape?20*image.naturalHeight/Math.max(image.naturalWidth,1):20;
+  const underlay:GraphEntity={id:'image-raster-underlay',source:file.name,layer:'L1',kind:'source-raster-underlay',name:`${file.name} · raster source plane`,x:-planeWidth/2,y:-planeHeight/2,z:0,x2:planeWidth/2,y2:planeHeight/2,z2:0,floor:level.floor,confidence:1,meta:{sourceType:'IMAGE_RASTER_UNDERLAY',drawingBasemap:true,imageWidth:image.naturalWidth,imageHeight:image.naturalHeight,previewWidth:preview.width,previewHeight:preview.height,embeddedRasterDataUrl,coordinateUnits:'image_preview',geometryAuthority:'RASTER_PREVIEW_ONLY',spatialPlacementAuthority:'SOURCE_IMAGE_PLANE_ONLY',zPlacementAuthority:'UNVERIFIED_DRAWING_PLANE',elevationKnown:false,physicalElevationKnown:false,physicalTruth:false,reviewRequired:false,previewAuthority:'DERIVED_PREVIEW_ONLY'}};
   try{
    onProgress?.('loading OCR engine');
    const mod=await import('tesseract.js');
@@ -118,10 +127,10 @@ async function parseImage(file:File,level:{floor:string;elevation:number},discip
      height:image.naturalHeight,
      meanConfidence:Number.isFinite(Number(result.data?.confidence))?Number(result.data.confidence):null
     });
-    return{entities:normalized.entities as GraphEntity[],summary:normalized.summary,ocrSucceeded:true};
+    return{entities:[underlay,...normalized.entities as GraphEntity[]],summary:`${normalized.summary} · raster drawing underlay retained for source-plane review · physical scale/alignment/Z unverified`,ocrSucceeded:true};
    }finally{await worker.terminate().catch(()=>{})}
   }catch(error){
-   return{entities:[],summary:`${image.naturalWidth}×${image.naturalHeight} image preserved · OCR unavailable (${error instanceof Error?error.message:'recognition failed'}) · no geometry or engineering values were invented`,ocrSucceeded:false};
+   return{entities:[underlay],summary:`${image.naturalWidth}×${image.naturalHeight} image preserved · raster drawing underlay retained for source-plane review · OCR unavailable (${error instanceof Error?error.message:'recognition failed'}) · physical scale/alignment/Z unverified`,ocrSucceeded:false};
   }
  } finally {URL.revokeObjectURL(url)}
 }
