@@ -17,6 +17,7 @@ import {enrichAudiE4SourceReview} from '../lib/audi-e4-source-review';
 import {readPrimarySpatialGraph,replaceCurrentSpatialGraph} from '../lib/spatial-browser-recovery';
 import {encodeGlbBase64,inspectStandaloneGlb} from '../lib/spatial-glb-import';
 import {drawingSourceReprocessReason,findDrawingSourcesNeedingReprocess} from '../lib/spatial-source-reprocess';
+import {enrichCoordinationIntelligence} from '../lib/coordination-intelligence';
 import {ChangeEvent,DragEvent,useEffect,useMemo,useState} from 'react';
 
 type Layer='L0'|'L1'|'L2'|'L3'|'L4';
@@ -190,7 +191,8 @@ export default function CompilerWorkspace(){
   const zoned=assignZones(merged),links=buildLinks(zoned);
   const priorSources=(saved.sources||[]).filter(source=>!replaceShas.has(source.sha256)&&!replaceNames.has(source.name));
   const sources=[...new Map([...priorSources,...nextFiles].map(f=>[f.sha256,f])).values()];
-  const graph=enrichAudiE4SourceReview({...saved,reviewState:zoned.some(e=>e.layer==='L2'||e.layer==='L4')?'REVIEW_REQUIRED':saved.reviewState,version:'1.2',createdAt:new Date().toISOString(),sources,entities:zoned,links,stats:{L0:sources.length,L1:zoned.filter(e=>e.layer==='L1').length,L2:zoned.filter(e=>e.layer==='L2').length,L3:zoned.filter(e=>e.layer==='L3').length,L4:zoned.filter(e=>e.layer==='L4').length}}) as CompiledGraph;
+  const base={...saved,coordinationIntelligence:undefined,reviewState:zoned.some(e=>e.layer==='L2'||e.layer==='L4')?'REVIEW_REQUIRED':saved.reviewState,version:'1.2',createdAt:new Date().toISOString(),sources,entities:zoned,links,stats:{L0:sources.length,L1:zoned.filter(e=>e.layer==='L1').length,L2:zoned.filter(e=>e.layer==='L2').length,L3:zoned.filter(e=>e.layer==='L3').length,L4:zoned.filter(e=>e.layer==='L4').length}};
+  const graph=enrichCoordinationIntelligence(enrichAudiE4SourceReview(base) as any) as CompiledGraph;
   await replaceCurrentSpatialGraph(graph);
   setEntities(graph.entities as GraphEntity[]);
  }
