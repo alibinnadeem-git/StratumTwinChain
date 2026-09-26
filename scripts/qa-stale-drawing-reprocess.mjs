@@ -23,7 +23,6 @@ assert.equal(findDrawingSourcesNeedingReprocess([stalePdf,modernPdf,sld],modernE
 const compiler=fs.readFileSync('components/CompilerWorkspace.tsx','utf8');
 const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
 const projection=fs.readFileSync('components/SpatialProjectionEngine.tsx','utf8');
-const projection=fs.readFileSync('components/SpatialProjectionEngine.tsx','utf8');
 
 assert.match(compiler,/drawingSourceReprocessReason\(existing,nextEntities\)/,'duplicate SHA path must consult stale-drawing detector');
 assert.match(compiler,/replacementSource=\{sha256:digest,name:existing\.name\}/,'stale same-file import must enter replacement mode');
