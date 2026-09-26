@@ -20,6 +20,7 @@
     "qa:release-uat": "node scripts/qa-release-uat.mjs",
     "qa:spatial-viewer": "node --experimental-strip-types scripts/qa-spatial-viewer.mjs",
     "qa:site-plan-basemap": "node scripts/qa-site-plan-basemap.mjs",
+    "qa:non-sld-plans": "node --experimental-strip-types scripts/qa-non-sld-plan-recognition.mjs",
     "qa:oem-cad-registry": "node --experimental-strip-types scripts/qa-oem-cad-registry.mjs",
     "qa:oem-cad-verification": "node --experimental-strip-types scripts/qa-oem-cad-verification.mjs",
     "qa:power-intelligence": "node --experimental-strip-types scripts/qa-power-intelligence.mjs",
