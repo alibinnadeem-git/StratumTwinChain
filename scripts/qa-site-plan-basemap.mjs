@@ -5,7 +5,7 @@ const compiler=fs.readFileSync('components/CompilerWorkspace.tsx','utf8');
 const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
 const library=fs.readFileSync('lib/electrical-component-library.ts','utf8');
 
-assert.match(compiler,/if\(pageEvidence\.get\(segment\.page\)\?\.isSld\)continue/,'non-SLD source-plan segments must have a dedicated retention path');
+assert.match(compiler,/pageEvidence\.get\(segment\.page\)\?\.isSld\|\|!planEvidence\.get\(segment\.page\)\?\.isPlan/,'recognized non-SLD source-plan segments must have a dedicated retention path while notes/detail sheets remain excluded');
 assert.match(compiler,/kind:'line'.*drawingBasemap:true/s,'retained PDF plan vectors must become renderable line entities');
 assert.match(compiler,/sourceType:'PDF source-plan vector line'/);
 assert.match(compiler,/coordinateUnits:'sheet'/);
@@ -13,7 +13,7 @@ assert.match(compiler,/physicalElevationKnown:false/);
 assert.match(compiler,/zPlacementAuthority:'UNVERIFIED_DRAWING_PLANE'/);
 assert.match(compiler,/spatialPlacementAuthority:'SOURCE_SHEET_POSITION_ONLY'/);
 assert.match(compiler,/physicalTruth:false/);
-assert.match(compiler,/sourcePlanSegments>=12000/,'source-plan retention must remain bounded for browser safety');
+assert.match(compiler,/pageCount>=4000\|\|sourcePlanSegments>=40000/,'source-plan retention must remain bounded per page and globally for browser safety');
 assert.match(compiler,/retained source-plan vector segment/,'import summary must disclose retained source-plan geometry');
 assert.match(compiler,/kind:'source-raster-underlay'/,'JPG/PNG drawings must create a review-only Spatial underlay');
 assert.match(compiler,/embeddedRasterDataUrl/,'raster drawing underlay must preserve a bounded derivative preview');
