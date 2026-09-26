@@ -234,7 +234,8 @@ export default function CompilerWorkspace(){
 
    {message&&<div className="notice" role="status"><strong>{busy?'PARSING':'IMPORT'}</strong><span>{message}</span></div>}
 
-   {staleDrawingSources.length>0&&<div className="notice" role="alert"><strong>REPROCESS SAVED DRAWING</strong><span>{staleDrawingSources.length} saved drawing source{staleDrawingSources.length===1?' needs':'s need'} the current basemap/non-SLD parser. Re-import the original file with the same contents; STRATUM will intentionally replace that source's older compiled entities instead of skipping the duplicate fingerprint.</span></div>}
+   {staleDrawingSources.length>0&&<div className="notice" role="alert"><strong>REPROCESS SAVED DRAWING</strong><span>{staleDrawingSources.length} saved drawing source{staleDrawingSources.length===1?' needs':'s need'} the current basemap/non-SLD parser. {archivedStaleSources.length>0?`${archivedStaleSources.length} source${archivedStaleSources.length===1?' is':'s are'} available in this browser's protected local archive.`:"Older sources without a protected local copy still require the original file to be selected again."}</span>{archivedStaleSources.length>0&&<button className="ghost" type="button" disabled={busy} onClick={()=>void reprocessArchivedDrawings()}>Reprocess archived drawing{archivedStaleSources.length===1?'':'s'}</button>}</div>}
+   {archiveNote&&<div className="notice" role="status"><strong>LOCAL SOURCE ARCHIVE</strong><span>{archiveNote}</span></div>}
 
    {files.length>0&&<div className="import-results">
     {files.map((f,i)=>{const staleReason=staleBySha.get(f.sha256);return <div className="file-row" key={`${f.name}-${i}`}><div className="file-icon">{f.ext.toUpperCase()}</div><div><strong>{f.name}</strong><small>{f.discipline} · {f.floor} @ {f.elevation}m{f.unitName?` · units ${f.unitName}`:''}</small>{Boolean(f.planTypes?.length)&&<small><b>Recognized non-SLD plans:</b> {f.planTypes!.map(value=>value.replaceAll('_',' ')).join(' · ')}</small>}{staleReason&&<small><b>Reprocess required:</b> {staleReason}</small>}<small>{f.summary}</small></div><span className={staleReason?'pending':f.state==='parsed'?'proof':'pending'}>{staleReason?'REPROCESS':f.state.toUpperCase()}</span></div>})}
@@ -243,6 +244,7 @@ export default function CompilerWorkspace(){
    <div className="import-summary">
     <div><span>Sources</span><strong>{totals.files}</strong></div>
     <div><span>Reprocess required</span><strong>{totals.reprocess}</strong></div>
+    <div><span>Sources archived locally</span><strong>{files.filter(file=>archivedShas.has(file.sha256)).length}</strong></div>
     <div><span>Non-SLD plan pages</span><strong>{totals.nonSldPlanPages}</strong></div>
     <div><span>Rooms</span><strong>{totals.rooms}</strong></div>
     <div><span>Equipment candidates</span><strong>{totals.assets}</strong></div>
