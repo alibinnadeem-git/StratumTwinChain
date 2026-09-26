@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {detectNonSldPlanPage} from '../lib/plan-recognition.ts';
+import {detectNonSldPlanPage,resolveDrawingPageRecognition} from '../lib/plan-recognition.ts';
 
 const cases=[
  ['ELECTRICAL POWER PLAN','ELECTRICAL_POWER_PLAN','Electrical'],
@@ -35,8 +35,13 @@ assert.equal(notes.isPlan,false,'notes/detail sheets must not become plan frames
 const compiler=fs.readFileSync('components/CompilerWorkspace.tsx','utf8');
 const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
 
-assert.match(compiler,/detectNonSldPlanPage/);
-assert.match(compiler,/plan\.isPlan&&!explicitSldTitle\?\{\.\.\.detectedSld,isSld:false/,'explicit non-SLD plan titles must override equipment-density SLD heuristics');
+assert.match(compiler,/resolveDrawingPageRecognition/);
+const powerPlanResolution=resolveDrawingPageRecognition(['ELECTRICAL POWER PLAN','TRANSFORMER T1','MAIN SWITCHBOARD MSB'],180);
+assert.equal(powerPlanResolution.plan.planType,'ELECTRICAL_POWER_PLAN');
+assert.equal(powerPlanResolution.sld.isSld,false,'explicit power-plan title must override equipment-density SLD heuristic');
+const trueSld=resolveDrawingPageRecognition(['SINGLE LINE DIAGRAM','UTILITY SERVICE','TRANSFORMER T1','MAIN SWITCHBOARD MSB'],180);
+assert.equal(trueSld.sld.isSld,true,'explicit single-line title must remain SLD');
+assert.equal(trueSld.plan.isPlan,false,'SLD page must not also enter the non-SLD plan path');
 assert.match(compiler,/nonSldPlan:true/);
 assert.match(compiler,/planRecognition:'CONTENT_PLAN_V1'/);
 assert.match(compiler,/PDF_RASTER_UNDERLAY/,'image-only PDF plan pages must retain a review-only raster underlay');
