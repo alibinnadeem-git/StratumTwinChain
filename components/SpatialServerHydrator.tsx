@@ -2,8 +2,8 @@
 
 import {useEffect} from 'react';
 import {readPrimarySpatialGraph,replaceCurrentSpatialGraph,type SpatialGraphLike} from '@/lib/spatial-browser-recovery';
+import {readSelectedSpatialProjectId,writeSelectedSpatialProjectId} from '@/lib/spatial-project-selection';
 
-const PROJECT_KEY='stratum_spatial_project_id';
 export const SERVER_HYDRATION_EVENT='stratum:server-hydration';
 export const SERVER_HYDRATION_VERSION='2';
 export const SERVER_HYDRATION_STATE_KEY='stratum_spatial_server_hydration_v1';
@@ -49,13 +49,13 @@ export default function SpatialServerHydrator(){
     if(!projects.length){publish({state:'PROJECT_REQUIRED'});return}
 
     let projectId='';
-    try{projectId=localStorage.getItem(PROJECT_KEY)||''}catch{}
+    projectId=readSelectedSpatialProjectId()
     if(!projects.some(project=>project.id===projectId)){
       const restorable=initial.restorableProjectId||'';
       projectId=projects.length===1?projects[0].id:projects.some(project=>project.id===restorable)?restorable:'';
     }
     if(!projectId){publish({state:'PROJECT_REQUIRED',projectCount:projects.length});return}
-    try{localStorage.setItem(PROJECT_KEY,projectId)}catch{}
+    writeSelectedSpatialProjectId(projectId)
 
     const response=await fetch('/api/spatial/compilations?projectId='+encodeURIComponent(projectId),{cache:'no-store',credentials:'same-origin'});
     if(!active)return;
