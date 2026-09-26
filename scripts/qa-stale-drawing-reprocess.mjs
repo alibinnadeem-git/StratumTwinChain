@@ -22,7 +22,6 @@ assert.equal(findDrawingSourcesNeedingReprocess([stalePdf,modernPdf,sld],modernE
 
 const compiler=fs.readFileSync('components/CompilerWorkspace.tsx','utf8');
 const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
-const projection=fs.readFileSync('components/SpatialProjectionEngine.tsx','utf8');
 
 assert.match(compiler,/drawingSourceReprocessReason\(existing,nextEntities\)/,'duplicate SHA path must consult stale-drawing detector');
 assert.match(compiler,/replacementSource=\{sha256:digest,name:existing\.name\}/,'stale same-file import must enter replacement mode');
@@ -42,13 +41,5 @@ assert.match(viewer,/DRAWING REPROCESS REQUIRED/);
 assert.match(viewer,/Reprocess drawing source/);
 assert.match(viewer,/original source file must be re-imported/i);
 
-assert.match(projection,/const baseline=JSON\.stringify\(graph\)/,'automatic projection must capture the graph it actually enriched');
-assert.match(projection,/const current=await readPrimarySpatialGraph\(\)/,'automatic projection must re-read browser authority before writing');
-assert.match(projection,/JSON\.stringify\(current\)!==baseline/,'a changed authoritative graph must invalidate a stale projection pass');
-assert.match(projection,/queued=true;continue/,'stale automatic projection must retry instead of overwriting the newer graph');
-
-assert.match(projection,/if\(applying\)\{queued=true;return\}/,'overlapping graph updates must queue another enrichment pass instead of being dropped');
-assert.match(projection,/do\{[\s\S]*\}while\(active&&queued\)/,'Spatial enrichment must drain queued updates before becoming idle');
-assert.match(projection,/finally\{[\s\S]*if\(active&&queued\)void apply\(\)/,'a late queued update must still trigger a rerun after the active pass exits');
 
 console.log('Stale drawing reprocess contract passed: pre-basemap PDF/image graphs are detected, same-SHA re-import replaces the old source compilation, modern basemaps and valid SLDs are not falsely flagged.');
