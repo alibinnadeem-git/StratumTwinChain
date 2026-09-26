@@ -71,8 +71,10 @@ async function parsePdf(file:File,level:{floor:string;elevation:number},discipli
  const pageEvidence=new Map<number,ReturnType<typeof detectSldPage>>(),planEvidence=new Map<number,ReturnType<typeof detectNonSldPlanPage>>();
  for(let page=1;page<=doc.numPages;page++){
   const labels=[...raw.filter(item=>item.page===page).map(item=>item.str),...(ocrTextByPage.get(page)||[])],vectorCount=pageVectorOps.get(page)||0;
-  const sld=detectSldPage(labels,vectorCount);pageEvidence.set(page,sld);
-  planEvidence.set(page,sld.isSld?{isPlan:false,planType:null,discipline:null,score:0,titleEvidence:[],reasons:[]}:detectNonSldPlanPage(labels,vectorCount));
+  const plan=detectNonSldPlanPage(labels,vectorCount),detectedSld=detectSldPage(labels,vectorCount),explicitSldTitle=detectedSld.reasons.includes('explicit SLD/riser/one-line title');
+  const sld=plan.isPlan&&!explicitSldTitle?{...detectedSld,isSld:false,reasons:[...detectedSld.reasons,'suppressed by explicit non-SLD plan title/content']}:detectedSld;
+  pageEvidence.set(page,sld);
+  planEvidence.set(page,sld.isSld?{isPlan:false,planType:null,discipline:null,score:0,titleEvidence:[],reasons:[]}:plan);
  }
  const sldPages=[...pageEvidence.values()].filter(item=>item.isSld).length,nonSldPlanPages=[...planEvidence.values()].filter(item=>item.isPlan).length;
  const planTypes=[...new Set([...planEvidence.values()].filter(item=>item.isPlan&&item.planType).map(item=>String(item.planType)))];
