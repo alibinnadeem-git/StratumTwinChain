@@ -63,7 +63,8 @@ const RULES:Rule[]=[
 
 const noise=/\b(?:GENERAL\s+NOTES?|DETAILS?|SECTIONS?|SCHEDULES?|SPECIFICATIONS?|COVER\s+SHEET|DRAWING\s+INDEX)\b/i;
 const referenceLead=/^(?:SEE|REFER(?:ENCE)?|REF\.?|PER|VERIFY|COORDINATE|SHOWN|AS\s+SHOWN)\b/i;
-const titleLike=(value:string)=>value.length<=140&&!referenceLead.test(value)&&!noise.test(value);
+const revisionLead=/^REV(?:ISION)?(?:[-\s:]|$)/i;
+const titleLike=(value:string)=>value.length<=140&&!referenceLead.test(value)&&!revisionLead.test(value)&&!noise.test(value);
 
 export function detectNonSldPlanPage(labels:string[],vectorOperatorCount=0):NonSldPlanEvidence{
  const text=labels.map(value=>String(value||'').replace(/\s+/g,' ').trim()).filter(Boolean);
@@ -89,8 +90,8 @@ export function detectNonSldPlanPage(labels:string[],vectorOperatorCount=0):NonS
   if(vectorOperatorCount>=20)reasons.push('drawing-vector content present');
   return{isPlan:true,planType:best.rule.type,discipline:best.rule.discipline,score:best.rule.score+(vectorOperatorCount>=20?1:0),titleEvidence:best.matches.slice(0,5),reasons};
  }
- const planView=text.filter(value=>/\bPLAN\s+VIEW\b/i.test(value));
- const genericPlan=text.filter(value=>/\bPLAN\b/i.test(value)&&!noise.test(value));
+ const planView=text.filter(value=>titleLike(value)&&/\bPLAN\s+VIEW\b/i.test(value));
+ const genericPlan=text.filter(value=>titleLike(value)&&/\bPLAN\b/i.test(value));
  const nonPlanSheetContext=text.some(value=>noise.test(value));
  const geometric=vectorOperatorCount>=40;
  if(planView.length&&!nonPlanSheetContext&&(geometric||text.length>=8)){
