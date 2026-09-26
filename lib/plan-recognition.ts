@@ -108,6 +108,8 @@ export function detectNonSldPlanPage(labels:string[],vectorOperatorCount=0):NonS
 
 export function resolveDrawingPageRecognition(labels:string[],vectorOperatorCount=0):{sld:SldPageEvidence;plan:NonSldPlanEvidence}{
  const plan=detectNonSldPlanPage(labels,vectorOperatorCount),detectedSld=detectSldPage(labels,vectorOperatorCount),explicitSldTitle=detectedSld.reasons.includes('explicit SLD/riser/one-line title');
- const sld=plan.isPlan&&!explicitSldTitle?{...detectedSld,isSld:false,reasons:[...detectedSld.reasons,'suppressed by explicit non-SLD plan title/content']}:detectedSld;
+ const excludedSheet=plan.reasons.some(reason=>reason.includes('excluded from plan-frame recognition'));
+ const suppressHeuristicSld=(plan.isPlan||excludedSheet)&&!explicitSldTitle;
+ const sld=suppressHeuristicSld?{...detectedSld,isSld:false,reasons:[...detectedSld.reasons,plan.isPlan?'suppressed by explicit non-SLD plan title/content':'suppressed by excluded cover/index sheet classification']}:detectedSld;
  return{sld,plan:sld.isSld?{isPlan:false,planType:null,discipline:null,score:0,titleEvidence:[],reasons:[]}:plan};
 }
