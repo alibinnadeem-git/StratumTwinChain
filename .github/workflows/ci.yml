@@ -64,6 +64,8 @@ jobs:
         run: npm run qa:non-sld-plans
       - name: Stale drawing reprocess and replacement conformance
         run: npm run qa:stale-drawing-reprocess
+      - name: Browser-local source archive conformance
+        run: npm run qa:source-browser-archive
       - name: OEM CAD registry provenance and activation conformance
         run: npm run qa:oem-cad-registry
       - name: OEM CAD source file verification conformance
