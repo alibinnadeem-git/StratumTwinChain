@@ -23,7 +23,7 @@ assert.match(compiler,/raster drawing underlay retained for source-plane review/
 assert.match(compiler,/toDataURL\('image\/jpeg',\.76\)/,'raster preview must be bounded/compressed rather than embedding the original image bytes');
 
 assert.match(viewer,/meta\?\.drawingBasemap===true/,'Spatial must disclose when a source-plan basemap is present');
-assert.match(viewer,/Source-plan vector linework is shown on the drawing plane/);
+assert.match(viewer,/Source drawing basemap is shown on the drawing plane/);
 assert.match(viewer,/plural\(visibleLines,'drawing line'\)/,'Spatial header must expose drawing-line count');
 assert.match(viewer,/e\.kind==="line".*THREE\.Line/s,'Spatial WebGL path must render line entities');
 assert.match(viewer,/e\.kind==="source-raster-underlay"/,'Spatial must recognize raster drawing underlays');
