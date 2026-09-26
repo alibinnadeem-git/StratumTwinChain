@@ -36,6 +36,7 @@ const compiler=fs.readFileSync('components/CompilerWorkspace.tsx','utf8');
 const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
 
 assert.match(compiler,/detectNonSldPlanPage/);
+assert.match(compiler,/plan\.isPlan&&!explicitSldTitle\?\{\.\.\.detectedSld,isSld:false/,'explicit non-SLD plan titles must override equipment-density SLD heuristics');
 assert.match(compiler,/nonSldPlan:true/);
 assert.match(compiler,/planRecognition:'CONTENT_PLAN_V1'/);
 assert.match(compiler,/PDF_RASTER_UNDERLAY/,'image-only PDF plan pages must retain a review-only raster underlay');
