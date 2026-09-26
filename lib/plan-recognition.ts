@@ -73,12 +73,13 @@ export function detectNonSldPlanPage(labels:string[],vectorOperatorCount=0):NonS
  }
  const planView=text.filter(value=>/\bPLAN\s+VIEW\b/i.test(value));
  const genericPlan=text.filter(value=>/\bPLAN\b/i.test(value)&&!noise.test(value));
+ const nonPlanSheetContext=text.some(value=>/^(?:GENERAL\s+|ELECTRICAL\s+|MECHANICAL\s+|PLUMBING\s+|STRUCTURAL\s+)?NOTES?\b|^(?:DETAILS?|SECTIONS?|SCHEDULES?|SPECIFICATIONS?|COVER\s+SHEET|DRAWING\s+INDEX)\b/i.test(value));
  const geometric=vectorOperatorCount>=40;
  if(planView.length&&(geometric||text.length>=8)){
   reasons.push('plan-view label present');if(geometric)reasons.push('drawing-vector content present');
   return{isPlan:true,planType:'PLAN_VIEW_UNCLASSIFIED',discipline:null,score:5+(geometric?1:0),titleEvidence:planView.slice(0,5),reasons};
  }
- if(genericPlan.length&&geometric){
+ if(genericPlan.length&&geometric&&!nonPlanSheetContext){
   reasons.push('generic plan title/content present','drawing-vector content present');
   return{isPlan:true,planType:'PLAN_VIEW_UNCLASSIFIED',discipline:null,score:5,titleEvidence:genericPlan.slice(0,5),reasons};
  }
