@@ -139,7 +139,9 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
     if(sheetFrame==="ALL")return null;
     if(sheetFrame!=="AUTO")return sheetFrame;
     if(sheetFrames.length<=1)return null;
-    const preferred=mode==="ELECTRICAL"?sheetFrames.find(frame=>frame.planType==="SLD"):sheetFrames[0];
+    const preferred=mode==="ELECTRICAL"
+      ?sheetFrames.find(frame=>frame.planType==="SLD")||sheetFrames.find(frame=>/ELECTRICAL|UTILITY|LOW_VOLTAGE/.test(frame.planType))||sheetFrames.find(frame=>frame.planType!=="RASTER_DRAWING")
+      :sheetFrames.find(frame=>frame.planType!=="RASTER_DRAWING")||sheetFrames[0];
     return preferred?.key||sheetFrames[0]?.key||null;
   },[sheetFrame,sheetFrames,mode]);
   const nonSldPlanSheets=useMemo(()=>sheetFrames.filter(frame=>frame.planType!=="SLD"&&frame.planType!=="RASTER_DRAWING").length,[sheetFrames]);

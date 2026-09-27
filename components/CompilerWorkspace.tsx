@@ -49,7 +49,7 @@ async function parsePdf(file:File,level:{floor:string;elevation:number},discipli
  const PromiseWithResolvers=Promise as any;
  if(typeof PromiseWithResolvers.withResolvers!=='function')PromiseWithResolvers.withResolvers=()=>{let resolve:any,reject:any;const promise=new Promise((ok,fail)=>{resolve=ok;reject=fail});return{promise,resolve,reject}};
  const pdfjs:any=await import('pdfjs-dist/legacy/build/pdf.mjs');try{pdfjs.GlobalWorkerOptions.workerSrc=new URL('pdfjs-dist/build/pdf.worker.min.mjs',import.meta.url).toString()}catch{}
- const doc=await pdfjs.getDocument({data:new Uint8Array(await file.arrayBuffer()),wasmUrl:'/pdfjs/wasm/'}).promise;const raw:{key:string;str:string;x:number;y:number;page:number}[]=[];const polygons:{vertices:XY[];page:number;confidence:number}[]=[];const segments:{x:number;y:number;x2:number;y2:number;page:number}[]=[];const pageFloors=new Map<number,string>();const pageVectorOps=new Map<number,number>();const ocrTextByPage=new Map<number,string[]>();const rasterPreviewByPage=new Map<number,{dataUrl:string;width:number;height:number;planeWidth:number;planeHeight:number}>();const ocrEntities:GraphEntity[]=[];let vectors=0,ocrPages=0,ocrTextChars=0,ocrWorker:any=null;
+ const doc=await pdfjs.getDocument({data:new Uint8Array(await file.arrayBuffer()),wasmUrl:'/pdfjs/wasm/'}).promise;const raw:{key:string;str:string;x:number;y:number;page:number}[]=[];const polygons:{vertices:XY[];page:number;confidence:number}[]=[];const segments:{x:number;y:number;x2:number;y2:number;page:number}[]=[];const pageFloors=new Map<number,string>();const pageVectorOps=new Map<number,number>();const ocrTextByPage=new Map<number,string[]>();const rasterPreviewByPage=new Map<number,{dataUrl:string;width:number;height:number;planeWidth:number;planeHeight:number;rasterCandidateCount:number}>();const ocrEntities:GraphEntity[]=[];let vectors=0,ocrPages=0,ocrTextChars=0,ocrWorker:any=null;
  try {
  for(let p=1;p<=doc.numPages;p++){onProgress?.(p,doc.numPages);const page=await doc.getPage(p),viewport=page.getViewport({scale:1}),text=await page.getTextContent();const nativeText=(text.items||[]).map((item:any)=>String(item?.str||'').trim()).filter(Boolean);pageFloors.set(p,inferPdfPageFloor(nativeText));for(const item of text.items||[]){if(!item?.str?.trim())continue;const t=item.transform||[1,0,0,1,0,0],point=viewport.convertToViewportPoint(Number(t[4]||0),Number(t[5]||0));raw.push({key:`text-${p}-${raw.length}`,str:item.str.trim(),x:(point[0]-viewport.width/2)*20/Math.max(viewport.width,viewport.height,1),y:(viewport.height/2-point[1])*20/Math.max(viewport.width,viewport.height,1),page:p})}
  if(nativeText.length<3){try{
@@ -60,12 +60,39 @@ async function parsePdf(file:File,level:{floor:string;elevation:number},discipli
    await page.render({canvasContext:ctx,viewport:ocrViewport}).promise;
    const previewMax=1400,previewScale=Math.min(1,previewMax/Math.max(canvas.width,canvas.height,1)),preview=document.createElement('canvas'),previewCtx=preview.getContext('2d');
    preview.width=Math.max(1,Math.round(canvas.width*previewScale));preview.height=Math.max(1,Math.round(canvas.height*previewScale));
-   if(previewCtx){previewCtx.drawImage(canvas,0,0,preview.width,preview.height);const landscape=preview.width>=preview.height,planeWidth=landscape?20:20*preview.width/Math.max(preview.height,1),planeHeight=landscape?20*preview.height/Math.max(preview.width,1):20;rasterPreviewByPage.set(p,{dataUrl:preview.toDataURL('image/jpeg',.68),width:preview.width,height:preview.height,planeWidth,planeHeight})}
-   const recognized=await ocrWorker.recognize(canvas),ocrText=String(recognized.data?.text||'').trim();
+   if(previewCtx){previewCtx.drawImage(canvas,0,0,preview.width,preview.height);const landscape=preview.width>=preview.height,planeWidth=landscape?20:20*preview.width/Math.max(preview.height,1),planeHeight=landscape?20*preview.height/Math.max(preview.width,1):20;rasterPreviewByPage.set(p,{dataUrl:preview.toDataURL('image/jpeg',.68),width:preview.width,height:preview.height,planeWidth,planeHeight,rasterCandidateCount:0})}
+   const recognized=await ocrWorker.recognize(canvas,{}, {text:true,blocks:true}),ocrText=String(recognized.data?.text||'').trim();
    if(ocrText){
     const lines=ocrText.split(/\r?\n/).map((line:string)=>line.trim()).filter(Boolean);
     ocrTextByPage.set(p,lines);ocrPages++;ocrTextChars+=ocrText.length;
     const floor=inferPdfPageFloor(lines)||pageFloors.get(p)||level.floor;pageFloors.set(p,floor);
+    const previewInfo=rasterPreviewByPage.get(p);
+    const blockLines=(Array.isArray(recognized.data?.blocks)?recognized.data.blocks:[]).flatMap((block:any)=>Array.isArray(block?.paragraphs)?block.paragraphs:[]).flatMap((paragraph:any)=>Array.isArray(paragraph?.lines)?paragraph.lines:[]);
+    let rasterCandidateCount=0;
+    for(const line of blockLines){
+      const label=String(line?.text||'').replace(/\s+/g,' ').trim(),bbox=line?.bbox;
+      if(!label||!bbox||!previewInfo)continue;
+      const equipmentClass=classifyElectricalLabel(label),poweredClass=poweredEquipmentClass(label),isRoom=roomCandidate(label);
+      if(!equipmentClass&&!poweredClass&&!isRoom)continue;
+      const x0=Number(bbox.x0),y0=Number(bbox.y0),x1=Number(bbox.x1),y1=Number(bbox.y1);
+      if(![x0,y0,x1,y1].every(Number.isFinite)||x1<=x0||y1<=y0)continue;
+      const cx=(x0+x1)/2/Math.max(canvas.width,1),cy=(y0+y1)/2/Math.max(canvas.height,1);
+      const x=(cx-.5)*previewInfo.planeWidth,y=(.5-cy)*previewInfo.planeHeight;
+      const layer:Layer=isRoom?'L1':poweredClass&&!equipmentClass?'L4':'L2';
+      const lineConfidence=Number.isFinite(Number(line?.confidence))?Math.max(0,Math.min(100,Number(line.confidence))):null;
+      ocrEntities.push({
+        id:`pdf-ocr-position-${p}-${rasterCandidateCount}`,source:file.name,layer,
+        kind:isRoom?'room-label':poweredClass&&!equipmentClass?'powered-equipment-candidate':'text-asset-candidate',
+        name:label,x,y,z:0,floor,confidence:lineConfidence===null?.58:Math.max(.45,Math.min(.78,lineConfidence/100)),
+        meta:{page:p,sourceType:'PDF_RASTER_OCR_POSITIONAL_CANDIDATE',ocrAuthority:'REVIEW_ONLY',geometryAuthority:'SOURCE_IMAGE_BBOX_ONLY',
+          coordinateUnits:'image_sheet',spatialPlacementAuthority:'OCR_SOURCE_IMAGE_POSITION_ONLY',zPlacementAuthority:'UNVERIFIED_DRAWING_PLANE',
+          elevationKnown:false,physicalElevationKnown:false,physicalTruth:false,reviewRequired:true,registrationState:'CANDIDATE',
+          ocrBoundingBoxPixels:[x0,y0,x1,y1],ocrImageWidth:canvas.width,ocrImageHeight:canvas.height,
+          ...(equipmentClass?{electricalComponentHint:equipmentClass}:{}),...(poweredClass?{poweredEquipmentClass:poweredClass}:{})}
+      } as GraphEntity);
+      rasterCandidateCount++;
+    }
+    if(previewInfo)previewInfo.rasterCandidateCount=rasterCandidateCount;
     const normalized=buildImageOcrEvidence({text:ocrText,source:file.name,discipline,floor,width:canvas.width,height:canvas.height,meanConfidence:Number.isFinite(Number(recognized.data?.confidence))?Number(recognized.data.confidence):null});
     ocrEntities.push(...normalized.entities.map((entity,index)=>({...entity,id:`pdf-ocr-${p}-${index}-${entity.id}`,meta:{...entity.meta,page:p,sourceType:'PDF_RASTER_OCR_TEXT',ocrAuthority:'REVIEW_ONLY',geometryAuthority:'NONE',coordinateUnits:'NONE',nonSpatial:true,physicalTruth:false,reviewRequired:true,spatialPlacementAuthority:'OCR_NON_SPATIAL'}})) as GraphEntity[]);
    }
@@ -86,10 +113,10 @@ async function parsePdf(file:File,level:{floor:string;elevation:number},discipli
  for(let page=1;page<=doc.numPages;page++){if(!pageEvidence.get(page)?.isSld)continue;const labels=raw.filter(item=>item.page===page&&Boolean(classifyElectricalLabel(item.str))).map(item=>({id:item.key,x:item.x,y:item.y})),topology=buildSldVectorTopology(segments.filter(segment=>segment.page===page),labels),usableComponents=new Set(topology.attachments.filter(item=>item.componentAttachmentCount>=2).map(item=>item.component));const usable={segments:topology.segments.filter(item=>usableComponents.has(item.component)),attachments:topology.attachments.filter(item=>usableComponents.has(item.component))};vectorTopologyByPage.set(page,usable);vectorFeederSegments+=usable.segments.length;for(const attachment of usable.attachments)vectorAttachmentByKey.set(attachment.labelId,attachment)}
  const entities:GraphEntity[]=[...ocrEntities];let i=0,rasterPlanUnderlays=0;
  for(const [page,preview] of rasterPreviewByPage){
-  const sld=pageEvidence.get(page),plan=planEvidence.get(page),shouldRetain=Boolean(sld?.isSld||plan?.isPlan||doc.numPages<=3);
+  const sld=pageEvidence.get(page),plan=planEvidence.get(page),shouldRetain=Boolean(sld?.isSld||plan?.isPlan||preview.rasterCandidateCount>0||doc.numPages<=3);
   if(!shouldRetain||!preview.dataUrl)continue;
   rasterPlanUnderlays++;
-  entities.push({id:`pdf-raster-underlay-${page}-${i++}`,source:file.name,layer:'L1',kind:'source-raster-underlay',name:`${plan?.planType||(sld?.isSld?'SLD':'Unclassified raster drawing')} · page ${page}`,x:-preview.planeWidth/2,y:-preview.planeHeight/2,z:0,x2:preview.planeWidth/2,y2:preview.planeHeight/2,z2:0,floor:pageFloors.get(page),confidence:1,meta:{page,sourceType:'PDF_RASTER_UNDERLAY',drawingBasemap:true,embeddedRasterDataUrl:preview.dataUrl,previewWidth:preview.width,previewHeight:preview.height,coordinateUnits:'image_preview',geometryAuthority:'RASTER_PREVIEW_ONLY',spatialPlacementAuthority:'SOURCE_IMAGE_PLANE_ONLY',zPlacementAuthority:'UNVERIFIED_DRAWING_PLANE',elevationKnown:false,physicalElevationKnown:false,physicalTruth:false,reviewRequired:false,previewAuthority:'DERIVED_PREVIEW_ONLY',...(sld?.isSld?sldMeta(page):planMeta(page))}});
+  entities.push({id:`pdf-raster-underlay-${page}-${i++}`,source:file.name,layer:'L1',kind:'source-raster-underlay',name:`${plan?.planType||(sld?.isSld?'SLD':'Unclassified raster drawing')} · page ${page}`,x:-preview.planeWidth/2,y:-preview.planeHeight/2,z:0,x2:preview.planeWidth/2,y2:preview.planeHeight/2,z2:0,floor:pageFloors.get(page),confidence:1,meta:{page,sourceType:'PDF_RASTER_UNDERLAY',drawingBasemap:true,embeddedRasterDataUrl:preview.dataUrl,previewWidth:preview.width,previewHeight:preview.height,coordinateUnits:'image_preview',geometryAuthority:'RASTER_PREVIEW_ONLY',spatialPlacementAuthority:'SOURCE_IMAGE_PLANE_ONLY',zPlacementAuthority:'UNVERIFIED_DRAWING_PLANE',elevationKnown:false,physicalElevationKnown:false,physicalTruth:false,reviewRequired:false,previewAuthority:'DERIVED_PREVIEW_ONLY',rasterCandidateCount:preview.rasterCandidateCount,...(sld?.isSld?sldMeta(page):planMeta(page))}});
  }
  const seenPlanSegments=new Set<string>(),sourcePlanSegmentsByPage=new Map<number,number>();let sourcePlanSegments=0;
  for(const segment of segments){
