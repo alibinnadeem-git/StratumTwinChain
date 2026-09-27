@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS oem_cad_source_files (
 );
 
 COMMENT ON TABLE oem_cad_verifications IS
-  'Append-only exact-SKU manufacturer CAD source verification. FILE_VERIFIED records prove the stored source bytes and metadata were reviewed; they do not approve browser GLB geometry, project installation identity, XYZ placement, engineering use, or DIR/PoVI state.';
+  'Append-only exact-SKU manufacturer CAD source verification. FILE_VERIFIED records prove the stored source bytes and metadata were reviewed and do not approve browser GLB geometry, project installation identity, XYZ placement, engineering use, or DIR/PoVI state.';
 COMMENT ON TABLE oem_cad_source_files IS
   'Immutable source CAD bytes linked one-to-one to an OEM CAD verification record. Storage does not confer redistribution rights or model activation approval.';
 
