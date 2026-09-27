@@ -13,6 +13,7 @@ const workspaceStatus=read('components/SpatialWorkspaceStatus.tsx');
 const serverHydrator=read('components/SpatialServerHydrator.tsx');
 const compiler=read('components/CompilerWorkspace.tsx');
 const experience=read('components/SpatialExperience.tsx');
+const projectSelection=read('lib/spatial-project-selection.ts');
 
 const forbiddenMutations=[
   /INSERT\s+INTO\s+assets/i,/UPDATE\s+assets/i,/DELETE\s+FROM\s+assets/i,
@@ -38,7 +39,8 @@ const checks=[
  ['manual review UI still supports explicit save/load and human accept/reopen',ui.includes('Save review snapshot')&&ui.includes('Confirm load')&&ui.includes('Accept as Spatial review baseline')&&ui.includes('Reopen review')],
  ['manual server load still requires second confirmation',ui.includes('loadArmed')&&ui.includes('Confirm load')],
  ['human review decisions still require a reason',ui.includes('reason.trim()')&&ui.includes('cleaned.length<5')],
- ['project selection is remembered for safe background snapshots',ui.includes("stratum_spatial_project_id")&&ui.includes('localStorage.setItem(PROJECT_KEY')],
+ ['project selection is remembered for safe background snapshots',projectSelection.includes("stratum_spatial_project_id")&&ui.includes('readSelectedSpatialProjectId')&&ui.includes('writeSelectedSpatialProjectId')],
+ ['shared project selection owns the canonical project key and only publishes real changes',projectSelection.includes("SPATIAL_PROJECT_KEY='stratum_spatial_project_id'")&&projectSelection.includes('previous!==projectId')],
  ['automatic sync only stores the primary browser graph as a review snapshot',autoSync.includes('readPrimarySpatialGraph')&&autoSync.includes("method:'POST'")&&autoSync.includes('/api/spatial/compilations')],
  ['automatic sync requires a real server project and never invents one',autoSync.includes("state:'PROJECT_REQUIRED'")&&autoSync.includes('projects.length===1')],
  ['automatic sync uses same-origin authenticated calls',autoSync.includes("credentials:'same-origin'")],
@@ -49,12 +51,12 @@ const checks=[
  ['Spatial experience auto-restores recovery state before declaring the model missing',experience.includes('restoreBestSpatialGraph')&&experience.includes('await restoreBestSpatialGraph()')],
  ['recovery prefers a graph with renderable entities over a zero-entity current shell',recovery.includes('indexedCurrent&&indexedCurrent.entities.length>0')&&recovery.includes('item.graph.entities.length>0')],
  ['global persistence guard captures graph updates',guard.includes("stratum:graph-updated")&&guard.includes('protectSpatialGraph')],
- ['compiler keeps server review controls secondary',compilerPage.includes('<summary>Server sync & review baseline</summary>')],
+ ['compiler keeps server review controls secondary',compilerPage.includes('<details className="secondary-details card">')&&compilerPage.includes('<summary>Server sync, source backup & review baseline</summary>')],
  ['authenticated compiler mounts automatic append-only Spatial sync',compilerPage.includes('session&&<SpatialAutoSync/>')],
  ['Spatial route mounts server hydration before rendering the project workspace',spatialPage.includes('<SpatialServerHydrator/>')],
  ['server hydrator only restores a renderable graph from an organization project',serverHydrator.includes('validRenderableGraph')&&serverHydrator.includes('projects.some(project=>project.id===restorable)')&&serverHydrator.includes('replaceCurrentSpatialGraph(graph)')],
  ['server suggests only a saved, nonempty compilation scoped to the organization',api.includes('restorableProjectId')&&api.includes('WHERE organization_id=$1 AND entity_count>0')],
- ['legacy recovery remains available after hydration and clears prior project selection',workspaceStatus.includes('{sourceSheetOnly&&<button className="ghost" type="button" onClick={recoverLegacy}>')&&workspaceStatus.includes('{graph&&!sourceSheetOnly&&<button className="ghost" type="button" onClick={recoverLegacy}>')&&workspaceStatus.includes("localStorage.removeItem('stratum_spatial_project_id')")],
+ ['legacy recovery remains available after hydration and clears prior project selection',workspaceStatus.includes('{sourceSheetOnly&&<button className="ghost" type="button" onClick={recoverLegacy}>')&&workspaceStatus.includes('{graph&&!sourceSheetOnly&&<button className="ghost" type="button" onClick={recoverLegacy}>')&&workspaceStatus.includes("writeSelectedSpatialProjectId('')")],
  ['server hydration uses same-origin authenticated compilation API calls',serverHydrator.includes("credentials:'same-origin'")&&serverHydrator.includes('/api/spatial/compilations')],
  ["server hydration publishes a durable LOADING state before remote lookup",serverHydrator.includes("SERVER_HYDRATION_STATE_KEY")&&serverHydrator.includes("publish({state:'LOADING'})")],
  ["Spatial empty-state waits while the latest server model is being restored",experience.includes('serverPending')&&experience.includes('Restoring latest project model…')&&experience.includes("state==='LOADING'")],

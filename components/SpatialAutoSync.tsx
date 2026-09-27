@@ -2,8 +2,8 @@
 
 import {useEffect,useRef} from 'react';
 import {readPrimarySpatialGraph} from '@/lib/spatial-browser-recovery';
+import {readSelectedSpatialProjectId,writeSelectedSpatialProjectId} from '@/lib/spatial-project-selection';
 
-const PROJECT_KEY='stratum_spatial_project_id';
 export const SERVER_SYNC_EVENT='stratum:server-sync';
 
 type Project={id:string};
@@ -35,10 +35,10 @@ export default function SpatialAutoSync(){
         const projects=(body.projects||[]) as Project[];
         if(!projects.length){publish({state:'PROJECT_REQUIRED'});return;}
 
-        let projectId=localStorage.getItem(PROJECT_KEY)||'';
+        let projectId=readSelectedSpatialProjectId();
         if(!projects.some(project=>project.id===projectId)){
           projectId=projects.length===1?projects[0].id:'';
-          if(projectId)localStorage.setItem(PROJECT_KEY,projectId);
+          if(projectId)writeSelectedSpatialProjectId(projectId);
         }
         if(!projectId){publish({state:'PROJECT_REQUIRED'});return;}
 
