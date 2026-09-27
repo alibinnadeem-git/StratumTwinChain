@@ -49,7 +49,7 @@ COMMENT ON TABLE spatial_project_sources IS
   'Tenant/project-scoped original engineering source manifests for durable Spatial recovery. A source manifest is provenance and recovery context only and does not create a STRATUM Asset, establish installed condition, approve engineering use, finalize a DIR, or establish PoVI/physical truth.';
 
 COMMENT ON TABLE spatial_project_source_chunks IS
-  'Chunked private source bytes for serverless-safe upload. Chunks may be replaced only before final source verification and verified source bytes become immutable.';
+  'Chunked private source bytes for serverless-safe upload. Chunks are immutable from first write and duplicate retries must be byte-identical.';
 
 COMMENT ON TABLE spatial_project_source_verifications IS
   'Append-only server verification of the exact source byte stream and SHA-256. Hash agreement proves byte integrity only, not engineering correctness or physical truth.';
@@ -64,28 +64,9 @@ CREATE TRIGGER stratum_prevent_spatial_project_source_verification_update
 BEFORE UPDATE OR DELETE ON spatial_project_source_verifications
 FOR EACH ROW EXECUTE FUNCTION stratum_prevent_spatial_compilation_mutation();
 
-CREATE OR REPLACE FUNCTION stratum_protect_spatial_project_source_chunk_mutation()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $
-BEGIN
-  IF EXISTS (
-    SELECT 1
-    FROM spatial_project_source_verifications
-    WHERE source_id = OLD.source_id
-  ) THEN
-    RAISE EXCEPTION 'Verified Spatial project source chunks are immutable';
-  END IF;
-  IF TG_OP = 'DELETE' THEN
-    RETURN OLD;
-  END IF;
-  RETURN NEW;
-END;
-$;
-
-DROP TRIGGER IF EXISTS stratum_protect_spatial_project_source_chunk_update ON spatial_project_source_chunks;
-CREATE TRIGGER stratum_protect_spatial_project_source_chunk_update
+DROP TRIGGER IF EXISTS stratum_prevent_spatial_project_source_chunk_update ON spatial_project_source_chunks;
+CREATE TRIGGER stratum_prevent_spatial_project_source_chunk_update
 BEFORE UPDATE OR DELETE ON spatial_project_source_chunks
-FOR EACH ROW EXECUTE FUNCTION stratum_protect_spatial_project_source_chunk_mutation();
+FOR EACH ROW EXECUTE FUNCTION stratum_prevent_spatial_compilation_mutation();
 
 COMMIT;
