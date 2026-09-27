@@ -122,13 +122,18 @@ export async function PUT(req:Request){
    if(chunkIndex>=expectedCount)throw Object.assign(new Error('Chunk index exceeds the source manifest'),{status:400});
    const expectedSize=chunkIndex===expectedCount-1?total-SPATIAL_SOURCE_VAULT_CHUNK_BYTES*(expectedCount-1):SPATIAL_SOURCE_VAULT_CHUNK_BYTES;
    if(bytes.length!==expectedSize)throw Object.assign(new Error(`Chunk ${chunkIndex} must contain exactly ${expectedSize} bytes`),{status:400});
-   await client.query(`INSERT INTO spatial_project_source_chunks(source_id,chunk_index,chunk_sha256,byte_size,content,uploaded_by)
-     VALUES($1,$2,$3,$4,$5,$6)
-     ON CONFLICT(source_id,chunk_index) DO UPDATE SET
-       chunk_sha256=EXCLUDED.chunk_sha256,byte_size=EXCLUDED.byte_size,content=EXCLUDED.content,uploaded_by=EXCLUDED.uploaded_by,created_at=now()`,
-     [sourceId,chunkIndex,digest,bytes.length,bytes,session.userId]);
+   const prior=await client.query<{chunk_sha256:string;byte_size:number}>(`SELECT chunk_sha256,byte_size
+     FROM spatial_project_source_chunks WHERE source_id=$1 AND chunk_index=$2 LIMIT 1`,[sourceId,chunkIndex]);
+   if(prior.rows[0]){
+     if(prior.rows[0].chunk_sha256!==digest||prior.rows[0].byte_size!==bytes.length)
+       throw Object.assign(new Error('Chunk index is already occupied by different source bytes'),{status:409});
+   }else{
+     await client.query(`INSERT INTO spatial_project_source_chunks(source_id,chunk_index,chunk_sha256,byte_size,content,uploaded_by)
+       VALUES($1,$2,$3,$4,$5,$6)`,
+       [sourceId,chunkIndex,digest,bytes.length,bytes,session.userId]);
+   }
    const count=await client.query<{count:number}>('SELECT COUNT(*)::int count FROM spatial_project_source_chunks WHERE source_id=$1',[sourceId]);
-   return{sourceId,chunkIndex,chunkSha256:digest,uploadedChunkCount:count.rows[0]?.count||0,expectedChunkCount:expectedCount};
+   return{sourceId,chunkIndex,chunkSha256:digest,uploadedChunkCount:count.rows[0]?.count||0,expectedChunkCount:expectedCount,idempotent:Boolean(prior.rows[0])};
   });
   return NextResponse.json({...out,truthBoundary:SPATIAL_SOURCE_VAULT_TRUTH_BOUNDARY});
  }catch(error:any){
