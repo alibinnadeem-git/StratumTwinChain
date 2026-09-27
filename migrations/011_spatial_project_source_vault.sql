@@ -67,18 +67,21 @@ FOR EACH ROW EXECUTE FUNCTION stratum_prevent_spatial_compilation_mutation();
 CREATE OR REPLACE FUNCTION stratum_protect_spatial_project_source_chunk_mutation()
 RETURNS trigger
 LANGUAGE plpgsql
-AS '
+AS $
 BEGIN
   IF EXISTS (
     SELECT 1
     FROM spatial_project_source_verifications
     WHERE source_id = OLD.source_id
   ) THEN
-    RAISE EXCEPTION ''Verified Spatial project source chunks are immutable'';
+    RAISE EXCEPTION 'Verified Spatial project source chunks are immutable';
+  END IF;
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
   END IF;
   RETURN NEW;
 END;
-';
+$;
 
 DROP TRIGGER IF EXISTS stratum_protect_spatial_project_source_chunk_update ON spatial_project_source_chunks;
 CREATE TRIGGER stratum_protect_spatial_project_source_chunk_update
