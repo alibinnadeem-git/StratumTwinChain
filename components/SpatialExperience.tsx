@@ -22,10 +22,19 @@ async function inspectCompiledGraph():Promise<ExperienceState>{
     if(!saved)return{ready:true,hasImportedModel:false,sourceCount:0,sourceSheetOnly:false,lineCount:0};
     const graph=enrichAudiE4SourceReview(saved);
     if(graph!==saved)await replaceCurrentSpatialGraph(graph)
-    const entities=(Array.isArray(graph?.entities)?graph.entities:[]) as {kind?:string}[];
+    const entities=(Array.isArray(graph?.entities)?graph.entities:[]) as {kind?:string;layer?:string;meta?:Record<string,unknown>}[];
     const sources=Array.isArray(graph?.sources)?graph.sources:[];
+    const projectComponents=entities.filter(entity=>
+      (entity.layer==='L2'||entity.layer==='L4')&&
+      entity.meta?.nonSpatial!==true&&
+      entity.meta?.referenceOnly!==true&&
+      entity.kind!=='line'&&entity.kind!=='sld-feeder-candidate'&&entity.kind!=='source-raster-underlay'
+    );
+    const sourceGeometry=entities.filter(entity=>entity.meta?.nonSpatial!==true&&(
+      entity.kind==='line'||entity.kind==='wall-segment'||entity.kind==='source-raster-underlay'||entity.kind==='room-boundary'||entity.kind==='room-label'
+    ));
     return{ready:true,hasImportedModel:entities.length>0,sourceCount:sources.length,
-      sourceSheetOnly:entities.length>0&&(graph.reviewState==='SOURCE_SHEET_ONLY'||entities.every((entity:{kind?:string})=>entity.kind==='line')),
+      sourceSheetOnly:entities.length>0&&(graph.reviewState==='SOURCE_SHEET_ONLY'||(projectComponents.length===0&&sourceGeometry.length>0)),
       lineCount:entities.filter((entity:{kind?:string})=>entity.kind==='line').length};
   }catch{
     return{ready:true,hasImportedModel:false,sourceCount:0,sourceSheetOnly:false,lineCount:0};
@@ -80,7 +89,7 @@ export default function SpatialExperience({assets,authenticated=false}:{assets:R
   if(state.hasImportedModel)return <section id="spatial-model" aria-label="Imported project spatial model">
     {state.sourceSheetOnly?<div className="notice" style={{marginBottom:12}} role="status">
       <strong>SOURCE SHEET ONLY · 0 COMPONENTS</strong>
-      <span>This saved project contains {state.lineCount} drawing line{state.lineCount===1?'':'s'}, but no identified equipment or 3D components. The lines show the source sheet; they are not clickable assets. Use “Recover earlier STRATUM model” above on the device where your earlier model was created, or import the model backup or a labeled equipment source.</span>
+      <span>This saved project contains source drawing geometry but no identified project equipment or approved project 3D components. Reference-only models do not count as project equipment. The lines show the source sheet; they are not clickable assets. Use “Recover earlier STRATUM model” above on the device where your earlier model was created, or import the model backup or a labeled equipment source.</span>
       <div className="button-row" style={{marginTop:10}}><Link className="ghost" href="/compiler">Import labeled equipment source</Link></div>
     </div>:<div className="notice" style={{marginBottom:12,borderColor:"#2d7252"}}>
       <strong>PROJECT MODEL</strong>
