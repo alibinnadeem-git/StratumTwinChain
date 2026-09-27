@@ -686,3 +686,53 @@ test('Review mode exposes clickable coordination findings on affected 3D assets'
  await expect(reviewCard.getByText(/RATING CONFLICT/)).toBeVisible();
  await expect(reviewCard.getByText(/do not establish a geometric clash, code compliance, AHJ approval, or engineering approval/i)).toBeVisible();
 });
+
+
+test('raster OCR positional equipment is clickable while physical XYZ remains unverified',async({page})=>{
+ const source='Synthetic Flattened E-201.pdf',sha='raster-ocr-positional-fixture';
+ const preview='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZQmcAAAAASUVORK5CYII=';
+ await page.addInitScript(({source,sha,preview})=>localStorage.setItem('stratum_compiled_graph',JSON.stringify({
+  version:'raster-ocr-positional-1',createdAt:'2026-09-27T00:00:00.000Z',reviewState:'REVIEW_REQUIRED',
+  sources:[
+   {name:source,ext:'pdf',sha256:sha,discipline:'Electrical',floor:'UNRESOLVED',elevation:0},
+   {name:'Tesla Supercharger V3 reference.glb',ext:'glb',sha256:'tesla-reference',discipline:'Unclassified',floor:'UNRESOLVED',elevation:0}
+  ],
+  entities:[
+   {id:'raster-underlay',source,layer:'L1',kind:'source-raster-underlay',name:'Electrical power plan · page 1',x:-10,y:-7,z:0,x2:10,y2:7,z2:0,confidence:1,floor:'UNRESOLVED',meta:{page:1,sourceSha256:sha,drawingBasemap:true,embeddedRasterDataUrl:preview,coordinateUnits:'image_preview',geometryAuthority:'RASTER_PREVIEW_ONLY',spatialPlacementAuthority:'SOURCE_IMAGE_PLANE_ONLY',zPlacementAuthority:'UNVERIFIED_DRAWING_PLANE',physicalElevationKnown:false,physicalTruth:false,rasterCandidateCount:1,nonSldPlan:true,planType:'ELECTRICAL_POWER_PLAN',planDiscipline:'Electrical'}},
+   {id:'ocr-panel',source,layer:'L2',kind:'text-asset-candidate',name:'PANEL LP-1',x:2.4,y:-1.6,z:0,confidence:.71,floor:'UNRESOLVED',meta:{page:1,sourceSha256:sha,sourceType:'PDF_RASTER_OCR_POSITIONAL_CANDIDATE',ocrAuthority:'REVIEW_ONLY',geometryAuthority:'SOURCE_IMAGE_BBOX_ONLY',coordinateUnits:'image_sheet',spatialPlacementAuthority:'OCR_SOURCE_IMAGE_POSITION_ONLY',zPlacementAuthority:'UNVERIFIED_DRAWING_PLANE',elevationKnown:false,physicalElevationKnown:false,physicalTruth:false,reviewRequired:true,registrationState:'CANDIDATE',electricalComponentHint:'PANEL',ocrBoundingBoxPixels:[100,200,300,260],nonSldPlan:true,planType:'ELECTRICAL_POWER_PLAN',planDiscipline:'Electrical'}},
+   {id:'tesla-reference',source:'Tesla Supercharger V3 reference.glb',layer:'L2',kind:'imported-3d-model',name:'Tesla Supercharger V3 reference',x:8,y:0,z:0,confidence:1,floor:'UNRESOLVED',meta:{sourceSha256:'tesla-reference',sourceType:'GLB',referenceOnly:true,physicalTruth:false,placementAuthority:'UNRESOLVED'}}
+  ],
+  links:[],stats:{L0:2,L1:1,L2:2,L3:0,L4:0}
+ })),{source,sha,preview});
+ await page.goto('/spatial');
+ await expect(page.getByText('PROJECT MODEL',{exact:true})).toBeVisible();
+ const select=page.getByLabel('Imported object');
+ await expect(select.locator('option').filter({hasText:'PANEL LP-1'})).toHaveCount(1);
+ const canvas=page.locator('canvas[aria-label="Interactive Spatial model"]');
+ await expect(canvas).toBeVisible();
+ await expect.poll(async()=>Number(await canvas.getAttribute('data-clickable-assets')||0),{timeout:15000}).toBeGreaterThanOrEqual(1);
+ await select.selectOption('ocr-panel');
+ await expect(page.getByRole('heading',{name:'PANEL LP-1'})).toBeVisible();
+ await expect(page.getByText('Unverified elevation',{exact:true})).toBeVisible();
+ await page.getByText('Placement & source confidence').click();
+ await expect(page.locator('.placement-details').getByText('Z unverified',{exact:true})).toBeVisible();
+});
+
+test('reference-only Tesla geometry cannot disguise a source-sheet-only project',async({page})=>{
+ const source='Synthetic Raster Sheet.pdf',sha='source-sheet-reference-fixture';
+ await page.addInitScript(({source,sha})=>localStorage.setItem('stratum_compiled_graph',JSON.stringify({
+  version:'source-sheet-reference-1',createdAt:'2026-09-27T00:00:00.000Z',reviewState:'REVIEW_REQUIRED',
+  sources:[
+   {name:source,ext:'pdf',sha256:sha,discipline:'Electrical',floor:'UNRESOLVED',elevation:0},
+   {name:'Tesla Supercharger V3 reference.glb',ext:'glb',sha256:'tesla-reference',discipline:'Unclassified',floor:'UNRESOLVED',elevation:0}
+  ],
+  entities:[
+   {id:'sheet-line',source,layer:'L1',kind:'line',name:'Source plan line',x:-5,y:0,x2:5,y2:0,confidence:1,floor:'UNRESOLVED',meta:{page:1,sourceSha256:sha,drawingBasemap:true,physicalTruth:false}},
+   {id:'tesla-reference',source:'Tesla Supercharger V3 reference.glb',layer:'L2',kind:'imported-3d-model',name:'Tesla Supercharger V3 reference',x:8,y:0,z:0,confidence:1,floor:'UNRESOLVED',meta:{sourceSha256:'tesla-reference',sourceType:'GLB',referenceOnly:true,physicalTruth:false,placementAuthority:'UNRESOLVED'}}
+  ],
+  links:[],stats:{L0:2,L1:1,L2:1,L3:0,L4:0}
+ })),{source,sha});
+ await page.goto('/spatial');
+ await expect(page.getByText(/SOURCE SHEET ONLY · 0 COMPONENTS/i)).toBeVisible();
+ await expect(page.getByText(/Reference-only models do not count as project equipment/i)).toBeVisible();
+});
