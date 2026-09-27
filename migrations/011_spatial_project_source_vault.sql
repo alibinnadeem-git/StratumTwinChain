@@ -46,10 +46,10 @@ CREATE INDEX IF NOT EXISTS spatial_project_source_verifications_project_idx
   ON spatial_project_source_verifications (organization_id, project_id, verified_at DESC, id DESC);
 
 COMMENT ON TABLE spatial_project_sources IS
-  'Tenant/project-scoped original engineering source manifests for durable Spatial recovery. A source manifest is provenance and recovery context only; it does not create a STRATUM Asset, establish installed condition, approve engineering use, finalize a DIR, or establish PoVI/physical truth.';
+  'Tenant/project-scoped original engineering source manifests for durable Spatial recovery. A source manifest is provenance and recovery context only and does not create a STRATUM Asset, establish installed condition, approve engineering use, finalize a DIR, or establish PoVI/physical truth.';
 
 COMMENT ON TABLE spatial_project_source_chunks IS
-  'Chunked private source bytes for serverless-safe upload. Chunks may be replaced only before final source verification; verified source bytes become immutable.';
+  'Chunked private source bytes for serverless-safe upload. Chunks may be replaced only before final source verification and verified source bytes become immutable.';
 
 COMMENT ON TABLE spatial_project_source_verifications IS
   'Append-only server verification of the exact source byte stream and SHA-256. Hash agreement proves byte integrity only, not engineering correctness or physical truth.';
