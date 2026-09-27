@@ -168,11 +168,14 @@ assert.match(viewer,/hiddenSourceSet\.has\(e\.source\)/,'source layer visibility
 assert.match(viewer,/Source layers · \{sourceLayers\.length-hiddenSources\.length\}\/\{sourceLayers\.length\} visible/,'viewer must expose concise source-layer status');
 assert.match(viewer,/Toggle source \$\{source\.name\}/,'each source layer must have an accessible on-off control');
 assert.match(viewer,/Show all sources/);assert.match(viewer,/Hide all sources/);
+assert.match(viewer,/frame\.planType!==\"RASTER_DRAWING\"/,'AUTO sheet selection must prefer recognized plans over generic raster frames');
 assert.match(viewer,/graph\.entities\.length===0/,'zero-entity graphs must not render an empty project stage');
 assert.match(spatialPage,/MODEL · LIVE ASSETS/);assert.match(spatialPage,/MODEL · BROWSER/);assert.match(spatialPage,/<SpatialExperience /);
 assert.doesNotMatch(spatialPage,/<CompiledGraphViewer|<TwinWorkspace/,'the route must not stack two viewers');
 assert.match(spatialExperience,/state\.hasImportedModel/);
 assert.match(spatialExperience,/PROJECT MODEL/);
+assert.match(spatialExperience,/referenceOnly!==true/,'reference-only 3D models must not satisfy the project-component gate');
+assert.match(spatialExperience,/sourceSheetOnly/);
 assert.doesNotMatch(spatialExperience,/TwinWorkspace|DEMONSTRATION DATA|Demonstration model/);
 assert.match(spatialExperience,/STRATUM will not show a demonstration building/);
 assert.match(spatialExperience,/entities\.length>0/,'project mode requires at least one compiled entity');
