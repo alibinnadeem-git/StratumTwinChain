@@ -21,7 +21,8 @@ assert.match(migration,/byte_size integer NOT NULL CHECK \(byte_size > 0 AND byt
 assert.match(migration,/content bytea NOT NULL/i);
 assert.match(migration,/BEFORE UPDATE OR DELETE ON spatial_project_sources/i);
 assert.match(migration,/BEFORE UPDATE OR DELETE ON spatial_project_source_verifications/i);
-assert.match(migration,/Verified Spatial project source chunks are immutable/i);
+assert.match(migration,/BEFORE UPDATE OR DELETE ON spatial_project_source_chunks/i);
+assert.match(migration,/Chunks are immutable from first write and duplicate retries must be byte-identical/i);
 assert.match(migration,/Hash agreement proves byte integrity only, not engineering correctness or physical truth/i);
 
 const route=fs.readFileSync('app/api/spatial/sources/route.ts','utf8');
@@ -35,6 +36,9 @@ assert.match(route,/Assembled source bytes do not match the source manifest SHA-
 assert.match(route,/spatial-source-vault:\$\{sourceId\}/);
 assert.match(route,/spatial-source-vault:\$\{body\.sourceId\}/);
 assert.match(route,/Verified project source bytes are immutable/);
+assert.match(route,/Chunk index is already occupied by different source bytes/);
+assert.match(route,/idempotent:Boolean\(prior\.rows\[0\]\)/);
+assert.doesNotMatch(route,/ON CONFLICT\(source_id,chunk_index\) DO UPDATE/i);
 assert.doesNotMatch(route,/INSERT INTO assets|INSERT INTO ledger_records|registerRecord|verifyRecord/i);
 
 const chunkRoute=fs.readFileSync('app/api/spatial/sources/[id]/chunks/[index]/route.ts','utf8');
@@ -70,4 +74,4 @@ assert.match(projectSelection,/previous!==projectId/,'project-selection events m
 const readiness=fs.readFileSync('lib/server/database-readiness.ts','utf8');
 assert.match(readiness,/spatialSourceVault:\['organizations','users','memberships','projects','spatial_project_sources','spatial_project_source_chunks','spatial_project_source_verifications'\]/);
 
-console.log('Project source vault contract passed: explicit tenant/project source backup uses serverless-safe chunks, server/full-file SHA-256 verification and immutable finalized bytes without changing Spatial/asset/DIR/PoVI truth.');
+console.log('Project source vault contract passed: explicit tenant/project source backup uses serverless-safe immutable chunks, idempotent identical retries, server/full-file SHA-256 verification and no Spatial/asset/DIR/PoVI truth mutation.');
