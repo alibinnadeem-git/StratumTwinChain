@@ -61,7 +61,7 @@
     "qa:plc": "node scripts/plc-conformance.mjs",
     "qa:vrf": "node scripts/vrf-proposer-conformance.mjs",
     "qa:e2e": "playwright test",
-    "prebuild": "node scripts/prepare-pdf-assets.mjs",
+    "prebuild": "npm run qa:z-resolver && npm run qa:project-datum && npm run qa:elevation-surface && node scripts/prepare-pdf-assets.mjs",
     "predev": "node scripts/prepare-pdf-assets.mjs",
     "db:migrate": "node scripts/apply-database-migrations.mjs",
     "db:bootstrap-organization": "node scripts/bootstrap-production-organization.mjs",
