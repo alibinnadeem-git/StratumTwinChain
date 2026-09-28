@@ -1,6 +1,23 @@
 export type PositionedSheetText={text:string;x:number;y:number;width?:number;height?:number};
 export type SheetField={value:string|null;confidence:number;evidence:string[];method:string};
 export type SheetPageGeometry={widthPoints:number|null;heightPoints:number|null;maxDimensionPoints:number|null};
+export type SheetNorthOrientation={
+  reference:'TRUE_NORTH'|'PROJECT_NORTH'|'PLAN_NORTH'|'CARDINAL_COMPASS'|null;
+  angleDegreesFromPageUp:number|null;
+  confidence:number;
+  evidence:string[];
+  method:string;
+};
+export type SheetScaleCalibrationEvidence={
+  denominator:number|null;
+  metersPerNormalizedSheetUnit:number|null;
+  normalizedSheetSpan:number;
+  confidence:number;
+  method:string;
+  reviewRequired:true;
+  autoApply:false;
+  physicalPositionVerified:false;
+};
 export type SheetIdentityCandidate={
   page:number;
   sourceName:string;
@@ -13,6 +30,8 @@ export type SheetIdentityCandidate={
   discipline:SheetField;
   floor:SheetField;
   drawingScale:SheetField;
+  northOrientation:SheetNorthOrientation;
+  scaleCalibration:SheetScaleCalibrationEvidence;
   pageGeometry:SheetPageGeometry;
   confidence:number;
   reviewRequired:true;
@@ -128,15 +147,68 @@ export function drawingScaleDenominator(value:string|null|undefined){
   return realInches/paperInches;
 }
 
+function pageUpAngleDegrees(from:PositionedSheetText,to:PositionedSheetText){
+  const dx=to.x-from.x,dy=to.y-from.y;
+  if(Math.hypot(dx,dy)<.015)return null;
+  let degrees=Math.atan2(dx,-dy)*180/Math.PI;
+  if(degrees>180)degrees-=360;if(degrees<=-180)degrees+=360;
+  return Number(degrees.toFixed(2));
+}
+function inferNorthOrientation(items:PositionedSheetText[]):SheetNorthOrientation{
+  const explicit=items
+    .map(item=>({item,value:upper(item.text)}))
+    .filter(({value})=>/\b(?:TRUE|PROJECT|PLAN)\s+NORTH\b/.test(value));
+  if(explicit.length===1){
+    const value=explicit[0].value;
+    const reference=value.includes('TRUE NORTH')?'TRUE_NORTH':value.includes('PROJECT NORTH')?'PROJECT_NORTH':'PLAN_NORTH';
+    return{reference,angleDegreesFromPageUp:null,confidence:.78,evidence:[compact(explicit[0].item.text)],method:'EXPLICIT_NORTH_LABEL_NO_VECTOR'};
+  }
+  const cardinals=new Map<string,PositionedSheetText>();
+  for(const item of items){
+    const value=upper(item.text);
+    if(/^[NSEW]$/.test(value)&&!cardinals.has(value))cardinals.set(value,item);
+  }
+  const north=cardinals.get('N'),south=cardinals.get('S'),east=cardinals.get('E'),west=cardinals.get('W');
+  if(north&&south){
+    const angle=pageUpAngleDegrees(south,north);
+    const span=Math.hypot(north.x-south.x,north.y-south.y);
+    const eastWestSpan=east&&west?Math.hypot(east.x-west.x,east.y-west.y):null;
+    const compactCluster=span>=.02&&span<=.28&&(!eastWestSpan||(eastWestSpan>=.02&&eastWestSpan<=.28));
+    if(angle!==null&&compactCluster){
+      const orthogonal=east&&west?Math.abs(((pageUpAngleDegrees(west,east)??0)-angle+360)%180-90):null;
+      const confidence=orthogonal===null?.74:orthogonal<=12?.9:orthogonal<=22?.8:.62;
+      return{reference:'CARDINAL_COMPASS',angleDegreesFromPageUp:angle,confidence,evidence:[...['N','S','E','W'].filter(key=>cardinals.has(key))],method:'CARDINAL_TEXT_GEOMETRY'};
+    }
+  }
+  return{reference:null,angleDegreesFromPageUp:null,confidence:0,evidence:[],method:'UNRESOLVED'};
+}
+export function declaredScaleMetersPerNormalizedSheetUnit(value:string|null|undefined,maxDimensionPoints:number|null|undefined,normalizedSheetSpan=20){
+  const denominator=drawingScaleDenominator(value),points=finitePositive(maxDimensionPoints),span=finitePositive(normalizedSheetSpan);
+  if(!denominator||!points||!span)return null;
+  const meters=denominator*points*0.0254/(72*span);
+  return Number.isFinite(meters)&&meters>0?meters:null;
+}
+
+export function extractSheetGeometryEvidence(input:{items:PositionedSheetText[];pageWidthPoints?:number;pageHeightPoints?:number;normalizedSheetSpan?:number}){
+  const clean=input.items.map(item=>({...item,text:compact(item.text)})).filter(item=>item.text);
+  const drawingScale=inferScale(clean),northOrientation=inferNorthOrientation(clean);
+  const widthPoints=finitePositive(input.pageWidthPoints),heightPoints=finitePositive(input.pageHeightPoints),maxDimensionPoints=widthPoints&&heightPoints?Math.max(widthPoints,heightPoints):widthPoints||heightPoints;
+  const normalizedSheetSpan=finitePositive(input.normalizedSheetSpan)||20;
+  const denominator=drawingScaleDenominator(drawingScale.value);
+  const metersPerNormalizedSheetUnit=declaredScaleMetersPerNormalizedSheetUnit(drawingScale.value,maxDimensionPoints,normalizedSheetSpan);
+  const scaleCalibration:SheetScaleCalibrationEvidence={denominator,metersPerNormalizedSheetUnit,normalizedSheetSpan,confidence:metersPerNormalizedSheetUnit?Math.min(.8,drawingScale.confidence):denominator?Math.min(.55,drawingScale.confidence):0,method:metersPerNormalizedSheetUnit?'DECLARED_SCALE_PLUS_PDF_PAGE_GEOMETRY_CANDIDATE':denominator?'DECLARED_SCALE_WITHOUT_PHYSICAL_PAGE_GEOMETRY':'UNAVAILABLE',reviewRequired:true,autoApply:false,physicalPositionVerified:false};
+  return{drawingScale,northOrientation,scaleCalibration,pageGeometry:{widthPoints,heightPoints,maxDimensionPoints}};
+}
+
 export function extractSheetIdentity(input:{page:number;sourceName:string;sourceSha256:string;items:PositionedSheetText[];pageWidthPoints?:number;pageHeightPoints?:number}):SheetIdentityCandidate{
   const clean=input.items.map(item=>({...item,text:compact(item.text)})).filter(item=>item.text);
   const titleRegion=clean.filter(item=>item.x>=.48||item.y>=.72);
   const items=titleRegion.length>=3?titleRegion:clean;
   const region=titleRegion.length>=3?'LOWER_RIGHT':'FULL_PAGE_FALLBACK';
-  const sheetNumber=inferSheetNumber(items),sheetTitle=inferTitle(items),revision=inferRevision(items),issueDate=inferDate(items),discipline=inferDiscipline(sheetNumber,sheetTitle,items),floor=inferFloor(sheetTitle,items),drawingScale=inferScale(items);
-  const weighted=[[sheetNumber.confidence,.29],[sheetTitle.confidence,.2],[revision.confidence,.08],[issueDate.confidence,.08],[discipline.confidence,.15],[floor.confidence,.1],[drawingScale.confidence,.1]] as const;
+  const geometryEvidence=extractSheetGeometryEvidence({items:clean,pageWidthPoints:input.pageWidthPoints,pageHeightPoints:input.pageHeightPoints});
+  const {drawingScale,northOrientation,scaleCalibration,pageGeometry}=geometryEvidence;
+  const sheetNumber=inferSheetNumber(items),sheetTitle=inferTitle(items),revision=inferRevision(items),issueDate=inferDate(items),discipline=inferDiscipline(sheetNumber,sheetTitle,items),floor=inferFloor(sheetTitle,items);
+  const weighted=[[sheetNumber.confidence,.27],[sheetTitle.confidence,.19],[revision.confidence,.07],[issueDate.confidence,.07],[discipline.confidence,.14],[floor.confidence,.09],[drawingScale.confidence,.1],[northOrientation.confidence,.07]] as const;
   const confidence=Number(weighted.reduce((sum,[score,weight])=>sum+score*weight,0).toFixed(3));
-  const widthPoints=finitePositive(input.pageWidthPoints),heightPoints=finitePositive(input.pageHeightPoints),maxDimensionPoints=widthPoints&&heightPoints?Math.max(widthPoints,heightPoints):widthPoints||heightPoints;
-  const pageGeometry={widthPoints,heightPoints,maxDimensionPoints};
-  return{page:input.page,sourceName:input.sourceName,sourceSha256:input.sourceSha256,region,sheetNumber,sheetTitle,revision,issueDate,discipline,floor,drawingScale,pageGeometry,confidence,reviewRequired:true,reviewState:'CANDIDATE',alignmentEligible:false,geometryScaleAuthority:false};
+  return{page:input.page,sourceName:input.sourceName,sourceSha256:input.sourceSha256,region,sheetNumber,sheetTitle,revision,issueDate,discipline,floor,drawingScale,northOrientation,scaleCalibration,pageGeometry,confidence,reviewRequired:true,reviewState:'CANDIDATE',alignmentEligible:false,geometryScaleAuthority:false};
 }

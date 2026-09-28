@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {drawingScaleDenominator,extractSheetIdentity} from '../lib/title-block.ts';
+import {declaredScaleMetersPerNormalizedSheetUnit,drawingScaleDenominator,extractSheetGeometryEvidence,extractSheetIdentity} from '../lib/title-block.ts';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const read=relative=>fs.readFileSync(path.join(root,relative),'utf8');
@@ -30,6 +30,7 @@ ok('sheet title resolves floor/level candidate',labeled.floor.value==='L2'&&labe
 ok('labeled architectural scale is captured as review metadata',labeled.drawingScale.value==='1/8" = 1\'-0"'&&labeled.drawingScale.confidence>=.85);
 ok('architectural scale converts to a dimensionless denominator',close(drawingScaleDenominator(labeled.drawingScale.value),96));
 ok('page geometry retains the PDF normalization basis',labeled.pageGeometry.widthPoints===1000&&labeled.pageGeometry.heightPoints===700&&labeled.pageGeometry.maxDimensionPoints===1000);
+ok('declared scale produces a review-only normalized-sheet metric candidate',close(labeled.scaleCalibration.metersPerNormalizedSheetUnit,96*1000*.0254/(72*20))&&labeled.scaleCalibration.autoApply===false&&labeled.scaleCalibration.physicalPositionVerified===false);
 ok('title-block result is always review required',labeled.reviewRequired===true&&labeled.reviewState==='CANDIDATE');
 ok('title-block result cannot enable alignment',labeled.alignmentEligible===false);
 ok('parsed drawing scale cannot become geometry authority',labeled.geometryScaleAuthority===false);
@@ -59,10 +60,25 @@ ok('ordinal floor title normalizes to L1',standalone.floor.value==='L1');
 ok('unique standalone metric scale remains lower-confidence review metadata',standalone.drawingScale.value==='1:100'&&standalone.drawingScale.confidence<.8);
 ok('metric scale converts to its denominator',drawingScaleDenominator(standalone.drawingScale.value)===100);
 ok('page geometry max dimension is orientation-independent',standalone.pageGeometry.maxDimensionPoints===1000);
+ok('standalone project-north label is preserved without inventing an angle',standalone.northOrientation.reference==='PROJECT_NORTH'&&standalone.northOrientation.angleDegreesFromPageUp===null);
 ok('standalone inference remains review-only',standalone.reviewState==='CANDIDATE'&&standalone.alignmentEligible===false&&standalone.geometryScaleAuthority===false);
 
 ok('NTS deliberately has no numeric scale denominator',drawingScaleDenominator('NTS')===null);
 ok('mixed architectural scale denominator is normalized',close(drawingScaleDenominator('1 1/2" = 1\'-0"'),8));
+
+const compass=extractSheetGeometryEvidence({pageWidthPoints:2592,pageHeightPoints:1728,items:[
+ {text:'N',x:.12,y:.08,width:.01,height:.01},
+ {text:'S',x:.12,y:.20,width:.01,height:.01},
+ {text:'E',x:.18,y:.14,width:.01,height:.01},
+ {text:'W',x:.06,y:.14,width:.01,height:.01},
+ {text:'SCALE: 1" = 20\'-0"',x:.08,y:.26,width:.12,height:.02}
+]});
+ok('compact cardinal compass yields a page-up north angle candidate',compass.northOrientation.reference==='CARDINAL_COMPASS'&&close(compass.northOrientation.angleDegreesFromPageUp,0,1e-6));
+ok('G101-style 1 inch equals 20 feet scale yields denominator 240',compass.scaleCalibration.denominator===240);
+ok('known PDF page points convert declared scale to normalized sheet meters',close(compass.scaleCalibration.metersPerNormalizedSheetUnit,240*2592*.0254/(72*20)));
+const rasterOnly=extractSheetGeometryEvidence({items:[{text:'SCALE: 1" = 20\'-0"',x:.1,y:.1}]});
+ok('raster-only scale retains denominator but refuses metric calibration without physical page geometry',rasterOnly.scaleCalibration.denominator===240&&rasterOnly.scaleCalibration.metersPerNormalizedSheetUnit===null&&rasterOnly.scaleCalibration.autoApply===false);
+ok('direct scale helper fails closed without physical page geometry',declaredScaleMetersPerNormalizedSheetUnit('1" = 20\'-0"',null)===null);
 
 const ambiguousScale=extractSheetIdentity({page:3,sourceName:'details.pdf',sourceSha256:'d'.repeat(64),items:[
  {text:'A-501',x:.86,y:.84,width:.08,height:.03},
@@ -84,6 +100,7 @@ const page=read('app/compiler/page.tsx');
 const persistence=read('app/api/spatial/compilations/route.ts');
 ok('compiler mounts title-block review before server persistence',page.indexOf('<TitleBlockIntelligence/>')>-1&&page.indexOf('<TitleBlockIntelligence/>')<page.indexOf('<SpatialCompilationPersistence/>'));
 ok('reviewed title blocks are embedded in the compiled graph artifact',component.includes('graph.titleBlocks=next'));
+ok('title-block review surfaces metric scale and north-orientation candidates',component.includes('North / orientation evidence')&&component.includes('m / normalized sheet unit'));
 ok('PDF page dimensions are persisted only as normalization context',component.includes('pageWidthPoints:viewport.width')&&component.includes('pageHeightPoints:viewport.height'));
 ok('human confirmation keeps automatic alignment disabled',component.includes("alignmentEligible:false as const")&&component.includes('Automatic alignment and geometry scale remain disabled'));
 ok('human confirmation keeps parsed scale non-authoritative',component.includes("geometryScaleAuthority:false as const")&&component.includes('SCALE IS NOT GEOMETRY AUTHORITY'));
