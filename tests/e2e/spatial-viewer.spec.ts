@@ -760,3 +760,31 @@ test('civil grading plan renders as a recognized source frame without inventing 
  await expect(page.getByText('DRAWING UNDERLAYS',{exact:true})).toBeVisible();
  await expect(page.getByText(/Z unverified|drawing plane/i)).toBeVisible();
 });
+
+
+test('site asset uses local grade review surface without claiming physical Z',async({page})=>{
+ const source='Synthetic Grading Plan.pdf';
+ const graph={
+  version:'local-grade-surface-1',createdAt:'2026-09-28T00:00:00.000Z',reviewState:'REVIEW_REQUIRED',
+  sources:[{name:source,ext:'pdf',sha256:'g'.repeat(64),discipline:'Civil / Grading',floor:'UNRESOLVED',elevation:0}],
+  entities:[
+   {id:'terrain-triangle',source,layer:'L1',kind:'elevation-review-surface-triangle',name:'GRADE review surface',x:0,y:0,z:30.8,floor:'UNRESOLVED',confidence:.74,
+    vertices:[{x:-6,y:-4},{x:6,y:-4},{x:0,y:6}],
+    meta:{page:1,nonSldPlan:true,planType:'CIVIL_GRADING_PLAN',planDiscipline:'Civil / Grading',elevationTriangle:{id:'tri-1',kind:'GRADE',pointIds:['p1','p2','p3'],zMeters:[30.48,30.7848,31.0896]},physicalElevationKnown:false,physicalTruth:false,reviewRequired:true}},
+   {id:'site-evse',source,layer:'L2',kind:'text-asset-candidate',name:'EVSE-1',x:0,y:0,z:0,floor:'UNRESOLVED',confidence:.82,
+    meta:{page:1,nonSldPlan:true,planType:'CIVIL_GRADING_PLAN',planDiscipline:'Civil / Grading',localReviewSurfaceZ:30.7848,localReviewSurfaceKind:'GRADE',localReviewSurfaceAuthority:'SOURCE_ELEVATION_TRIANGLE',localReviewSurfaceConfidence:.74,localReviewSurfaceTriangleId:'tri-1',localReviewSurfaceControlPointIds:['p1','p2','p3'],physicalElevationKnown:false,elevationKnown:false,physicalTruth:false,reviewRequired:true}}
+  ],
+  links:[],stats:{L0:0,L1:1,L2:1,L3:0,L4:0}
+ };
+ await page.addInitScript(value=>localStorage.setItem('stratum_compiled_graph',JSON.stringify(value)),graph);
+ await page.goto('/spatial');
+ const select=page.getByLabel('Imported object');
+ await expect(select.locator('option').filter({hasText:'EVSE-1'})).toHaveCount(1);
+ await select.selectOption('site-evse');
+ await expect(page.getByRole('heading',{name:'EVSE-1'})).toBeVisible();
+ await expect(page.getByText(/GRADE local review surface · object Z unresolved/i)).toBeVisible();
+ await page.getByText('Placement & source confidence').click();
+ await expect(page.locator('.placement-details').getByText(/30\.78 m grade local surface/i)).toBeVisible();
+ await expect(page.getByText(/SOURCE ELEVATION TRIANGLE/i)).toBeVisible();
+ await expect(page.getByText(/74%/).first()).toBeVisible();
+});
