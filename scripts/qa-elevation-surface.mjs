@@ -29,6 +29,8 @@ assert.equal(inside.reviewRequired,true);
 const outside=resolveLocalElevationSurface({x:9,y:6,points:controls,triangles,kind:'GRADE'});
 assert.equal(outside.status,'OUTSIDE_CONTROL_ENVELOPE');
 assert.equal(outside.zMeters,null);
+assert.equal(outside.authority,'UNRESOLVED');
+assert.equal(outside.reviewRequired,true);
 
 const explicitMetric=extractPositionedElevationControls({
  items:[{text:'FG 12.50 M',x:.3,y:.3},{text:'TC 12.65 M',x:.6,y:.3},{text:'FL 12.20 M',x:.45,y:.6}],
