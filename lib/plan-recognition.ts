@@ -5,6 +5,8 @@ export type NonSldPlanType=
  |'ELECTRICAL_LIGHTING_PLAN'
  |'UTILITY_PLAN'
  |'SITE_PLAN'
+ |'CIVIL_GRADING_PLAN'
+ |'DRAINAGE_PLAN'
  |'ARCHITECTURAL_FLOOR_PLAN'
  |'REFLECTED_CEILING_PLAN'
  |'STRUCTURAL_FRAMING_PLAN'
@@ -41,6 +43,8 @@ const RULES:Rule[]=[
  {type:'ELECTRICAL_LIGHTING_PLAN',discipline:'Electrical',score:10,patterns:[/\bELECTRICAL\s+LIGHTING\s+PLAN\b/i,/\bLIGHTING\s+PLAN\b/i]},
  {type:'UTILITY_PLAN',discipline:'Multi-discipline / Utilities',score:10,patterns:[/\bUTILITY\s+PLAN\b/i]},
  {type:'SITE_PLAN',discipline:'Civil / Site',score:10,patterns:[/\bSITE\s+PLAN\b/i,/\bOVERALL\s+SITE\s+PLAN\b/i]},
+ {type:'CIVIL_GRADING_PLAN',discipline:'Civil / Grading',score:10,patterns:[/\bGRADING\s+PLAN\b/i,/\bROUGH\s+GRADING\s+PLAN\b/i,/\bPRECISE\s+GRADING\s+PLAN\b/i]},
+ {type:'DRAINAGE_PLAN',discipline:'Civil / Drainage',score:9,patterns:[/\bDRAINAGE\s+PLAN\b/i,/\bSTORM(?:WATER|\s+WATER)\s+PLAN\b/i,/\bSTORM\s+DRAIN\s+PLAN\b/i]},
  {type:'REFLECTED_CEILING_PLAN',discipline:'Architectural',score:10,patterns:[/\bREFLECTED\s+CEILING\s+PLAN\b/i,/\bRCP\b/i]},
  {type:'STRUCTURAL_FRAMING_PLAN',discipline:'Structural',score:10,patterns:[/\b(?:ROOF|MEZZANINE|FLOOR|LOW\s+ROOF)\s+FRAMING\s+PLAN\b/i,/\bFRAMING\s+PLAN\b/i]},
  {type:'FOUNDATION_PLAN',discipline:'Structural',score:10,patterns:[/\bFOUNDATION\s+PLAN\b/i]},

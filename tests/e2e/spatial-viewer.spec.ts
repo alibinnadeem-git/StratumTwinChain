@@ -736,3 +736,31 @@ test('reference-only Tesla geometry cannot disguise a source-sheet-only project'
  await expect(page.getByText(/SOURCE SHEET ONLY · 0 COMPONENTS/i)).toBeVisible();
  await expect(page.getByText(/Reference-only models do not count as project equipment/i)).toBeVisible();
 });
+
+
+test('civil grading plan renders as a recognized source frame without inventing equipment',async({page})=>{
+ const source='Synthetic City Grading Plan.pdf',sha='civil-grading-fixture';
+ const preview='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZQmcAAAAASUVORK5CYII=';
+ await page.addInitScript(({source,sha,preview})=>localStorage.setItem('stratum_compiled_graph',JSON.stringify({
+  version:'civil-grading-1',createdAt:'2026-09-27T00:00:00.000Z',reviewState:'REVIEW_REQUIRED',
+  sources:[{name:source,ext:'pdf',sha256:sha,discipline:'Civil / Grading',floor:'UNRESOLVED',elevation:0}],
+  entities:[
+   {id:'grading-underlay',source,layer:'L1',kind:'source-raster-underlay',name:'CIVIL_GRADING_PLAN · page 1',x:-10,y:-7,z:0,x2:10,y2:7,z2:0,confidence:1,floor:'UNRESOLVED',
+    meta:{page:1,sourceSha256:sha,drawingBasemap:true,embeddedRasterDataUrl:preview,coordinateUnits:'image_preview',geometryAuthority:'RASTER_PREVIEW_ONLY',
+      spatialPlacementAuthority:'SOURCE_IMAGE_PLANE_ONLY',zPlacementAuthority:'UNVERIFIED_DRAWING_PLANE',elevationKnown:false,physicalElevationKnown:false,physicalTruth:false,
+      nonSldPlan:true,planType:'CIVIL_GRADING_PLAN',planRecognition:'CONTENT_PLAN_V1',planRecognitionScore:10,planDiscipline:'Civil / Grading'}},
+   {id:'grading-line',source,layer:'L1',kind:'line',name:'Source grading line',x:-6,y:2,x2:6,y2:2,z:0,z2:0,confidence:.99,floor:'UNRESOLVED',
+    meta:{page:1,sourceSha256:sha,drawingBasemap:true,coordinateUnits:'sheet',spatialPlacementAuthority:'SOURCE_SHEET_POSITION_ONLY',zPlacementAuthority:'UNVERIFIED_DRAWING_PLANE',
+      elevationKnown:false,physicalElevationKnown:false,physicalTruth:false,nonSldPlan:true,planType:'CIVIL_GRADING_PLAN',planRecognition:'CONTENT_PLAN_V1',planDiscipline:'Civil / Grading'}}
+  ],
+  links:[],stats:{L0:1,L1:2,L2:0,L3:0,L4:0}
+ })),{source,sha,preview});
+ await page.goto('/spatial');
+ await expect(page.getByRole('heading',{name:'Spatial model'})).toBeVisible();
+ await expect(page.getByText(/1 drawing frame · 1 non-SLD plan/i)).toBeVisible();
+ await expect(page.getByLabel('Imported object').locator('option')).toHaveText(['No selectable objects in this view']);
+ await page.getByRole('button',{name:/Infrastructure HUD/i}).click();
+ await expect(page.getByText('NON-SLD PLANS',{exact:true})).toBeVisible();
+ await expect(page.getByText('DRAWING UNDERLAYS',{exact:true})).toBeVisible();
+ await expect(page.getByText(/Z unverified|drawing plane/i)).toBeVisible();
+});
