@@ -48,7 +48,7 @@ function pointSegmentDistance(px:number,py:number,s:ScaleSegment){
   return Math.hypot(px-(s.x+t*dx),py-(s.y+t*dy));
 }
 function segmentLength(s:ScaleSegment){return Math.hypot(s.x2-s.x,s.y2-s.y)}
-function dimensionWitnesses(items:PositionedSheetText[],segments:ScaleSegment[],declared:number|null){
+function dimensionWitnesses(items:PositionedSheetText[],segments:ScaleSegment[],declared:number|null,distanceScale=1){
   const out:ScaleValidationWitness[]=[];
   for(const item of items){
     const meters=parseDimensionMeters(item.text);if(!meters)continue;
@@ -58,14 +58,14 @@ function dimensionWitnesses(items:PositionedSheetText[],segments:ScaleSegment[],
     if(!candidates.length)continue;
     const best=candidates[0],second=candidates[1];
     if(second&&second.distance<=best.distance+.04&&Math.abs(second.length-best.length)/Math.max(best.length,1e-6)>.2)continue;
-    const mpu=meters/best.length;if(!Number.isFinite(mpu)||mpu<=0)continue;
+    const normalizedDistance=best.length*distanceScale;const mpu=meters/normalizedDistance;if(!Number.isFinite(mpu)||mpu<=0)continue;
     const deviation=declared?Math.max(mpu/declared,declared/mpu):null;
     const confidence=Math.max(.45,Math.min(.92,.9-best.distance*.7-(second&&second.distance<best.distance+.12?.08:0)));
-    out.push({type:'DIMENSION_STRING',label:compact(item.text),observedMeters:meters,sheetDistance:best.length,metersPerNormalizedSheetUnit:mpu,deviationFactor:deviation,confidence,evidence:[compact(item.text),`nearest vector dimension candidate distance ${best.distance.toFixed(3)} sheet units`]});
+    out.push({type:'DIMENSION_STRING',label:compact(item.text),observedMeters:meters,sheetDistance:normalizedDistance,metersPerNormalizedSheetUnit:mpu,deviationFactor:deviation,confidence,evidence:[compact(item.text),`nearest vector dimension candidate distance ${best.distance.toFixed(3)} sheet units`]});
   }
   return out;
 }
-function graphicScaleWitnesses(items:PositionedSheetText[],declared:number|null){
+function graphicScaleWitnesses(items:PositionedSheetText[],declared:number|null,distanceScale=1){
   const numeric=items.map(item=>({item,value:Number(compact(item.text))})).filter(x=>Number.isFinite(x.value)&&x.value>=0&&x.value<=100000);
   const unitHints=items.filter(item=>/\b(?:FEET|FT|METERS?|METRES?|M)\b/i.test(item.text));
   const out:ScaleValidationWitness[]=[];
@@ -79,7 +79,7 @@ function graphicScaleWitnesses(items:PositionedSheetText[],declared:number|null)
       const positive=diffs.filter(d=>d>0);if(positive.length!==diffs.length)continue;
       const avg=positive.reduce((a,b)=>a+b,0)/positive.length;
       if(positive.some(d=>Math.abs(d-avg)/Math.max(avg,1e-9)>.08))continue;
-      const first=group[0],last=group[group.length-1],sheetDistance=Math.abs(last.item.x-first.item.x);if(sheetDistance<.08)continue;
+      const first=group[0],last=group[group.length-1],rawSheetDistance=Math.abs(last.item.x-first.item.x);if(rawSheetDistance<.004)continue;const sheetDistance=rawSheetDistance*distanceScale;
       const unit=/\b(?:FEET|FT)\b/i.test(hint.text)?FT:1;
       const observedMeters=(last.value-first.value)*unit;if(observedMeters<=0)continue;
       const mpu=observedMeters/sheetDistance,deviation=declared?Math.max(mpu/declared,declared/mpu):null;
@@ -89,10 +89,10 @@ function graphicScaleWitnesses(items:PositionedSheetText[],declared:number|null)
   }
   return out;
 }
-export function validateIndependentScale(input:{items:PositionedSheetText[];segments:ScaleSegment[];declaredScale:string|null|undefined;pageMaxDimensionPoints:number|null|undefined;normalizedSheetSpan?:number}):IndependentScaleValidation{
-  const span=input.normalizedSheetSpan||20;
+export function validateIndependentScale(input:{items:PositionedSheetText[];segments:ScaleSegment[];declaredScale:string|null|undefined;pageMaxDimensionPoints:number|null|undefined;normalizedSheetSpan?:number;coordinateSpan?:number}):IndependentScaleValidation{
+  const span=input.normalizedSheetSpan||20,coordinateSpan=input.coordinateSpan||span,distanceScale=span/coordinateSpan;
   const declared=declaredScaleMetersPerNormalizedSheetUnit(input.declaredScale,input.pageMaxDimensionPoints,span);
-  const witnesses=[...dimensionWitnesses(input.items,input.segments,declared),...graphicScaleWitnesses(input.items,declared)].sort((a,b)=>b.confidence-a.confidence);
+  const witnesses=[...dimensionWitnesses(input.items,input.segments,declared,distanceScale),...graphicScaleWitnesses(input.items,declared,distanceScale)].sort((a,b)=>b.confidence-a.confidence);
   if(!witnesses.length)return{status:'UNRESOLVED',declaredMetersPerNormalizedSheetUnit:declared,corroboratedMetersPerNormalizedSheetUnit:null,confidence:0,witnesses:[],reviewRequired:true,autoApply:false,geometryScaleAuthority:false,reason:'No independent dimension or graphic-scale witness could be measured.'};
   const usable=witnesses.filter(w=>w.confidence>=.6);if(!usable.length)return{status:'REVIEW',declaredMetersPerNormalizedSheetUnit:declared,corroboratedMetersPerNormalizedSheetUnit:witnesses[0].metersPerNormalizedSheetUnit,confidence:witnesses[0].confidence,witnesses,reviewRequired:true,autoApply:false,geometryScaleAuthority:false,reason:'Independent scale evidence exists but is too weak for corroboration.'};
   const values=usable.map(w=>w.metersPerNormalizedSheetUnit).sort((a,b)=>a-b),median=values[Math.floor(values.length/2)];
