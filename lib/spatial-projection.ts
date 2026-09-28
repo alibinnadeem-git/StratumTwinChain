@@ -22,16 +22,6 @@ const DISTRIBUTION_PATTERN=/\bats\b|transfer\s*switch|\bmcc\b|\bpdu\b|distributi
 const PANEL_PATTERN=/panelboard|\bpanel\b|load\s*center|\bpnl\b/i;
 const LOAD_PATTERN=/disconnect|\bvfd\b|inverter|charger|evse|motor|load|receptacle|outlet|equipment/i;
 
-export function inferredFloorElevation(floor?:string|null):number|null{
- const normalized=String(floor||'').trim().toUpperCase();
- if(!normalized||normalized==='UNRESOLVED')return null;
- const basement=normalized.match(/^B(\d+)$/);if(basement)return-4*Number(basement[1]);
- const level=normalized.match(/^L(\d+)$/);if(level)return(Math.max(1,Number(level[1]))-1)*4;
- if(normalized==='GROUND'||normalized==='GROUND FLOOR')return 0;
- if(normalized==='ROOF')return 12;
- if(normalized==='PENTHOUSE')return 16;
- return null;
-}
 function sourceFrame(entity:SpatialProjectionEntity){return `${String(entity.meta?.sourceSha256||entity.source)}:${String(entity.meta?.page||1)}`}
 function sourceDocument(entity:SpatialProjectionEntity){return String(entity.meta?.sourceSha256||entity.source)}
 function titleFor(entity:SpatialProjectionEntity,titleBlocks:SheetIdentityLike[]){
@@ -94,7 +84,7 @@ export function enrichSpatialProjection<T extends SpatialProjectionGraph>(graph:
   const cadScale=cadScales.get(sourceDocument(entity));if(!cadScale||entity.meta?.cadMetricXY===true)return entity;
   const tx=(x:number)=>(x-cadScale.minDisplayX)*cadScale.metersPerX,ty=(y:number)=>(y-cadScale.minDisplayY)*cadScale.metersPerY;
   const explicitCadZ=hasExplicitCadZ(entity);
-  return {...entity,x:tx(entity.x),y:ty(entity.y),...(Number.isFinite(entity.x2)?{x2:tx(Number(entity.x2))}:{}),...(Number.isFinite(entity.y2)?{y2:ty(Number(entity.y2))}:{}),vertices:entity.vertices?.map(point=>({x:tx(point.x),y:ty(point.y)})),meta:{...(entity.meta||{}),cadMetricXY:true,coordinateUnits:'m',planScaleMethod:'DXF_RAW_XY_AND_INSUNITS',metersPerDisplayUnitX:cadScale.metersPerX,metersPerDisplayUnitY:cadScale.metersPerY,...(explicitCadZ?{zPlacementAuthority:'SOURCE_CAD_Z',physicalElevationKnown:true}:{})}};
+  return {...entity,x:tx(entity.x),y:ty(entity.y),...(Number.isFinite(entity.x2)?{x2:tx(Number(entity.x2))}:{}),...(Number.isFinite(entity.y2)?{y2:ty(Number(entity.y2))}:{}),vertices:entity.vertices?.map(point=>({x:tx(point.x),y:ty(point.y)})),meta:{...(entity.meta||{}),cadMetricXY:true,coordinateUnits:'m',planScaleMethod:'DXF_RAW_XY_AND_INSUNITS',metersPerDisplayUnitX:cadScale.metersPerX,metersPerDisplayUnitY:cadScale.metersPerY,zScaleGuideAuthority:'XY_AND_Z_SHARE_SOURCE_UNITS',zScaleGuideMetersPerSourceUnit:unitToMeters,...(explicitCadZ?{zPlacementAuthority:'SOURCE_CAD_Z',physicalElevationKnown:true}:{})}};
  });
  const sldFrames=new Set<string>();
  const frameEntities=new Map<string,SpatialProjectionEntity[]>();
@@ -159,8 +149,14 @@ export function enrichSpatialProjection<T extends SpatialProjectionGraph>(graph:
     meta.assetScaleAuthority=placement.dimensions.authority;
    }
   }else if(!isSld&&!canUsePhysicalZ({...entity,meta})){
-   const candidate=inferredFloorElevation(entity.floor);
-   if(candidate!==null&&Math.abs(z)<1e-9){z=candidate;meta.elevationKnown=false;meta.physicalElevationKnown=false;meta.zPlacementAuthority='INFERRED_FLOOR_LABEL';meta.inferredZCandidate=candidate;meta.zReviewRequired=true;}
+   const reviewSurface=finite(meta.reviewSurfaceZ);
+   if(reviewSurface!==null){
+    z=reviewSurface;
+    meta.elevationKnown=false;
+    meta.physicalElevationKnown=false;
+    meta.zPlacementAuthority='SOURCE_PROJECT_DATUM_REVIEW_SURFACE';
+    meta.zReviewRequired=true;
+   }
   }
 
   if(isSld){meta.sldSpatialProjection=true;meta.sldLogicalDepth=sldDepth(entity.name);meta.sldProjectionMethod=finite(meta.sldVectorComponent)!==null?'PDF_VECTOR_COMPONENT_PLUS_LOGICAL_DEPTH_V2':'DETERMINISTIC_ELECTRICAL_HIERARCHY_V1';meta.sldProjectionReviewRequired=true;meta.sldPhysicalElevationKnown=canUsePhysicalZ({...entity,meta});meta.sldTruthBoundary='LOGICAL_Z_NEVER_ESTABLISHES_PHYSICAL_ELEVATION';}
@@ -183,7 +179,7 @@ export function enrichSpatialProjection<T extends SpatialProjectionGraph>(graph:
  const deduped=[...new Map([...retained,...generated].map(link=>[`${link.type}:${link.from}:${link.to}`,link])).values()];
  const changed=entities.some(entity=>JSON.stringify(originalById.get(entity.id))!==JSON.stringify(entity))||JSON.stringify(graph.links||[])!==JSON.stringify(deduped);
  if(!changed)return graph;
- return {...graph,entities,links:deduped,spatialProjection:{version:'7',generatedAt:new Date().toISOString(),cadMetricFrames:cadScales.size,sldFrames:sldFrames.size,sldLinks:generated.length,sldVectorLinks:generated.filter(link=>link.meta?.inference==='PDF_VECTOR_CONNECTED_COMPONENT').length,dimensionRegistryEntries:modelRegistry.filter(item=>item.dimensionsMeters).length,truthBoundary:'METRIC_XY_SOURCE_VECTOR_SLD_TOPOLOGY_LOGICAL_Z_AND_RECOMMENDED_PLACEMENT_NEVER_ESTABLISH_PHYSICAL_TRUTH'}} as T;
+ return {...graph,entities,links:deduped,spatialProjection:{version:'7',generatedAt:new Date().toISOString(),cadMetricFrames:cadScales.size,sldFrames:sldFrames.size,sldLinks:generated.length,sldVectorLinks:generated.filter(link=>link.meta?.inference==='PDF_VECTOR_CONNECTED_COMPONENT').length,dimensionRegistryEntries:modelRegistry.filter(item=>item.dimensionsMeters).length,truthBoundary:'METRIC_XY_AND_SHARED_SOURCE_UNITS_GUIDE_Z_CONVERSION_PROJECT_DATUM_REVIEW_SURFACES_AND_LOGICAL_Z_NEVER_ESTABLISH_PHYSICAL_TRUTH'}} as T;
 }
 
 export function projectionSummary(graph:SpatialProjectionGraph){
