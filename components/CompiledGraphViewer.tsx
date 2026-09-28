@@ -379,7 +379,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
         if(!isVisible(e))continue;
         if(e.kind==="source-raster-underlay"){rasterUnderlay(e);continue}
         if(e.kind==="elevation-review-surface-triangle"&&Array.isArray(e.vertices)&&e.vertices.length===3){
-          const zs=Array.isArray(e.meta?.elevationTriangle)&&false?[]:(e.meta?.elevationTriangle as any)?.zMeters;
+          const zs=(e.meta?.elevationTriangle as any)?.zMeters;
           if(Array.isArray(zs)&&zs.length===3&&zs.every((z:any)=>Number.isFinite(Number(z)))){
             const verts=e.vertices;
             const geometry=new THREE.BufferGeometry();
