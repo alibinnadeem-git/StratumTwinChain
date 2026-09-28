@@ -49,28 +49,34 @@ function unitFromScale(declaredScale:string|null|undefined,validation?:Independe
   }
   return null;
 }
-function parseExplicit(label:string){
+function surfaceControlKind(label:string):ElevationSurfaceKind|null{
   const t=clean(label).toUpperCase();
-  const match=t.match(/(?:FG|FFE|FF|TC|FL|GRADE|ELEV(?:ATION)?|EL\.?)?\s*[:=@-]?\s*([+-]?\d{1,4}(?:\.\d+)?)\s*(FT|FEET|M|METERS?|METRES?)\b|\b([+-]?\d{1,4}(?:\.\d+)?)\s*(FT|FEET|M|METERS?|METRES?)\s*(?:FG|FFE|FF|TC|FL|GRADE)?\b/i);
-  if(!match)return null;
-  const raw=Number(match[1]||match[3]),unit=String(match[2]||match[4]).toUpperCase();
+  if(/\b(?:FFE|FF)\b|FINISH(?:ED)?\s+FLOOR/.test(t))return'FINISHED_FLOOR';
+  if(/\b(?:FG|GRADE|TC|FL)\b|(?:FG|TC|FL)$/.test(t))return'GRADE';
+  return null;
+}
+function parseExplicit(label:string){
+  const t=clean(label).toUpperCase(),kind=surfaceControlKind(t);
+  if(!kind)return null;
+  const feetInches=t.match(/(?:FG|FFE|FF|TC|FL|GRADE|FINISH(?:ED)?\s+FLOOR)(?:\s+(?:EL|ELEV|ELEVATION)\.?)?\s*[:=@-]?\s*([+-]?\d{1,3})\s*'\s*(\d{1,2}(?:\.\d+)?)?\s*"?/i);
+  if(feetInches){
+    const feet=Number(feetInches[1]),inches=Number(feetInches[2]||0);
+    if(Number.isFinite(feet)&&Number.isFinite(inches)&&inches<12)return{value:feet+Math.sign(feet||1)*inches/12,unit:'ft' as ElevationUnit,kind};
+  }
+  const prefix=t.match(/(?:FG|FFE|FF|TC|FL|GRADE|FINISH(?:ED)?\s+FLOOR)(?:\s+(?:EL|ELEV|ELEVATION)\.?)?\s*[:=@-]?\s*([+-]?\d{1,4}(?:\.\d+)?)\s*(FT|FEET|M|METERS?|METRES?)\b/i);
+  const suffix=t.match(/\b([+-]?\d{1,4}(?:\.\d+)?)\s*(FT|FEET|M|METERS?|METRES?)\s*(FG|FFE|FF|TC|FL|GRADE)\b/i);
+  const match=prefix||suffix;if(!match)return null;
+  const raw=Number(match[1]),unit=String(match[2]).toUpperCase();
   if(!Number.isFinite(raw))return null;
-  return{value:raw,unit:(unit==='FT'||unit==='FEET'?'ft':'m') as ElevationUnit};
+  return{value:raw,unit:(unit==='FT'||unit==='FEET'?'ft':'m') as ElevationUnit,kind};
 }
 function parseUnitless(label:string,unitHint:ElevationUnit|null){
   if(!unitHint)return null;
-  const t=clean(label).toUpperCase();
-  let kind:ElevationSurfaceKind|null=null;
-  if(/\b(?:FG|GRADE|TC|FL)\b/.test(t)||/(?:FG|TC|FL)$/.test(t))kind='GRADE';
-  if(/\b(?:FFE|FF|FINISH(?:ED)? FLOOR)\b/.test(t))kind='FINISHED_FLOOR';
+  const t=clean(label).toUpperCase(),kind=surfaceControlKind(t);
   if(!kind)return null;
   const m=t.match(/([+-]?\d{1,4}(?:\.\d+)?)/);if(!m)return null;
   const value=Number(m[1]);if(!Number.isFinite(value))return null;
   return{value,unit:unitHint,kind};
-}
-function inferKind(label:string):ElevationSurfaceKind{
-  const t=clean(label).toUpperCase();
-  return /\b(?:FFE|FF|FINISH(?:ED)? FLOOR)\b/.test(t)?'FINISHED_FLOOR':'GRADE';
 }
 export function extractPositionedElevationControls(input:{
   items:PositionedSheetText[];
@@ -93,7 +99,7 @@ export function extractPositionedElevationControls(input:{
     const value=explicit?.value??unitless!.value;
     const zMeters=value*(unit==='ft'?FT:1);
     if(!Number.isFinite(zMeters))continue;
-    const kind=unitless?.kind||inferKind(label);
+    const kind=explicit?.kind||unitless!.kind;
     out.push({
       id:`elev-${input.page}-${index++}`,
       source:input.source,page:input.page,

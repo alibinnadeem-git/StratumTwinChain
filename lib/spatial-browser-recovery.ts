@@ -86,10 +86,30 @@ export async function readIndexedCurrentSpatialGraph(){
   try{return await idbGet(PRIMARY_KEY)}catch{return null}
 }
 
+const recoveryTick=()=>new Promise<void>(resolve=>setTimeout(resolve,25));
+
 export async function readPrimarySpatialGraph(storage:Storage=localStorage){
-  const indexed=await readIndexedCurrentSpatialGraph();
-  if(indexed)return indexed;
-  return readCurrentSpatialGraph(storage);
+  let indexed=await readIndexedCurrentSpatialGraph();
+  const shadow=readCurrentSpatialGraph(storage);
+  // A navigation can begin while IndexedDB is finishing a prior transaction/open.
+  // Retry briefly before trusting the compatibility shadow so authority cannot move backward.
+  if(!indexed&&shadow){
+    await recoveryTick();
+    indexed=await readIndexedCurrentSpatialGraph();
+    if(!indexed){
+      await recoveryTick();
+      indexed=await readIndexedCurrentSpatialGraph();
+    }
+  }
+  if(indexed){
+    // IndexedDB is authoritative. Heal any stale compatibility shadow immediately.
+    try{
+      const serialized=JSON.stringify(indexed);
+      if(storage.getItem(SPATIAL_GRAPH_KEY)!==serialized)storage.setItem(SPATIAL_GRAPH_KEY,serialized);
+    }catch{}
+    return indexed;
+  }
+  return shadow;
 }
 
 export async function writePrimarySpatialGraph(graph:SpatialGraphLike,storage:Storage=localStorage){

@@ -32,6 +32,25 @@ assert.equal(outside.zMeters,null);
 assert.equal(outside.authority,'UNRESOLVED');
 assert.equal(outside.reviewRequired,true);
 
+
+const strictControls=extractPositionedElevationControls({
+ items:[
+  {text:'FFE 15\'-0"',x:.25,y:.25},
+  {text:'TOP OF SLAB ELEVATION = 15\'-0"',x:.5,y:.25},
+  {text:'TOP OF STEEL ELEVATION 14\'-6 1/2"',x:.75,y:.25},
+  {text:'B.O.D. +18\'-0"',x:.25,y:.55},
+  {text:'PANEL ELEVATION',x:.5,y:.55},
+  {text:'FG 194.56',x:.75,y:.55}
+ ],
+ source:'Real structural/civil mixed sheet.pdf',page:3,declaredScale:'1" = 20\'-0"',scaleValidation:null,planeWidth:20,planeHeight:20
+});
+assert.equal(strictControls.length,2);
+assert.equal(strictControls[0].kind,'FINISHED_FLOOR');
+assert.ok(Math.abs(strictControls[0].zMeters-4.572)<1e-6);
+assert.equal(strictControls[1].kind,'GRADE');
+assert.ok(Math.abs(strictControls[1].zMeters-(194.56*.3048))<1e-6);
+assert.ok(strictControls.every(p=>!/TOP OF SLAB|TOP OF STEEL|B\.O\.D\.|PANEL ELEVATION/.test(p.label)));
+
 const explicitMetric=extractPositionedElevationControls({
  items:[{text:'FG 12.50 M',x:.3,y:.3},{text:'TC 12.65 M',x:.6,y:.3},{text:'FL 12.20 M',x:.45,y:.6}],
  source:'Civil.pdf',page:2,declaredScale:'1:100',scaleValidation:null,planeWidth:20,planeHeight:14
