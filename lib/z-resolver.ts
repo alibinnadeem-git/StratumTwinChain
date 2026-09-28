@@ -79,6 +79,21 @@ function parseAff(text:string){
   return u==='IN'||u==='INCHES'?n*IN:u==='MM'?n/1000:u==='CM'?n/100:n;
 }
 
+function equipmentTagFromLine(text:string){
+  const t=clean(text).toUpperCase();
+  const m=t.match(/\b(PANEL|PNL|TRANSFORMER|XFMR|SWITCHBOARD|SWBD|SWITCHGEAR|SWGR|ATS|UPS|MCC|PDU|VFD|EVSE|RTU|AHU|FCU|DEVICE|RECEPTACLE|LIGHT|FIXTURE)\s*[-#:]?\s*([A-Z0-9][A-Z0-9._-]{0,24})\b/);
+  return m?`${m[1]} ${m[2]}`:null;
+}
+function tagMatchesEntity(tag:string|undefined|null,name:string){
+  if(!tag)return false;
+  const normalize=(value:string)=>value.toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim();
+  const t=normalize(tag),n=normalize(name);
+  if(!t||!n)return false;
+  if(n.includes(t))return true;
+  const suffix=t.split(' ').slice(1).join(' ');
+  return suffix.length>=2&&n.includes(suffix);
+}
+
 export function extractZEvidenceFromText(text:string,context?:{source?:string;floor?:string;idPrefix?:string}):ZEvidence[]{
   const out:ZEvidence[]=[];const lines=text.split(/\r?\n/).map(clean).filter(Boolean);let i=0;
   for(const line of lines){
@@ -89,7 +104,7 @@ export function extractZEvidenceFromText(text:string,context?:{source?:string;fl
     if(typeof dec==='number')out.push({id:`${context?.idPrefix||'z'}-${i++}`,type:/GRADE|FG|TC|FL/i.test(line)?'GRADE_ELEVATION':'FLOOR_DATUM',valueMeters:dec,relativeTo:/GRADE|FG|TC|FL/i.test(line)?'GRADE':'PROJECT_DATUM',floor,source:context?.source||null,confidence:.88,evidence:[line],physicalTruth:false,reviewRequired:true});
     else if(dec&&dec.unit==='DRAWING_DATUM')out.push({id:`${context?.idPrefix||'z'}-${i++}`,type:/GRADE|FG|TC|FL/i.test(line)?'SPOT_ELEVATION':'FLOOR_DATUM',valueMeters:dec.raw,relativeTo:/GRADE|FG|TC|FL/i.test(line)?'GRADE':'PROJECT_DATUM',floor,source:context?.source||null,confidence:.72,evidence:[line,'UNITS_REQUIRE_SOURCE_DATUM_REVIEW'],physicalTruth:false,reviewRequired:true});
     const aff=parseAff(line);
-    if(aff!==null)out.push({id:`${context?.idPrefix||'z'}-${i++}`,type:'MOUNTING_HEIGHT_AFF',valueMeters:aff,relativeTo:'FLOOR_DATUM',floor,source:context?.source||null,confidence:.86,evidence:[line],physicalTruth:false,reviewRequired:true});
+    if(aff!==null){const tag=equipmentTagFromLine(line);out.push({id:`${context?.idPrefix||'z'}-${i++}`,type:'MOUNTING_HEIGHT_AFF',valueMeters:aff,relativeTo:'FLOOR_DATUM',floor,tag,source:context?.source||null,confidence:tag?.86:.62,evidence:[line,...(tag?[`OBJECT_LINK:${tag}`]:['OBJECT_LINK_UNRESOLVED'])],physicalTruth:false,reviewRequired:true});}
   }
   return out;
 }
@@ -102,7 +117,7 @@ export function resolveEntityZ(entity:ZEntityLike,evidence:ZEvidence[]):ZResolut
   const floor=(entity.floor||'').toUpperCase();
   const sameFloor=evidence.filter(e=>!e.floor||!floor||String(e.floor).toUpperCase()===floor);
   const datums=sameFloor.filter(e=>['FLOOR_DATUM','SECTION_ELEVATION'].includes(e.type)&&e.valueMeters!==null);
-  const aff=sameFloor.filter(e=>e.type==='MOUNTING_HEIGHT_AFF'&&e.valueMeters!==null);
+  const aff=sameFloor.filter(e=>e.type==='MOUNTING_HEIGHT_AFF'&&e.valueMeters!==null&&tagMatchesEntity(e.tag,entity.name));
   if(datums.length){
     const sorted=[...datums].sort((a,b)=>b.confidence-a.confidence),base=sorted[0];
     const conflict=sorted.some(e=>Math.abs(Number(e.valueMeters)-Number(base.valueMeters))>.15);
