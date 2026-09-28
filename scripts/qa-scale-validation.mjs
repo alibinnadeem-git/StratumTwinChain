@@ -76,5 +76,8 @@ assert.match(compiler,/scaleValidationByPage/);
 assert.match(compiler,/scaleValidationEvidence/);
 assert.match(compiler,/geometryScaleAuthority:false/);
 assert.match(compiler,/autoApply:false/);
+const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
+assert.match(viewer,/SCALE \{String\(activeScaleValidation\.status/);
+assert.match(viewer,/never auto-applied/);
 
 console.log('Independent scale validation passed: dimension witness, graphic scale, mismatch detection, raster review-only fallback, and fail-closed geometry authority.');
