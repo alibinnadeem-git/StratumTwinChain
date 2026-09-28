@@ -13,7 +13,7 @@ export type SheetIdentityLike={
 };
 export type SpatialProjectionGraph={entities:SpatialProjectionEntity[];links?:SpatialProjectionLink[];titleBlocks?:SheetIdentityLike[];[key:string]:unknown};
 
-type CadScale={metersPerX:number;metersPerY:number;minDisplayX:number;minDisplayY:number};
+type CadScale={metersPerX:number;metersPerY:number;minDisplayX:number;minDisplayY:number;unitToMeters:number};
 const SLD_PATTERN=/single\s*line|one\s*line|one-line|single-line|\bsld\b|riser|power\s*diagram|electrical\s*diagram/i;
 const SOURCE_PATTERN=/utility|service|source|incoming|generator|genset|\bgen[-_ ]?[a-z0-9]+\b|solar|\bpv(?:[-_ ]?[a-z0-9]+)?\b|battery|\bbess\b|\bess\b|\bups\b/i;
 const TRANSFORMER_PATTERN=/transformer|\bxfmr\b|\bxfr\b/i;
@@ -70,7 +70,7 @@ function buildCadScales(entities:SpatialProjectionEntity[]){
   const metersPerX=scale(rawDisplayX),metersPerY=scale(rawDisplayY);
   if(!metersPerX&&!metersPerY)continue;
   const fallback=metersPerX||metersPerY||1;
-  result.set(doc,{metersPerX:metersPerX||fallback,metersPerY:metersPerY||fallback,minDisplayX:Math.min(...allX),minDisplayY:Math.min(...allY)});
+  result.set(doc,{metersPerX:metersPerX||fallback,metersPerY:metersPerY||fallback,minDisplayX:Math.min(...allX),minDisplayY:Math.min(...allY),unitToMeters});
  }
  return result;
 }
@@ -84,7 +84,7 @@ export function enrichSpatialProjection<T extends SpatialProjectionGraph>(graph:
   const cadScale=cadScales.get(sourceDocument(entity));if(!cadScale||entity.meta?.cadMetricXY===true)return entity;
   const tx=(x:number)=>(x-cadScale.minDisplayX)*cadScale.metersPerX,ty=(y:number)=>(y-cadScale.minDisplayY)*cadScale.metersPerY;
   const explicitCadZ=hasExplicitCadZ(entity);
-  return {...entity,x:tx(entity.x),y:ty(entity.y),...(Number.isFinite(entity.x2)?{x2:tx(Number(entity.x2))}:{}),...(Number.isFinite(entity.y2)?{y2:ty(Number(entity.y2))}:{}),vertices:entity.vertices?.map(point=>({x:tx(point.x),y:ty(point.y)})),meta:{...(entity.meta||{}),cadMetricXY:true,coordinateUnits:'m',planScaleMethod:'DXF_RAW_XY_AND_INSUNITS',metersPerDisplayUnitX:cadScale.metersPerX,metersPerDisplayUnitY:cadScale.metersPerY,zScaleGuideAuthority:'XY_AND_Z_SHARE_SOURCE_UNITS',zScaleGuideMetersPerSourceUnit:unitToMeters,...(explicitCadZ?{zPlacementAuthority:'SOURCE_CAD_Z',physicalElevationKnown:true}:{})}};
+  return {...entity,x:tx(entity.x),y:ty(entity.y),...(Number.isFinite(entity.x2)?{x2:tx(Number(entity.x2))}:{}),...(Number.isFinite(entity.y2)?{y2:ty(Number(entity.y2))}:{}),vertices:entity.vertices?.map(point=>({x:tx(point.x),y:ty(point.y)})),meta:{...(entity.meta||{}),cadMetricXY:true,coordinateUnits:'m',planScaleMethod:'DXF_RAW_XY_AND_INSUNITS',metersPerDisplayUnitX:cadScale.metersPerX,metersPerDisplayUnitY:cadScale.metersPerY,zScaleGuideAuthority:'XY_AND_Z_SHARE_SOURCE_UNITS',zScaleGuideMetersPerSourceUnit:cadScale.unitToMeters,...(explicitCadZ?{zPlacementAuthority:'SOURCE_CAD_Z',physicalElevationKnown:true}:{})}};
  });
  const sldFrames=new Set<string>();
  const frameEntities=new Map<string,SpatialProjectionEntity[]>();
