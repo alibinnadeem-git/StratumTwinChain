@@ -102,6 +102,8 @@ jobs:
         run: npm run qa:z-resolver
       - name: Independent scale validation conformance
         run: npm run qa:scale-validation
+      - name: Demo-safe unresolved placement conformance
+        run: npm run qa:demo-safe-placement
       - name: Room reconstruction and HITL conformance
         run: npm run qa:room-reconstruction
       - name: Field scan tenant identity conformance

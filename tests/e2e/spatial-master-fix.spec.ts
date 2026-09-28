@@ -32,9 +32,9 @@ test('Spatial review truth and layout at device width',async({page},testInfo)=>{
   await expect(canvas).toBeVisible();
   await expect.poll(()=>canvas.getAttribute('data-clickable-assets')).toBe('5');
   await page.getByLabel('Imported object').selectOption('candidate-0');
-  await expect(page.getByText('Unverified elevation',{exact:true})).toBeVisible();
+  await expect(page.getByText('Review plane · physical Z unresolved',{exact:true})).toBeVisible();
   await page.getByText('Placement & source confidence').click();
-  await expect(page.locator('.placement-details').getByText('Z unverified',{exact:true})).toBeVisible();
+  await expect(page.locator('.placement-details').getByText('Review plane · unresolved',{exact:true})).toBeVisible();
   await expect(page.getByText('Tier 2 · Drawing callout, review required')).toBeVisible();
   await expect(page.getByText('No history recorded by this drawing.',{exact:false})).toBeVisible();
   const reviewTab=page.getByRole('button',{name:/^Review Source candidates$/});

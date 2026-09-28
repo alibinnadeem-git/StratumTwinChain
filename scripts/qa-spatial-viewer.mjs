@@ -129,21 +129,21 @@ assert.ok(oem.recommendation?.rangeMeters&&oem.recommendation.constraintMaxMeter
 console.log('✓ explicit OEM/source dimensions outrank registry/nominal geometry while web/code placement remains recommendation-only');
 
 const floorStanding=resolveAssetPlacement({name:'DRY TYPE TRANSFORMER T1',floor:'L2',meta:{}});
-assert.equal(floorStanding.baseZ,4);assert.equal(floorStanding.zAuthority,'FLOOR_STANDING_PROFILE');assert.equal(floorStanding.physicalTruth,false);
-console.log('✓ floor-standing equipment uses floor elevation as a placement candidate without claiming physical truth');
+assert.equal(floorStanding.baseZ,0);assert.equal(floorStanding.zAuthority,'UNRESOLVED');assert.equal(floorStanding.recommendation?.kind,'REVIEW_PLANE_ONLY');assert.equal(floorStanding.physicalTruth,false);
+console.log('✓ floor-standing equipment does not invent absolute floor Z when no source datum exists');
 
 const pedestalEvse=resolveAssetPlacement({name:'EV Charging Station',floor:'L2',meta:{mountingType:'pedestal'}});
-assert.equal(pedestalEvse.baseZ,4);assert.equal(pedestalEvse.zAuthority,'FLOOR_STANDING_PROFILE');assert.equal(pedestalEvse.recommendation?.kind,'EVSE_PEDESTAL_BASE_ON_FINISHED_FLOOR');assert.equal(pedestalEvse.physicalTruth,false);
-console.log('✓ explicitly pedestal-mounted EVSE remains a floor-standing placement candidate');
+assert.equal(pedestalEvse.baseZ,0);assert.equal(pedestalEvse.zAuthority,'RELATIVE_TO_REVIEW_PLANE');assert.equal(pedestalEvse.recommendation?.kind,'EVSE_PEDESTAL_REVIEW_PLANE');assert.equal(pedestalEvse.physicalTruth,false);
+console.log('✓ pedestal-mounted EVSE uses the review plane until absolute finished-floor/grade Z is known');
 
 const teslaEvse=resolveAssetPlacement({name:'EV Charging Station · Tesla Universal Wall Connector',floor:'L2',meta:{manufacturer:'Tesla',model:'Universal Wall Connector',partNumber:'1734412-XX-X',mountingType:'wall-mounted',installationEnvironment:'outdoor'}});
 assert.equal(teslaEvse.dimensions.authority,'WEB_OEM_REFERENCE');assert.deepEqual([teslaEvse.dimensions.width,teslaEvse.dimensions.height,teslaEvse.dimensions.depth],[.155,.345,.15]);
-assert.ok(Math.abs(teslaEvse.baseZ-5.15)<1e-9);assert.deepEqual(teslaEvse.recommendation?.rangeMeters,[4.6,5.52]);assert.equal(teslaEvse.recommendation?.evidenceClass,'OEM_INSTALLATION_GUIDANCE');assert.equal(teslaEvse.physicalTruth,false);
+assert.ok(Math.abs(teslaEvse.baseZ-1.15)<1e-9);assert.deepEqual(teslaEvse.recommendation?.rangeMeters,[.6,1.52]);assert.equal(teslaEvse.zAuthority,'RELATIVE_TO_REVIEW_PLANE');assert.equal(teslaEvse.recommendation?.evidenceClass,'OEM_INSTALLATION_GUIDANCE');assert.equal(teslaEvse.physicalTruth,false);
 console.log('✓ identified Tesla Universal Wall Connector uses auditable OEM dimensions and mounting guidance without claiming as-built Z');
 
 const chargePointEvse=resolveAssetPlacement({name:'EV Charging Station · ChargePoint Home Flex CPH50',floor:'L2',meta:{manufacturer:'ChargePoint',model:'Home Flex CPH50',mountingType:'wall-mounted'}});
 assert.equal(chargePointEvse.dimensions.authority,'WEB_OEM_REFERENCE');assert.ok(Math.abs(chargePointEvse.dimensions.height-.2843)<1e-9);
-assert.ok(Math.abs(chargePointEvse.topZ-5.3)<1e-9);assert.ok(Math.abs(chargePointEvse.baseZ-5.0157)<1e-9);assert.deepEqual(chargePointEvse.recommendation?.rangeMeters,[5,5.1]);assert.equal(chargePointEvse.physicalTruth,false);
+assert.ok(Math.abs(chargePointEvse.topZ-1.3)<1e-9);assert.ok(Math.abs(chargePointEvse.baseZ-1.0157)<1e-9);assert.deepEqual(chargePointEvse.recommendation?.rangeMeters,[1,1.1]);assert.equal(chargePointEvse.zAuthority,'RELATIVE_TO_REVIEW_PLANE');assert.equal(chargePointEvse.physicalTruth,false);
 console.log('✓ identified ChargePoint Home Flex uses current OEM dimensions and mounting references as recommendation evidence');
 
 const genericWallEvse=resolveAssetPlacement({name:'EV Charging Station',floor:'L2',meta:{mountingType:'wall-mounted'}});
@@ -152,7 +152,7 @@ assert.ok(!/tesla|chargepoint/i.test(genericWallEvse.recommendation?.source||'')
 console.log('✓ generic wall EVSE fails closed until manufacturer/model-specific mounting evidence is known');
 
 const sourceGuidedEvse=resolveAssetPlacement({name:'EV Charging Station · Tesla Universal Wall Connector',floor:'L2',meta:{manufacturer:'Tesla',model:'Universal Wall Connector',mountingType:'wall-mounted',mountingBaseFromFloorMeters:.92,mountingInstructionSource:'Project-approved OEM submittal',mountingInstructionSourceUrl:'https://project.invalid/oem-submittal',oemDimensionsMeters:[.16,.36,.14],dimensionsSource:'Project OEM submittal'}});
-assert.equal(sourceGuidedEvse.dimensions.authority,'SOURCE_SPEC');assert.ok(Math.abs(sourceGuidedEvse.baseZ-4.92)<1e-9);assert.equal(sourceGuidedEvse.recommendation?.kind,'SOURCE_INSTALLATION_BASE_RECOMMENDATION');assert.equal(sourceGuidedEvse.recommendation?.source,'Project-approved OEM submittal');assert.equal(sourceGuidedEvse.physicalTruth,false);
+assert.equal(sourceGuidedEvse.dimensions.authority,'SOURCE_SPEC');assert.ok(Math.abs(sourceGuidedEvse.baseZ-.92)<1e-9);assert.equal(sourceGuidedEvse.zAuthority,'RELATIVE_TO_REVIEW_PLANE');assert.equal(sourceGuidedEvse.recommendation?.kind,'SOURCE_INSTALLATION_BASE_RELATIVE_TO_REVIEW_PLANE');assert.equal(sourceGuidedEvse.recommendation?.source,'Project-approved OEM submittal');assert.equal(sourceGuidedEvse.physicalTruth,false);
 console.log('✓ project/OEM source mounting metadata outranks public web guidance but remains recommendation-only');
 
 const projectionSource=fs.readFileSync('lib/spatial-projection.ts','utf8');

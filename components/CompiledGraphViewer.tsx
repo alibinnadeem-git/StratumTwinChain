@@ -57,6 +57,10 @@ function displayElevation(e:Entity,mode:ViewMode){
     const logical=metaNumber(e,"sldLogicalDepth")??0;
     return base+logical*2.4;
   }
+  if(!physicalElevationKnown(e)&&e.meta?.zResolutionStatus==="RESOLVED_DESIGN_CANDIDATE"){
+    const candidate=metaNumber(e,"zCandidateMeters");
+    if(candidate!==null)return candidate;
+  }
   return base;
 }
 function entitySystem(e:Entity):SystemMode{
@@ -253,7 +257,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       };
       const label=(text:string,x:number,y:number,z:number,color="#cfefff",entity?:Entity,offset=0)=>{
         if(!labels)return;const canvas=document.createElement("canvas");canvas.width=512;canvas.height=112;const ctx=canvas.getContext("2d");if(!ctx)return;
-        ctx.fillStyle="rgba(3,12,18,.82)";ctx.roundRect(4,4,504,104,16);ctx.fill();ctx.fillStyle=color;ctx.font="700 28px system-ui";ctx.fillText(text.slice(0,30),20,49);ctx.fillStyle="#83a6b7";ctx.font="20px system-ui";ctx.fillText(entity&&!physicalElevationKnown(entity)?'Z unverified':entity?`${y.toFixed(2)} m Z`:'Drawing level · Z unverified',20,82);
+        ctx.fillStyle="rgba(3,12,18,.82)";ctx.roundRect(4,4,504,104,16);ctx.fill();ctx.fillStyle=color;ctx.font="700 28px system-ui";ctx.fillText(text.slice(0,30),20,49);ctx.fillStyle="#83a6b7";ctx.font="20px system-ui";ctx.fillText(entity&&!physicalElevationKnown(entity)?(Number.isFinite(Number(entity.meta?.zCandidateMeters))?`Z candidate ${Number(entity.meta?.zCandidateMeters).toFixed(2)} m`:'Review plane · Z unresolved'):entity?`${y.toFixed(2)} m Z`:'Drawing level · Z unverified',20,82);
         const texture=new THREE.CanvasTexture(canvas),sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,depthTest:false}));sprite.scale.set(2.9,.64,1);sprite.position.set(x+offset*.08,y+1.2+offset*.82,z);if(entity){sprite.userData.entity=entity;clickable.push(sprite);if(offset>0){const leader=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x,y+.2,z),sprite.position]),new THREE.LineDashedMaterial({color:0xffb85c,dashSize:.12,gapSize:.08,transparent:true,opacity:.65}));leader.computeLineDistances();scene.add(leader)}}scene.add(sprite);
       };
       const wall=(a:XY,b:XY,e:Entity)=>{const dx=b.x-a.x,dz=b.y-a.y,len=Math.hypot(dx,dz);if(len<.02)return;const op=xray?.12:.55,m=new THREE.Mesh(new THREE.BoxGeometry(len,2.7,.09),material(colors.L1,op));m.position.set((a.x+b.x)/2,height(e)+1.35,(a.y+b.y)/2);m.rotation.y=-Math.atan2(dz,dx);groups.L1.add(m)};
@@ -310,14 +314,20 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
             loader.parse(bytes,'',gltf=>{
               if(disposed)return;
               try{
-                const dimensions=e.meta?.modelBoundsMeters;
-                if(!Array.isArray(dimensions)||dimensions.length!==3||!dimensions.every(v=>typeof v==='number'&&Number.isFinite(v)&&v>0))throw new Error('Model bounds are invalid');
-                const target=dimensions as [number,number,number];
+                const sourceBounds=e.meta?.modelBoundsMeters;
+                if(!Array.isArray(sourceBounds)||sourceBounds.length!==3||!sourceBounds.every(v=>typeof v==='number'&&Number.isFinite(v)&&v>0))throw new Error('Model bounds are invalid');
+                const def=resolveElectricalComponent(e.name),cfg=def?registry.find(r=>r.componentKey===def.key):null;
+                const placement=resolveAssetPlacement({name:e.name,floor:e.floor,z:e.z,meta:e.meta},cfg);
+                const target:[number,number,number]=[placement.dimensions.width,placement.dimensions.height,placement.dimensions.depth];
                 const model=gltf.scene;
-                normalizeObjectToMeters(model,target);
+                const normalized=normalizeObjectToMeters(model,target,.08);
                 const root=new THREE.Group();root.position.set(e.x,height(e),e.y);
                 root.rotation.y=THREE.MathUtils.degToRad(-(e.rotation||0));
-                root.userData.dimensionAuthority='IMPORTED_MODEL_UNVERIFIED';
+                root.userData.dimensionAuthority=placement.dimensions.authority+'_REVIEW_VISUALIZATION';
+                root.userData.sourceModelBounds=sourceBounds;
+                root.userData.targetDimensionsMeters=target;
+                root.userData.normalization={scalar:normalized.scalar,ratioSpread:normalized.ratioSpread,reviewRequired:true};
+                root.userData.zDisplayAuthority=physicalElevationKnown(e)?'PHYSICAL_OR_REVIEWED':Number.isFinite(Number(e.meta?.zCandidateMeters))?'SOURCE_DESIGN_CANDIDATE':'REVIEW_PLANE_ONLY';
                 root.add(model);interactionProxy(root,target);tag(root,e);
                 groups.L2.add(root);label(e.name,e.x,height(e),e.y,'#ffd08a',e);
                 const renderedBox=new THREE.Box3().setFromObject(root);if(!renderedBox.isEmpty())bounds.union(renderedBox);
