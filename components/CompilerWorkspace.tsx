@@ -23,6 +23,7 @@ import {archiveSourceBytes,archivedSourceToFile,listArchivedSourceMetadata,readA
 import {enrichCoordinationIntelligence} from '../lib/coordination-intelligence';
 import {buildZResolutionIndex,extractZEvidenceFromText,type ZEvidence} from '../lib/z-resolver';
 import {buildProjectDatumSurfaces,datumSurfaceMetadata,projectDatumSurfaceForEntity} from '../lib/project-datum';
+import {buildElevationTriangles,extractPositionedElevationControls,resolveLocalElevationSurface,type ElevationControlPoint,type ElevationTriangle} from '../lib/elevation-surface';
 import {ChangeEvent,DragEvent,useEffect,useMemo,useState} from 'react';
 
 type Layer='L0'|'L1'|'L2'|'L3'|'L4';
@@ -118,6 +119,8 @@ async function parsePdf(file:File,level:{floor:string;elevation:number},discipli
   ocrEntities.push({id:evidence.id,source:file.name,layer:'L0',kind:'z-evidence-candidate',name:evidence.evidence[0]||evidence.type,x:0,y:0,z:0,floor:evidence.floor||'UNRESOLVED',confidence:evidence.confidence,meta:{nonSpatial:true,physicalTruth:false,reviewRequired:true,zEvidence:evidence,zPlacementAuthority:'SOURCE_TEXT_Z_EVIDENCE_ONLY',elevationKnown:false,physicalElevationKnown:false}} as GraphEntity);
  }
  const scaleValidationByPage=new Map<number,ReturnType<typeof validateIndependentScale>>();
+ const elevationControlsByPage=new Map<number,ElevationControlPoint[]>();
+ const elevationTrianglesByPage=new Map<number,ElevationTriangle[]>();
  for(let page=1;page<=doc.numPages;page++){
   const preview=rasterPreviewByPage.get(page),pageGeometry=pageGeometryByPage.get(page);
   const nativeItems=raw.filter(item=>item.page===page).map(item=>({text:item.str,x:item.x/20+.5,y:.5-item.y/20}));
@@ -128,6 +131,18 @@ async function parsePdf(file:File,level:{floor:string;elevation:number},discipli
   scaleValidationByPage.set(page,validation);
   if(validation.status!=='UNRESOLVED'||validation.declaredMetersPerNormalizedSheetUnit!==null){
    ocrEntities.push({id:`pdf-scale-validation-${page}`,source:file.name,layer:'L0',kind:'scale-validation-candidate',name:`Scale validation · page ${page} · ${validation.status}`,x:0,y:0,z:0,floor:pageFloors.get(page)||'UNRESOLVED',confidence:validation.confidence,meta:{page,nonSpatial:true,physicalTruth:false,reviewRequired:true,scaleValidationEvidence:validation,geometryScaleAuthority:false,autoApply:false,elevationKnown:false,physicalElevationKnown:false}} as GraphEntity);
+  }
+  const maxDim=Math.max(pageGeometry?.width||1,pageGeometry?.height||1),planeWidth=20*(pageGeometry?.width||maxDim)/maxDim,planeHeight=20*(pageGeometry?.height||maxDim)/maxDim;
+  const controls=extractPositionedElevationControls({items,source:file.name,page,declaredScale:geometryEvidence.drawingScale.value,scaleValidation:validation,planeWidth:preview?.planeWidth||planeWidth,planeHeight:preview?.planeHeight||planeHeight});
+  elevationControlsByPage.set(page,controls);
+  const triangles=[...buildElevationTriangles(controls,'GRADE'),...buildElevationTriangles(controls,'FINISHED_FLOOR')];
+  elevationTrianglesByPage.set(page,triangles);
+  for(const control of controls){
+   ocrEntities.push({id:`pdf-elevation-control-${page}-${control.id}`,source:file.name,layer:'L0',kind:'elevation-control-point',name:control.label,x:control.x,y:control.y,z:control.zMeters,floor:pageFloors.get(page)||'UNRESOLVED',confidence:control.confidence,meta:{page,elevationControl:control,sourceType:'PDF_ELEVATION_CONTROL',coordinateUnits:'sheet',zPlacementAuthority:'SOURCE_ELEVATION_CONTROL',elevationKnown:false,physicalElevationKnown:false,physicalTruth:false,reviewRequired:true}});
+  }
+  for(const triangle of triangles){
+   const [a,b,c]=triangle.points;
+   ocrEntities.push({id:`pdf-elevation-triangle-${page}-${triangle.id}`,source:file.name,layer:'L1',kind:'elevation-review-surface-triangle',name:`${triangle.kind} review surface`,x:(a.x+b.x+c.x)/3,y:(a.y+b.y+c.y)/3,z:(a.zMeters+b.zMeters+c.zMeters)/3,floor:pageFloors.get(page)||'UNRESOLVED',confidence:triangle.confidence,vertices:[{x:a.x,y:a.y},{x:b.x,y:b.y},{x:c.x,y:c.y}],meta:{page,elevationTriangle:{id:triangle.id,kind:triangle.kind,pointIds:triangle.pointIds,zMeters:[a.zMeters,b.zMeters,c.zMeters]},sourceType:'PDF_ELEVATION_TRIANGLE',coordinateUnits:'sheet',zPlacementAuthority:'SOURCE_ELEVATION_TRIANGLE',elevationKnown:false,physicalElevationKnown:false,physicalTruth:false,reviewRequired:true}});
   }
  }
  const sldPages=[...pageEvidence.values()].filter(item=>item.isSld).length,nonSldPlanPages=[...planEvidence.values()].filter(item=>item.isPlan).length;
@@ -159,6 +174,17 @@ async function parsePdf(file:File,level:{floor:string;elevation:number},discipli
  }
  for(const [page,topology] of vectorTopologyByPage){for(const segment of topology.segments){entities.push({id:`pdf-sld-feeder-${page}-${i++}`,source:file.name,layer:'L3',kind:'sld-feeder-candidate',name:`SLD feeder path · page ${page}`,x:segment.x,y:segment.y,z:0,x2:segment.x2,y2:segment.y2,z2:0,floor:pageFloors.get(page),confidence:.88,meta:{page,floorInference:'sheet-title-candidate',elevationKnown:false,coordinateUnits:'sheet',sourceType:'PDF vector electrical path',sldCandidate:true,sldFeederCandidate:true,sldVectorComponent:segment.component,sldVectorAuthority:'PDF_VECTOR_CONNECTED_COMPONENT',reviewRequired:true,physicalTruth:false}})}}
  for(const p of polygons){if(!pageEvidence.get(p.page)?.isSld&&!planEvidence.get(p.page)?.isPlan)continue;const area=Math.abs(p.vertices.reduce((s,v,j)=>{const n=p.vertices[(j+1)%p.vertices.length];return s+v.x*n.y-n.x*v.y},0))/2;if(area<.08||area>190)continue;const c=centroid(p.vertices);entities.push({id:`pdf-room-${p.page}-${i++}`,source:file.name,layer:'L1',kind:'vector-boundary-candidate',name:`PDF closed path · page ${p.page}`,x:c.x,y:c.y,z:0,vertices:p.vertices,floor:pageFloors.get(p.page),confidence:p.confidence,meta:{page:p.page,floorInference:'sheet-title-candidate',elevationKnown:false,sourceType:'PDF vector path',reconstruction:'heuristic-closed-path',reviewRequired:true,coordinateUnits:'sheet',pdfTransformsApplied:true,geometryValidated:false,...sldMeta(p.page),...planMeta(p.page)}})}for(const t of raw){if(/\bcannot locate\b|\bplease advise\b/i.test(t.str)||(!pageEvidence.get(t.page)?.isSld&&!planEvidence.get(t.page)?.isPlan))continue;const equipmentClass=classifyElectricalLabel(t.str),poweredClass=poweredEquipmentClass(t.str),isAsset=Boolean(equipmentClass),isPoweredNonElectrical=Boolean(poweredClass&&!isAsset),isCircuit=isElectricalCircuitLabel(t.str),isRoom=roomCandidate(t.str),vectorAttachment=vectorAttachmentByKey.get(t.key);if(!isAsset&&!isCircuit&&!isRoom&&!isPoweredNonElectrical)continue;const layer:Layer=isRoom?'L1':isPoweredNonElectrical?'L4':isCircuit&&!isAsset?'L3':'L2';entities.push({id:`pdf-${t.page}-${i++}`,source:file.name,layer,kind:isRoom?'room-label':isPoweredNonElectrical?'powered-equipment-candidate':isAsset?'text-asset-candidate':'logical-tag',name:t.str,x:t.x,y:t.y,z:0,floor:pageFloors.get(t.page),confidence:isRoom?.7:isPoweredNonElectrical?.72:isAsset?.86:.74,meta:{page:t.page,floorInference:'sheet-title-candidate',elevationKnown:false,coordinateUnits:'sheet',sourceType:'PDF text object',...(poweredClass?{poweredEquipmentClass:poweredClass,registrationState:'CANDIDATE',spatialPlacementAuthority:'SOURCE_SHEET_POSITION_ONLY',physicalTruth:false,reviewRequired:true}:{}),...(equipmentClass?{electricalComponentHint:equipmentClass}:{}),...(vectorAttachment?{sldVectorComponent:vectorAttachment.component,sldVectorDistance:vectorAttachment.distance,sldVectorAuthority:'PDF_VECTOR_CONNECTED_COMPONENT'}:{}),...sldMeta(t.page),...planMeta(t.page)}})}
+ for(const entity of entities){
+  if(entity.meta?.nonSpatial===true||entity.kind==='elevation-control-point'||entity.kind==='elevation-review-surface-triangle')continue;
+  const page=Number(entity.meta?.page||0);if(!page)continue;
+  const controls=elevationControlsByPage.get(page)||[],triangles=elevationTrianglesByPage.get(page)||[];
+  if(controls.length<3||triangles.length===0)continue;
+  const planType=String(entity.meta?.planType||''),discipline=String(entity.meta?.planDiscipline||'');
+  const preferredKind=planType.includes('GRADING')||planType.includes('DRAINAGE')||discipline.includes('Civil')?'GRADE':entity.floor&&entity.floor!=='UNRESOLVED'?'FINISHED_FLOOR':undefined;
+  const local=resolveLocalElevationSurface({x:entity.x,y:entity.y,points:controls,triangles,kind:preferredKind as any});
+  if(local.status!=='RESOLVED_REVIEW_SURFACE'||local.zMeters===null)continue;
+  entity.meta={...entity.meta,localReviewSurfaceZ:local.zMeters,localReviewSurfaceKind:local.kind,localReviewSurfaceAuthority:local.authority,localReviewSurfaceConfidence:local.confidence,localReviewSurfaceTriangleId:local.triangleId,localReviewSurfaceControlPointIds:local.controlPointIds,physicalTruth:false,reviewRequired:true};
+ }
  return{entities,summary:`${doc.numPages} page${doc.numPages===1?'':'s'} · ${raw.length} positioned text objects · ${vectors} PDF drawing operators · ${nonSldPlanPages} non-SLD plan page${nonSldPlanPages===1?'':'s'} recognized${planTypes.length?` (${planTypes.join(', ')})`:''} · ${sourcePlanSegments} retained source-plan vector segment${sourcePlanSegments===1?'':'s'} · ${rasterPlanUnderlays} raster drawing underlay${rasterPlanUnderlays===1?'':'s'} · ${ocrPages} raster OCR fallback page${ocrPages===1?'':'s'} · ${ocrTextChars} OCR text character${ocrTextChars===1?'':'s'} · ${sldPages} SLD page${sldPages===1?'':'s'} recognized from content/topology · ${vectorFeederSegments} source-vector feeder segment${vectorFeederSegments===1?'':'s'} · ${entities.length} spatial/review candidates`,pages:doc.numPages,vectors,textItems:raw.length,sldPages,nonSldPlanPages,planTypes,disciplines:uniqueDisciplines};
  } finally {if(ocrWorker)await ocrWorker.terminate().catch(()=>{});await doc.destroy()}
 }
