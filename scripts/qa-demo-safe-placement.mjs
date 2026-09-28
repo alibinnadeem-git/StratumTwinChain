@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {BoxGeometry,Mesh,MeshBasicMaterial} from 'three';
 import {resolveAssetPlacement} from '../lib/asset-placement.ts';
-import {normalizeObjectToMeters} from '../lib/three-model-normalization.ts';
+import {planUniformMeterScale} from '../lib/model-scale.ts';
 
 const tesla=resolveAssetPlacement({
   name:'Tesla Supercharger V3 reference.glb',
@@ -36,11 +35,16 @@ assert.equal(sourceDesign.zAuthority,'SOURCE_DESIGN_CANDIDATE');
 assert.ok(Math.abs(sourceDesign.baseZ-5.4864)<1e-9);
 assert.equal(sourceDesign.physicalTruth,false);
 
-const raw=new Mesh(new BoxGeometry(11.616250038,22.794077901,5.697649956),new MeshBasicMaterial());
-const normalized=normalizeObjectToMeters(raw,[tesla.dimensions.width,tesla.dimensions.height,tesla.dimensions.depth],.08);
-assert.ok(normalized.finalSize[0]<1.3);
-assert.ok(normalized.finalSize[1]<2.6);
-assert.ok(normalized.finalSize[2]<1.0);
+const plan=planUniformMeterScale(
+  [11.616250038,22.794077901,5.697649956],
+  [tesla.dimensions.width,tesla.dimensions.height,tesla.dimensions.depth],
+  .08
+);
+assert.ok(plan.scalar<.08);
+assert.ok(plan.predicted[0]<1.3);
+assert.ok(plan.predicted[1]<2.6);
+assert.ok(plan.predicted[2]<1.0);
+assert.equal(plan.reviewRequired,true);
 
 const placement=fs.readFileSync('lib/asset-placement.ts','utf8');
 assert.doesNotMatch(placement,/return-4\*Number/);
