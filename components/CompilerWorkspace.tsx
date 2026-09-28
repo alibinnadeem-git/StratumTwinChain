@@ -23,6 +23,7 @@ import {archiveSourceBytes,archivedSourceToFile,listArchivedSourceMetadata,readA
 import {enrichCoordinationIntelligence} from '../lib/coordination-intelligence';
 import {buildZResolutionIndex,extractZEvidenceFromText,type ZEvidence} from '../lib/z-resolver';
 import {buildProjectDatumSurfaces,datumSurfaceMetadata,projectDatumSurfaceForEntity} from '../lib/project-datum';
+import {buildElevationTriangles,extractPositionedElevationControls,resolveLocalElevationSurface,type ElevationControlPoint,type ElevationTriangle} from '../lib/elevation-surface';
 import {ChangeEvent,DragEvent,useEffect,useMemo,useState} from 'react';
 
 type Layer='L0'|'L1'|'L2'|'L3'|'L4';
@@ -118,16 +119,31 @@ async function parsePdf(file:File,level:{floor:string;elevation:number},discipli
   ocrEntities.push({id:evidence.id,source:file.name,layer:'L0',kind:'z-evidence-candidate',name:evidence.evidence[0]||evidence.type,x:0,y:0,z:0,floor:evidence.floor||'UNRESOLVED',confidence:evidence.confidence,meta:{nonSpatial:true,physicalTruth:false,reviewRequired:true,zEvidence:evidence,zPlacementAuthority:'SOURCE_TEXT_Z_EVIDENCE_ONLY',elevationKnown:false,physicalElevationKnown:false}} as GraphEntity);
  }
  const scaleValidationByPage=new Map<number,ReturnType<typeof validateIndependentScale>>();
+ const positionedItemsByPage=new Map<number,PositionedSheetText[]>();
+ const elevationControlsByPage=new Map<number,ElevationControlPoint[]>();
+ const elevationTrianglesByPage=new Map<number,ElevationTriangle[]>();
  for(let page=1;page<=doc.numPages;page++){
   const preview=rasterPreviewByPage.get(page),pageGeometry=pageGeometryByPage.get(page);
   const nativeItems=raw.filter(item=>item.page===page).map(item=>({text:item.str,x:item.x/20+.5,y:.5-item.y/20}));
-  const items=(preview?.geometryItems?.length?preview.geometryItems:nativeItems) as PositionedSheetText[];
+  const items=(preview?.geometryItems?.length?preview.geometryItems:nativeItems) as PositionedSheetText[];positionedItemsByPage.set(page,items);
   const geometryEvidence=preview?.geometryEvidence||extractSheetGeometryEvidence({items,pageWidthPoints:pageGeometry?.width,pageHeightPoints:pageGeometry?.height});
   const pageSegments=segments.filter(segment=>segment.page===page).map(segment=>({x:segment.x/20+.5,y:.5-segment.y/20,x2:segment.x2/20+.5,y2:.5-segment.y2/20}));
   const validation=validateIndependentScale({items,segments:pageSegments,declaredScale:geometryEvidence.drawingScale.value,pageMaxDimensionPoints:pageGeometry?.max,normalizedSheetSpan:20,coordinateSpan:1});
   scaleValidationByPage.set(page,validation);
   if(validation.status!=='UNRESOLVED'||validation.declaredMetersPerNormalizedSheetUnit!==null){
    ocrEntities.push({id:`pdf-scale-validation-${page}`,source:file.name,layer:'L0',kind:'scale-validation-candidate',name:`Scale validation · page ${page} · ${validation.status}`,x:0,y:0,z:0,floor:pageFloors.get(page)||'UNRESOLVED',confidence:validation.confidence,meta:{page,nonSpatial:true,physicalTruth:false,reviewRequired:true,scaleValidationEvidence:validation,geometryScaleAuthority:false,autoApply:false,elevationKnown:false,physicalElevationKnown:false}} as GraphEntity);
+  }
+  const maxDim=Math.max(pageGeometry?.width||1,pageGeometry?.height||1),planeWidth=20*(pageGeometry?.width||maxDim)/maxDim,planeHeight=20*(pageGeometry?.height||maxDim)/maxDim;
+  const controls=extractPositionedElevationControls({items,source:file.name,page,declaredScale:geometryEvidence.drawingScale.value,scaleValidation:validation,planeWidth:preview?.planeWidth||planeWidth,planeHeight:preview?.planeHeight||planeHeight});
+  elevationControlsByPage.set(page,controls);
+  const triangles=[...buildElevationTriangles(controls,'GRADE'),...buildElevationTriangles(controls,'FINISHED_FLOOR')];
+  elevationTrianglesByPage.set(page,triangles);
+  for(const control of controls){
+   ocrEntities.push({id:`pdf-elevation-control-${page}-${control.id}`,source:file.name,layer:'L0',kind:'elevation-control-point',name:control.label,x:control.x,y:control.y,z:control.zMeters,floor:pageFloors.get(page)||'UNRESOLVED',confidence:control.confidence,meta:{page,elevationControl:control,sourceType:'PDF_ELEVATION_CONTROL',coordinateUnits:'sheet',zPlacementAuthority:'SOURCE_ELEVATION_CONTROL',elevationKnown:false,physicalElevationKnown:false,physicalTruth:false,reviewRequired:true}});
+  }
+  for(const triangle of triangles){
+   const [a,b,c]=triangle.points;
+   ocrEntities.push({id:`pdf-elevation-triangle-${page}-${triangle.id}`,source:file.name,layer:'L1',kind:'elevation-review-surface-triangle',name:`${triangle.kind} review surface`,x:(a.x+b.x+c.x)/3,y:(a.y+b.y+c.y)/3,z:(a.zMeters+b.zMeters+c.zMeters)/3,floor:pageFloors.get(page)||'UNRESOLVED',confidence:triangle.confidence,vertices:[{x:a.x,y:a.y},{x:b.x,y:b.y},{x:c.x,y:c.y}],meta:{page,elevationTriangle:{id:triangle.id,kind:triangle.kind,pointIds:triangle.pointIds,zMeters:[a.zMeters,b.zMeters,c.zMeters]},sourceType:'PDF_ELEVATION_TRIANGLE',coordinateUnits:'sheet',zPlacementAuthority:'SOURCE_ELEVATION_TRIANGLE',elevationKnown:false,physicalElevationKnown:false,physicalTruth:false,reviewRequired:true}});
   }
  }
  const sldPages=[...pageEvidence.values()].filter(item=>item.isSld).length,nonSldPlanPages=[...planEvidence.values()].filter(item=>item.isPlan).length;
