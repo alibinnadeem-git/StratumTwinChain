@@ -235,9 +235,11 @@ test('Tesla GLB import persists real geometry and makes it selectable in Spatial
  const point=await canvas.evaluate(element=>({x:Number((element as HTMLElement).dataset.primaryHitX),y:Number((element as HTMLElement).dataset.primaryHitY)}));
  await canvas.click({position:point});
  await expect.poll(()=>canvas.getAttribute('data-selected-asset')).toBe(await canvas.getAttribute('data-primary-asset'));
- await expect(page.getByText('IMPORTED 3D GEOMETRY')).toBeVisible();
+ await expect(page.getByText('IMPORTED 3D GEOMETRY · REVIEW-SCALE')).toBeVisible();
  await expect(page.getByText('Tesla Supercharger V3',{exact:true}).first()).toBeVisible();
- await expect(page.getByText('Unverified elevation')).toBeVisible();
+ await expect(page.getByText('Review plane · physical Z unresolved',{exact:true})).toBeVisible();
+ await page.getByText('Placement & source confidence').click();
+ await expect(page.locator('.placement-details').getByText('Review plane · unresolved',{exact:true})).toBeVisible();
  await page.reload();
  await expect(page.getByLabel('Imported object').locator('option').filter({hasText:'Tesla Supercharger V3'})).toHaveCount(1);
 });
@@ -265,7 +267,7 @@ test('DXF native units are retained while explicit design Z remains review-only'
  const panelValue=await panelOption.getAttribute('value');
  expect(panelValue).toBeTruthy();
  await imported.selectOption(panelValue!);
- await expect(page.getByText('Unverified elevation',{exact:true})).toBeVisible();
+ await expect(page.getByText('Design Z candidate · review required',{exact:true})).toBeVisible();
  await expect(page.getByText(/Z CANDIDATE · REVIEW REQUIRED/)).toBeVisible();
  await expect(page.getByText(/SOURCE DXF DESIGN Z/i)).toBeVisible();
 });
@@ -707,9 +709,9 @@ test('raster OCR positional equipment is clickable while physical XYZ remains un
  await expect.poll(async()=>Number(await canvas.getAttribute('data-clickable-assets')||0),{timeout:15000}).toBeGreaterThanOrEqual(1);
  await select.selectOption('ocr-panel');
  await expect(page.getByRole('heading',{name:'PANEL LP-1'})).toBeVisible();
- await expect(page.getByText('Unverified elevation',{exact:true})).toBeVisible();
+ await expect(page.getByText('Review plane · physical Z unresolved',{exact:true})).toBeVisible();
  await page.getByText('Placement & source confidence').click();
- await expect(page.locator('.placement-details').getByText('Z unverified',{exact:true})).toBeVisible();
+ await expect(page.locator('.placement-details').getByText('Review plane · unresolved',{exact:true})).toBeVisible();
 });
 
 test('reference-only Tesla geometry cannot disguise a source-sheet-only project',async({page})=>{
