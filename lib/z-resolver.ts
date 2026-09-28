@@ -85,7 +85,7 @@ export function extractZEvidenceFromText(text:string,context?:{source?:string;fl
     const floor=context?.floor||floorToken(line);
     const arch=parseArchitecturalElevation(line);
     if(arch!==null)out.push({id:`${context?.idPrefix||'z'}-${i++}`,type:/SECTION|ELEVATION|T\.O\.|B\.O\./i.test(line)?'SECTION_ELEVATION':'FLOOR_DATUM',valueMeters:arch,relativeTo:'PROJECT_DATUM',floor,source:context?.source||null,confidence:.9,evidence:[line],physicalTruth:false,reviewRequired:true});
-    const dec=parseDecimalElevation(line);
+    const dec=arch===null?parseDecimalElevation(line):null;
     if(typeof dec==='number')out.push({id:`${context?.idPrefix||'z'}-${i++}`,type:/GRADE|FG|TC|FL/i.test(line)?'GRADE_ELEVATION':'FLOOR_DATUM',valueMeters:dec,relativeTo:/GRADE|FG|TC|FL/i.test(line)?'GRADE':'PROJECT_DATUM',floor,source:context?.source||null,confidence:.88,evidence:[line],physicalTruth:false,reviewRequired:true});
     else if(dec&&dec.unit==='DRAWING_DATUM')out.push({id:`${context?.idPrefix||'z'}-${i++}`,type:/GRADE|FG|TC|FL/i.test(line)?'SPOT_ELEVATION':'FLOOR_DATUM',valueMeters:dec.raw,relativeTo:/GRADE|FG|TC|FL/i.test(line)?'GRADE':'PROJECT_DATUM',floor,source:context?.source||null,confidence:.72,evidence:[line,'UNITS_REQUIRE_SOURCE_DATUM_REVIEW'],physicalTruth:false,reviewRequired:true});
     const aff=parseAff(line);
