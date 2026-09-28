@@ -132,8 +132,12 @@ async function parsePdf(file:File,level:{floor:string;elevation:number},discipli
   if(validation.status!=='UNRESOLVED'||validation.declaredMetersPerNormalizedSheetUnit!==null){
    ocrEntities.push({id:`pdf-scale-validation-${page}`,source:file.name,layer:'L0',kind:'scale-validation-candidate',name:`Scale validation · page ${page} · ${validation.status}`,x:0,y:0,z:0,floor:pageFloors.get(page)||'UNRESOLVED',confidence:validation.confidence,meta:{page,nonSpatial:true,physicalTruth:false,reviewRequired:true,scaleValidationEvidence:validation,geometryScaleAuthority:false,autoApply:false,elevationKnown:false,physicalElevationKnown:false}} as GraphEntity);
   }
-  const maxDim=Math.max(pageGeometry?.width||1,pageGeometry?.height||1),planeWidth=20*(pageGeometry?.width||maxDim)/maxDim,planeHeight=20*(pageGeometry?.height||maxDim)/maxDim;
-  const controls=extractPositionedElevationControls({items,source:file.name,page,declaredScale:geometryEvidence.drawingScale.value,scaleValidation:validation,planeWidth:preview?.planeWidth||planeWidth,planeHeight:preview?.planeHeight||planeHeight});
+  const usingRasterGeometry=Boolean(preview?.geometryItems?.length);
+  const controls=extractPositionedElevationControls({
+   items,source:file.name,page,declaredScale:geometryEvidence.drawingScale.value,scaleValidation:validation,
+   planeWidth:usingRasterGeometry?(preview?.planeWidth||20):20,
+   planeHeight:usingRasterGeometry?(preview?.planeHeight||20):20
+  });
   elevationControlsByPage.set(page,controls);
   const triangles=[...buildElevationTriangles(controls,'GRADE'),...buildElevationTriangles(controls,'FINISHED_FLOOR')];
   elevationTrianglesByPage.set(page,triangles);
