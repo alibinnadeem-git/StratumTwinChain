@@ -145,6 +145,11 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
     return preferred?.key||sheetFrames[0]?.key||null;
   },[sheetFrame,sheetFrames,mode]);
   const nonSldPlanSheets=useMemo(()=>sheetFrames.filter(frame=>frame.planType!=="SLD"&&frame.planType!=="RASTER_DRAWING").length,[sheetFrames]);
+  const activeScaleValidation=useMemo(()=>{
+    if(!graph)return null as null|Record<string,unknown>;
+    const candidates=graph.entities.filter(entity=>entity.meta?.scaleValidationEvidence&&(!activeSheetFrame||sheetFrameKey(entity)===activeSheetFrame));
+    return candidates[0]?.meta?.scaleValidationEvidence as Record<string,unknown>||null;
+  },[graph,activeSheetFrame]);
   const coordinationReview=useMemo(()=>buildSpatialCoordinationReviewIndex(graph?.coordinationIntelligence),[graph?.coordinationIntelligence]);
   const levels=useMemo(()=>{
     if(!graph)return[] as [string,number][];
@@ -463,6 +468,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
     {sheetFrames.length>1&&sheetFrame==="AUTO"&&activeSheetFrame&&<p className="muted" style={{padding:'0 14px',fontSize:11,margin:'8px 0'}}>Multiple drawing frames were recognized. Auto-safe isolation is showing one sheet frame at a time so unrelated plans do not stack at the same origin. Choose another sheet above, or explicitly select the review overlay.</p>}
     {sheetFrames.length>1&&sheetFrame==="ALL"&&<p className="muted" style={{padding:'0 14px',fontSize:11,margin:'8px 0'}}>Review overlay is showing multiple source sheets together. Overlap is not evidence of shared coordinates, physical alignment, clash, or as-built position unless the individual sheet transforms have been reviewed.</p>}
     {graph.entities.some(e=>e.meta?.drawingBasemap===true)&&<p className="muted" style={{padding:'0 14px',fontSize:11,margin:'8px 0'}}>Source drawing basemap is shown on the drawing plane. Sheet/image XY is preserved for review; physical scale/alignment and Z remain unverified until calibrated or otherwise source-established.</p>}
+    {activeScaleValidation&&<div className="notice" style={{margin:"8px 14px"}}><strong>SCALE {String(activeScaleValidation.status||'UNRESOLVED')}</strong><span>{String(activeScaleValidation.reason||'Independent scale review is required.')}{Number.isFinite(Number(activeScaleValidation.corroboratedMetersPerNormalizedSheetUnit))?' · candidate '+Number(activeScaleValidation.corroboratedMetersPerNormalizedSheetUnit).toFixed(4)+' m / normalized sheet unit':''} · never auto-applied</span></div>}
     {graph.entities.some(e=>e.kind==='sheet-callout-candidate'&&e.meta?.coordinateUnits==='sheet')&&<p className="muted" style={{padding:'0 14px',fontSize:11,margin:'8px 0'}}>Drawing callout pins are separated for review. Their spacing is diagrammatic until sheet scale and alignment are verified.</p>}
     {modelLoadErrors.length>0&&<div className="notice" role="alert"><strong>3D IMPORT NEEDS ATTENTION</strong><span>{modelLoadErrors.length} uploaded model{modelLoadErrors.length===1?'':'s'} could not be rendered. Its source record remains available for review; no substitute geometry was displayed.</span></div>}
 
@@ -528,7 +534,8 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
           </ul>
         </div>}
         {selected&&isSld(selected)&&<div className="notice" style={{marginTop:12}}><strong>SLD → SPATIAL PROJECTION</strong><span>The vertical separation in Electrical mode expresses logical power hierarchy. It is not an as-built physical elevation until field/design evidence establishes Z.</span></div>}
-        {selected&&!physicalElevationKnown(selected)&&!isSld(selected)&&<div className="notice" style={{marginTop:12}}><strong>Z NEEDS REVIEW</strong><span>This object has source placement, but physical elevation is not yet established. Review floor/elevation before treating Z as physical placement.</span></div>}
+        {selected&&!physicalElevationKnown(selected)&&Number.isFinite(Number(selected.meta?.zCandidateMeters))&&<div className="notice" style={{marginTop:12}}><strong>Z CANDIDATE · REVIEW REQUIRED</strong><span>Source evidence suggests Z = {Number(selected.meta?.zCandidateMeters).toFixed(3)} m · {String(selected.meta?.zResolutionAuthority||'SOURCE Z EVIDENCE').replaceAll('_',' ')} · confidence {Math.round(Number(selected.meta?.zResolutionConfidence||0)*100)}%. This is a design/drawing candidate, not field-verified physical elevation.</span></div>}
+        {selected&&!physicalElevationKnown(selected)&&!Number.isFinite(Number(selected.meta?.zCandidateMeters))&&!isSld(selected)&&<div className="notice" style={{marginTop:12}}><strong>Z NEEDS REVIEW</strong><span>This object has source placement, but physical elevation is not yet established. Review floor/elevation evidence before treating Z as physical placement.</span></div>}
         {selected&&<button className="ghost" style={{width:"100%",marginTop:12}} onClick={()=>setFitRevision(v=>v+1)}>Fit full model</button>}
         <div className="notice" style={{marginTop:14}}><strong>TRUTH BOUNDARY</strong><span>DIR finality secures the immutable record; it does not by itself establish physical truth. Observed/source-derived geometry never silently overwrites Verified infrastructure state.</span></div>
       </aside>

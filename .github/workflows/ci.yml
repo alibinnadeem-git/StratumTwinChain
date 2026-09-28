@@ -98,6 +98,10 @@ jobs:
         run: npm run qa:title-block
       - name: Automatic sheet alignment conformance
         run: npm run qa:auto-alignment
+      - name: Evidence-based Z resolver conformance
+        run: npm run qa:z-resolver
+      - name: Independent scale validation conformance
+        run: npm run qa:scale-validation
       - name: Room reconstruction and HITL conformance
         run: npm run qa:room-reconstruction
       - name: Field scan tenant identity conformance
