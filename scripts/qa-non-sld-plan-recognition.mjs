@@ -7,6 +7,9 @@ const cases=[
  ['NEW ELECTRICAL LIGHTING PLAN','ELECTRICAL_LIGHTING_PLAN','Electrical'],
  ['UTILITY PLAN','UTILITY_PLAN','Multi-discipline / Utilities'],
  ['SITE PLAN','SITE_PLAN','Civil / Site'],
+ ['GRADING PLAN','CIVIL_GRADING_PLAN','Civil / Grading'],
+ ['PRECISE GRADING PLAN','CIVIL_GRADING_PLAN','Civil / Grading'],
+ ['STORM DRAIN PLAN','DRAINAGE_PLAN','Civil / Drainage'],
  ['MEZZANINE FRAMING PLAN','STRUCTURAL_FRAMING_PLAN','Structural'],
  ['ROOF FRAMING PLAN','STRUCTURAL_FRAMING_PLAN','Structural'],
  ['DUMPSTER FOUNDATION PLAN','FOUNDATION_PLAN','Structural'],
@@ -71,4 +74,4 @@ assert.match(viewer,/Review overlay is showing multiple source sheets together/,
 assert.match(viewer,/NON-SLD PLANS/,'HUD must surface recognized plan count');
 assert.match(viewer,/meta\?\.planDiscipline/,'discipline isolation must support per-page plan disciplines in multi-discipline PDFs');
 
-console.log('Non-SLD plan recognition passed: electrical power, utility, structural, fire, hazardous-area, MEP, architectural and equipment plan families are classified without treating notes/detail sheets as plans; multi-page Spatial views isolate source frames by default.');
+console.log('Non-SLD plan recognition passed: electrical power, utility, civil site/grading/drainage, structural, fire, hazardous-area, MEP, architectural and equipment plan families are classified without treating notes/detail sheets as plans; multi-page Spatial views isolate source frames by default.');
