@@ -3,7 +3,7 @@ import type {ElectricalModelConfig} from './electrical-model-registry.ts';
 
 export type PlacementEntity={name:string;floor?:string;z?:number;meta?:Record<string,unknown>};
 export type DimensionAuthority='SOURCE_SPEC'|'MODEL_REGISTRY'|'WEB_OEM_REFERENCE'|'STRATUM_NOMINAL';
-export type ZAuthority='MEASURED_OR_REVIEWED'|'SOURCE_DESIGN_CANDIDATE'|'FLOOR_STANDING_PROFILE'|'HISTORICAL_RECOMMENDATION'|'FLOOR_LABEL_ONLY'|'UNRESOLVED';
+export type ZAuthority='MEASURED_OR_REVIEWED'|'SOURCE_DESIGN_CANDIDATE'|'RELATIVE_TO_REVIEW_PLANE'|'FLOOR_STANDING_PROFILE'|'HISTORICAL_RECOMMENDATION'|'FLOOR_LABEL_ONLY'|'UNRESOLVED';
 export type PlacementEvidenceClass='SOURCE_SPEC'|'OEM_INSTALLATION_GUIDANCE'|'CODE_CONSTRAINT'|'ACCESSIBILITY_GUIDANCE'|'DESIGN_GUIDE'|'TYPE_PROFILE'|'VISUALIZATION_HEURISTIC';
 export type PlacementRecommendation={kind:string;valueMeters?:number;rangeMeters?:[number,number];constraintMaxMeters?:number;source:string;sourceUrl?:string;evidenceClass:PlacementEvidenceClass;note:string};
 export type AssetPlacement={
@@ -85,12 +85,12 @@ function sourceMountingBaseOffset(entity:PlacementEntity){
  }
  return null;
 }
-function sourceMountingRecommendation(entity:PlacementEntity,floorZ:number,dimensions:AssetPlacement['dimensions']):AssetPlacement|null{
+function sourceMountingRecommendation(entity:PlacementEntity,floorZ:number,dimensions:AssetPlacement['dimensions'],floorDatumKnown:boolean):AssetPlacement|null{
  const offset=sourceMountingBaseOffset(entity);if(offset===null)return null;
  const base=floorZ+offset;
  const source=String(entity.meta?.mountingInstructionSource||entity.meta?.installationGuideSource||entity.meta?.oemSpecSource||'Source asset installation metadata');
  const sourceUrl=String(entity.meta?.mountingInstructionSourceUrl||entity.meta?.installationGuideSourceUrl||'').trim()||undefined;
- return{dimensions,baseZ:base,topZ:base+dimensions.height,zAuthority:'HISTORICAL_RECOMMENDATION',zConfidence:.84,recommendation:{kind:'SOURCE_INSTALLATION_BASE_RECOMMENDATION',valueMeters:base,source,sourceUrl,evidenceClass:'OEM_INSTALLATION_GUIDANCE',note:'Source/OEM installation guidance is a placement recommendation, not evidence of the installed or measured elevation.'},physicalTruth:false};
+ return{dimensions,baseZ:base,topZ:base+dimensions.height,zAuthority:floorDatumKnown?'HISTORICAL_RECOMMENDATION':'RELATIVE_TO_REVIEW_PLANE',zConfidence:floorDatumKnown?.84:.58,recommendation:{kind:floorDatumKnown?'SOURCE_INSTALLATION_BASE_RECOMMENDATION':'SOURCE_INSTALLATION_BASE_RELATIVE_TO_REVIEW_PLANE',valueMeters:base,source,sourceUrl,evidenceClass:'OEM_INSTALLATION_GUIDANCE',note:floorDatumKnown?'Source/OEM installation guidance is a placement recommendation, not evidence of the installed or measured elevation.':'Source/OEM mounting offset is known, but absolute floor elevation is not. Value is rendered relative to the review plane and is not absolute project Z.'},physicalTruth:false};
 }
 
 export function nominalDimensionsFor(name:string):[number,number,number]{
@@ -118,20 +118,20 @@ export function resolveAssetPlacement(entity:PlacementEntity,registry?:Electrica
   return{dimensions,baseZ:base,topZ:base+dimensions.height,zAuthority:'MEASURED_OR_REVIEWED',zConfidence:.98,physicalTruth:false};
  }
  const designCandidate=sourceDesignZCandidate(entity);if(designCandidate!==null)return{dimensions,baseZ:designCandidate,topZ:designCandidate+dimensions.height,zAuthority:'SOURCE_DESIGN_CANDIDATE',zConfidence:Number(entity.meta?.zResolutionConfidence||0),recommendation:{kind:'SOURCE_DESIGN_Z_CANDIDATE',valueMeters:designCandidate,source:String(entity.meta?.zResolutionAuthority||'Source Z evidence'),evidenceClass:'SOURCE_SPEC',note:'Rendered from a source-design Z candidate. This is reviewable design evidence, not field-verified physical elevation.'},physicalTruth:false};
- const sourceMounting=floorDatum!==null?sourceMountingRecommendation(entity,floorZ,dimensions):null;if(sourceMounting)return sourceMounting;
+ const sourceMounting=sourceMountingRecommendation(entity,floorZ,dimensions,floorDatum!==null);if(sourceMounting)return sourceMounting;
  const key=component?.key||'';
 
  if(key==='evse'){
   if(isPedestalMounted(entity)){
-   return{dimensions,baseZ:floorZ,topZ:floorZ+dimensions.height,zAuthority:'FLOOR_STANDING_PROFILE',zConfidence:.78,recommendation:{kind:'EVSE_PEDESTAL_BASE_ON_FINISHED_FLOOR',valueMeters:floorZ,source:'Explicit pedestal/bollard/floor-mounted EVSE installation type',evidenceClass:'TYPE_PROFILE',note:'Pedestal/floor-standing profile only. Confirm footing, curb, bollard base, finished grade and field elevation.'},physicalTruth:false};
+   return floorDatum!==null?{dimensions,baseZ:floorZ,topZ:floorZ+dimensions.height,zAuthority:'FLOOR_STANDING_PROFILE',zConfidence:.78,recommendation:{kind:'EVSE_PEDESTAL_BASE_ON_FINISHED_FLOOR',valueMeters:floorZ,source:'Explicit pedestal/bollard/floor-mounted EVSE installation type',evidenceClass:'TYPE_PROFILE',note:'Pedestal/floor-standing profile anchored to a source floor datum. Confirm footing, curb, bollard base, finished grade and field elevation.'},physicalTruth:false}:{dimensions,baseZ:0,topZ:dimensions.height,zAuthority:'RELATIVE_TO_REVIEW_PLANE',zConfidence:.5,recommendation:{kind:'EVSE_PEDESTAL_REVIEW_PLANE',valueMeters:0,source:'Explicit pedestal/bollard/floor-mounted EVSE installation type',evidenceClass:'TYPE_PROFILE',note:'Pedestal base is shown on the review plane because absolute finished-floor/grade elevation is unresolved.'},physicalTruth:false};
   }
   if(isTeslaWallConnector(entity)){
    const minimum=isOutdoor(entity)?.6:.45,base=floorZ+1.15;
-   return{dimensions,baseZ:base,topZ:base+dimensions.height,zAuthority:'HISTORICAL_RECOMMENDATION',zConfidence:isCurrentTeslaWallConnector(entity)?.84:.7,recommendation:{kind:'TESLA_WALL_CONNECTOR_BOTTOM_HEIGHT',valueMeters:base,rangeMeters:[floorZ+minimum,floorZ+1.52],constraintMaxMeters:floorZ+1.52,source:'Tesla Wall Connector installation guidance: measurements are ground-to-bottom; ~1.15 m recommended, 1.52 m maximum, minimum 0.45 m indoor / 0.60 m outdoor',sourceUrl:TESLA_INSTALL_URL,evidenceClass:'OEM_INSTALLATION_GUIDANCE',note:'Applies only because Tesla Wall Connector identity is present. This remains an OEM installation recommendation, not evidence of actual installed elevation.'},physicalTruth:false};
+   return{dimensions,baseZ:base,topZ:base+dimensions.height,zAuthority:floorDatum!==null?'HISTORICAL_RECOMMENDATION':'RELATIVE_TO_REVIEW_PLANE',zConfidence:floorDatum!==null?(isCurrentTeslaWallConnector(entity)?.84:.7):.55,recommendation:{kind:'TESLA_WALL_CONNECTOR_BOTTOM_HEIGHT',valueMeters:base,rangeMeters:[floorZ+minimum,floorZ+1.52],constraintMaxMeters:floorZ+1.52,source:'Tesla Wall Connector installation guidance: measurements are ground-to-bottom; ~1.15 m recommended, 1.52 m maximum, minimum 0.45 m indoor / 0.60 m outdoor',sourceUrl:TESLA_INSTALL_URL,evidenceClass:'OEM_INSTALLATION_GUIDANCE',note:floorDatum!==null?'Applies only because Tesla Wall Connector identity is present. This remains an OEM installation recommendation, not evidence of actual installed elevation.':'OEM mounting height is shown relative to the review plane because absolute finished-floor/grade elevation is unresolved.'},physicalTruth:false};
   }
   if(isChargePointHomeFlex(entity)){
    const topReference=floorZ+1.3,base=Math.max(floorZ,topReference-dimensions.height);
-   return{dimensions,baseZ:base,topZ:base+dimensions.height,zAuthority:'HISTORICAL_RECOMMENDATION',zConfidence:.82,recommendation:{kind:'CHARGEPOINT_HOME_FLEX_MOUNT_REFERENCE',valueMeters:topReference,rangeMeters:[floorZ+1,floorZ+1.1],source:'ChargePoint Home Flex CPH50 installation guide: mounting reference 1.0–1.1 m; station top approximately 1.3 m above floor',sourceUrl:CHARGEPOINT_INSTALL_URL,evidenceClass:'OEM_INSTALLATION_GUIDANCE',note:'Rendered base is derived from the approximately 1.3 m top reference and the best available equipment height. The 1.0–1.1 m range is ChargePoint’s mounting reference, not a generic EVSE rule or measured as-built elevation.'},physicalTruth:false};
+   return{dimensions,baseZ:base,topZ:base+dimensions.height,zAuthority:floorDatum!==null?'HISTORICAL_RECOMMENDATION':'RELATIVE_TO_REVIEW_PLANE',zConfidence:floorDatum!==null?.82:.55,recommendation:{kind:'CHARGEPOINT_HOME_FLEX_MOUNT_REFERENCE',valueMeters:topReference,rangeMeters:[floorZ+1,floorZ+1.1],source:'ChargePoint Home Flex CPH50 installation guide: mounting reference 1.0–1.1 m; station top approximately 1.3 m above floor',sourceUrl:CHARGEPOINT_INSTALL_URL,evidenceClass:'OEM_INSTALLATION_GUIDANCE',note:floorDatum!==null?'Rendered base is derived from the approximately 1.3 m top reference and the best available equipment height. The 1.0–1.1 m range is ChargePoint’s mounting reference, not a generic EVSE rule or measured as-built elevation.':'OEM mounting reference is shown relative to the review plane because absolute floor elevation is unresolved.'},physicalTruth:false};
   }
   if(isWallMounted(entity)){
    return{dimensions,baseZ:floorZ,topZ:floorZ+dimensions.height,zAuthority:'UNRESOLVED',zConfidence:.12,recommendation:{kind:'WALL_EVSE_OEM_HEIGHT_REQUIRED',source:'Wall-mounted EVSE type identified, but manufacturer/model-specific mounting height is unresolved',evidenceClass:'TYPE_PROFILE',note:'Do not borrow Tesla, ChargePoint or another OEM height for a generic wall EVSE. Resolve manufacturer/model or project installation evidence before proposing physical Z.'},physicalTruth:false};
