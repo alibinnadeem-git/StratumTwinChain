@@ -39,6 +39,7 @@
     "qa:spatial-asset-passport": "node --experimental-strip-types scripts/qa-spatial-asset-passport.mjs",
     "qa:title-block": "node --experimental-strip-types scripts/qa-title-block.mjs",
     "qa:auto-alignment": "node --experimental-strip-types scripts/qa-auto-sheet-alignment.mjs",
+    "qa:z-resolver": "node --experimental-strip-types scripts/qa-z-resolver.mjs",
     "qa:room-reconstruction": "node --experimental-strip-types scripts/qa-room-reconstruction.mjs",
     "qa:field-scan": "node --experimental-strip-types scripts/qa-field-scan.mjs",
     "qa:physical-identity": "node scripts/qa-physical-identity.mjs",
