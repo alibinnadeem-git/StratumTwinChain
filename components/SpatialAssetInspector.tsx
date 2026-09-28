@@ -85,6 +85,8 @@ export default function SpatialAssetInspector({
 
  const z=Number.isFinite(Number(selected.z))?Number(selected.z):null;
  const zCandidate=Number.isFinite(Number(selected.meta?.zCandidateMeters))?Number(selected.meta?.zCandidateMeters):null;
+ const reviewSurfaceZ=Number.isFinite(Number(selected.meta?.reviewSurfaceZ))?Number(selected.meta?.reviewSurfaceZ):null;
+ const reviewSurfaceLabel=String(selected.meta?.reviewSurfaceKind||'PROJECT DATUM').replaceAll('_',' ');
  const qr=asset?verificationUrl(asset):'';
  const zReviewed=selected.meta?.elevationKnown!==false&&selected.meta?.physicalElevationKnown!==false&&(selected.meta?.elevationKnown===true||selected.meta?.physicalElevationKnown===true||selected.meta?.zPlacementAuthority==='MEASURED_OR_REVIEWED');
  const tierLabel:Record<string,string>={L0:'Tier 0 · Source',L1:'Tier 1 · Drawing geometry',L2:'Tier 2 · Drawing callout, review required',L3:'Tier 3 · Electrical topology',L4:'Tier 4 · Registered asset'};
@@ -100,7 +102,7 @@ export default function SpatialAssetInspector({
   </div>
 
   <div className={`placement-trust ${zReviewed?'reviewed':'needs-review'}`} role="status">
-    <div><span>Z placement</span><strong>{zReviewed?'Measured / reviewed':zCandidate!==null?'Design Z candidate · review required':'Review plane · physical Z unresolved'}</strong></div>
+    <div><span>Z placement</span><strong>{zReviewed?'Measured / reviewed':zCandidate!==null?'Design Z candidate · review required':reviewSurfaceZ!==null?`${reviewSurfaceLabel} review surface · object Z unresolved`:'Review plane · physical Z unresolved'}</strong></div>
   </div>
   {selected.kind==='imported-3d-model'&&<div className="notice" role="status"><strong>IMPORTED 3D GEOMETRY · REVIEW-SCALE</strong><span>This uploaded reference model is normalized to a component review envelope for Spatial presentation when its model-space units/dimensions are not trusted. Raw GLB bounds remain preserved in source details. Review-scale rendering does not establish OEM dimensions, installed elevation, asset identity or DIR state.</span></div>}
   {selected.kind==='sheet-callout-candidate'&&<div className="notice" role="status"><strong>DRAWING CALLOUT · REVIEW REQUIRED</strong><span>{selected.name} appears on sheet {String(selected.meta?.sheet||'unknown')}, page {String(selected.meta?.page||'?')}, at sheet X {String(selected.meta?.sheetX??'unresolved')} / Y {String(selected.meta?.sheetY??'unresolved')}, near {selected.zone||'an unresolved room'}. Equipment type, physical position and asset identity need confirmation. Maintenance can be recorded later for both existing and new registered assets. No history recorded by this drawing.</span></div>}
@@ -196,10 +198,12 @@ export default function SpatialAssetInspector({
    <div className="passport-facts" style={{marginTop:10}}>
     <div><span>Floor</span><strong>{selected.floor||'UNRESOLVED'}</strong></div>
     <div><span>Plan X / Y</span><strong>{selected.x.toFixed(2)} / {selected.y.toFixed(2)}</strong></div>
-    <div><span>Z</span><strong>{zReviewed&&z!==null?`${z.toFixed(2)} m`:zCandidate!==null?`${zCandidate.toFixed(2)} m candidate`:'Review plane · unresolved'}</strong></div>
+    <div><span>Z</span><strong>{zReviewed&&z!==null?`${z.toFixed(2)} m`:zCandidate!==null?`${zCandidate.toFixed(2)} m candidate`:reviewSurfaceZ!==null?`${reviewSurfaceZ.toFixed(2)} m ${reviewSurfaceLabel.toLowerCase()} review surface`:'Review plane · unresolved'}</strong></div>
     <div><span>Source</span><strong>{selected.source}</strong></div>
     <div><span>Confidence</span><strong>{Math.round(selected.confidence*100)}%</strong></div>
     <div><span>Zone</span><strong>{selected.zone||'Unresolved'}</strong></div>
+    {reviewSurfaceZ!==null&&<div><span>Datum authority</span><strong>{String(selected.meta?.reviewSurfaceAuthority||'SOURCE_PROJECT_DATUM').replaceAll('_',' ')}</strong></div>}
+    {Number.isFinite(Number(selected.meta?.zScaleGuideMetersPerSourceUnit))&&<div><span>XYZ unit guide</span><strong>{Number(selected.meta?.zScaleGuideMetersPerSourceUnit).toFixed(6)} m/source unit</strong></div>}
    </div>
    <details className="proof-details"><summary>Raw source details</summary><dl>{Object.entries(selected.meta||{}).filter(([key])=>key!=='embeddedGlb'&&(zReviewed||!/(?:^z$|^inferredZCandidate$)/i.test(key))).map(([key,value])=><div key={key}><dt>{key}</dt><dd style={{overflowWrap:'anywhere'}}>{typeof value==='object'?JSON.stringify(value):String(value)}</dd></div>)}</dl></details>
   </details>

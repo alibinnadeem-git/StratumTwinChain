@@ -22,6 +22,7 @@ import {drawingSourceReprocessReason,findDrawingSourcesNeedingReprocess} from '.
 import {archiveSourceBytes,archivedSourceToFile,listArchivedSourceMetadata,readArchivedSource} from '../lib/source-browser-archive';
 import {enrichCoordinationIntelligence} from '../lib/coordination-intelligence';
 import {buildZResolutionIndex,extractZEvidenceFromText,type ZEvidence} from '../lib/z-resolver';
+import {buildProjectDatumSurfaces,datumSurfaceMetadata,projectDatumSurfaceForEntity} from '../lib/project-datum';
 import {ChangeEvent,DragEvent,useEffect,useMemo,useState} from 'react';
 
 type Layer='L0'|'L1'|'L2'|'L3'|'L4';
@@ -177,14 +178,20 @@ function withAssetCandidates(parsed:GraphEntity[]){return [...parsed,...parsed.f
 
 function enrichZCandidates(parsed:GraphEntity[]){
  const evidence=parsed.flatMap(entity=>entity.meta?.zEvidence?[entity.meta.zEvidence as ZEvidence]:[]);
+ const surfaces=buildProjectDatumSurfaces(evidence);
  const index=buildZResolutionIndex(parsed,evidence);
  return parsed.map(entity=>{
   const resolution=index.get(entity.id);
-  if(!resolution||resolution.status==='UNRESOLVED')return {...entity,meta:{...entity.meta,zResolutionStatus:'UNRESOLVED',physicalElevationKnown:false,elevationKnown:false}};
+  const surface=projectDatumSurfaceForEntity(entity,surfaces);
+  const surfaceMeta=datumSurfaceMetadata(surface);
+  const xyzGuide=Number.isFinite(Number(entity.meta?.unitToMeters))&&String(entity.meta?.unitName||'')!=='unitless'
+   ?{zScaleGuideMetersPerSourceUnit:Number(entity.meta?.unitToMeters),zScaleGuideAuthority:'XY_AND_Z_SHARE_SOURCE_UNITS'}
+   :{};
+  if(!resolution||resolution.status==='UNRESOLVED')return {...entity,meta:{...entity.meta,...surfaceMeta,...xyzGuide,zResolutionStatus:'UNRESOLVED',physicalElevationKnown:false,elevationKnown:false}};
   if(resolution.status==='RESOLVED_DESIGN_CANDIDATE'&&resolution.zMeters!==null){
-   return {...entity,meta:{...entity.meta,zCandidateMeters:resolution.zMeters,zResolutionStatus:resolution.status,zResolutionConfidence:resolution.confidence,zResolutionAuthority:resolution.authority,zResolutionEvidence:resolution.evidence,physicalElevationKnown:false,elevationKnown:false,reviewRequired:true}};
+   return {...entity,meta:{...entity.meta,...surfaceMeta,...xyzGuide,zCandidateMeters:resolution.zMeters,zResolutionStatus:resolution.status,zResolutionConfidence:resolution.confidence,zResolutionAuthority:resolution.authority,zResolutionEvidence:resolution.evidence,physicalElevationKnown:false,elevationKnown:false,reviewRequired:true}};
   }
-  return {...entity,meta:{...entity.meta,zResolutionStatus:resolution.status,zResolutionConfidence:resolution.confidence,zResolutionAuthority:resolution.authority,zResolutionEvidence:resolution.evidence,physicalElevationKnown:false,elevationKnown:false,reviewRequired:true}};
+  return {...entity,meta:{...entity.meta,...surfaceMeta,...xyzGuide,zResolutionStatus:resolution.status,zResolutionConfidence:resolution.confidence,zResolutionAuthority:resolution.authority,zResolutionEvidence:resolution.evidence,physicalElevationKnown:false,elevationKnown:false,reviewRequired:true}};
  });
 }
 

@@ -116,7 +116,7 @@ export function resolveEntityZ(entity:ZEntityLike,evidence:ZEvidence[]):ZResolut
   }
   const floor=(entity.floor||'').toUpperCase();
   const sameFloor=evidence.filter(e=>!e.floor||!floor||String(e.floor).toUpperCase()===floor);
-  const datums=sameFloor.filter(e=>['FLOOR_DATUM','SECTION_ELEVATION'].includes(e.type)&&e.valueMeters!==null);
+  const datums=sameFloor.filter(e=>['FLOOR_DATUM','SECTION_ELEVATION'].includes(e.type)&&e.valueMeters!==null&&!e.evidence.some(item=>/UNITS_REQUIRE_SOURCE_DATUM_REVIEW/i.test(item)));
   const aff=sameFloor.filter(e=>e.type==='MOUNTING_HEIGHT_AFF'&&e.valueMeters!==null&&tagMatchesEntity(e.tag,entity.name));
   if(datums.length){
     const sorted=[...datums].sort((a,b)=>b.confidence-a.confidence),base=sorted[0];
@@ -127,7 +127,7 @@ export function resolveEntityZ(entity:ZEntityLike,evidence:ZEvidence[]):ZResolut
       const z=Number(base.valueMeters)+Number(bestAff.valueMeters);
       return{entityId:entity.id,status:'RESOLVED_DESIGN_CANDIDATE',zMeters:z,confidence:Math.min(base.confidence,bestAff.confidence),authority:'FLOOR_DATUM_PLUS_AFF',evidence:[base,bestAff],physicalTruth:false,reviewRequired:true,reason:'Resolved from source floor datum plus source mounting height above finished floor.'};
     }
-    return{entityId:entity.id,status:'RESOLVED_DESIGN_CANDIDATE',zMeters:Number(base.valueMeters),confidence:base.confidence,authority:'SOURCE_FLOOR_OR_SECTION_DATUM',evidence:[base],physicalTruth:false,reviewRequired:true,reason:'Resolved to the source floor/section datum. Object-specific mounting height is unavailable.'};
+    return{entityId:entity.id,status:'RELATIVE_ONLY',zMeters:null,confidence:base.confidence,authority:'PROJECT_FLOOR_DATUM_ONLY',evidence:[base],physicalTruth:false,reviewRequired:true,reason:'A source floor/section datum establishes the project review surface, but object-specific mounting/base elevation is still unresolved.'};
   }
   if(aff.length)return{entityId:entity.id,status:'RELATIVE_ONLY',zMeters:null,confidence:aff[0].confidence,authority:'AFF_WITHOUT_FLOOR_DATUM',evidence:aff,physicalTruth:false,reviewRequired:true,reason:'Mounting height is known relative to finished floor, but the floor datum is unresolved.'};
   return{entityId:entity.id,status:'UNRESOLVED',zMeters:null,confidence:0,authority:'UNRESOLVED',evidence:[],physicalTruth:false,reviewRequired:true,reason:'No defensible source evidence establishes Z.'};
