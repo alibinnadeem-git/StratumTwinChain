@@ -189,17 +189,26 @@ export function declaredScaleMetersPerNormalizedSheetUnit(value:string|null|unde
   return Number.isFinite(meters)&&meters>0?meters:null;
 }
 
+export function extractSheetGeometryEvidence(input:{items:PositionedSheetText[];pageWidthPoints?:number;pageHeightPoints?:number;normalizedSheetSpan?:number}){
+  const clean=input.items.map(item=>({...item,text:compact(item.text)})).filter(item=>item.text);
+  const drawingScale=inferScale(clean),northOrientation=inferNorthOrientation(clean);
+  const widthPoints=finitePositive(input.pageWidthPoints),heightPoints=finitePositive(input.pageHeightPoints),maxDimensionPoints=widthPoints&&heightPoints?Math.max(widthPoints,heightPoints):widthPoints||heightPoints;
+  const normalizedSheetSpan=finitePositive(input.normalizedSheetSpan)||20;
+  const denominator=drawingScaleDenominator(drawingScale.value);
+  const metersPerNormalizedSheetUnit=declaredScaleMetersPerNormalizedSheetUnit(drawingScale.value,maxDimensionPoints,normalizedSheetSpan);
+  const scaleCalibration:SheetScaleCalibrationEvidence={denominator,metersPerNormalizedSheetUnit,normalizedSheetSpan,confidence:metersPerNormalizedSheetUnit?Math.min(.8,drawingScale.confidence):denominator?Math.min(.55,drawingScale.confidence):0,method:metersPerNormalizedSheetUnit?'DECLARED_SCALE_PLUS_PDF_PAGE_GEOMETRY_CANDIDATE':denominator?'DECLARED_SCALE_WITHOUT_PHYSICAL_PAGE_GEOMETRY':'UNAVAILABLE',reviewRequired:true,autoApply:false,physicalPositionVerified:false};
+  return{drawingScale,northOrientation,scaleCalibration,pageGeometry:{widthPoints,heightPoints,maxDimensionPoints}};
+}
+
 export function extractSheetIdentity(input:{page:number;sourceName:string;sourceSha256:string;items:PositionedSheetText[];pageWidthPoints?:number;pageHeightPoints?:number}):SheetIdentityCandidate{
   const clean=input.items.map(item=>({...item,text:compact(item.text)})).filter(item=>item.text);
   const titleRegion=clean.filter(item=>item.x>=.48||item.y>=.72);
   const items=titleRegion.length>=3?titleRegion:clean;
   const region=titleRegion.length>=3?'LOWER_RIGHT':'FULL_PAGE_FALLBACK';
-  const sheetNumber=inferSheetNumber(items),sheetTitle=inferTitle(items),revision=inferRevision(items),issueDate=inferDate(items),discipline=inferDiscipline(sheetNumber,sheetTitle,items),floor=inferFloor(sheetTitle,items),drawingScale=inferScale(items),northOrientation=inferNorthOrientation(clean);
+  const geometryEvidence=extractSheetGeometryEvidence({items:clean,pageWidthPoints:input.pageWidthPoints,pageHeightPoints:input.pageHeightPoints});
+  const {drawingScale,northOrientation,scaleCalibration,pageGeometry}=geometryEvidence;
+  const sheetNumber=inferSheetNumber(items),sheetTitle=inferTitle(items),revision=inferRevision(items),issueDate=inferDate(items),discipline=inferDiscipline(sheetNumber,sheetTitle,items),floor=inferFloor(sheetTitle,items);
   const weighted=[[sheetNumber.confidence,.27],[sheetTitle.confidence,.19],[revision.confidence,.07],[issueDate.confidence,.07],[discipline.confidence,.14],[floor.confidence,.09],[drawingScale.confidence,.1],[northOrientation.confidence,.07]] as const;
   const confidence=Number(weighted.reduce((sum,[score,weight])=>sum+score*weight,0).toFixed(3));
-  const widthPoints=finitePositive(input.pageWidthPoints),heightPoints=finitePositive(input.pageHeightPoints),maxDimensionPoints=widthPoints&&heightPoints?Math.max(widthPoints,heightPoints):widthPoints||heightPoints;
-  const pageGeometry={widthPoints,heightPoints,maxDimensionPoints};
-  const denominator=drawingScaleDenominator(drawingScale.value),metersPerNormalizedSheetUnit=declaredScaleMetersPerNormalizedSheetUnit(drawingScale.value,maxDimensionPoints,20);
-  const scaleCalibration:SheetScaleCalibrationEvidence={denominator,metersPerNormalizedSheetUnit,normalizedSheetSpan:20,confidence:metersPerNormalizedSheetUnit?Math.min(.8,drawingScale.confidence):0,method:metersPerNormalizedSheetUnit?'DECLARED_SCALE_PLUS_PDF_PAGE_GEOMETRY_CANDIDATE':'UNAVAILABLE',reviewRequired:true,autoApply:false,physicalPositionVerified:false};
   return{page:input.page,sourceName:input.sourceName,sourceSha256:input.sourceSha256,region,sheetNumber,sheetTitle,revision,issueDate,discipline,floor,drawingScale,northOrientation,scaleCalibration,pageGeometry,confidence,reviewRequired:true,reviewState:'CANDIDATE',alignmentEligible:false,geometryScaleAuthority:false};
 }
