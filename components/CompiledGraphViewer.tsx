@@ -145,6 +145,11 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
     return preferred?.key||sheetFrames[0]?.key||null;
   },[sheetFrame,sheetFrames,mode]);
   const nonSldPlanSheets=useMemo(()=>sheetFrames.filter(frame=>frame.planType!=="SLD"&&frame.planType!=="RASTER_DRAWING").length,[sheetFrames]);
+  const activeScaleValidation=useMemo(()=>{
+    if(!graph)return null as null|Record<string,unknown>;
+    const candidates=graph.entities.filter(entity=>entity.meta?.scaleValidationEvidence&&(!activeSheetFrame||sheetFrameKey(entity)===activeSheetFrame));
+    return candidates[0]?.meta?.scaleValidationEvidence as Record<string,unknown>||null;
+  },[graph,activeSheetFrame]);
   const coordinationReview=useMemo(()=>buildSpatialCoordinationReviewIndex(graph?.coordinationIntelligence),[graph?.coordinationIntelligence]);
   const levels=useMemo(()=>{
     if(!graph)return[] as [string,number][];
@@ -463,6 +468,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
     {sheetFrames.length>1&&sheetFrame==="AUTO"&&activeSheetFrame&&<p className="muted" style={{padding:'0 14px',fontSize:11,margin:'8px 0'}}>Multiple drawing frames were recognized. Auto-safe isolation is showing one sheet frame at a time so unrelated plans do not stack at the same origin. Choose another sheet above, or explicitly select the review overlay.</p>}
     {sheetFrames.length>1&&sheetFrame==="ALL"&&<p className="muted" style={{padding:'0 14px',fontSize:11,margin:'8px 0'}}>Review overlay is showing multiple source sheets together. Overlap is not evidence of shared coordinates, physical alignment, clash, or as-built position unless the individual sheet transforms have been reviewed.</p>}
     {graph.entities.some(e=>e.meta?.drawingBasemap===true)&&<p className="muted" style={{padding:'0 14px',fontSize:11,margin:'8px 0'}}>Source drawing basemap is shown on the drawing plane. Sheet/image XY is preserved for review; physical scale/alignment and Z remain unverified until calibrated or otherwise source-established.</p>}
+    {activeScaleValidation&&<div className="notice" style={{margin:"8px 14px"}}><strong>SCALE {String(activeScaleValidation.status||'UNRESOLVED')}</strong><span>{String(activeScaleValidation.reason||'Independent scale review is required.')}{Number.isFinite(Number(activeScaleValidation.corroboratedMetersPerNormalizedSheetUnit))?' · candidate '+Number(activeScaleValidation.corroboratedMetersPerNormalizedSheetUnit).toFixed(4)+' m / normalized sheet unit':''} · never auto-applied</span></div>}
     {graph.entities.some(e=>e.kind==='sheet-callout-candidate'&&e.meta?.coordinateUnits==='sheet')&&<p className="muted" style={{padding:'0 14px',fontSize:11,margin:'8px 0'}}>Drawing callout pins are separated for review. Their spacing is diagrammatic until sheet scale and alignment are verified.</p>}
     {modelLoadErrors.length>0&&<div className="notice" role="alert"><strong>3D IMPORT NEEDS ATTENTION</strong><span>{modelLoadErrors.length} uploaded model{modelLoadErrors.length===1?'':'s'} could not be rendered. Its source record remains available for review; no substitute geometry was displayed.</span></div>}
 
