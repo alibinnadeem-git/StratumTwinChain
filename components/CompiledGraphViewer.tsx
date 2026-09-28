@@ -61,6 +61,10 @@ function displayElevation(e:Entity,mode:ViewMode){
     const candidate=metaNumber(e,"zCandidateMeters");
     if(candidate!==null)return candidate;
   }
+  if(!physicalElevationKnown(e)){
+    const reviewSurface=metaNumber(e,"reviewSurfaceZ");
+    if(reviewSurface!==null)return reviewSurface;
+  }
   return base;
 }
 function entitySystem(e:Entity):SystemMode{
@@ -257,7 +261,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       };
       const label=(text:string,x:number,y:number,z:number,color="#cfefff",entity?:Entity,offset=0)=>{
         if(!labels)return;const canvas=document.createElement("canvas");canvas.width=512;canvas.height=112;const ctx=canvas.getContext("2d");if(!ctx)return;
-        ctx.fillStyle="rgba(3,12,18,.82)";ctx.roundRect(4,4,504,104,16);ctx.fill();ctx.fillStyle=color;ctx.font="700 28px system-ui";ctx.fillText(text.slice(0,30),20,49);ctx.fillStyle="#83a6b7";ctx.font="20px system-ui";ctx.fillText(entity&&!physicalElevationKnown(entity)?(Number.isFinite(Number(entity.meta?.zCandidateMeters))?`Z candidate ${Number(entity.meta?.zCandidateMeters).toFixed(2)} m`:'Review plane · Z unresolved'):entity?`${y.toFixed(2)} m Z`:'Drawing level · Z unverified',20,82);
+        ctx.fillStyle="rgba(3,12,18,.82)";ctx.roundRect(4,4,504,104,16);ctx.fill();ctx.fillStyle=color;ctx.font="700 28px system-ui";ctx.fillText(text.slice(0,30),20,49);ctx.fillStyle="#83a6b7";ctx.font="20px system-ui";ctx.fillText(entity&&!physicalElevationKnown(entity)?(Number.isFinite(Number(entity.meta?.zCandidateMeters))?`Z candidate ${Number(entity.meta?.zCandidateMeters).toFixed(2)} m`:Number.isFinite(Number(entity.meta?.reviewSurfaceZ))?`${String(entity.meta?.reviewSurfaceKind||'Project datum').replaceAll('_',' ')} review surface ${Number(entity.meta?.reviewSurfaceZ).toFixed(2)} m`:'Review plane · Z unresolved'):entity?`${y.toFixed(2)} m Z`:'Drawing level · Z unverified',20,82);
         const texture=new THREE.CanvasTexture(canvas),sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,depthTest:false}));sprite.scale.set(2.9,.64,1);sprite.position.set(x+offset*.08,y+1.2+offset*.82,z);if(entity){sprite.userData.entity=entity;clickable.push(sprite);if(offset>0){const leader=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x,y+.2,z),sprite.position]),new THREE.LineDashedMaterial({color:0xffb85c,dashSize:.12,gapSize:.08,transparent:true,opacity:.65}));leader.computeLineDistances();scene.add(leader)}}scene.add(sprite);
       };
       const wall=(a:XY,b:XY,e:Entity)=>{const dx=b.x-a.x,dz=b.y-a.y,len=Math.hypot(dx,dz);if(len<.02)return;const op=xray?.12:.55,m=new THREE.Mesh(new THREE.BoxGeometry(len,2.7,.09),material(colors.L1,op));m.position.set((a.x+b.x)/2,height(e)+1.35,(a.y+b.y)/2);m.rotation.y=-Math.atan2(dz,dx);groups.L1.add(m)};
@@ -545,7 +549,8 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
         </div>}
         {selected&&isSld(selected)&&<div className="notice" style={{marginTop:12}}><strong>SLD → SPATIAL PROJECTION</strong><span>The vertical separation in Electrical mode expresses logical power hierarchy. It is not an as-built physical elevation until field/design evidence establishes Z.</span></div>}
         {selected&&!physicalElevationKnown(selected)&&Number.isFinite(Number(selected.meta?.zCandidateMeters))&&<div className="notice" style={{marginTop:12}}><strong>Z CANDIDATE · REVIEW REQUIRED</strong><span>Source evidence suggests Z = {Number(selected.meta?.zCandidateMeters).toFixed(3)} m · {String(selected.meta?.zResolutionAuthority||'SOURCE Z EVIDENCE').replaceAll('_',' ')} · confidence {Math.round(Number(selected.meta?.zResolutionConfidence||0)*100)}%. This is a design/drawing candidate, not field-verified physical elevation.</span></div>}
-        {selected&&!physicalElevationKnown(selected)&&!Number.isFinite(Number(selected.meta?.zCandidateMeters))&&!isSld(selected)&&<div className="notice" style={{marginTop:12}}><strong>Z NEEDS REVIEW</strong><span>This object has source placement, but physical elevation is not yet established. Review floor/elevation evidence before treating Z as physical placement.</span></div>}
+        {selected&&!physicalElevationKnown(selected)&&!Number.isFinite(Number(selected.meta?.zCandidateMeters))&&Number.isFinite(Number(selected.meta?.reviewSurfaceZ))&&!isSld(selected)&&<div className="notice" style={{marginTop:12}}><strong>PROJECT DATUM REVIEW SURFACE</strong><span>{String(selected.meta?.reviewSurfaceKind||'PROJECT DATUM').replaceAll('_',' ')} = {Number(selected.meta?.reviewSurfaceZ).toFixed(3)} m from source evidence. The object is displayed on that review surface, but its own physical Z remains unresolved until mounting/base/field evidence establishes it.</span></div>}
+        {selected&&!physicalElevationKnown(selected)&&!Number.isFinite(Number(selected.meta?.zCandidateMeters))&&!Number.isFinite(Number(selected.meta?.reviewSurfaceZ))&&!isSld(selected)&&<div className="notice" style={{marginTop:12}}><strong>Z NEEDS REVIEW</strong><span>This object has source placement, but physical elevation is not yet established. Review floor/elevation evidence before treating Z as physical placement.</span></div>}
         {selected&&<button className="ghost" style={{width:"100%",marginTop:12}} onClick={()=>setFitRevision(v=>v+1)}>Fit full model</button>}
         <div className="notice" style={{marginTop:14}}><strong>TRUTH BOUNDARY</strong><span>DIR finality secures the immutable record; it does not by itself establish physical truth. Observed/source-derived geometry never silently overwrites Verified infrastructure state.</span></div>
       </aside>
