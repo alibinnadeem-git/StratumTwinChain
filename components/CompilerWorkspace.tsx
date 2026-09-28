@@ -119,13 +119,12 @@ async function parsePdf(file:File,level:{floor:string;elevation:number},discipli
   ocrEntities.push({id:evidence.id,source:file.name,layer:'L0',kind:'z-evidence-candidate',name:evidence.evidence[0]||evidence.type,x:0,y:0,z:0,floor:evidence.floor||'UNRESOLVED',confidence:evidence.confidence,meta:{nonSpatial:true,physicalTruth:false,reviewRequired:true,zEvidence:evidence,zPlacementAuthority:'SOURCE_TEXT_Z_EVIDENCE_ONLY',elevationKnown:false,physicalElevationKnown:false}} as GraphEntity);
  }
  const scaleValidationByPage=new Map<number,ReturnType<typeof validateIndependentScale>>();
- const positionedItemsByPage=new Map<number,PositionedSheetText[]>();
  const elevationControlsByPage=new Map<number,ElevationControlPoint[]>();
  const elevationTrianglesByPage=new Map<number,ElevationTriangle[]>();
  for(let page=1;page<=doc.numPages;page++){
   const preview=rasterPreviewByPage.get(page),pageGeometry=pageGeometryByPage.get(page);
   const nativeItems=raw.filter(item=>item.page===page).map(item=>({text:item.str,x:item.x/20+.5,y:.5-item.y/20}));
-  const items=(preview?.geometryItems?.length?preview.geometryItems:nativeItems) as PositionedSheetText[];positionedItemsByPage.set(page,items);
+  const items=(preview?.geometryItems?.length?preview.geometryItems:nativeItems) as PositionedSheetText[];
   const geometryEvidence=preview?.geometryEvidence||extractSheetGeometryEvidence({items,pageWidthPoints:pageGeometry?.width,pageHeightPoints:pageGeometry?.height});
   const pageSegments=segments.filter(segment=>segment.page===page).map(segment=>({x:segment.x/20+.5,y:.5-segment.y/20,x2:segment.x2/20+.5,y2:.5-segment.y2/20}));
   const validation=validateIndependentScale({items,segments:pageSegments,declaredScale:geometryEvidence.drawingScale.value,pageMaxDimensionPoints:pageGeometry?.max,normalizedSheetSpan:20,coordinateSpan:1});
