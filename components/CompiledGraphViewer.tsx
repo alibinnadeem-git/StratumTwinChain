@@ -62,6 +62,8 @@ function displayElevation(e:Entity,mode:ViewMode){
     if(candidate!==null)return candidate;
   }
   if(!physicalElevationKnown(e)){
+    const localSurface=metaNumber(e,"localReviewSurfaceZ");
+    if(localSurface!==null)return localSurface;
     const reviewSurface=metaNumber(e,"reviewSurfaceZ");
     if(reviewSurface!==null)return reviewSurface;
   }
@@ -182,7 +184,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       return true;
     });
   },[graph,floor,discipline,mode,systemMode,search,sourceDisciplines,hiddenSourceSet,activeSheetFrame]);
-  const inventory=useMemo(()=>visible.filter(e=>e.kind!=="line"&&e.kind!=="sld-feeder-candidate"&&e.kind!=="wall-segment"&&e.kind!=="source-raster-underlay"),[visible]);
+  const inventory=useMemo(()=>visible.filter(e=>e.kind!=="line"&&e.kind!=="sld-feeder-candidate"&&e.kind!=="wall-segment"&&e.kind!=="source-raster-underlay"&&e.kind!=="elevation-control-point"&&e.kind!=="elevation-review-surface-triangle"),[visible]);
   const visibleLines=useMemo(()=>visible.filter(e=>e.kind==="line").length,[visible]);
   const rasterUnderlays=useMemo(()=>visible.filter(e=>e.kind==="source-raster-underlay").length,[visible]);
   const rooms=useMemo(()=>graph?.entities.filter(e=>e.kind==="room-boundary").length||0,[graph]);
@@ -261,7 +263,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       };
       const label=(text:string,x:number,y:number,z:number,color="#cfefff",entity?:Entity,offset=0)=>{
         if(!labels)return;const canvas=document.createElement("canvas");canvas.width=512;canvas.height=112;const ctx=canvas.getContext("2d");if(!ctx)return;
-        ctx.fillStyle="rgba(3,12,18,.82)";ctx.roundRect(4,4,504,104,16);ctx.fill();ctx.fillStyle=color;ctx.font="700 28px system-ui";ctx.fillText(text.slice(0,30),20,49);ctx.fillStyle="#83a6b7";ctx.font="20px system-ui";ctx.fillText(entity&&!physicalElevationKnown(entity)?(Number.isFinite(Number(entity.meta?.zCandidateMeters))?`Z candidate ${Number(entity.meta?.zCandidateMeters).toFixed(2)} m`:Number.isFinite(Number(entity.meta?.reviewSurfaceZ))?`${String(entity.meta?.reviewSurfaceKind||'Project datum').replaceAll('_',' ')} review surface ${Number(entity.meta?.reviewSurfaceZ).toFixed(2)} m`:'Review plane · Z unresolved'):entity?`${y.toFixed(2)} m Z`:'Drawing level · Z unverified',20,82);
+        ctx.fillStyle="rgba(3,12,18,.82)";ctx.roundRect(4,4,504,104,16);ctx.fill();ctx.fillStyle=color;ctx.font="700 28px system-ui";ctx.fillText(text.slice(0,30),20,49);ctx.fillStyle="#83a6b7";ctx.font="20px system-ui";ctx.fillText(entity&&!physicalElevationKnown(entity)?(Number.isFinite(Number(entity.meta?.zCandidateMeters))?`Z candidate ${Number(entity.meta?.zCandidateMeters).toFixed(2)} m`:Number.isFinite(Number(entity.meta?.localReviewSurfaceZ))?`${String(entity.meta?.localReviewSurfaceKind||'Local').replaceAll('_',' ')} local surface ${Number(entity.meta?.localReviewSurfaceZ).toFixed(2)} m`:Number.isFinite(Number(entity.meta?.reviewSurfaceZ))?`${String(entity.meta?.reviewSurfaceKind||'Project datum').replaceAll('_',' ')} review surface ${Number(entity.meta?.reviewSurfaceZ).toFixed(2)} m`:'Review plane · Z unresolved'):entity?`${y.toFixed(2)} m Z`:'Drawing level · Z unverified',20,82);
         const texture=new THREE.CanvasTexture(canvas),sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,depthTest:false}));sprite.scale.set(2.9,.64,1);sprite.position.set(x+offset*.08,y+1.2+offset*.82,z);if(entity){sprite.userData.entity=entity;clickable.push(sprite);if(offset>0){const leader=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x,y+.2,z),sprite.position]),new THREE.LineDashedMaterial({color:0xffb85c,dashSize:.12,gapSize:.08,transparent:true,opacity:.65}));leader.computeLineDistances();scene.add(leader)}}scene.add(sprite);
       };
       const wall=(a:XY,b:XY,e:Entity)=>{const dx=b.x-a.x,dz=b.y-a.y,len=Math.hypot(dx,dz);if(len<.02)return;const op=xray?.12:.55,m=new THREE.Mesh(new THREE.BoxGeometry(len,2.7,.09),material(colors.L1,op));m.position.set((a.x+b.x)/2,height(e)+1.35,(a.y+b.y)/2);m.rotation.y=-Math.atan2(dz,dx);groups.L1.add(m)};
@@ -376,6 +378,28 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       for(const e of graph.entities){
         if(!isVisible(e))continue;
         if(e.kind==="source-raster-underlay"){rasterUnderlay(e);continue}
+        if(e.kind==="elevation-review-surface-triangle"&&Array.isArray(e.vertices)&&e.vertices.length===3){
+          const zs=(e.meta?.elevationTriangle as any)?.zMeters;
+          if(Array.isArray(zs)&&zs.length===3&&zs.every((z:any)=>Number.isFinite(Number(z)))){
+            const verts=e.vertices;
+            const geometry=new THREE.BufferGeometry();
+            geometry.setAttribute('position',new THREE.Float32BufferAttribute([
+              verts[0].x,Number(zs[0])+extra(e),verts[0].y,
+              verts[1].x,Number(zs[1])+extra(e),verts[1].y,
+              verts[2].x,Number(zs[2])+extra(e),verts[2].y
+            ],3));
+            geometry.setIndex([0,1,2]);geometry.computeVertexNormals();
+            const mesh=new THREE.Mesh(geometry,new THREE.MeshStandardMaterial({color:0x3e9db8,transparent:true,opacity:.16,side:THREE.DoubleSide,depthWrite:false,roughness:.85,metalness:0}));
+            mesh.userData.reviewSurface=true;groups.L1.add(mesh);
+            const edge=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints([
+              new THREE.Vector3(verts[0].x,Number(zs[0])+.025+extra(e),verts[0].y),
+              new THREE.Vector3(verts[1].x,Number(zs[1])+.025+extra(e),verts[1].y),
+              new THREE.Vector3(verts[2].x,Number(zs[2])+.025+extra(e),verts[2].y)
+            ]),new THREE.LineBasicMaterial({color:0x62c7df,transparent:true,opacity:.42}));
+            groups.L1.add(edge);
+          }
+          continue;
+        }
         if(e.kind==="room-boundary"||e.kind==="floor-boundary"){room(e);continue}
         if(e.kind==="wall-segment"&&Number.isFinite(e.x2)&&Number.isFinite(e.y2)){wall({x:e.x,y:e.y},{x:e.x2!,y:e.y2!},e);continue}
         if((e.kind==="line"||e.kind==="sld-feeder-candidate")&&Number.isFinite(e.x2)&&Number.isFinite(e.y2)){
