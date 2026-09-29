@@ -1,4 +1,5 @@
 import {resolveAssetPlacement,type AssetPlacement,type PlacementEntity,type ZAuthority} from './asset-placement.ts';
+import type {ElectricalModelConfig} from './electrical-model-registry.ts';
 
 export type ZSolutionCandidateKind=
   |'REVIEWED_OR_MEASURED'
@@ -155,20 +156,21 @@ function priority(candidate:ZSolutionCandidate){
   }
 }
 
-export function buildZSolution(entity:PlacementEntity,options?:{toleranceMeters?:number}):ZSolution{
+export function buildZSolution(entity:PlacementEntity,options?:{toleranceMeters?:number;registry?:ElectricalModelConfig|null}):ZSolution{
   const tolerance=Math.max(.01,Number(options?.toleranceMeters??.15));
+  const registry=options?.registry||null;
   const meta=entity.meta||{};
   const candidates:ZSolutionCandidate[]=[];
 
-  const primary=resolveAssetPlacement(entity);
+  const primary=resolveAssetPlacement(entity,registry);
   candidates.push(candidateFromPlacement('primary',entity,primary));
 
   const supportOnlyEntity=entityWithMeta(entity,omitMeta(meta,WITHOUT_SOURCE_REFERENCE));
-  const supportPlacement=resolveAssetPlacement(supportOnlyEntity);
+  const supportPlacement=resolveAssetPlacement(supportOnlyEntity,registry);
   candidates.push(candidateFromPlacement('support-chain',supportOnlyEntity,supportPlacement));
 
   const sourceOnlyEntity=entityWithMeta(entity,omitMeta(meta,WITHOUT_SUPPORT));
-  const sourcePlacement=resolveAssetPlacement(sourceOnlyEntity);
+  const sourcePlacement=resolveAssetPlacement(sourceOnlyEntity,registry);
   candidates.push(candidateFromPlacement('source-reference-chain',sourceOnlyEntity,sourcePlacement));
 
   const all=uniqueCandidates(candidates);
