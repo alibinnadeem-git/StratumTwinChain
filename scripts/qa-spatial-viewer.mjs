@@ -84,7 +84,7 @@ const panel=metric.entities.find(entity=>entity.id==='a');
 const transformer=metric.entities.find(entity=>entity.id==='b');
 const room=metric.entities.find(entity=>entity.id==='room');
 assert.equal(panel?.meta?.cadMetricXY,true);assert.equal(panel?.meta?.planCoordinateUnits,'m');assert.equal(panel?.meta?.coordinateUnits,'m_xy');
-assert.equal(panel?.meta?.zReviewRequired,true);assert.equal(panel?.meta?.zPlacementAuthority,'HISTORICAL_RECOMMENDATION');
+assert.equal(panel?.meta?.zReviewRequired,true);assert.equal(panel?.meta?.zPlacementAuthority,'RELATIVE_TO_REVIEW_PLANE');
 assert.ok(Math.abs(Number(transformer?.x)-30.48)<1e-6,'100 ft X span becomes 30.48 m');
 assert.ok(Math.abs(Number(transformer?.y)-3.048)<1e-6,'10 ft Y span becomes 3.048 m');
 assert.ok(Math.abs(Number(room?.vertices?.[2]?.x)-30.48)<1e-6,'room geometry uses the same metric X scale');
@@ -92,8 +92,8 @@ assert.ok(Math.abs(Number(room?.vertices?.[2]?.y)-3.048)<1e-6,'room geometry use
 const metricAgain=enrichSpatialProjection(metric);
 const panelAgain=metricAgain.entities.find(entity=>entity.id==='a');
 assert.equal(panelAgain?.meta?.assetDimensionAuthority,'STRATUM_NOMINAL','derived nominal dimensions must not self-promote on a second pass');
-assert.equal(panelAgain?.meta?.zPlacementAuthority,'HISTORICAL_RECOMMENDATION');
-console.log('✓ DXF X/Y becomes a metric plan frame and repeated enrichment cannot promote dimension/Z authority');
+assert.equal(panelAgain?.meta?.zPlacementAuthority,'RELATIVE_TO_REVIEW_PLANE');
+console.log('✓ DXF X/Y becomes a metric plan frame while unresolved Z remains relative to the review plane across repeated enrichment');
 
 const registry=[{componentKey:'panelboard',format:'GLB',modelUrl:'/panel.glb',scale:1,rotation:[0,0,0],offset:[0,0,0],dimensionsMeters:[1.1,1.9,.28],dimensionsSource:'OEM panel schedule',dimensionsConfidence:.9}];
 const sld=enrichSpatialProjection({version:'fixture',createdAt:new Date().toISOString(),entities:[
