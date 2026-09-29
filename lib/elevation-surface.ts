@@ -18,6 +18,7 @@ export type ElevationControlPoint={
   confidence:number;
   unit:ElevationUnit;
   unitAuthority:'EXPLICIT_LABEL'|'DRAWING_SCALE_CONVENTION';
+  associationAuthority:'INLINE_TEXT'|'NEARBY_OCR_TOKEN';
   physicalTruth:false;
   reviewRequired:true;
 };
@@ -84,6 +85,46 @@ function parseUnitless(label:string,unitHint:ElevationUnit|null){
   const value=Number(m[1]);if(!Number.isFinite(value))return null;
   return{value,unit:unitHint,...control};
 }
+
+function standaloneNumericValue(label:string,unitHint:ElevationUnit|null){
+  const t=clean(label).toUpperCase();
+  const explicit=t.match(/^([+-]?\d{1,4}(?:\.\d+)?)\s*(FT|FEET|M|METERS?|METRES?)$/i);
+  if(explicit){
+    const value=Number(explicit[1]),rawUnit=String(explicit[2]).toUpperCase();
+    if(!Number.isFinite(value))return null;
+    return{value,unit:(rawUnit==='FT'||rawUnit==='FEET'?'ft':'m') as ElevationUnit,unitAuthority:'EXPLICIT_LABEL' as const};
+  }
+  if(!unitHint||!/^[-+]?\d{1,4}\.\d+$/.test(t))return null;
+  const value=Number(t);if(!Number.isFinite(value))return null;
+  return{value,unit:unitHint,unitAuthority:'DRAWING_SCALE_CONVENTION' as const};
+}
+function semanticOnlyToken(label:string){
+  const control=surfaceControlSemantic(label);if(!control)return null;
+  return /\d/.test(clean(label))?null:control;
+}
+function pairedOcrControls(items:PositionedSheetText[],unitHint:ElevationUnit|null){
+  const tokens=items.map((item,index)=>({item,index,control:semanticOnlyToken(item.text)})).filter(x=>x.control);
+  const numbers=items.map((item,index)=>({item,index,value:standaloneNumericValue(item.text,unitHint)})).filter(x=>x.value);
+  const proposals:{token:(typeof tokens)[number];number:(typeof numbers)[number];score:number}[]=[];
+  for(const token of tokens){
+    const candidates=numbers.map(number=>{
+      const dx=Math.abs(number.item.x-token.item.x),dy=Math.abs(number.item.y-token.item.y);
+      return{number,dx,dy,score:Math.hypot(dx,dy*1.6)};
+    }).filter(candidate=>candidate.dx<=.075&&candidate.dy<=.045).sort((a,b)=>a.score-b.score);
+    if(!candidates.length)continue;
+    const best=candidates[0],second=candidates[1];
+    if(second&&second.score-best.score<.012)continue;
+    proposals.push({token,number:best.number,score:best.score});
+  }
+  const accepted:{token:(typeof tokens)[number];number:(typeof numbers)[number];score:number}[]=[];
+  for(const proposal of proposals){
+    const competing=proposals.filter(other=>other.number.index===proposal.number.index).sort((a,b)=>a.score-b.score);
+    if(competing[0]!==proposal)continue;
+    if(competing[1]&&competing[1].score-proposal.score<.012)continue;
+    accepted.push(proposal);
+  }
+  return accepted;
+}
 export function extractPositionedElevationControls(input:{
   items:PositionedSheetText[];
   source:string;
@@ -117,6 +158,26 @@ export function extractPositionedElevationControls(input:{
       confidence:explicit?.unit?0.93:0.74,
       unit,
       unitAuthority:explicit?.unit?'EXPLICIT_LABEL':'DRAWING_SCALE_CONVENTION',
+      associationAuthority:'INLINE_TEXT',
+      physicalTruth:false,reviewRequired:true
+    });
+  }
+  for(const pair of pairedOcrControls(input.items,hint)){
+    const numeric=standaloneNumericValue(pair.number.item.text,hint),control=pair.token.control;
+    if(!numeric||!control)continue;
+    const zMeters=numeric.value*(numeric.unit==='ft'?FT:1);
+    if(!Number.isFinite(zMeters))continue;
+    out.push({
+      id:`elev-${input.page}-${index++}`,
+      source:input.source,page:input.page,
+      x:(pair.number.item.x-.5)*input.planeWidth,
+      y:(.5-pair.number.item.y)*input.planeHeight,
+      zMeters,label:`${clean(pair.number.item.text)} ${clean(pair.token.item.text)}`,
+      kind:control.kind,semantic:control.semantic,triangulationEligible:control.triangulationEligible,
+      confidence:numeric.unitAuthority==='EXPLICIT_LABEL'?.78:.64,
+      unit:numeric.unit,
+      unitAuthority:numeric.unitAuthority,
+      associationAuthority:'NEARBY_OCR_TOKEN',
       physicalTruth:false,reviewRequired:true
     });
   }
