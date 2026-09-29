@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {clearCrossSheetElevationForAlignment,enrichCrossSheetElevationSurfaces} from '../lib/cross-sheet-elevation.ts';
+import {resolveAssetPlacement} from '../lib/asset-placement.ts';
 
 const refSha='a'.repeat(64),civilSha='b'.repeat(64),candidateId=`${refSha}:1->${civilSha}:2`;
 const base=[
@@ -49,6 +50,17 @@ assert.equal(evse?.meta?.crossSheetReviewSurfaceConfidence,.82);
 assert.equal(evse?.meta?.physicalElevationKnown,false);
 assert.equal(evse?.meta?.physicalTruth,false);
 assert.equal(evse?.meta?.reviewRequired,true);
+
+const crossSheetPedestal={
+ ...evse,
+ name:'EVSE PEDESTAL-1',
+ meta:{...(evse?.meta||{}),mountingType:'pedestal'}
+};
+const crossPlacement=resolveAssetPlacement(crossSheetPedestal);
+assert.equal(crossPlacement.zAuthority,'SOURCE_SUPPORT_SURFACE_CANDIDATE');
+assert.ok(Math.abs(crossPlacement.baseZ-Number(evse?.meta?.crossSheetReviewSurfaceZ))<1e-9);
+assert.equal(crossPlacement.physicalTruth,false);
+assert.match(crossPlacement.recommendation?.source||'',/GRADE review surface/i);
 
 assert.equal(enriched.find(entity=>entity.id==='outside')?.meta?.crossSheetReviewSurfaceZ,undefined);
 assert.equal(enriched.find(entity=>entity.id==='strong-z')?.meta?.crossSheetReviewSurfaceZ,undefined);
