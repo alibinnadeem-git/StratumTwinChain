@@ -9,7 +9,7 @@ import {decodeGlbBase64,inspectStandaloneGlb} from "@/lib/spatial-glb-import";
 import SpatialAssetInspector from "@/components/SpatialAssetInspector";
 import {readPrimarySpatialGraph} from "@/lib/spatial-browser-recovery";
 import {buildSpatialCoordinationReviewIndex,findingsForEntity} from "@/lib/spatial-coordination-review";
-import type {CoordinationSnapshot} from "@/lib/coordination-intelligence";
+import {buildCoordinationIntelligence,type CoordinationSnapshot} from "@/lib/coordination-intelligence";
 import {type RegisteredSpatialAsset} from "@/lib/spatial-asset-link";
 import {findDrawingSourcesNeedingReprocess} from "@/lib/spatial-source-reprocess";
 import {
@@ -160,7 +160,8 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
     const candidates=graph.entities.filter(entity=>entity.meta?.scaleValidationEvidence&&(!activeSheetFrame||sheetFrameKey(entity)===activeSheetFrame));
     return candidates[0]?.meta?.scaleValidationEvidence as Record<string,unknown>||null;
   },[graph,activeSheetFrame]);
-  const coordinationReview=useMemo(()=>buildSpatialCoordinationReviewIndex(graph?.coordinationIntelligence),[graph?.coordinationIntelligence]);
+  const coordinationSnapshot=useMemo(()=>graph?.coordinationIntelligence||(graph?buildCoordinationIntelligence(graph):undefined),[graph]);
+  const coordinationReview=useMemo(()=>buildSpatialCoordinationReviewIndex(coordinationSnapshot),[coordinationSnapshot]);
   const levels=useMemo(()=>{
     if(!graph)return[] as [string,number][];
     const map=new Map<string,number|null>();
@@ -563,12 +564,12 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       <aside style={{padding:15,borderLeft:"1px solid #17334a",overflow:"auto"}}>
         <label>Imported object<select aria-label="Imported object" value={selected?.id||""} onChange={e=>setSelected(graph.entities.find(x=>x.id===e.target.value)||null)} style={{width:"100%"}}><option value="">{matching.length?'Select an object':'No selectable objects in this view'}</option>{matching.map(e=><option key={e.id} value={e.id}>{e.name} · {e.floor||"UNRESOLVED"}</option>)}</select></label>
         <SpatialAssetInspector selected={selected} registeredAssets={projectAssets} onEntityUpdated={entity=>setSelected(entity as Entity)}/>
-        {selected&&findingsForEntity(graph.coordinationIntelligence,selected.id).length>0&&<div className="card" style={{marginTop:10,padding:12}} aria-label="Selected asset coordination review">
+        {selected&&findingsForEntity(coordinationSnapshot,selected.id).length>0&&<div className="card" style={{marginTop:10,padding:12}} aria-label="Selected asset coordination review">
           <div className="eyebrow">Coordination review</div>
-          <strong>{findingsForEntity(graph.coordinationIntelligence,selected.id).length} open source conflict{findingsForEntity(graph.coordinationIntelligence,selected.id).length===1?"":"s"}</strong>
+          <strong>{findingsForEntity(coordinationSnapshot,selected.id).length} open source conflict{findingsForEntity(coordinationSnapshot,selected.id).length===1?"":"s"}</strong>
           <small style={{display:"block",marginTop:6}}>Review markers flag source conflicts only. They do not establish a geometric clash, code compliance, AHJ approval, or engineering approval.</small>
           <ul style={{margin:"8px 0 0",paddingLeft:18}}>
-            {findingsForEntity(graph.coordinationIntelligence,selected.id).slice(0,4).map(finding=><li key={finding.id}><small>{finding.humanControlLevel} · {finding.findingType.replaceAll("_"," ")} · {finding.title}</small></li>)}
+            {findingsForEntity(coordinationSnapshot,selected.id).slice(0,4).map(finding=><li key={finding.id}><small>{finding.humanControlLevel} · {finding.findingType.replaceAll("_"," ")} · {finding.title}</small></li>)}
           </ul>
         </div>}
         {selected&&isSld(selected)&&<div className="notice" style={{marginTop:12}}><strong>SLD → SPATIAL PROJECTION</strong><span>The vertical separation in Electrical mode expresses logical power hierarchy. It is not an as-built physical elevation until field/design evidence establishes Z.</span></div>}
