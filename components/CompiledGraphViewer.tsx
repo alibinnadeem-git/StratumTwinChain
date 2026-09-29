@@ -305,9 +305,9 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
         let geo:any;if(shape==="transformer")geo=new THREE.BoxGeometry(1.7,1.55,1.25);else if(shape==="generator")geo=new THREE.BoxGeometry(2.2,1.2,1.1);else if(shape==="motor")geo=new THREE.CylinderGeometry(.48,.48,1.15,20);else if(shape==="evse")geo=new THREE.BoxGeometry(.62,1.4,.44);else geo=new THREE.BoxGeometry(1.05,1.8,.62);
         const mesh=new THREE.Mesh(geo,material(colors.L2,op,0x211000));if(shape==="motor")mesh.rotation.z=Math.PI/2;root.add(mesh);
         try{fitProceduralObjectToMeters(root,target)}catch{}
-        root.position.set(e.x,height(e),e.y);root.rotation.y=THREE.MathUtils.degToRad(-(e.rotation||0));
-        root.userData.dimensionAuthority=placement.dimensions.authority;root.userData.targetDimensionsMeters=target;
-        interactionProxy(root,target);tag(root,e);groups[e.layer==="L4"?"L4":"L2"].add(root);label(e.name,e.x,height(e),e.y,isSld(e)?"#8fcfff":"#ffd08a",e);
+        root.position.set(e.x,placement.baseZ,e.y);root.rotation.y=THREE.MathUtils.degToRad(-(e.rotation||0));
+        root.userData.dimensionAuthority=placement.dimensions.authority;root.userData.targetDimensionsMeters=target;root.userData.zPlacementAuthority=placement.zAuthority;root.userData.zPlacementConfidence=placement.zConfidence;
+        interactionProxy(root,target);tag(root,e);groups[e.layer==="L4"?"L4":"L2"].add(root);label(e.name,e.x,placement.baseZ,e.y,isSld(e)?"#8fcfff":"#ffd08a",e);
       };
       const loader=new GLTFLoader();
       const equipment=(e:Entity)=>{
@@ -328,15 +328,15 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
                 const target:[number,number,number]=[placement.dimensions.width,placement.dimensions.height,placement.dimensions.depth];
                 const model=gltf.scene;
                 const normalized=normalizeObjectToMeters(model,target,.08);
-                const root=new THREE.Group();root.position.set(e.x,height(e),e.y);
+                const root=new THREE.Group();root.position.set(e.x,placement.baseZ,e.y);
                 root.rotation.y=THREE.MathUtils.degToRad(-(e.rotation||0));
                 root.userData.dimensionAuthority=placement.dimensions.authority+'_REVIEW_VISUALIZATION';
                 root.userData.sourceModelBounds=sourceBounds;
                 root.userData.targetDimensionsMeters=target;
                 root.userData.normalization={scalar:normalized.scalar,ratioSpread:normalized.ratioSpread,reviewRequired:true};
-                root.userData.zDisplayAuthority=physicalElevationKnown(e)?'PHYSICAL_OR_REVIEWED':Number.isFinite(Number(e.meta?.zCandidateMeters))?'SOURCE_DESIGN_CANDIDATE':'REVIEW_PLANE_ONLY';
+                root.userData.zDisplayAuthority=placement.zAuthority;root.userData.zPlacementConfidence=placement.zConfidence;
                 root.add(model);interactionProxy(root,target);tag(root,e);
-                groups.L2.add(root);label(e.name,e.x,height(e),e.y,'#ffd08a',e);
+                groups.L2.add(root);label(e.name,e.x,placement.baseZ,e.y,'#ffd08a',e);
                 const renderedBox=new THREE.Box3().setFromObject(root);if(!renderedBox.isEmpty())bounds.union(renderedBox);
                 runtime.current?.fit?.();
               }catch{setModelLoadErrors(current=>current.includes(e.id)?current:[...current,e.id])}
@@ -357,13 +357,13 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
             model.rotation.set(THREE.MathUtils.degToRad(cfg.rotation[0]),THREE.MathUtils.degToRad(cfg.rotation[1]),THREE.MathUtils.degToRad(cfg.rotation[2]));
             const normalized=normalizeObjectToMeters(model,target,.05);
             const root=new THREE.Group();
-            root.position.set(e.x+cfg.offset[0],height(e)+cfg.offset[1],e.y+cfg.offset[2]);
+            root.position.set(e.x+cfg.offset[0],placement.baseZ+cfg.offset[1],e.y+cfg.offset[2]);
             root.rotation.y=THREE.MathUtils.degToRad(-(e.rotation||0));
             root.userData.dimensionAuthority=placement.dimensions.authority;
-            root.userData.targetDimensionsMeters=target;
+            root.userData.targetDimensionsMeters=target;root.userData.zPlacementAuthority=placement.zAuthority;root.userData.zPlacementConfidence=placement.zConfidence;
             root.userData.normalization={scalar:normalized.scalar,ratioSpread:normalized.ratioSpread,reviewRequired:normalized.reviewRequired};
             if(normalized.reviewRequired)console.warn("STRATUM model dimension mismatch requires review",{component:e.name,target,intrinsic:normalized.intrinsic,ratios:normalized.ratios,ratioSpread:normalized.ratioSpread});
-            root.add(model);interactionProxy(root,target);tag(root,e);groups[e.layer==="L4"?"L4":"L2"].add(root);label(e.name,e.x,height(e),e.y,"#cfefff",e);
+            root.add(model);interactionProxy(root,target);tag(root,e);groups[e.layer==="L4"?"L4":"L2"].add(root);label(e.name,e.x,placement.baseZ,e.y,"#cfefff",e);
             const renderedBox=new THREE.Box3().setFromObject(root);if(!renderedBox.isEmpty())bounds.union(renderedBox);
             runtime.current?.fit?.();
           }catch(error){
