@@ -889,3 +889,35 @@ test('reviewed civil-to-electrical alignment transfers grade Z across sheets wit
  await expect(page.getByText(/Cross-sheet Z authority/)).toBeVisible();
  await expect(page.getByText(/HUMAN CONFIRMED ALIGNMENT PLUS SOURCE ELEVATION TRIANGLE/)).toBeVisible();
 });
+
+
+test('explicit transformer pad height composes with local grade into base Z candidate',async({page})=>{
+ const source='Synthetic Equipment Site Plan.pdf';
+ const graph={
+  version:'support-offset-browser-1',createdAt:'2026-09-29T00:00:00.000Z',reviewState:'REVIEW_REQUIRED',
+  sources:[{name:source,ext:'pdf',sha256:'s'.repeat(64),discipline:'Electrical',floor:'UNRESOLVED',elevation:0}],
+  entities:[
+   {id:'xfmr-pad',source,layer:'L2',kind:'text-asset-candidate',name:'PAD MOUNT TRANSFORMER T1',x:0,y:0,z:0,floor:'UNRESOLVED',confidence:.91,
+    meta:{page:1,localReviewSurfaceZ:30.48,localReviewSurfaceKind:'GRADE',localReviewSurfaceAuthority:'SOURCE_ELEVATION_TRIANGLE',localReviewSurfaceConfidence:.82,
+      supportBaseOffsetMeters:.1524,supportOffsetKind:'PAD',supportOffsetAuthority:'TAG_LINKED_SOURCE_SUPPORT_NOTE',supportOffsetConfidence:.94,
+      supportOffsetEvidenceLabel:'XFMR T1 6" CONC PAD',supportOffsetSource:source,physicalElevationKnown:false,elevationKnown:false,physicalTruth:false,reviewRequired:true}}
+  ],
+  links:[],stats:{L0:0,L1:0,L2:1,L3:0,L4:0}
+ };
+ await page.addInitScript(value=>localStorage.setItem('stratum_compiled_graph',JSON.stringify(value)),graph);
+ await page.goto('/spatial');
+ const select=page.getByLabel('Imported object');
+ await expect(select.locator('option').filter({hasText:'PAD MOUNT TRANSFORMER T1'})).toHaveCount(1);
+ await select.selectOption('xfmr-pad');
+ await expect(page.getByRole('heading',{name:'PAD MOUNT TRANSFORMER T1'})).toBeVisible();
+ await expect(page.getByText(/30\.63 m placement candidate · review required/i)).toBeVisible();
+ await page.getByText('Placement & source confidence').click();
+ const details=page.locator('.placement-details');
+ await expect(details.getByText(/30\.632 m/)).toBeVisible();
+ await expect(details.getByText(/SUPPORT SURFACE PLUS SOURCE BASE OFFSET/i)).toBeVisible();
+ await expect(details.getByText(/0\.152 m · PAD/i)).toBeVisible();
+ await expect(details.getByText(/TAG LINKED SOURCE SUPPORT NOTE/i)).toBeVisible();
+ await expect(details.getByText(/SOURCE SUPPORT BASE OFFSET ON REVIEW SURFACE/i)).toBeVisible();
+ await expect(details.getByText(/Physical Z/)).toBeVisible();
+ await expect(details.getByText(/Unverified/)).toBeVisible();
+});
