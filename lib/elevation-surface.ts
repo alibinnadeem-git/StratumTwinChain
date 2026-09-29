@@ -3,7 +3,6 @@ import type {IndependentScaleValidation} from './scale-validation.ts';
 
 export type ElevationUnit='ft'|'m';
 export type ElevationSurfaceKind='GRADE'|'FINISHED_FLOOR';
-export type ElevationControlSemantic='FINISHED_GRADE'|'FINISHED_SURFACE'|'TOP_OF_CURB'|'FLOWLINE'|'FINISHED_FLOOR';
 export type ElevationControlPoint={
   id:string;
   source:string;
@@ -13,12 +12,9 @@ export type ElevationControlPoint={
   zMeters:number;
   label:string;
   kind:ElevationSurfaceKind;
-  semantic:ElevationControlSemantic;
-  triangulationEligible:boolean;
   confidence:number;
   unit:ElevationUnit;
   unitAuthority:'EXPLICIT_LABEL'|'DRAWING_SCALE_CONVENTION';
-  associationAuthority:'INLINE_TEXT'|'NEARBY_OCR_TOKEN';
   physicalTruth:false;
   reviewRequired:true;
 };
@@ -53,77 +49,34 @@ function unitFromScale(declaredScale:string|null|undefined,validation?:Independe
   }
   return null;
 }
-function surfaceControlSemantic(label:string):{kind:ElevationSurfaceKind;semantic:ElevationControlSemantic;triangulationEligible:boolean}|null{
+function surfaceControlKind(label:string):ElevationSurfaceKind|null{
   const t=clean(label).toUpperCase();
-  if(/\b(?:FFE|FF)\b|FINISH(?:ED)?\s+FLOOR/.test(t))return{kind:'FINISHED_FLOOR',semantic:'FINISHED_FLOOR',triangulationEligible:true};
-  if(/\bFG\b|FG$|\bGRADE\b/.test(t))return{kind:'GRADE',semantic:'FINISHED_GRADE',triangulationEligible:true};
-  if(/\bFS\b|FS$|FINISH(?:ED)?\s+SURFACE/.test(t))return{kind:'GRADE',semantic:'FINISHED_SURFACE',triangulationEligible:true};
-  if(/\bTC\b|TC$|TOP\s+OF\s+CURB/.test(t))return{kind:'GRADE',semantic:'TOP_OF_CURB',triangulationEligible:false};
-  if(/\bFL\b|FL$|FLOW\s*LINE/.test(t))return{kind:'GRADE',semantic:'FLOWLINE',triangulationEligible:false};
+  if(/\b(?:FFE|FF)\b|FINISH(?:ED)?\s+FLOOR/.test(t))return'FINISHED_FLOOR';
+  if(/\b(?:FG|GRADE|TC|FL)\b|(?:FG|TC|FL)$/.test(t))return'GRADE';
   return null;
 }
 function parseExplicit(label:string){
-  const t=clean(label).toUpperCase(),control=surfaceControlSemantic(t);
-  if(!control)return null;
-  const feetInches=t.match(/(?:FG|FFE|FF|FS|TC|FL|GRADE|FINISH(?:ED)?\s+(?:FLOOR|SURFACE)|TOP\s+OF\s+CURB|FLOW\s*LINE)(?:\s+(?:EL|ELEV|ELEVATION)\.?)?\s*[:=@-]?\s*([+-]?\d{1,3})\s*'\s*(\d{1,2}(?:\.\d+)?)?\s*"?/i);
+  const t=clean(label).toUpperCase(),kind=surfaceControlKind(t);
+  if(!kind)return null;
+  const feetInches=t.match(/(?:FG|FFE|FF|TC|FL|GRADE|FINISH(?:ED)?\s+FLOOR)(?:\s+(?:EL|ELEV|ELEVATION)\.?)?\s*[:=@-]?\s*([+-]?\d{1,3})\s*'\s*(\d{1,2}(?:\.\d+)?)?\s*"?/i);
   if(feetInches){
     const feet=Number(feetInches[1]),inches=Number(feetInches[2]||0);
-    if(Number.isFinite(feet)&&Number.isFinite(inches)&&inches<12)return{value:feet+Math.sign(feet||1)*inches/12,unit:'ft' as ElevationUnit,...control};
+    if(Number.isFinite(feet)&&Number.isFinite(inches)&&inches<12)return{value:feet+Math.sign(feet||1)*inches/12,unit:'ft' as ElevationUnit,kind};
   }
-  const prefix=t.match(/(?:FG|FFE|FF|FS|TC|FL|GRADE|FINISH(?:ED)?\s+(?:FLOOR|SURFACE)|TOP\s+OF\s+CURB|FLOW\s*LINE)(?:\s+(?:EL|ELEV|ELEVATION)\.?)?\s*[:=@-]?\s*([+-]?\d{1,4}(?:\.\d+)?)\s*(FT|FEET|M|METERS?|METRES?)\b/i);
+  const prefix=t.match(/(?:FG|FFE|FF|TC|FL|GRADE|FINISH(?:ED)?\s+FLOOR)(?:\s+(?:EL|ELEV|ELEVATION)\.?)?\s*[:=@-]?\s*([+-]?\d{1,4}(?:\.\d+)?)\s*(FT|FEET|M|METERS?|METRES?)\b/i);
   const suffix=t.match(/\b([+-]?\d{1,4}(?:\.\d+)?)\s*(FT|FEET|M|METERS?|METRES?)\s*(FG|FFE|FF|TC|FL|GRADE)\b/i);
   const match=prefix||suffix;if(!match)return null;
   const raw=Number(match[1]),unit=String(match[2]).toUpperCase();
   if(!Number.isFinite(raw))return null;
-  return{value:raw,unit:(unit==='FT'||unit==='FEET'?'ft':'m') as ElevationUnit,...control};
+  return{value:raw,unit:(unit==='FT'||unit==='FEET'?'ft':'m') as ElevationUnit,kind};
 }
 function parseUnitless(label:string,unitHint:ElevationUnit|null){
   if(!unitHint)return null;
-  const t=clean(label).toUpperCase(),control=surfaceControlSemantic(t);
-  if(!control)return null;
+  const t=clean(label).toUpperCase(),kind=surfaceControlKind(t);
+  if(!kind)return null;
   const m=t.match(/([+-]?\d{1,4}(?:\.\d+)?)/);if(!m)return null;
   const value=Number(m[1]);if(!Number.isFinite(value))return null;
-  return{value,unit:unitHint,...control};
-}
-
-function standaloneNumericValue(label:string,unitHint:ElevationUnit|null){
-  const t=clean(label).toUpperCase();
-  const explicit=t.match(/^([+-]?\d{1,4}(?:\.\d+)?)\s*(FT|FEET|M|METERS?|METRES?)$/i);
-  if(explicit){
-    const value=Number(explicit[1]),rawUnit=String(explicit[2]).toUpperCase();
-    if(!Number.isFinite(value))return null;
-    return{value,unit:(rawUnit==='FT'||rawUnit==='FEET'?'ft':'m') as ElevationUnit,unitAuthority:'EXPLICIT_LABEL' as const};
-  }
-  if(!unitHint||!/^[-+]?\d{1,4}\.\d+$/.test(t))return null;
-  const value=Number(t);if(!Number.isFinite(value))return null;
-  return{value,unit:unitHint,unitAuthority:'DRAWING_SCALE_CONVENTION' as const};
-}
-function semanticOnlyToken(label:string){
-  const control=surfaceControlSemantic(label);if(!control)return null;
-  return /\d/.test(clean(label))?null:control;
-}
-function pairedOcrControls(items:PositionedSheetText[],unitHint:ElevationUnit|null){
-  const tokens=items.map((item,index)=>({item,index,control:semanticOnlyToken(item.text)})).filter(x=>x.control);
-  const numbers=items.map((item,index)=>({item,index,value:standaloneNumericValue(item.text,unitHint)})).filter(x=>x.value);
-  const proposals:{token:(typeof tokens)[number];number:(typeof numbers)[number];score:number}[]=[];
-  for(const token of tokens){
-    const candidates=numbers.map(number=>{
-      const dx=Math.abs(number.item.x-token.item.x),dy=Math.abs(number.item.y-token.item.y);
-      return{number,dx,dy,score:Math.hypot(dx,dy*1.6)};
-    }).filter(candidate=>candidate.dx<=.075&&candidate.dy<=.045).sort((a,b)=>a.score-b.score);
-    if(!candidates.length)continue;
-    const best=candidates[0],second=candidates[1];
-    if(second&&second.score-best.score<.012)continue;
-    proposals.push({token,number:best.number,score:best.score});
-  }
-  const accepted:{token:(typeof tokens)[number];number:(typeof numbers)[number];score:number}[]=[];
-  for(const proposal of proposals){
-    const competing=proposals.filter(other=>other.number.index===proposal.number.index).sort((a,b)=>a.score-b.score);
-    if(competing[0]!==proposal)continue;
-    if(competing[1]&&competing[1].score-proposal.score<.012)continue;
-    accepted.push(proposal);
-  }
-  return accepted;
+  return{value,unit:unitHint,kind};
 }
 export function extractPositionedElevationControls(input:{
   items:PositionedSheetText[];
@@ -147,37 +100,15 @@ export function extractPositionedElevationControls(input:{
     const zMeters=value*(unit==='ft'?FT:1);
     if(!Number.isFinite(zMeters))continue;
     const kind=explicit?.kind||unitless!.kind;
-    const semantic=explicit?.semantic||unitless!.semantic;
-    const triangulationEligible=explicit?.triangulationEligible??unitless!.triangulationEligible;
     out.push({
       id:`elev-${input.page}-${index++}`,
       source:input.source,page:input.page,
       x:(item.x-.5)*input.planeWidth,
       y:(.5-item.y)*input.planeHeight,
-      zMeters,label,kind,semantic,triangulationEligible,
+      zMeters,label,kind,
       confidence:explicit?.unit?0.93:0.74,
       unit,
       unitAuthority:explicit?.unit?'EXPLICIT_LABEL':'DRAWING_SCALE_CONVENTION',
-      associationAuthority:'INLINE_TEXT',
-      physicalTruth:false,reviewRequired:true
-    });
-  }
-  for(const pair of pairedOcrControls(input.items,hint)){
-    const numeric=standaloneNumericValue(pair.number.item.text,hint),control=pair.token.control;
-    if(!numeric||!control)continue;
-    const zMeters=numeric.value*(numeric.unit==='ft'?FT:1);
-    if(!Number.isFinite(zMeters))continue;
-    out.push({
-      id:`elev-${input.page}-${index++}`,
-      source:input.source,page:input.page,
-      x:(pair.number.item.x-.5)*input.planeWidth,
-      y:(.5-pair.number.item.y)*input.planeHeight,
-      zMeters,label:`${clean(pair.number.item.text)} ${clean(pair.token.item.text)}`,
-      kind:control.kind,semantic:control.semantic,triangulationEligible:control.triangulationEligible,
-      confidence:numeric.unitAuthority==='EXPLICIT_LABEL'?.78:.64,
-      unit:numeric.unit,
-      unitAuthority:numeric.unitAuthority,
-      associationAuthority:'NEARBY_OCR_TOKEN',
       physicalTruth:false,reviewRequired:true
     });
   }
@@ -202,7 +133,7 @@ function circumcircle(t:Tri){
 }
 function edgeKey(a:P,b:P){return[a.id,b.id].sort().join('|')}
 export function buildElevationTriangles(points:ElevationControlPoint[],kind?:ElevationSurfaceKind):ElevationTriangle[]{
-  const source=(kind?points.filter(p=>p.kind===kind):points).filter(p=>p.triangulationEligible);
+  const source=kind?points.filter(p=>p.kind===kind):points;
   if(source.length<3)return[];
   const minX=Math.min(...source.map(p=>p.x)),maxX=Math.max(...source.map(p=>p.x)),minY=Math.min(...source.map(p=>p.y)),maxY=Math.max(...source.map(p=>p.y));
   const span=Math.max(maxX-minX,maxY-minY,1),cx=(minX+maxX)/2,cy=(minY+maxY)/2;
@@ -235,7 +166,7 @@ function barycentric(x:number,y:number,t:ElevationTriangle){
   return{w1,w2,w3,z:w1*a.zMeters+w2*b.zMeters+w3*c.zMeters};
 }
 export function resolveLocalElevationSurface(input:{x:number;y:number;points:ElevationControlPoint[];triangles?:ElevationTriangle[];kind?:ElevationSurfaceKind}):LocalSurfaceResolution{
-  const candidates=(input.kind?input.points.filter(p=>p.kind===input.kind):input.points).filter(p=>p.triangulationEligible);
+  const candidates=input.kind?input.points.filter(p=>p.kind===input.kind):input.points;
   if(candidates.length<3)return{status:'INSUFFICIENT_CONTROLS',zMeters:null,confidence:0,kind:input.kind||null,triangleId:null,controlPointIds:[],authority:'UNRESOLVED',physicalTruth:false,reviewRequired:true};
   const triangles=input.triangles||buildElevationTriangles(candidates,input.kind);
   const containing=triangles.map(t=>({t,b:barycentric(input.x,input.y,t)})).filter(x=>x.b).sort((a,b)=>{
