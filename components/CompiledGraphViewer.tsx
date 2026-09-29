@@ -3,7 +3,7 @@
 import Link from "next/link";
 import {useEffect,useMemo,useRef,useState} from "react";
 import {resolveElectricalComponent} from "@/lib/electrical-component-library";
-import {resolveAssetPlacement} from "@/lib/asset-placement";
+import {resolveReconciledAssetPlacement} from "@/lib/z-solution-chain";
 import {fitProceduralObjectToMeters,normalizeObjectToMeters} from "@/lib/three-model-normalization";
 import {decodeGlbBase64,inspectStandaloneGlb} from "@/lib/spatial-glb-import";
 import SpatialAssetInspector from "@/components/SpatialAssetInspector";
@@ -247,7 +247,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       const height=(e:Entity)=>{
         if(e.layer==="L2"||e.layer==="L4"){
           const def=resolveElectricalComponent(e.name),cfg=def?registry.find(r=>r.componentKey===def.key):null;
-          return resolveAssetPlacement({name:e.name,floor:e.floor,z:e.z,meta:e.meta},cfg).baseZ+extra(e);
+          return resolveReconciledAssetPlacement({name:e.name,floor:e.floor,z:e.z,meta:e.meta},{registry:cfg}).placement.baseZ+extra(e);
         }
         return displayElevation(e,mode)+extra(e);
       };
@@ -307,14 +307,14 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
           return;
         }
         const def=resolveElectricalComponent(e.name),shape=def?.twinShape||"cabinet",cfg=def?registry.find(r=>r.componentKey===def.key):null;
-        const placement=resolveAssetPlacement({name:e.name,floor:e.floor,z:e.z,meta:e.meta},cfg);
+        const reconciled=resolveReconciledAssetPlacement({name:e.name,floor:e.floor,z:e.z,meta:e.meta},{registry:cfg}),placement=reconciled.placement;
         const target:[number,number,number]=[placement.dimensions.width,placement.dimensions.height,placement.dimensions.depth];
         const root=new THREE.Group(),op=1;
         let geo:any;if(shape==="transformer")geo=new THREE.BoxGeometry(1.7,1.55,1.25);else if(shape==="generator")geo=new THREE.BoxGeometry(2.2,1.2,1.1);else if(shape==="motor")geo=new THREE.CylinderGeometry(.48,.48,1.15,20);else if(shape==="evse")geo=new THREE.BoxGeometry(.62,1.4,.44);else geo=new THREE.BoxGeometry(1.05,1.8,.62);
         const mesh=new THREE.Mesh(geo,material(colors.L2,op,0x211000));if(shape==="motor")mesh.rotation.z=Math.PI/2;root.add(mesh);
         try{fitProceduralObjectToMeters(root,target)}catch{}
         root.position.set(e.x,placement.baseZ,e.y);root.rotation.y=THREE.MathUtils.degToRad(-(e.rotation||0));
-        root.userData.dimensionAuthority=placement.dimensions.authority;root.userData.targetDimensionsMeters=target;root.userData.zPlacementAuthority=placement.zAuthority;root.userData.zPlacementConfidence=placement.zConfidence;
+        root.userData.dimensionAuthority=placement.dimensions.authority;root.userData.targetDimensionsMeters=target;root.userData.zPlacementAuthority=placement.zAuthority;root.userData.zPlacementConfidence=placement.zConfidence;root.userData.zSolutionStatus=reconciled.solution.status;root.userData.zSolutionConflicts=reconciled.solution.conflicts.length;
         interactionProxy(root,target);tag(root,e);groups[e.layer==="L4"?"L4":"L2"].add(root);label(e.name,e.x,placement.baseZ,e.y,isSld(e)?"#8fcfff":"#ffd08a",e);
       };
       const loader=new GLTFLoader();
@@ -332,7 +332,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
                 const sourceBounds=e.meta?.modelBoundsMeters;
                 if(!Array.isArray(sourceBounds)||sourceBounds.length!==3||!sourceBounds.every(v=>typeof v==='number'&&Number.isFinite(v)&&v>0))throw new Error('Model bounds are invalid');
                 const def=resolveElectricalComponent(e.name),cfg=def?registry.find(r=>r.componentKey===def.key):null;
-                const placement=resolveAssetPlacement({name:e.name,floor:e.floor,z:e.z,meta:e.meta},cfg);
+                const reconciled=resolveReconciledAssetPlacement({name:e.name,floor:e.floor,z:e.z,meta:e.meta},{registry:cfg}),placement=reconciled.placement;
                 const target:[number,number,number]=[placement.dimensions.width,placement.dimensions.height,placement.dimensions.depth];
                 const model=gltf.scene;
                 const normalized=normalizeObjectToMeters(model,target,.08);
@@ -342,7 +342,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
                 root.userData.sourceModelBounds=sourceBounds;
                 root.userData.targetDimensionsMeters=target;
                 root.userData.normalization={scalar:normalized.scalar,ratioSpread:normalized.ratioSpread,reviewRequired:true};
-                root.userData.zDisplayAuthority=placement.zAuthority;root.userData.zPlacementConfidence=placement.zConfidence;
+                root.userData.zDisplayAuthority=placement.zAuthority;root.userData.zPlacementConfidence=placement.zConfidence;root.userData.zSolutionStatus=reconciled.solution.status;root.userData.zSolutionConflicts=reconciled.solution.conflicts.length;
                 root.add(model);interactionProxy(root,target);tag(root,e);
                 groups.L2.add(root);label(e.name,e.x,placement.baseZ,e.y,'#ffd08a',e);
                 const renderedBox=new THREE.Box3().setFromObject(root);if(!renderedBox.isEmpty())bounds.union(renderedBox);
@@ -355,7 +355,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
         if(e.kind==='sheet-callout-candidate'||e.kind==='annotated-asset-candidate'){fallbackShape(e);return}
         const def=resolveElectricalComponent(e.name),cfg=def?registry.find(r=>r.componentKey===def.key):null;
         if(!cfg?.modelUrl.trim()||!["GLB","GLTF"].includes(cfg.format)){fallbackShape(e);return}
-        const placement=resolveAssetPlacement({name:e.name,floor:e.floor,z:e.z,meta:e.meta},cfg);
+        const reconciled=resolveReconciledAssetPlacement({name:e.name,floor:e.floor,z:e.z,meta:e.meta},{registry:cfg}),placement=reconciled.placement;
         const target:[number,number,number]=[placement.dimensions.width,placement.dimensions.height,placement.dimensions.depth];
         loader.load(cfg.modelUrl,gltf=>{
           if(disposed)return;
@@ -368,7 +368,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
             root.position.set(e.x+cfg.offset[0],placement.baseZ+cfg.offset[1],e.y+cfg.offset[2]);
             root.rotation.y=THREE.MathUtils.degToRad(-(e.rotation||0));
             root.userData.dimensionAuthority=placement.dimensions.authority;
-            root.userData.targetDimensionsMeters=target;root.userData.zPlacementAuthority=placement.zAuthority;root.userData.zPlacementConfidence=placement.zConfidence;
+            root.userData.targetDimensionsMeters=target;root.userData.zPlacementAuthority=placement.zAuthority;root.userData.zPlacementConfidence=placement.zConfidence;root.userData.zSolutionStatus=reconciled.solution.status;root.userData.zSolutionConflicts=reconciled.solution.conflicts.length;
             root.userData.normalization={scalar:normalized.scalar,ratioSpread:normalized.ratioSpread,reviewRequired:normalized.reviewRequired};
             if(normalized.reviewRequired)console.warn("STRATUM model dimension mismatch requires review",{component:e.name,target,intrinsic:normalized.intrinsic,ratios:normalized.ratios,ratioSpread:normalized.ratioSpread});
             root.add(model);interactionProxy(root,target);tag(root,e);groups[e.layer==="L4"?"L4":"L2"].add(root);label(e.name,e.x,placement.baseZ,e.y,"#cfefff",e);
