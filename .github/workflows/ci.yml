@@ -100,6 +100,8 @@ jobs:
         run: npm run qa:auto-alignment
       - name: Evidence-based Z resolver conformance
         run: npm run qa:z-resolver
+      - name: Vertical Z reference semantics conformance
+        run: npm run qa:z-reference
       - name: Project datum review-surface conformance
         run: npm run qa:project-datum
       - name: Local triangulated elevation surface conformance
