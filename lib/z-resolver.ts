@@ -50,18 +50,29 @@ const floorToken=(s:string)=>{
   if(/\bPENTHOUSE\b/.test(t))return'PENTHOUSE';
   return null;
 };
+function mixedNumber(value:string|undefined){
+  if(!value)return 0;
+  const parts=value.trim().split(/\s+/).filter(Boolean);let total=0;
+  for(const part of parts){
+    if(part.includes('/')){const [a,b]=part.split('/').map(Number);if(!Number.isFinite(a)||!Number.isFinite(b)||b===0)return null;total+=a/b}
+    else{const n=Number(part);if(!Number.isFinite(n))return null;total+=n}
+  }
+  return total;
+}
 function feetInchesToMeters(ft:string|undefined,inch:string|undefined){
-  const f=Number(ft||0),i=Number(inch||0);
-  return Number.isFinite(f)&&Number.isFinite(i)?f*FT+i*IN:null;
+  const f=Number(ft||0),i=mixedNumber(inch);
+  if(!Number.isFinite(f)||i===null)return null;
+  const sign=f<0?-1:1;
+  return f*FT+sign*i*IN;
 }
 function parseArchitecturalElevation(text:string){
   const t=clean(text).replace(/[’]/g,"'").replace(/[”]/g,'"');
-  const m=t.match(/(?:EL(?:EV(?:ATION)?)?\.?|ELEV\.?|LEVEL|F\.F\.?|FF|T\.O\.?\s*(?:SLAB|CURB|STEEL)?|B\.O\.?\s*(?:SLAB|STEEL)?)\s*[:=@-]?\s*([+-]?\d{1,4})\s*'\s*(?:-\s*(\d{1,2}(?:\.\d+)?)\s*")?/i);
+  const m=t.match(/(?:EL(?:EV(?:ATION)?)?\.?|ELEV\.?|LEVEL|F\.F\.?|FF|T\.O\.?\s*(?:SLAB|CURB|STEEL|DECK)?|B\.O\.?\s*(?:SLAB|STEEL|DECK)?|TOP\s+OF\s+(?:SLAB|STEEL|DECK|CURB)(?:\s+ELEV(?:ATION)?)?|BOTTOM\s+OF\s+(?:SLAB|STEEL|DECK)(?:\s+ELEV(?:ATION)?)?|TOS|BOS|TOD|BOD|B\.O\.D\.)\s*[:=@-]?\s*([+-]?\d{1,4})\s*'\s*(?:-\s*((?:\d+\s+)?(?:\d+\/\d+|\d+(?:\.\d+)?))\s*")?/i);
   return m?feetInchesToMeters(m[1],m[2]):null;
 }
 function parseDecimalElevation(text:string){
   const t=clean(text);
-  const m=t.match(/(?:EL(?:EV(?:ATION)?)?\.?|ELEV\.?|FF(?:E)?\.?|FINISH(?:ED)?\s+FLOOR|T\.O\.?\s*(?:SLAB|CURB|STEEL)?|B\.O\.?\s*(?:SLAB|STEEL)?|GRADE|FG|TC|FL)\s*[:=@-]?\s*([+-]?\d{1,4}(?:\.\d+)?)(?:\s*(FT|FEET|M|METERS?|MM))?/i);
+  const m=t.match(/(?:EL(?:EV(?:ATION)?)?\.?|ELEV\.?|FF(?:E)?\.?|FINISH(?:ED)?\s+FLOOR|T\.O\.?\s*(?:SLAB|CURB|STEEL|DECK)?|B\.O\.?\s*(?:SLAB|STEEL|DECK)?|TOP\s+OF\s+(?:SLAB|STEEL|DECK|CURB)(?:\s+ELEV(?:ATION)?)?|BOTTOM\s+OF\s+(?:SLAB|STEEL|DECK)(?:\s+ELEV(?:ATION)?)?|TOS|BOS|TOD|BOD|B\.O\.D\.|GRADE|FG|TC|FL)\s*[:=@-]?\s*([+-]?\d{1,4}(?:\.\d+)?)(?:\s*(FT|FEET|M|METERS?|MM))?/i);
   if(!m)return null;
   const n=Number(m[1]);if(!Number.isFinite(n))return null;
   const unit=(m[2]||'').toUpperCase();
@@ -99,7 +110,7 @@ export function extractZEvidenceFromText(text:string,context?:{source?:string;fl
   for(const line of lines){
     const floor=context?.floor||floorToken(line);
     const arch=parseArchitecturalElevation(line);
-    if(arch!==null)out.push({id:`${context?.idPrefix||'z'}-${i++}`,type:/SECTION|ELEVATION|T\.O\.|B\.O\./i.test(line)?'SECTION_ELEVATION':'FLOOR_DATUM',valueMeters:arch,relativeTo:'PROJECT_DATUM',floor,source:context?.source||null,confidence:.9,evidence:[line],physicalTruth:false,reviewRequired:true});
+    if(arch!==null)out.push({id:`${context?.idPrefix||'z'}-${i++}`,type:/SECTION|ELEVATION|T\.O\.|B\.O\.|TOP OF|BOTTOM OF|\bTOS\b|\bBOS\b|\bTOD\b|\bBOD\b|B\.O\.D\./i.test(line)?'SECTION_ELEVATION':'FLOOR_DATUM',valueMeters:arch,relativeTo:'PROJECT_DATUM',floor,source:context?.source||null,confidence:.9,evidence:[line],physicalTruth:false,reviewRequired:true});
     const dec=arch===null?parseDecimalElevation(line):null;
     if(typeof dec==='number')out.push({id:`${context?.idPrefix||'z'}-${i++}`,type:/GRADE|FG|TC|FL/i.test(line)?'GRADE_ELEVATION':'FLOOR_DATUM',valueMeters:dec,relativeTo:/GRADE|FG|TC|FL/i.test(line)?'GRADE':'PROJECT_DATUM',floor,source:context?.source||null,confidence:.88,evidence:[line],physicalTruth:false,reviewRequired:true});
     else if(dec&&dec.unit==='DRAWING_DATUM')out.push({id:`${context?.idPrefix||'z'}-${i++}`,type:/GRADE|FG|TC|FL/i.test(line)?'SPOT_ELEVATION':'FLOOR_DATUM',valueMeters:dec.raw,relativeTo:/GRADE|FG|TC|FL/i.test(line)?'GRADE':'PROJECT_DATUM',floor,source:context?.source||null,confidence:.72,evidence:[line,'UNITS_REQUIRE_SOURCE_DATUM_REVIEW'],physicalTruth:false,reviewRequired:true});
