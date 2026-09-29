@@ -40,14 +40,27 @@ function supportKind(label:string):SupportBaseKind|null{
   if(/\b(?:CONC(?:RETE)?\s+)?PAD\b|\bEQUIPMENT\s+PAD\b/.test(t))return'PAD';
   return null;
 }
+function mixedNumber(value:string){
+  const parts=value.trim().split(/\s+/).filter(Boolean);let total=0;
+  for(const part of parts){
+    if(part.includes('/')){const [a,b]=part.split('/').map(Number);if(!Number.isFinite(a)||!Number.isFinite(b)||b===0)return null;total+=a/b}
+    else{const n=Number(part);if(!Number.isFinite(n))return null;total+=n}
+  }
+  return Number.isFinite(total)?total:null;
+}
 function parseHeightMeters(label:string){
   const t=upper(label);
-  let m=t.match(/(\d+(?:\.\d+)?)\s*'\s*(?:-\s*(\d+(?:\.\d+)?)\s*")?/);
-  if(m){const feet=Number(m[1]),inches=Number(m[2]||0);if(Number.isFinite(feet)&&Number.isFinite(inches)&&inches<12)return feet*FT+inches*IN}
-  m=t.match(/(\d+(?:\.\d+)?)\s*(MM|CM|M|IN|INCHES|FT|FEET)\b/);
+  let m=t.match(/((?:\d+\s+)?(?:\d+\/\d+|\d+(?:\.\d+)?))\s*'\s*(?:-\s*((?:\d+\s+)?(?:\d+\/\d+|\d+(?:\.\d+)?))\s*")?/);
+  if(m){
+    const feet=mixedNumber(m[1]),inches=m[2]?mixedNumber(m[2]):0;
+    if(feet!==null&&inches!==null&&feet>=0&&inches>=0&&inches<12)return feet*FT+inches*IN;
+  }
+  m=t.match(/((?:\d+\s+)?(?:\d+\/\d+|\d+(?:\.\d+)?))\s*"/);
+  if(m){const inches=mixedNumber(m[1]);if(inches!==null&&inches>0)return inches*IN}
+  m=t.match(/((?:\d+\s+)?(?:\d+\/\d+|\d+(?:\.\d+)?))\s*(MM|CM|M|IN|INCHES|FT|FEET)\b/);
   if(!m)return null;
-  const value=Number(m[1]),unit=m[2];
-  if(!Number.isFinite(value)||value<=0)return null;
+  const value=mixedNumber(m[1]),unit=m[2];
+  if(value===null||value<=0)return null;
   if(unit==='MM')return value/1000;
   if(unit==='CM')return value/100;
   if(unit==='M')return value;
@@ -105,40 +118,45 @@ export function extractSupportOffsetEvidence(input:{
 }
 
 export function enrichSupportBaseOffsets<T extends SupportOffsetEntity>(entities:T[],evidence:SupportOffsetEvidence[]):T[]{
-  const byPage=new Map<number,SupportOffsetEvidence[]>();
-  for(const item of evidence)byPage.set(item.page,[...(byPage.get(item.page)||[]),item]);
-  return entities.map(entity=>{
-    const meta=entity.meta||{},page=Number(meta.page||0);
-    if(!page||!equipmentCandidate(entity)||Number.isFinite(Number(meta.supportBaseOffsetMeters)))return entity;
-    const candidates=byPage.get(page)||[];if(!candidates.length)return entity;
-    const tagged=candidates.filter(item=>item.assetTag&&tagMatches(entity.name,item.assetTag));
-    let chosen:SupportOffsetEvidence|null=null,authority='',confidence=0;
-    if(tagged.length===1){
-      chosen=tagged[0];authority='TAG_LINKED_SOURCE_SUPPORT_NOTE';confidence=chosen.confidence;
-    }else if(tagged.length>1){
-      const ordered=tagged.map(item=>({item,d:Math.hypot(entity.x-item.x,entity.y-item.y)})).sort((a,b)=>a.d-b.d);
-      if(!ordered[1]||ordered[1].d-ordered[0].d>=.25){chosen=ordered[0].item;authority='TAG_LINKED_SOURCE_SUPPORT_NOTE';confidence=Math.min(.9,chosen.confidence)}
-    }else{
-      const untagged=candidates.filter(item=>!item.assetTag).map(item=>({item,d:Math.hypot(entity.x-item.x,entity.y-item.y)})).filter(item=>item.d<=.85).sort((a,b)=>a.d-b.d);
-      if(untagged.length){
-        const first=untagged[0],second=untagged[1];
-        const unique=!second||second.d>=Math.max(first.d*1.8,first.d+.3);
-        if(unique){chosen=first.item;authority='UNIQUE_NEAREST_SOURCE_SUPPORT_NOTE';confidence=Math.min(.72,chosen.confidence*Math.max(.55,1-first.d/.85))}
-      }
+  type Assignment={evidence:SupportOffsetEvidence;authority:string;confidence:number;distance:number;priority:number};
+  const eligible=entities.filter(entity=>equipmentCandidate(entity)&&!Number.isFinite(Number(entity.meta?.supportBaseOffsetMeters)));
+  const assignments=new Map<string,Assignment>();
+  const offer=(entity:T,assignment:Assignment)=>{
+    const prior=assignments.get(entity.id);
+    if(!prior||assignment.priority>prior.priority||(assignment.priority===prior.priority&&assignment.confidence>prior.confidence)||(assignment.priority===prior.priority&&assignment.confidence===prior.confidence&&assignment.distance<prior.distance))assignments.set(entity.id,assignment);
+  };
+  for(const item of evidence){
+    const samePage=eligible.filter(entity=>Number(entity.meta?.page||0)===item.page);
+    if(!samePage.length)continue;
+    if(item.assetTag){
+      const matches=samePage.filter(entity=>tagMatches(entity.name,item.assetTag!)).map(entity=>({entity,d:Math.hypot(entity.x-item.x,entity.y-item.y)})).sort((a,b)=>a.d-b.d);
+      if(matches.length===1)offer(matches[0].entity,{evidence:item,authority:'TAG_LINKED_SOURCE_SUPPORT_NOTE',confidence:item.confidence,distance:matches[0].d,priority:2});
+      else if(matches.length>1&&matches[1].d-matches[0].d>=.25)offer(matches[0].entity,{evidence:item,authority:'TAG_LINKED_SOURCE_SUPPORT_NOTE',confidence:Math.min(.9,item.confidence),distance:matches[0].d,priority:2});
+      continue;
     }
-    if(!chosen)return entity;
+    const nearby=samePage.map(entity=>({entity,d:Math.hypot(entity.x-item.x,entity.y-item.y)})).filter(match=>match.d<=.85).sort((a,b)=>a.d-b.d);
+    if(!nearby.length)continue;
+    const first=nearby[0],second=nearby[1],unique=!second||second.d>=Math.max(first.d*1.8,first.d+.3);
+    if(!unique)continue;
+    const confidence=Math.min(.72,item.confidence*Math.max(.55,1-first.d/.85));
+    offer(first.entity,{evidence:item,authority:'UNIQUE_NEAREST_SOURCE_SUPPORT_NOTE',confidence,distance:first.d,priority:1});
+  }
+  return entities.map(entity=>{
+    const assignment=assignments.get(entity.id);if(!assignment)return entity;
+    const chosen=assignment.evidence,meta=entity.meta||{};
     return{
       ...entity,
       meta:{
         ...meta,
         supportBaseOffsetMeters:chosen.heightMeters,
         supportOffsetKind:chosen.kind,
-        supportOffsetAuthority:authority,
-        supportOffsetConfidence:confidence,
+        supportOffsetAuthority:assignment.authority,
+        supportOffsetConfidence:assignment.confidence,
         supportOffsetEvidenceId:chosen.id,
         supportOffsetEvidenceLabel:chosen.label,
         supportOffsetSource:chosen.source,
         supportOffsetPage:chosen.page,
+        supportOffsetDistance:assignment.distance,
         physicalTruth:false,
         reviewRequired:true
       }
