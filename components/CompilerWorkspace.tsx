@@ -24,6 +24,7 @@ import {enrichCoordinationIntelligence} from '../lib/coordination-intelligence';
 import {buildZResolutionIndex,extractZEvidenceFromText,type ZEvidence} from '../lib/z-resolver';
 import {buildProjectDatumSurfaces,datumSurfaceMetadata,projectDatumSurfaceForEntity} from '../lib/project-datum';
 import {buildElevationTriangles,extractPositionedElevationControls,resolveLocalElevationSurface,type ElevationControlPoint,type ElevationTriangle} from '../lib/elevation-surface';
+import {extractSupportBaseEvidence,resolveSupportBaseForEntity,type SupportBaseEvidence} from '../lib/support-base-evidence';
 import {ChangeEvent,DragEvent,useEffect,useMemo,useState} from 'react';
 
 type Layer='L0'|'L1'|'L2'|'L3'|'L4';
@@ -121,6 +122,7 @@ async function parsePdf(file:File,level:{floor:string;elevation:number},discipli
  const scaleValidationByPage=new Map<number,ReturnType<typeof validateIndependentScale>>();
  const elevationControlsByPage=new Map<number,ElevationControlPoint[]>();
  const elevationTrianglesByPage=new Map<number,ElevationTriangle[]>();
+ const supportBaseEvidenceByPage=new Map<number,SupportBaseEvidence[]>();
  for(let page=1;page<=doc.numPages;page++){
   const preview=rasterPreviewByPage.get(page),pageGeometry=pageGeometryByPage.get(page);
   const nativeItems=raw.filter(item=>item.page===page).map(item=>({text:item.str,x:item.x/20+.5,y:.5-item.y/20}));
@@ -141,6 +143,15 @@ async function parsePdf(file:File,level:{floor:string;elevation:number},discipli
   elevationControlsByPage.set(page,controls);
   const triangles=[...buildElevationTriangles(controls,'GRADE'),...buildElevationTriangles(controls,'FINISHED_FLOOR')];
   elevationTrianglesByPage.set(page,triangles);
+  const supportEvidence=extractSupportBaseEvidence({
+   items,source:file.name,page,
+   planeWidth:usingRasterGeometry?(preview?.planeWidth||20):20,
+   planeHeight:usingRasterGeometry?(preview?.planeHeight||20):20
+  });
+  supportBaseEvidenceByPage.set(page,supportEvidence);
+  for(const support of supportEvidence){
+   ocrEntities.push({id:`pdf-support-base-${page}-${support.id}`,source:file.name,layer:'L0',kind:'support-base-evidence-candidate',name:support.evidence[0]||support.kind,x:support.x,y:support.y,z:0,floor:pageFloors.get(page)||'UNRESOLVED',confidence:support.confidence,meta:{page,nonSpatial:true,supportBaseEvidence:support,physicalTruth:false,reviewRequired:true,elevationKnown:false,physicalElevationKnown:false}});
+  }
   for(const control of controls){
    ocrEntities.push({id:`pdf-elevation-control-${page}-${control.id}`,source:file.name,layer:'L0',kind:'elevation-control-point',name:control.label,x:control.x,y:control.y,z:control.zMeters,floor:pageFloors.get(page)||'UNRESOLVED',confidence:control.confidence,meta:{page,elevationControl:control,sourceType:'PDF_ELEVATION_CONTROL',coordinateUnits:'sheet',zPlacementAuthority:'SOURCE_ELEVATION_CONTROL',elevationKnown:false,physicalElevationKnown:false,physicalTruth:false,reviewRequired:true}});
   }
@@ -181,6 +192,13 @@ async function parsePdf(file:File,level:{floor:string;elevation:number},discipli
  for(const entity of entities){
   if(entity.meta?.nonSpatial===true||entity.kind==='elevation-control-point'||entity.kind==='elevation-review-surface-triangle')continue;
   const page=Number(entity.meta?.page||0);if(!page)continue;
+  const supportResolution=resolveSupportBaseForEntity(entity,supportBaseEvidenceByPage.get(page)||[]);
+  if(supportResolution.status==='RESOLVED_CANDIDATE'&&supportResolution.offsetMeters!==null){
+   const evidence=supportResolution.evidence[0];
+   entity.meta={...entity.meta,supportBaseOffsetMeters:supportResolution.offsetMeters,supportBaseOffsetKind:evidence.kind,supportBaseOffsetAuthority:'SOURCE_DRAWING_EXPLICIT_SUPPORT_OFFSET',supportBaseOffsetConfidence:evidence.confidence,supportBaseOffsetEvidenceIds:supportResolution.evidence.map(item=>item.id),supportBaseOffsetSource:evidence.evidence[0],physicalTruth:false,reviewRequired:true};
+  }else if(supportResolution.status==='CONFLICT'){
+   entity.meta={...entity.meta,supportBaseOffsetConflict:true,supportBaseOffsetConflictEvidence:supportResolution.evidence.map(item=>({id:item.id,kind:item.kind,offsetMeters:item.offsetMeters,evidence:item.evidence})),physicalTruth:false,reviewRequired:true};
+  }
   const controls=elevationControlsByPage.get(page)||[],triangles=elevationTrianglesByPage.get(page)||[];
   if(controls.length<3||triangles.length===0)continue;
   const planType=String(entity.meta?.planType||''),discipline=String(entity.meta?.planDiscipline||'');
