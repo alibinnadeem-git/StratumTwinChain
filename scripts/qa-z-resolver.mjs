@@ -84,7 +84,7 @@ assert.match(compiler,/explicitSourceZ/);
 assert.match(compiler,/physicalElevationKnown:false/);
 
 const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
-assert.match(viewer,/Z CANDIDATE · REVIEW REQUIRED/);
-assert.match(viewer,/design\/drawing candidate, not field-verified physical elevation/);
+assert.match(viewer,/Z REFERENCE CANDIDATE · REVIEW REQUIRED/);
+assert.match(viewer,/source reference Z|Source evidence places the/);
 
 console.log('Evidence-based Z resolver passed: source-origin Z, explicit AFF reference semantics, ambiguous AFF fail-closed behavior, structural datum parsing, civil elevation evidence, conflict handling, and no guessed floor heights.');
