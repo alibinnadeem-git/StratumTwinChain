@@ -110,11 +110,13 @@ test('compiled Spatial model preserves source placement without inventing floor 
  await expect(imported).toContainText('PANELBOARD LP-2');
  const value=await imported.locator('option').filter({hasText:'PANELBOARD LP-2'}).first().getAttribute('value');
  await imported.selectOption(value!);
- await expect(page.getByText(/Z CANDIDATE · REVIEW REQUIRED/)).toBeVisible();
- await expect(page.getByText('Design Z candidate · review required',{exact:true})).toBeVisible();
+ await expect(page.getByText(/Z REFERENCE CANDIDATE · REVIEW REQUIRED/)).toBeVisible();
+ await expect(page.getByText('SOURCE ORIGIN design Z reference · review required',{exact:true})).toBeVisible();
  await page.getByText('Placement & source confidence').click();
- await expect(page.locator('.placement-details').getByText('0.00 m candidate',{exact:true})).toBeVisible();
- await expect(page.locator('.placement-details').getByText('0.000 m',{exact:true})).toBeVisible();
+ const details=page.locator('.placement-details');
+ await expect(details.getByText('0.00 m candidate',{exact:true})).toBeVisible();
+ await expect(details.getByText('0.000 m',{exact:true})).toBeVisible();
+ await expect(details.getByText(/SOURCE ORIGIN · 0\.000 m/)).toBeVisible();
 });
 
 test('DXF closed architectural polyline becomes reconstructed Spatial room geometry',async({page})=>{
