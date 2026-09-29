@@ -7,22 +7,34 @@ const datum=floor.find(item=>item.type==='FLOOR_DATUM');
 const aff=floor.find(item=>item.type==='MOUNTING_HEIGHT_AFF');
 assert.ok(datum&&Math.abs(Number(datum.valueMeters)-4.2672)<1e-6);
 assert.ok(aff&&Math.abs(Number(aff.valueMeters)-1.2192)<1e-6);
-const resolved=resolveEntityZ({id:'panel',name:'PANEL LP-2',source:'E-201.pdf',floor:'L2',confidence:.8,meta:{}},floor);
+assert.equal(aff.referencePoint,'UNSPECIFIED');
+const ambiguous=resolveEntityZ({id:'panel',name:'PANEL LP-2',source:'E-201.pdf',floor:'L2',confidence:.8,meta:{}},floor);
+assert.equal(ambiguous.status,'RELATIVE_ONLY');
+assert.equal(ambiguous.authority,'AFF_REFERENCE_UNSPECIFIED');
+assert.equal(ambiguous.referencePoint,'UNSPECIFIED');
+assert.equal(ambiguous.zMeters,null);
+
+const explicitFloor=extractZEvidenceFromText('LEVEL 2 F.F. EL. 14\'-0"\nPANEL LP-2 CENTERLINE 4\'-0" AFF',{source:'E-201.pdf',floor:'L2'});
+const resolved=resolveEntityZ({id:'panel',name:'PANEL LP-2',source:'E-201.pdf',floor:'L2',confidence:.8,meta:{}},explicitFloor);
 assert.equal(resolved.status,'RESOLVED_DESIGN_CANDIDATE');
-assert.equal(resolved.authority,'FLOOR_DATUM_PLUS_AFF');
+assert.equal(resolved.authority,'FLOOR_DATUM_PLUS_AFF_REFERENCE');
+assert.equal(resolved.referencePoint,'CENTERLINE');
 assert.ok(Math.abs(Number(resolved.zMeters)-5.4864)<1e-6);
 assert.equal(resolved.physicalTruth,false);
 assert.equal(resolved.reviewRequired,true);
 
-const relative=resolveEntityZ({id:'wall-device',name:'DEVICE D-1',source:'E-201.pdf',floor:'L3',confidence:.8,meta:{}},extractZEvidenceFromText('DEVICE D-1 48 IN AFF',{source:'E-201.pdf',floor:'L3'}));
+const relative=resolveEntityZ({id:'wall-device',name:'DEVICE D-1',source:'E-201.pdf',floor:'L3',confidence:.8,meta:{}},extractZEvidenceFromText('DEVICE D-1 CENTERLINE 48 IN AFF',{source:'E-201.pdf',floor:'L3'}));
 assert.equal(relative.status,'RELATIVE_ONLY');
-const unlinked=resolveEntityZ({id:'other',name:'PANEL OTHER',source:'E-201.pdf',floor:'L3',confidence:.8,meta:{}},extractZEvidenceFromText('DEVICE D-1 48 IN AFF',{source:'E-201.pdf',floor:'L3'}));
+assert.equal(relative.referencePoint,'CENTERLINE');
+assert.equal(relative.authority,'AFF_WITHOUT_FLOOR_DATUM');
+const unlinked=resolveEntityZ({id:'other',name:'PANEL OTHER',source:'E-201.pdf',floor:'L3',confidence:.8,meta:{}},extractZEvidenceFromText('DEVICE D-1 CENTERLINE 48 IN AFF',{source:'E-201.pdf',floor:'L3'}));
 assert.equal(unlinked.status,'UNRESOLVED');
 assert.equal(relative.zMeters,null);
 
 const ifc=resolveEntityZ({id:'ifc-1',name:'Transformer',source:'model.ifc',z:8.25,floor:'L3',confidence:.96,meta:{sourceType:'IFC_STEP_PRODUCT',sourceDesignElevationKnown:true,zPlacementAuthority:'SOURCE_IFC_DESIGN_PLACEMENT'}},[]);
 assert.equal(ifc.status,'RESOLVED_DESIGN_CANDIDATE');
 assert.equal(ifc.zMeters,8.25);
+assert.equal(ifc.referencePoint,'SOURCE_ORIGIN');
 assert.equal(ifc.authority,'SOURCE_IFC_DESIGN_PLACEMENT');
 
 const conflictEvidence=extractZEvidenceFromText('LEVEL 2 F.F. EL. 14\'-0"\nLEVEL 2 F.F. EL. 16\'-0"',{source:'A-201.pdf',floor:'L2'});
@@ -72,7 +84,7 @@ assert.match(compiler,/explicitSourceZ/);
 assert.match(compiler,/physicalElevationKnown:false/);
 
 const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
-assert.match(viewer,/Z CANDIDATE · REVIEW REQUIRED/);
-assert.match(viewer,/design\/drawing candidate, not field-verified physical elevation/);
+assert.match(viewer,/Z REFERENCE CANDIDATE · REVIEW REQUIRED/);
+assert.match(viewer,/source reference Z|Source evidence places the/);
 
-console.log('Evidence-based Z resolver passed: IFC/DXF source design Z, tagged floor datum + AFF, inline/split-line/suffix structural datum parsing with fractional inches, structural evidence kept from arbitrary asset Z, civil elevation evidence, conflict handling, and no guessed floor heights.');
+console.log('Evidence-based Z resolver passed: source-origin Z, explicit AFF reference semantics, ambiguous AFF fail-closed behavior, structural datum parsing, civil elevation evidence, conflict handling, and no guessed floor heights.');

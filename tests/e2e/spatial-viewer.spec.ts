@@ -267,8 +267,8 @@ test('DXF native units are retained while explicit design Z remains review-only'
  const panelValue=await panelOption.getAttribute('value');
  expect(panelValue).toBeTruthy();
  await imported.selectOption(panelValue!);
- await expect(page.getByText('Design Z candidate · review required',{exact:true})).toBeVisible();
- await expect(page.getByText(/Z CANDIDATE · REVIEW REQUIRED/)).toBeVisible();
+ await expect(page.getByText('SOURCE ORIGIN design Z reference · review required',{exact:true})).toBeVisible();
+ await expect(page.getByText(/Z REFERENCE CANDIDATE · REVIEW REQUIRED/)).toBeVisible();
  await expect(page.getByText(/SOURCE DXF DESIGN Z/i)).toBeVisible();
 });
 test('SLD becomes review-only spatial electrical hierarchy',async({page})=>{
@@ -920,4 +920,37 @@ test('explicit transformer pad height composes with local grade into base Z cand
  await expect(details.getByText(/SOURCE SUPPORT BASE OFFSET ON REVIEW SURFACE/i)).toBeVisible();
  await expect(details.getByText(/Physical Z/)).toBeVisible();
  await expect(details.getByText(/Unverified/)).toBeVisible();
+});
+
+
+test('vertical Z reference semantics convert centerline to equipment base and keep unspecified AFF review-only',async({page})=>{
+ const source='E-201 Power Plan.pdf';
+ const graph={
+  version:'z-reference-browser-1',createdAt:'2026-09-29T12:50:00.000Z',reviewState:'REVIEW_REQUIRED',
+  sources:[{name:source,ext:'pdf',sha256:'r'.repeat(64),discipline:'Electrical',floor:'L2',elevation:0}],
+  entities:[
+   {id:'panel-centerline',source,layer:'L2',kind:'text-asset-candidate',name:'PANEL LP-2',x:1,y:1,z:0,floor:'L2',confidence:.9,
+    meta:{assetDimensionAuthority:'SOURCE_SPEC',assetDimensionsMeters:[.8,1.2,.25],zCandidateMeters:5.4864,zCandidateReferencePoint:'CENTERLINE',zResolutionStatus:'RESOLVED_DESIGN_CANDIDATE',zResolutionConfidence:.88,zResolutionAuthority:'FLOOR_DATUM_PLUS_AFF_REFERENCE',physicalElevationKnown:false,elevationKnown:false,physicalTruth:false,reviewRequired:true}},
+   {id:'panel-ambiguous',source,layer:'L2',kind:'text-asset-candidate',name:'PANEL LP-3',x:3,y:1,z:0,floor:'L2',confidence:.88,
+    meta:{reviewSurfaceZ:4.2672,reviewSurfaceKind:'FINISHED_FLOOR',reviewSurfaceAuthority:'SOURCE_PROJECT_DATUM',reviewSurfaceConfidence:.9,zCandidateReferencePoint:'UNSPECIFIED',zResolutionStatus:'RELATIVE_ONLY',zResolutionConfidence:.7,zResolutionAuthority:'AFF_REFERENCE_UNSPECIFIED',physicalElevationKnown:false,elevationKnown:false,physicalTruth:false,reviewRequired:true}}
+  ],
+  links:[],stats:{L0:0,L1:0,L2:2,L3:0,L4:0}
+ };
+ await page.addInitScript(value=>localStorage.setItem('stratum_compiled_graph',JSON.stringify(value)),graph);
+ await page.goto('/spatial');
+ const select=page.getByLabel('Imported object');
+
+ await select.selectOption('panel-centerline');
+ await expect(page.getByRole('heading',{name:'PANEL LP-2'})).toBeVisible();
+ await expect(page.getByText('CENTERLINE design Z reference · review required',{exact:true})).toBeVisible();
+ await expect(page.getByText(/Z REFERENCE CANDIDATE · REVIEW REQUIRED/)).toBeVisible();
+ await page.getByText('Placement & source confidence').click();
+ const centerDetails=page.locator('.placement-details');
+ await expect(centerDetails.getByText('4.886 m',{exact:false})).toBeVisible();
+ await expect(centerDetails.getByText(/CENTERLINE · 5\.486 m/)).toBeVisible();
+
+ await select.selectOption('panel-ambiguous');
+ await expect(page.getByRole('heading',{name:'PANEL LP-3'})).toBeVisible();
+ await expect(page.getByText(/AFF HEIGHT FOUND · REFERENCE POINT REQUIRED/)).toBeVisible();
+ await expect(page.getByText(/does not state whether that height is to the base, bottom, centerline, top, or mounting point/i)).toBeVisible();
 });
