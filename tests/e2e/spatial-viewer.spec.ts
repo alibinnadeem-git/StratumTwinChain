@@ -788,3 +788,32 @@ test('site asset uses local grade review surface without claiming physical Z',as
  await expect(page.getByText(/SOURCE ELEVATION TRIANGLE/i)).toBeVisible();
  await expect(page.getByText(/74%/).first()).toBeVisible();
 });
+
+
+test('pedestal EVSE composes local grade surface into a placement candidate',async({page})=>{
+ const source='Synthetic Grading Plan.pdf';
+ const graph={
+  version:'local-grade-placement-1',createdAt:'2026-09-29T00:00:00.000Z',reviewState:'REVIEW_REQUIRED',
+  sources:[{name:source,ext:'pdf',sha256:'p'.repeat(64),discipline:'Civil / Grading',floor:'UNRESOLVED',elevation:0}],
+  entities:[
+   {id:'terrain-triangle-2',source,layer:'L1',kind:'elevation-review-surface-triangle',name:'GRADE review surface',x:0,y:0,z:30.7848,floor:'UNRESOLVED',confidence:.74,
+    vertices:[{x:-6,y:-4},{x:6,y:-4},{x:0,y:6}],
+    meta:{page:1,elevationTriangle:{id:'tri-2',kind:'GRADE',pointIds:['p1','p2','p3'],zMeters:[30.48,30.7848,31.0896]},physicalElevationKnown:false,physicalTruth:false,reviewRequired:true}},
+   {id:'pedestal-evse',source,layer:'L2',kind:'text-asset-candidate',name:'EVSE-1',x:0,y:0,z:0,floor:'UNRESOLVED',confidence:.82,
+    meta:{page:1,mountingType:'pedestal',localReviewSurfaceZ:30.7848,localReviewSurfaceKind:'GRADE',localReviewSurfaceAuthority:'SOURCE_ELEVATION_TRIANGLE',localReviewSurfaceConfidence:.74,physicalElevationKnown:false,elevationKnown:false,physicalTruth:false,reviewRequired:true}}
+  ],
+  links:[],stats:{L0:0,L1:1,L2:1,L3:0,L4:0}
+ };
+ await page.addInitScript(value=>localStorage.setItem('stratum_compiled_graph',JSON.stringify(value)),graph);
+ await page.goto('/spatial');
+ const select=page.getByLabel('Imported object');
+ await select.selectOption('pedestal-evse');
+ await expect(page.getByRole('heading',{name:'EVSE-1'})).toBeVisible();
+ await expect(page.getByText(/30\.78 m placement candidate · review required/i)).toBeVisible();
+ await page.getByText('Placement & source confidence').click();
+ const details=page.locator('.placement-details');
+ await expect(details.getByText(/30\.785 m/)).toBeVisible();
+ await expect(details.getByText(/SOURCE SUPPORT SURFACE CANDIDATE/i)).toBeVisible();
+ await expect(details.getByText(/EVSE PEDESTAL BASE ON SUPPORT SURFACE/i)).toBeVisible();
+ await expect(page.getByText(/physical Z/i).first()).toBeVisible();
+});
