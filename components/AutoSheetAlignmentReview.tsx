@@ -27,7 +27,7 @@ export default function AutoSheetAlignmentReview(){
    const point=transformSheetPoint({x:original.x,y:original.y},proposal.transform);
    const end=Number.isFinite(original.x2)&&Number.isFinite(original.y2)?transformSheetPoint({x:Number(original.x2),y:Number(original.y2)},proposal.transform):null;
    const vertices=original.vertices?.map(vertex=>transformSheetPoint(vertex,proposal.transform));changed++;
-   return{...entity,x:point.x,y:point.y,...(end?{x2:end.x,y2:end.y}:{}),...(vertices?{vertices}:{}),meta:{...meta,autoSheetAlignmentOriginal:original,autoSheetAlignmentCandidateId:proposal.id,alignmentReferenceKey:proposal.referenceKey,alignmentMethod:'auto-common-anchor-human-confirmed',alignmentAppliedAt:new Date().toISOString(),alignmentVerified:false}};
+   return{...entity,x:point.x,y:point.y,...(end?{x2:end.x,y2:end.y}:{}),...(vertices?{vertices}:{}),meta:{...meta,autoSheetAlignmentOriginal:original,autoSheetAlignmentCandidateId:proposal.id,alignmentReferenceKey:proposal.referenceKey,alignmentProposalConfidence:proposal.confidence,alignmentRmsResidual:proposal.transform.rmsResidual,alignmentMethod:'auto-common-anchor-human-confirmed',alignmentAppliedAt:new Date().toISOString(),alignmentVerified:false}};
   });
   graph.entities=enrichCrossSheetElevationSurfaces(graph.entities);
   graph.autoAlignmentReviews=[...(Array.isArray(graph.autoAlignmentReviews)?graph.autoAlignmentReviews:[]),{candidateId:proposal.id,action:'APPLY',occurredAt:new Date().toISOString(),reviewRequired:true,verified:false,crossChecks:proposal.crossChecks}];
@@ -39,7 +39,7 @@ export default function AutoSheetAlignmentReview(){
   graph.entities=entities.map(entity=>{
    const meta={...(entity.meta||{})},original=meta.autoSheetAlignmentOriginal as {x:number;y:number;x2?:number;y2?:number;vertices?:{x:number;y:number}[]}|undefined;
    if(meta.autoSheetAlignmentCandidateId!==proposal.id||!original)return entity;
-   changed++;delete meta.autoSheetAlignmentOriginal;delete meta.autoSheetAlignmentCandidateId;delete meta.alignmentReferenceKey;delete meta.alignmentMethod;delete meta.alignmentAppliedAt;delete meta.alignmentVerified;
+   changed++;delete meta.autoSheetAlignmentOriginal;delete meta.autoSheetAlignmentCandidateId;delete meta.alignmentReferenceKey;delete meta.alignmentProposalConfidence;delete meta.alignmentRmsResidual;delete meta.alignmentMethod;delete meta.alignmentAppliedAt;delete meta.alignmentVerified;
    return{...entity,x:original.x,y:original.y,...(original.x2!==undefined&&original.y2!==undefined?{x2:original.x2,y2:original.y2}:{}),...(original.vertices?{vertices:original.vertices}:{}),meta};
   });
   graph.entities=enrichCrossSheetElevationSurfaces(graph.entities);
