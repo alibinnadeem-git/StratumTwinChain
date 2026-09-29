@@ -49,6 +49,9 @@ function unitFromScale(declaredScale:string|null|undefined,validation?:Independe
   }
   return null;
 }
+// Only source labels that explicitly describe a grade/floor surface may seed local
+// interpolation. Structural elevations remain available to the broader Z resolver
+// but are intentionally excluded from terrain/floor control geometry.
 function surfaceControlKind(label:string):ElevationSurfaceKind|null{
   const t=clean(label).toUpperCase();
   if(/\b(?:FFE|FF)\b|FINISH(?:ED)?\s+FLOOR/.test(t))return'FINISHED_FLOOR';
