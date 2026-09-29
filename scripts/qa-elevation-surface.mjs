@@ -51,12 +51,37 @@ assert.equal(strictControls[1].kind,'GRADE');
 assert.ok(Math.abs(strictControls[1].zMeters-(194.56*.3048))<1e-6);
 assert.ok(strictControls.every(p=>!/TOP OF SLAB|TOP OF STEEL|B\.O\.D\.|PANEL ELEVATION/.test(p.label)));
 
+
+const civilSemanticControls=extractPositionedElevationControls({
+ items:[
+  {text:'194.61TC',x:.10,y:.20},
+  {text:'193.78FL',x:.20,y:.30},
+  {text:'194.56FG',x:.30,y:.40},
+  {text:'195.02FS',x:.70,y:.40},
+  {text:'GRADE 195.10',x:.50,y:.75}
+ ],
+ source:'C-2 grading plan.pdf',page:4,declaredScale:'1" = 10\'-0"',scaleValidation:null,planeWidth:20,planeHeight:14
+});
+assert.equal(civilSemanticControls.length,5);
+assert.equal(civilSemanticControls.find(p=>p.label==='194.61TC')?.semantic,'TOP_OF_CURB');
+assert.equal(civilSemanticControls.find(p=>p.label==='193.78FL')?.semantic,'FLOWLINE');
+assert.equal(civilSemanticControls.find(p=>p.label==='194.56FG')?.semantic,'FINISHED_GRADE');
+assert.equal(civilSemanticControls.find(p=>p.label==='195.02FS')?.semantic,'FINISHED_SURFACE');
+assert.equal(civilSemanticControls.find(p=>p.label==='194.61TC')?.triangulationEligible,false);
+assert.equal(civilSemanticControls.find(p=>p.label==='193.78FL')?.triangulationEligible,false);
+assert.equal(civilSemanticControls.find(p=>p.label==='194.56FG')?.triangulationEligible,true);
+const civilTriangles=buildElevationTriangles(civilSemanticControls,'GRADE');
+assert.equal(civilTriangles.length,1);
+assert.ok(civilTriangles[0].points.every(p=>p.triangulationEligible));
+assert.ok(civilTriangles[0].points.every(p=>!['TOP_OF_CURB','FLOWLINE'].includes(p.semantic)));
+
 const explicitMetric=extractPositionedElevationControls({
  items:[{text:'FG 12.50 M',x:.3,y:.3},{text:'TC 12.65 M',x:.6,y:.3},{text:'FL 12.20 M',x:.45,y:.6}],
  source:'Civil.pdf',page:2,declaredScale:'1:100',scaleValidation:null,planeWidth:20,planeHeight:14
 });
 assert.equal(explicitMetric.length,3);
 assert.ok(explicitMetric.every(p=>p.unit==='m'&&p.unitAuthority==='EXPLICIT_LABEL'));
+assert.equal(buildElevationTriangles(explicitMetric,'GRADE').length,0);
 
 const ambiguous=extractPositionedElevationControls({
  items:[{text:'FG 194.56',x:.3,y:.3}],
@@ -79,4 +104,4 @@ const inspector=fs.readFileSync('components/SpatialAssetInspector.tsx','utf8');
 assert.match(inspector,/Local surface authority/);
 assert.match(inspector,/localReviewSurfaceConfidence/);
 
-console.log('Local elevation surface passed: imperial scale-guided spot elevations, explicit metric controls, bounded triangulation, inside interpolation, outside-envelope fail-closed behavior, and review-only Spatial presentation.');
+console.log('Local elevation surface passed: imperial scale-guided spot elevations, civil semantic control classes, discontinuity-safe triangulation, explicit metric controls, bounded interpolation, outside-envelope fail-closed behavior, and review-only Spatial presentation.');
