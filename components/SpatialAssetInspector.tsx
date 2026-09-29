@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import {useMemo,useState} from 'react';
 import {readPrimarySpatialGraph,replaceCurrentSpatialGraph} from '@/lib/spatial-browser-recovery';
+import {resolveAssetPlacement} from '@/lib/asset-placement';
 import AssetActivityPanel from '@/components/AssetActivityPanel';
 import AssetQR from '@/components/AssetQR';
 import {
@@ -89,6 +90,7 @@ export default function SpatialAssetInspector({
  const localReviewSurfaceLabel=String(selected.meta?.localReviewSurfaceKind||'LOCAL SURFACE').replaceAll('_',' ');
  const reviewSurfaceZ=Number.isFinite(Number(selected.meta?.reviewSurfaceZ))?Number(selected.meta?.reviewSurfaceZ):null;
  const reviewSurfaceLabel=String(selected.meta?.reviewSurfaceKind||'PROJECT DATUM').replaceAll('_',' ');
+ const renderedPlacement=resolveAssetPlacement({name:selected.name,floor:selected.floor,z:selected.z,meta:selected.meta});
  const qr=asset?verificationUrl(asset):'';
  const zReviewed=selected.meta?.elevationKnown!==false&&selected.meta?.physicalElevationKnown!==false&&(selected.meta?.elevationKnown===true||selected.meta?.physicalElevationKnown===true||selected.meta?.zPlacementAuthority==='MEASURED_OR_REVIEWED');
  const tierLabel:Record<string,string>={L0:'Tier 0 · Source',L1:'Tier 1 · Drawing geometry',L2:'Tier 2 · Drawing callout, review required',L3:'Tier 3 · Electrical topology',L4:'Tier 4 · Registered asset'};
@@ -204,6 +206,8 @@ export default function SpatialAssetInspector({
     <div><span>Source</span><strong>{selected.source}</strong></div>
     <div><span>Confidence</span><strong>{Math.round(selected.confidence*100)}%</strong></div>
     <div><span>Zone</span><strong>{selected.zone||'Unresolved'}</strong></div>
+    <div><span>Rendered base Z</span><strong>{renderedPlacement.baseZ.toFixed(3)} m</strong></div>
+    <div><span>Base authority</span><strong>{String(renderedPlacement.zAuthority).replaceAll('_',' ')}</strong></div>
     {localReviewSurfaceZ!==null&&<><div><span>Local surface authority</span><strong>{String(selected.meta?.localReviewSurfaceAuthority||'SOURCE_ELEVATION_TRIANGLE').replaceAll('_',' ')}</strong></div><div><span>Surface confidence</span><strong>{Math.round(Number(selected.meta?.localReviewSurfaceConfidence||0)*100)}%</strong></div></>}
     {reviewSurfaceZ!==null&&<div><span>Datum authority</span><strong>{String(selected.meta?.reviewSurfaceAuthority||'SOURCE_PROJECT_DATUM').replaceAll('_',' ')}</strong></div>}
     {Number.isFinite(Number(selected.meta?.zScaleGuideMetersPerSourceUnit))&&<div><span>XYZ unit guide</span><strong>{Number(selected.meta?.zScaleGuideMetersPerSourceUnit).toFixed(6)} m/source unit</strong></div>}
