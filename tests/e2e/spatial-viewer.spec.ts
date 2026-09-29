@@ -788,3 +788,65 @@ test('site asset uses local grade review surface without claiming physical Z',as
  await expect(page.getByText(/SOURCE ELEVATION TRIANGLE/i)).toBeVisible();
  await expect(page.getByText(/74%/).first()).toBeVisible();
 });
+
+
+test('reviewed civil-to-electrical alignment transfers grade Z across sheets without claiming physical elevation',async({page})=>{
+ const electricalSha='a'.repeat(64),civilSha='b'.repeat(64);
+ const sourceElectrical='E-101 Electrical Site Plan.pdf',sourceCivil='C-2 Grading Plan.pdf';
+ const meta=(sha:string,pageNumber:number,discipline:string)=>({sourceSha256:sha,page:pageNumber,nonSldPlan:true,planType:discipline==='Electrical'?'ELECTRICAL_POWER_PLAN':'CIVIL_GRADING_PLAN',planDiscipline:discipline,physicalElevationKnown:false,elevationKnown:false,physicalTruth:false,reviewRequired:true});
+ const graph={
+  version:'cross-sheet-z-browser-1',createdAt:'2026-09-29T00:00:00.000Z',reviewState:'REVIEW_REQUIRED',
+  sources:[
+   {name:sourceElectrical,ext:'pdf',sha256:electricalSha,discipline:'Electrical',floor:'L1',elevation:0,state:'parsed',entities:4},
+   {name:sourceCivil,ext:'pdf',sha256:civilSha,discipline:'Civil',floor:'L1',elevation:0,state:'parsed',entities:4}
+  ],
+  titleBlocks:[
+   {sourceSha256:electricalSha,page:1,sheetNumber:{value:'E-101'},discipline:{value:'Electrical'},floor:{value:'L1'},drawingScale:{value:'1:100'},pageGeometry:{widthPoints:1000,heightPoints:700,maxDimensionPoints:1000},geometryScaleAuthority:false,reviewState:'CONFIRMED'},
+   {sourceSha256:civilSha,page:2,sheetNumber:{value:'C-2'},discipline:{value:'Civil'},floor:{value:'L1'},drawingScale:{value:'1:100'},pageGeometry:{widthPoints:1000,heightPoints:700,maxDimensionPoints:1000},geometryScaleAuthority:false,reviewState:'CONFIRMED'}
+  ],
+  entities:[
+   {id:'e-a1',source:sourceElectrical,layer:'L2',kind:'logical-tag',name:'PANEL LP1',x:0,y:0,z:0,floor:'L1',confidence:.95,meta:meta(electricalSha,1,'Electrical')},
+   {id:'e-a2',source:sourceElectrical,layer:'L2',kind:'logical-tag',name:'TRANSFORMER T1',x:2,y:0,z:0,floor:'L1',confidence:.95,meta:meta(electricalSha,1,'Electrical')},
+   {id:'e-a3',source:sourceElectrical,layer:'L2',kind:'logical-tag',name:'ATS 1',x:0,y:2,z:0,floor:'L1',confidence:.95,meta:meta(electricalSha,1,'Electrical')},
+   {id:'evse-cross-sheet',source:sourceElectrical,layer:'L2',kind:'text-asset-candidate',name:'EVSE-1',x:.5,y:.25,z:0,floor:'UNRESOLVED',confidence:.9,meta:meta(electricalSha,1,'Electrical')},
+   {id:'c-a1',source:sourceCivil,layer:'L2',kind:'logical-tag',name:'PANEL LP1',x:0,y:0,z:0,floor:'L1',confidence:.95,meta:meta(civilSha,2,'Civil')},
+   {id:'c-a2',source:sourceCivil,layer:'L2',kind:'logical-tag',name:'TRANSFORMER T1',x:2,y:0,z:0,floor:'L1',confidence:.95,meta:meta(civilSha,2,'Civil')},
+   {id:'c-a3',source:sourceCivil,layer:'L2',kind:'logical-tag',name:'ATS 1',x:0,y:2,z:0,floor:'L1',confidence:.95,meta:meta(civilSha,2,'Civil')},
+   {id:'civil-grade-triangle',source:sourceCivil,layer:'L1',kind:'elevation-review-surface-triangle',name:'GRADE review surface',x:.5,y:.2,z:30.6,floor:'UNRESOLVED',confidence:.82,
+    vertices:[{x:-1,y:-1},{x:2,y:-1},{x:.5,y:2}],
+    meta:{...meta(civilSha,2,'Civil'),elevationTriangle:{id:'tri-browser-1',kind:'GRADE',pointIds:['p1','p2','p3'],zMeters:[30,31,32]}}}
+  ],
+  links:[],stats:{L0:2,L1:1,L2:7,L3:0,L4:0}
+ };
+ await page.addInitScript(value=>localStorage.setItem('stratum_compiled_graph',JSON.stringify(value)),graph);
+ await page.goto('/compiler');
+ const review=page.getByRole('region',{name:'Automatic sheet alignment review'});
+ await expect(review).toBeVisible();
+ await expect(review.getByText(/C-2 → E-101|E-101 → C-2/)).toBeVisible();
+ await expect(review.getByText(/COORDINATION REVIEW/)).toBeVisible();
+ await expect(review.getByText(/disciplines differ/i)).toBeVisible();
+ await review.getByRole('button',{name:'Apply reviewed proposal'}).click();
+ await expect(review.getByRole('status')).toContainText(/cross-sheet elevation surfaces were sampled for review/i);
+
+ await expect.poll(()=>page.evaluate(()=>{
+  const g=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
+  const evse=(g.entities||[]).find((entity:any)=>entity.id==='evse-cross-sheet');
+  return evse?{
+   z:evse.meta?.crossSheetReviewSurfaceZ,
+   kind:evse.meta?.crossSheetReviewSurfaceKind,
+   authority:evse.meta?.crossSheetReviewSurfaceAuthority,
+   physical:evse.meta?.physicalElevationKnown
+  }:null;
+ })).toMatchObject({kind:'GRADE',authority:'HUMAN_CONFIRMED_ALIGNMENT_PLUS_SOURCE_ELEVATION_TRIANGLE',physical:false});
+
+ await page.goto('/spatial');
+ const select=page.getByLabel('Imported object');
+ await expect(select.locator('option').filter({hasText:'EVSE-1'})).toHaveCount(1);
+ await select.selectOption('evse-cross-sheet');
+ await expect(page.getByText(/CROSS-SHEET Z REVIEW SURFACE/)).toBeVisible();
+ await expect(page.getByText(/coordination-derived design evidence, not field-verified physical elevation/i)).toBeVisible();
+ await expect(page.getByText(/GRADE cross-sheet review surface · object Z unresolved/i)).toBeVisible();
+ await page.getByText('Placement & source confidence').click();
+ await expect(page.getByText(/Cross-sheet Z authority/)).toBeVisible();
+ await expect(page.getByText(/HUMAN CONFIRMED ALIGNMENT PLUS SOURCE ELEVATION TRIANGLE/)).toBeVisible();
+});
