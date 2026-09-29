@@ -1,6 +1,6 @@
 type Point={x:number;y:number};
 export type CrossSheetEntity={
- id:string;source:string;kind:string;x:number;y:number;x2?:number;y2?:number;vertices?:Point[];confidence:number;meta?:Record<string,unknown>;
+ id:string;source:string;kind:string;x:number;y:number;x2?:number;y2?:number;vertices?:Point[];floor?:string;confidence:number;meta?:Record<string,unknown>;
 };
 export type CrossSheetSurfaceResolution={
  zMeters:number;
@@ -11,6 +11,7 @@ export type CrossSheetSurfaceResolution={
  source:string;
  sourceFrameKey:string;
  targetFrameGroup:string;
+ alignmentConfidence:number;
  authority:'ALIGNED_SOURCE_ELEVATION_TRIANGLE';
  physicalTruth:false;
  reviewRequired:true;
@@ -60,6 +61,29 @@ function frameGroup(entity:CrossSheetEntity,autoRefs:Set<string>){
  return null;
 }
 
+function alignmentConfidence(entity:CrossSheetEntity){
+ if(validatedManual(entity)){
+  const residual=Number(entity.meta?.planXYValidationResidualMeters),tolerance=Number(entity.meta?.planXYValidationToleranceMeters);
+  if(Number.isFinite(residual)&&Number.isFinite(tolerance)&&tolerance>0)return Math.max(.7,Math.min(1,1-.3*Math.min(1,residual/tolerance)));
+  return .75;
+ }
+ if(autoReferenceKey(entity)){
+  const explicit=Number(entity.meta?.alignmentProposalConfidence);
+  return Number.isFinite(explicit)?Math.max(0,Math.min(1,explicit)):.7;
+ }
+ return 1;
+}
+function floorKey(value:unknown){return String(value||'').trim().toUpperCase()}
+function surfaceCompatible(surface:CrossSheetEntity,kind:string,target:CrossSheetEntity){
+ const targetFloor=floorKey(target.floor),surfaceFloor=floorKey(surface.floor);
+ if(kind==='FINISHED_FLOOR')return Boolean(targetFloor&&targetFloor!=='UNRESOLVED'&&surfaceFloor&&surfaceFloor!=='UNRESOLVED'&&targetFloor===surfaceFloor);
+ if(kind==='GRADE'){
+  const plan=`${String(target.meta?.planType||'')} ${String(target.meta?.planDiscipline||'')} ${target.source}`.toUpperCase();
+  return !targetFloor||targetFloor==='UNRESOLVED'||targetFloor==='GROUND'||targetFloor==='GROUND FLOOR'||targetFloor==='L1'||/SITE|GRADING|DRAINAGE|CIVIL/.test(plan);
+ }
+ return false;
+}
+
 export function enrichCrossSheetElevationSurfaces<T extends CrossSheetEntity>(entities:T[]):T[]{
  const autoRefs=autoGroups(entities);
  const surfaces=entities.flatMap(entity=>{
@@ -72,17 +96,18 @@ export function enrichCrossSheetElevationSurfaces<T extends CrossSheetEntity>(en
   if(Number.isFinite(Number(meta.localReviewSurfaceZ)))return entity;
   const targetGroup=frameGroup(entity,autoRefs),targetFrame=frameKey(entity);if(!targetGroup||!targetFrame)return entity;
   const matches=surfaces.flatMap(surface=>{
-   if(surface.group!==targetGroup||surface.sourceFrameKey===targetFrame)return[];
+   if(surface.group!==targetGroup||surface.sourceFrameKey===targetFrame||!surfaceCompatible(surface.entity,surface.tri.kind,entity))return[];
    const b=barycentric(entity.x,entity.y,surface.tri.vertices);if(!b)return[];
    const z=b.w1*surface.tri.zs[0]+b.w2*surface.tri.zs[1]+b.w3*surface.tri.zs[2];
    const maxDistance=Math.max(...surface.tri.vertices.map(p=>Math.hypot(entity.x-p.x,entity.y-p.y)));
    return[{surface,z,maxDistance}];
   }).sort((a,b)=>a.maxDistance-b.maxDistance||b.surface.entity.confidence-a.surface.entity.confidence);
   const best=matches[0];if(!best)return entity;
+  const alignmentReviewConfidence=Math.min(alignmentConfidence(entity),alignmentConfidence(best.surface.entity));
   const resolution:CrossSheetSurfaceResolution={
-   zMeters:best.z,kind:best.surface.tri.kind,confidence:best.surface.entity.confidence,
+   zMeters:best.z,kind:best.surface.tri.kind,confidence:Math.min(best.surface.entity.confidence,alignmentReviewConfidence),
    triangleId:best.surface.tri.id,triangleEntityId:best.surface.entity.id,source:best.surface.entity.source,
-   sourceFrameKey:best.surface.sourceFrameKey,targetFrameGroup:targetGroup,
+   sourceFrameKey:best.surface.sourceFrameKey,targetFrameGroup:targetGroup,alignmentConfidence:alignmentReviewConfidence,
    authority:'ALIGNED_SOURCE_ELEVATION_TRIANGLE',physicalTruth:false,reviewRequired:true
   };
   return{...entity,meta:{...meta,
@@ -95,6 +120,7 @@ export function enrichCrossSheetElevationSurfaces<T extends CrossSheetEntity>(en
    crossSheetReviewSurfaceSource:resolution.source,
    crossSheetReviewSurfaceSourceFrameKey:resolution.sourceFrameKey,
    crossSheetReviewSurfaceFrameGroup:resolution.targetFrameGroup,
+   crossSheetReviewSurfaceAlignmentConfidence:resolution.alignmentConfidence,
    physicalTruth:false,reviewRequired:true
   }};
  });
