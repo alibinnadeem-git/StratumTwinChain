@@ -862,13 +862,15 @@ test('reviewed civil-to-electrical alignment transfers grade Z across sheets wit
  await expect.poll(()=>page.evaluate(()=>{
   const g=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
   const evse=(g.entities||[]).find((entity:any)=>entity.id==='evse-cross-sheet');
+  const z=evse?.meta?.crossSheetReviewSurfaceZ;
   return evse?{
-   z:evse.meta?.crossSheetReviewSurfaceZ,
+   z,
+   finite:Number.isFinite(Number(z)),
    kind:evse.meta?.crossSheetReviewSurfaceKind,
    authority:evse.meta?.crossSheetReviewSurfaceAuthority,
    physical:evse.meta?.physicalElevationKnown
   }:null;
- })).toMatchObject({kind:'GRADE',authority:'HUMAN_CONFIRMED_ALIGNMENT_PLUS_SOURCE_ELEVATION_TRIANGLE',physical:false});
+ })).toMatchObject({finite:true,kind:'GRADE',authority:'HUMAN_CONFIRMED_ALIGNMENT_PLUS_SOURCE_ELEVATION_TRIANGLE',physical:false});
 
  await page.goto('/spatial');
  const sheetSelect=page.getByLabel('Sheet page isolation');
