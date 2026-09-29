@@ -46,7 +46,7 @@ function tuple(value:unknown):[number,number,number]|null{
  if(!Array.isArray(value)||value.length!==3)return null;
  const n=value.map(Number);return n.every(item=>Number.isFinite(item)&&item>0)?[n[0],n[1],n[2]]:null;
 }
-function finite(value:unknown){const n=Number(value);return Number.isFinite(n)?n:null}
+function finite(value:unknown){if(value===null||value===undefined||value==='')return null;const n=Number(value);return Number.isFinite(n)?n:null}
 function sourceDimensions(entity:PlacementEntity):[number,number,number]|null{
  const meta=entity.meta||{};
  if(meta.assetDimensionAuthority==='SOURCE_SPEC'){
@@ -86,7 +86,7 @@ function webOemDimensions(entity:PlacementEntity):{dims:[number,number,number];s
 }
 function sourceMountingBaseOffset(entity:PlacementEntity){
  const meta=entity.meta||{};
- for(const key of ['mountingBaseFromFloorMeters','recommendedBaseFromFloorMeters','manufacturerMountingBaseMeters','installationBaseFromFloorMeters']){
+ for(const key of ['supportBaseOffsetMeters','mountingBaseFromFloorMeters','recommendedBaseFromFloorMeters','manufacturerMountingBaseMeters','installationBaseFromFloorMeters']){
   const value=finite(meta[key]);if(value!==null&&value>=0)return value;
  }
  return null;
@@ -94,8 +94,9 @@ function sourceMountingBaseOffset(entity:PlacementEntity){
 function sourceMountingRecommendation(entity:PlacementEntity,surface:SupportSurface|null,dimensions:AssetPlacement['dimensions']):AssetPlacement|null{
  const offset=sourceMountingBaseOffset(entity);if(offset===null)return null;
  const floorZ=surface?.z??0,base=floorZ+offset;
- const source=String(entity.meta?.mountingInstructionSource||entity.meta?.installationGuideSource||entity.meta?.oemSpecSource||'Source asset installation metadata');
+ const source=String(entity.meta?.supportBaseOffsetSource||entity.meta?.mountingInstructionSource||entity.meta?.installationGuideSource||entity.meta?.oemSpecSource||'Source asset installation metadata');
  const sourceUrl=String(entity.meta?.mountingInstructionSourceUrl||entity.meta?.installationGuideSourceUrl||'').trim()||undefined;
+ const supportKind=String(entity.meta?.supportBaseOffsetKind||'').trim();
  return{dimensions,baseZ:base,topZ:base+dimensions.height,zAuthority:surface?'SUPPORT_SURFACE_PLUS_MOUNTING_GUIDANCE':'RELATIVE_TO_REVIEW_PLANE',zConfidence:surface?Math.min(.84,surface.confidence):.58,recommendation:{kind:surface?'SOURCE_INSTALLATION_BASE_ON_REVIEW_SURFACE':'SOURCE_INSTALLATION_BASE_RELATIVE_TO_REVIEW_PLANE',valueMeters:base,source,sourceUrl,evidenceClass:'OEM_INSTALLATION_GUIDANCE',note:surface?`Mounting guidance is composed with the ${surface.kind.replaceAll('_',' ').toLowerCase()} review surface from ${surface.authority.replaceAll('_',' ')}. This is a design placement candidate, not measured/installed elevation.`:'Source/OEM mounting offset is known, but no absolute support surface is resolved. Value is rendered relative to the review plane and is not absolute project Z.'},physicalTruth:false};
 }
 
