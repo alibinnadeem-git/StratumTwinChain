@@ -84,7 +84,7 @@ function webOemDimensions(entity:PlacementEntity):{dims:[number,number,number];s
 }
 function sourceMountingBaseOffset(entity:PlacementEntity){
  const meta=entity.meta||{};
- for(const key of ['mountingBaseFromFloorMeters','recommendedBaseFromFloorMeters','manufacturerMountingBaseMeters','installationBaseFromFloorMeters']){
+ for(const key of ['baseOffsetAboveSurfaceMeters','padHeightMeters','housekeepingPadHeightMeters','curbHeightMeters','mountingBaseFromFloorMeters','recommendedBaseFromFloorMeters','manufacturerMountingBaseMeters','installationBaseFromFloorMeters']){
   const value=finite(meta[key]);if(value!==null&&value>=0)return value;
  }
  return null;
