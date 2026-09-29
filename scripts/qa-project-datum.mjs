@@ -4,7 +4,7 @@ import {buildProjectDatumSurfaces,projectDatumSurfaceForEntity,datumSurfaceMetad
 import {extractZEvidenceFromText,resolveEntityZ} from '../lib/z-resolver.ts';
 
 const evidence=extractZEvidenceFromText(
-  'LEVEL 2 F.F. EL. 14\'-0"\nPANEL LP-2 4\'-0" AFF',
+  'LEVEL 2 F.F. EL. 14\'-0"\nPANEL LP-2 CENTERLINE 4\'-0" AFF',
   {source:'A-201.pdf',floor:'L2'}
 );
 const surfaces=buildProjectDatumSurfaces(evidence);
@@ -19,7 +19,8 @@ assert.equal(datumSurfaceMetadata(surface).floorDatumMeters,surface.zMeters);
 
 const withAff=resolveEntityZ(entity,evidence);
 assert.equal(withAff.status,'RESOLVED_DESIGN_CANDIDATE');
-assert.equal(withAff.authority,'FLOOR_DATUM_PLUS_AFF');
+assert.equal(withAff.authority,'FLOOR_DATUM_PLUS_AFF_REFERENCE');
+assert.equal(withAff.referencePoint,'CENTERLINE');
 assert.ok(Math.abs(Number(withAff.zMeters)-5.4864)<1e-6);
 
 const datumOnlyEvidence=extractZEvidenceFromText('LEVEL 2 F.F. EL. 14\'-0"',{source:'A-201.pdf',floor:'L2'});
@@ -60,4 +61,4 @@ const inspector=fs.readFileSync('components/SpatialAssetInspector.tsx','utf8');
 assert.match(inspector,/Datum authority/);
 assert.match(inspector,/XYZ unit guide/);
 
-console.log('Project datum boundary passed: source-grounded floor/grade review surfaces, AFF composition, ambiguous unitless datums fail closed, and shared XYZ source units guide Z conversion without invented floor heights.');
+console.log('Project datum boundary passed: source-grounded floor/grade review surfaces, explicit-reference AFF composition, ambiguous unitless datums fail closed, and shared XYZ source units guide Z conversion without invented floor heights.');
