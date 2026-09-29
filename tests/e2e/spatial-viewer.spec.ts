@@ -820,6 +820,9 @@ test('reviewed civil-to-electrical alignment transfers grade Z across sheets wit
  };
  await page.addInitScript(value=>localStorage.setItem('stratum_compiled_graph',JSON.stringify(value)),graph);
  await page.goto('/compiler');
+ const exceptions=page.getByText('Review exceptions',{exact:true});
+ await expect(exceptions).toBeVisible();
+ await exceptions.click();
  const review=page.getByRole('region',{name:'Automatic sheet alignment review'});
  await expect(review).toBeVisible();
  await expect(review.getByText(/C-2 → E-101|E-101 → C-2/)).toBeVisible();
