@@ -75,6 +75,36 @@ assert.equal(civilTriangles.length,1);
 assert.ok(civilTriangles[0].points.every(p=>p.triangulationEligible));
 assert.ok(civilTriangles[0].points.every(p=>!['TOP_OF_CURB','FLOWLINE'].includes(p.semantic)));
 
+
+const pairedControls=extractPositionedElevationControls({
+ items:[
+  {text:'194.56',x:.30,y:.40},{text:'FG',x:.335,y:.40},
+  {text:'195.02',x:.68,y:.40},{text:'FS',x:.715,y:.40},
+  {text:'194.61',x:.10,y:.20},{text:'TC',x:.135,y:.20},
+  {text:'193.78',x:.18,y:.30},{text:'FL',x:.215,y:.30}
+ ],
+ source:'C-2 OCR grading plan.pdf',page:5,declaredScale:'1" = 10\'-0"',scaleValidation:null,planeWidth:20,planeHeight:14
+});
+assert.equal(pairedControls.length,4);
+assert.ok(pairedControls.every(p=>p.associationAuthority==='NEARBY_OCR_TOKEN'));
+assert.equal(pairedControls.find(p=>p.label==='194.56 FG')?.semantic,'FINISHED_GRADE');
+assert.equal(pairedControls.find(p=>p.label==='195.02 FS')?.semantic,'FINISHED_SURFACE');
+assert.equal(pairedControls.find(p=>p.label==='194.61 TC')?.triangulationEligible,false);
+assert.equal(pairedControls.find(p=>p.label==='193.78 FL')?.triangulationEligible,false);
+assert.ok(pairedControls.every(p=>p.confidence<.8));
+
+const bareNumbers=extractPositionedElevationControls({
+ items:[{text:'194.56',x:.2,y:.2},{text:'195.02',x:.4,y:.4},{text:'196.10',x:.6,y:.6}],
+ source:'Bare contours.pdf',page:6,declaredScale:'1" = 10\'-0"',scaleValidation:null,planeWidth:20,planeHeight:14
+});
+assert.equal(bareNumbers.length,0);
+
+const ambiguousPair=extractPositionedElevationControls({
+ items:[{text:'194.56',x:.48,y:.40},{text:'195.02',x:.52,y:.40},{text:'FG',x:.50,y:.40}],
+ source:'Ambiguous OCR.pdf',page:7,declaredScale:'1" = 10\'-0"',scaleValidation:null,planeWidth:20,planeHeight:14
+});
+assert.equal(ambiguousPair.length,0);
+
 const explicitMetric=extractPositionedElevationControls({
  items:[{text:'FG 12.50 M',x:.3,y:.3},{text:'TC 12.65 M',x:.6,y:.3},{text:'FL 12.20 M',x:.45,y:.6}],
  source:'Civil.pdf',page:2,declaredScale:'1:100',scaleValidation:null,planeWidth:20,planeHeight:14
@@ -104,4 +134,4 @@ const inspector=fs.readFileSync('components/SpatialAssetInspector.tsx','utf8');
 assert.match(inspector,/Local surface authority/);
 assert.match(inspector,/localReviewSurfaceConfidence/);
 
-console.log('Local elevation surface passed: imperial scale-guided spot elevations, civil semantic control classes, discontinuity-safe triangulation, explicit metric controls, bounded interpolation, outside-envelope fail-closed behavior, and review-only Spatial presentation.');
+console.log('Local elevation surface passed: imperial scale-guided spot elevations, civil semantic control classes, split-OCR proximity pairing, ambiguous-pair fail-closed behavior, discontinuity-safe triangulation, explicit metric controls, bounded interpolation, outside-envelope fail-closed behavior, and review-only Spatial presentation.');
