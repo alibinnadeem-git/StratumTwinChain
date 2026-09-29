@@ -29,6 +29,8 @@ function supportSurface(entity:PlacementEntity):SupportSurface|null{
  const meta=entity.meta||{};
  const local=finite(meta.localReviewSurfaceZ);
  if(local!==null)return{z:local,kind:String(meta.localReviewSurfaceKind||'LOCAL_SURFACE'),authority:String(meta.localReviewSurfaceAuthority||'SOURCE_ELEVATION_TRIANGLE'),confidence:Math.max(0,Math.min(1,Number(meta.localReviewSurfaceConfidence||.6))),local:true};
+ const crossSheet=finite(meta.crossSheetReviewSurfaceZ);
+ if(crossSheet!==null)return{z:crossSheet,kind:String(meta.crossSheetReviewSurfaceKind||'CROSS_SHEET_SURFACE'),authority:String(meta.crossSheetReviewSurfaceAuthority||'HUMAN_CONFIRMED_ALIGNMENT_PLUS_SOURCE_ELEVATION_TRIANGLE'),confidence:Math.max(0,Math.min(1,Number(meta.crossSheetReviewSurfaceConfidence||.6))),local:false};
  for(const key of ['floorDatumMeters','floorElevationMeters','finishedFloorElevationMeters','reviewSurfaceZ']){
   const value=finite(meta[key]);if(value===null)continue;
   return{z:value,kind:String(meta.reviewSurfaceKind||'PROJECT_DATUM'),authority:String(meta.reviewSurfaceAuthority||'SOURCE_PROJECT_DATUM'),confidence:Math.max(0,Math.min(1,Number(meta.reviewSurfaceConfidence||.65))),local:false};
