@@ -3,7 +3,7 @@ import type {ElectricalModelConfig} from './electrical-model-registry.ts';
 
 export type PlacementEntity={name:string;floor?:string;z?:number;meta?:Record<string,unknown>};
 export type DimensionAuthority='SOURCE_SPEC'|'MODEL_REGISTRY'|'WEB_OEM_REFERENCE'|'STRATUM_NOMINAL';
-export type ZAuthority='MEASURED_OR_REVIEWED'|'SOURCE_DESIGN_CANDIDATE'|'RELATIVE_TO_REVIEW_PLANE'|'FLOOR_STANDING_PROFILE'|'HISTORICAL_RECOMMENDATION'|'FLOOR_LABEL_ONLY'|'UNRESOLVED';
+export type ZAuthority='MEASURED_OR_REVIEWED'|'SOURCE_DESIGN_CANDIDATE'|'SOURCE_SUPPORT_SURFACE_CANDIDATE'|'SUPPORT_SURFACE_PLUS_MOUNTING_GUIDANCE'|'RELATIVE_TO_REVIEW_PLANE'|'FLOOR_STANDING_PROFILE'|'HISTORICAL_RECOMMENDATION'|'FLOOR_LABEL_ONLY'|'UNRESOLVED';
 export type PlacementEvidenceClass='SOURCE_SPEC'|'OEM_INSTALLATION_GUIDANCE'|'CODE_CONSTRAINT'|'ACCESSIBILITY_GUIDANCE'|'DESIGN_GUIDE'|'TYPE_PROFILE'|'VISUALIZATION_HEURISTIC';
 export type PlacementRecommendation={kind:string;valueMeters?:number;rangeMeters?:[number,number];constraintMaxMeters?:number;source:string;sourceUrl?:string;evidenceClass:PlacementEvidenceClass;note:string};
 export type AssetPlacement={
@@ -24,10 +24,14 @@ const TESLA_SPEC_URL='https://energylibrary.tesla.com/docs/Public/Charging/WallC
 const CHARGEPOINT_INSTALL_URL='https://docs.chargepoint.com/cpdocs-sec/content/1-home/cph50/ig/04-mount-charging-station.htm';
 const CHARGEPOINT_SPEC_URL='https://docs.chargepoint.com/ref-docs-sec/content/pdfs/1-home/flex/flex-ds.pdf';
 
-function evidenceFloorElevation(entity:PlacementEntity):number|null{
+type SupportSurface={z:number;kind:string;authority:string;confidence:number;local:boolean};
+function supportSurface(entity:PlacementEntity):SupportSurface|null{
  const meta=entity.meta||{};
- for(const key of ['floorDatumMeters','floorElevationMeters','finishedFloorElevationMeters']){
-  const value=Number(meta[key]);if(Number.isFinite(value))return value;
+ const local=finite(meta.localReviewSurfaceZ);
+ if(local!==null)return{z:local,kind:String(meta.localReviewSurfaceKind||'LOCAL_SURFACE'),authority:String(meta.localReviewSurfaceAuthority||'SOURCE_ELEVATION_TRIANGLE'),confidence:Math.max(0,Math.min(1,Number(meta.localReviewSurfaceConfidence||.6))),local:true};
+ for(const key of ['floorDatumMeters','floorElevationMeters','finishedFloorElevationMeters','reviewSurfaceZ']){
+  const value=finite(meta[key]);if(value===null)continue;
+  return{z:value,kind:String(meta.reviewSurfaceKind||'PROJECT_DATUM'),authority:String(meta.reviewSurfaceAuthority||'SOURCE_PROJECT_DATUM'),confidence:Math.max(0,Math.min(1,Number(meta.reviewSurfaceConfidence||.65))),local:false};
  }
  return null;
 }
@@ -85,12 +89,12 @@ function sourceMountingBaseOffset(entity:PlacementEntity){
  }
  return null;
 }
-function sourceMountingRecommendation(entity:PlacementEntity,floorZ:number,dimensions:AssetPlacement['dimensions'],floorDatumKnown:boolean):AssetPlacement|null{
+function sourceMountingRecommendation(entity:PlacementEntity,surface:SupportSurface|null,dimensions:AssetPlacement['dimensions']):AssetPlacement|null{
  const offset=sourceMountingBaseOffset(entity);if(offset===null)return null;
- const base=floorZ+offset;
+ const floorZ=surface?.z??0,base=floorZ+offset;
  const source=String(entity.meta?.mountingInstructionSource||entity.meta?.installationGuideSource||entity.meta?.oemSpecSource||'Source asset installation metadata');
  const sourceUrl=String(entity.meta?.mountingInstructionSourceUrl||entity.meta?.installationGuideSourceUrl||'').trim()||undefined;
- return{dimensions,baseZ:base,topZ:base+dimensions.height,zAuthority:floorDatumKnown?'HISTORICAL_RECOMMENDATION':'RELATIVE_TO_REVIEW_PLANE',zConfidence:floorDatumKnown?.84:.58,recommendation:{kind:floorDatumKnown?'SOURCE_INSTALLATION_BASE_RECOMMENDATION':'SOURCE_INSTALLATION_BASE_RELATIVE_TO_REVIEW_PLANE',valueMeters:base,source,sourceUrl,evidenceClass:'OEM_INSTALLATION_GUIDANCE',note:floorDatumKnown?'Source/OEM installation guidance is a placement recommendation, not evidence of the installed or measured elevation.':'Source/OEM mounting offset is known, but absolute floor elevation is not. Value is rendered relative to the review plane and is not absolute project Z.'},physicalTruth:false};
+ return{dimensions,baseZ:base,topZ:base+dimensions.height,zAuthority:surface?'SUPPORT_SURFACE_PLUS_MOUNTING_GUIDANCE':'RELATIVE_TO_REVIEW_PLANE',zConfidence:surface?Math.min(.84,surface.confidence):.58,recommendation:{kind:surface?'SOURCE_INSTALLATION_BASE_ON_REVIEW_SURFACE':'SOURCE_INSTALLATION_BASE_RELATIVE_TO_REVIEW_PLANE',valueMeters:base,source,sourceUrl,evidenceClass:'OEM_INSTALLATION_GUIDANCE',note:surface?`Mounting guidance is composed with the ${surface.kind.replaceAll('_',' ').toLowerCase()} review surface from ${surface.authority.replaceAll('_',' ')}. This is a design placement candidate, not measured/installed elevation.`:'Source/OEM mounting offset is known, but no absolute support surface is resolved. Value is rendered relative to the review plane and is not absolute project Z.'},physicalTruth:false};
 }
 
 export function nominalDimensionsFor(name:string):[number,number,number]{
@@ -112,26 +116,26 @@ export function resolveAssetPlacement(entity:PlacementEntity,registry?:Electrica
     ?{width:dims[0],height:dims[1],depth:dims[2],authority:'WEB_OEM_REFERENCE' as const,source:`${webReference.source} · ${webReference.sourceUrl}`,confidence:webReference.confidence}
     :{width:dims[0],height:dims[1],depth:dims[2],authority:'STRATUM_NOMINAL' as const,source:'STRATUM nominal visualization profile; replace with OEM dimensions',confidence:.35};
 
- const floorDatum=evidenceFloorElevation(entity),floorZ=floorDatum??0;
+ const surface=supportSurface(entity),floorZ=surface?.z??0;
  if(reviewedZ(entity)){
   const base=Number.isFinite(Number(entity.z))?Number(entity.z):floorZ;
   return{dimensions,baseZ:base,topZ:base+dimensions.height,zAuthority:'MEASURED_OR_REVIEWED',zConfidence:.98,physicalTruth:false};
  }
  const designCandidate=sourceDesignZCandidate(entity);if(designCandidate!==null)return{dimensions,baseZ:designCandidate,topZ:designCandidate+dimensions.height,zAuthority:'SOURCE_DESIGN_CANDIDATE',zConfidence:Number(entity.meta?.zResolutionConfidence||0),recommendation:{kind:'SOURCE_DESIGN_Z_CANDIDATE',valueMeters:designCandidate,source:String(entity.meta?.zResolutionAuthority||'Source Z evidence'),evidenceClass:'SOURCE_SPEC',note:'Rendered from a source-design Z candidate. This is reviewable design evidence, not field-verified physical elevation.'},physicalTruth:false};
- const sourceMounting=sourceMountingRecommendation(entity,floorZ,dimensions,floorDatum!==null);if(sourceMounting)return sourceMounting;
+ const sourceMounting=sourceMountingRecommendation(entity,surface,dimensions);if(sourceMounting)return sourceMounting;
  const key=component?.key||'';
 
  if(key==='evse'){
   if(isPedestalMounted(entity)){
-   return floorDatum!==null?{dimensions,baseZ:floorZ,topZ:floorZ+dimensions.height,zAuthority:'FLOOR_STANDING_PROFILE',zConfidence:.78,recommendation:{kind:'EVSE_PEDESTAL_BASE_ON_FINISHED_FLOOR',valueMeters:floorZ,source:'Explicit pedestal/bollard/floor-mounted EVSE installation type',evidenceClass:'TYPE_PROFILE',note:'Pedestal/floor-standing profile anchored to a source floor datum. Confirm footing, curb, bollard base, finished grade and field elevation.'},physicalTruth:false}:{dimensions,baseZ:0,topZ:dimensions.height,zAuthority:'RELATIVE_TO_REVIEW_PLANE',zConfidence:.5,recommendation:{kind:'EVSE_PEDESTAL_REVIEW_PLANE',valueMeters:0,source:'Explicit pedestal/bollard/floor-mounted EVSE installation type',evidenceClass:'TYPE_PROFILE',note:'Pedestal base is shown on the review plane because absolute finished-floor/grade elevation is unresolved.'},physicalTruth:false};
+   return surface?{dimensions,baseZ:floorZ,topZ:floorZ+dimensions.height,zAuthority:'SOURCE_SUPPORT_SURFACE_CANDIDATE',zConfidence:Math.min(.78,surface.confidence),recommendation:{kind:'EVSE_PEDESTAL_BASE_ON_SUPPORT_SURFACE',valueMeters:floorZ,source:`${surface.kind.replaceAll('_',' ')} review surface · ${surface.authority.replaceAll('_',' ')}`,evidenceClass:'TYPE_PROFILE',note:'Pedestal/floor-standing profile is based on the source-derived support surface. Confirm footing, curb, pad thickness and field elevation.'},physicalTruth:false}:{dimensions,baseZ:0,topZ:dimensions.height,zAuthority:'RELATIVE_TO_REVIEW_PLANE',zConfidence:.5,recommendation:{kind:'EVSE_PEDESTAL_REVIEW_PLANE',valueMeters:0,source:'Explicit pedestal/bollard/floor-mounted EVSE installation type',evidenceClass:'TYPE_PROFILE',note:'Pedestal base is shown on the review plane because absolute finished-floor/grade elevation is unresolved.'},physicalTruth:false};
   }
   if(isTeslaWallConnector(entity)){
    const minimum=isOutdoor(entity)?.6:.45,base=floorZ+1.15;
-   return{dimensions,baseZ:base,topZ:base+dimensions.height,zAuthority:floorDatum!==null?'HISTORICAL_RECOMMENDATION':'RELATIVE_TO_REVIEW_PLANE',zConfidence:floorDatum!==null?(isCurrentTeslaWallConnector(entity)?.84:.7):.55,recommendation:{kind:'TESLA_WALL_CONNECTOR_BOTTOM_HEIGHT',valueMeters:base,rangeMeters:[floorZ+minimum,floorZ+1.52],constraintMaxMeters:floorZ+1.52,source:'Tesla Wall Connector installation guidance: measurements are ground-to-bottom; ~1.15 m recommended, 1.52 m maximum, minimum 0.45 m indoor / 0.60 m outdoor',sourceUrl:TESLA_INSTALL_URL,evidenceClass:'OEM_INSTALLATION_GUIDANCE',note:floorDatum!==null?'Applies only because Tesla Wall Connector identity is present. This remains an OEM installation recommendation, not evidence of actual installed elevation.':'OEM mounting height is shown relative to the review plane because absolute finished-floor/grade elevation is unresolved.'},physicalTruth:false};
+   return{dimensions,baseZ:base,topZ:base+dimensions.height,zAuthority:surface?'SUPPORT_SURFACE_PLUS_MOUNTING_GUIDANCE':'RELATIVE_TO_REVIEW_PLANE',zConfidence:surface?Math.min(surface.confidence,isCurrentTeslaWallConnector(entity)?.84:.7):.55,recommendation:{kind:'TESLA_WALL_CONNECTOR_BOTTOM_HEIGHT',valueMeters:base,rangeMeters:[floorZ+minimum,floorZ+1.52],constraintMaxMeters:floorZ+1.52,source:'Tesla Wall Connector installation guidance: measurements are ground-to-bottom; ~1.15 m recommended, 1.52 m maximum, minimum 0.45 m indoor / 0.60 m outdoor',sourceUrl:TESLA_INSTALL_URL,evidenceClass:'OEM_INSTALLATION_GUIDANCE',note:surface?`Tesla mounting guidance is composed with the ${surface.kind.replaceAll('_',' ').toLowerCase()} review surface. This remains a design placement candidate, not evidence of actual installed elevation.`:'OEM mounting height is shown relative to the review plane because absolute finished-floor/grade elevation is unresolved.'},physicalTruth:false};
   }
   if(isChargePointHomeFlex(entity)){
    const topReference=floorZ+1.3,base=Math.max(floorZ,topReference-dimensions.height);
-   return{dimensions,baseZ:base,topZ:base+dimensions.height,zAuthority:floorDatum!==null?'HISTORICAL_RECOMMENDATION':'RELATIVE_TO_REVIEW_PLANE',zConfidence:floorDatum!==null?.82:.55,recommendation:{kind:'CHARGEPOINT_HOME_FLEX_MOUNT_REFERENCE',valueMeters:topReference,rangeMeters:[floorZ+1,floorZ+1.1],source:'ChargePoint Home Flex CPH50 installation guide: mounting reference 1.0–1.1 m; station top approximately 1.3 m above floor',sourceUrl:CHARGEPOINT_INSTALL_URL,evidenceClass:'OEM_INSTALLATION_GUIDANCE',note:floorDatum!==null?'Rendered base is derived from the approximately 1.3 m top reference and the best available equipment height. The 1.0–1.1 m range is ChargePoint’s mounting reference, not a generic EVSE rule or measured as-built elevation.':'OEM mounting reference is shown relative to the review plane because absolute floor elevation is unresolved.'},physicalTruth:false};
+   return{dimensions,baseZ:base,topZ:base+dimensions.height,zAuthority:surface?'SUPPORT_SURFACE_PLUS_MOUNTING_GUIDANCE':'RELATIVE_TO_REVIEW_PLANE',zConfidence:surface?Math.min(surface.confidence,.82):.55,recommendation:{kind:'CHARGEPOINT_HOME_FLEX_MOUNT_REFERENCE',valueMeters:topReference,rangeMeters:[floorZ+1,floorZ+1.1],source:'ChargePoint Home Flex CPH50 installation guide: mounting reference 1.0–1.1 m; station top approximately 1.3 m above floor',sourceUrl:CHARGEPOINT_INSTALL_URL,evidenceClass:'OEM_INSTALLATION_GUIDANCE',note:surface?`ChargePoint mounting guidance is composed with the ${surface.kind.replaceAll('_',' ').toLowerCase()} review surface. The result is a reviewable design placement candidate, not measured as-built elevation.`:'OEM mounting reference is shown relative to the review plane because absolute floor elevation is unresolved.'},physicalTruth:false};
   }
   if(isWallMounted(entity)){
    return{dimensions,baseZ:floorZ,topZ:floorZ+dimensions.height,zAuthority:'UNRESOLVED',zConfidence:.12,recommendation:{kind:'WALL_EVSE_OEM_HEIGHT_REQUIRED',source:'Wall-mounted EVSE type identified, but manufacturer/model-specific mounting height is unresolved',evidenceClass:'TYPE_PROFILE',note:'Do not borrow Tesla, ChargePoint or another OEM height for a generic wall EVSE. Resolve manufacturer/model or project installation evidence before proposing physical Z.'},physicalTruth:false};
@@ -139,22 +143,22 @@ export function resolveAssetPlacement(entity:PlacementEntity,registry?:Electrica
   return{dimensions,baseZ:floorZ,topZ:floorZ+dimensions.height,zAuthority:'UNRESOLVED',zConfidence:0,recommendation:{kind:'EVSE_MOUNTING_TYPE_REQUIRED',source:'EVSE may be wall-, pedestal-, bollard- or other mounted',evidenceClass:'TYPE_PROFILE',note:'Mounting type must be established before selecting a Z placement profile. No OEM-specific height is applied to an unidentified EVSE.'},physicalTruth:false};
  }
  if(FLOOR_KEYS.has(key)){
-  return floorDatum!==null
-   ?{dimensions,baseZ:floorZ,topZ:floorZ+dimensions.height,zAuthority:'FLOOR_STANDING_PROFILE',zConfidence:.72,recommendation:{kind:'BASE_ON_FINISHED_FLOOR',valueMeters:floorZ,source:'Equipment-type installation profile + source floor datum',evidenceClass:'TYPE_PROFILE',note:'Floor/pad-standing placement candidate anchored to a source floor datum; confirm pad, housekeeping curb and actual field elevation.'},physicalTruth:false}
-   :{dimensions,baseZ:0,topZ:dimensions.height,zAuthority:'UNRESOLVED',zConfidence:0,recommendation:{kind:'REVIEW_PLANE_ONLY',valueMeters:0,source:'STRATUM review visualization plane',evidenceClass:'VISUALIZATION_HEURISTIC',note:'No physical floor datum is known. Z=0 is a review-plane display coordinate only and must never be treated as installed elevation.'},physicalTruth:false};
+  return surface
+   ?{dimensions,baseZ:floorZ,topZ:floorZ+dimensions.height,zAuthority:'SOURCE_SUPPORT_SURFACE_CANDIDATE',zConfidence:Math.min(.72,surface.confidence),recommendation:{kind:'BASE_ON_SOURCE_SUPPORT_SURFACE',valueMeters:floorZ,source:`${surface.kind.replaceAll('_',' ')} review surface · ${surface.authority.replaceAll('_',' ')}`,evidenceClass:'TYPE_PROFILE',note:'Floor/pad-standing placement candidate is anchored to the source-derived support surface; confirm pad/housekeeping curb and actual field elevation.'},physicalTruth:false}
+   :{dimensions,baseZ:0,topZ:dimensions.height,zAuthority:'UNRESOLVED',zConfidence:0,recommendation:{kind:'REVIEW_PLANE_ONLY',valueMeters:0,source:'STRATUM review visualization plane',evidenceClass:'VISUALIZATION_HEURISTIC',note:'No source-grounded support surface is known. Z=0 is a review-plane display coordinate only and must never be treated as installed elevation.'},physicalTruth:false};
  }
  if(PANEL_KEYS.has(key)){
   const accessible:[number,number]=[.38,1.22];
   const center=floorZ+1.22;
   const base=Math.max(floorZ,center-dimensions.height/2);
-  return{dimensions,baseZ:base,topZ:base+dimensions.height,zAuthority:'HISTORICAL_RECOMMENDATION',zConfidence:.48,recommendation:{kind:'OPERABLE_PART_REACH_CONTEXT',rangeMeters:[floorZ+accessible[0],floorZ+accessible[1]],constraintMaxMeters:floorZ+2,source:'ADA 2010 Standards §308 + NEC 240.24(A) / Schneider installation guidance',sourceUrl:'https://www.se.com/us/en/faqs/FA296388/',evidenceClass:'CODE_CONSTRAINT',note:'Accessibility range applies where required. Breaker handle highest position is limited to 2.0 m by NEC 240.24(A); this is not an exact installed base elevation.'},physicalTruth:false};
+  return{dimensions,baseZ:base,topZ:base+dimensions.height,zAuthority:surface?'SUPPORT_SURFACE_PLUS_MOUNTING_GUIDANCE':'HISTORICAL_RECOMMENDATION',zConfidence:surface?Math.min(.48,surface.confidence):.35,recommendation:{kind:'OPERABLE_PART_REACH_CONTEXT',rangeMeters:[floorZ+accessible[0],floorZ+accessible[1]],constraintMaxMeters:floorZ+2,source:'ADA 2010 Standards §308 + NEC 240.24(A) / Schneider installation guidance',sourceUrl:'https://www.se.com/us/en/faqs/FA296388/',evidenceClass:'CODE_CONSTRAINT',note:'Accessibility range applies where required. Breaker handle highest position is limited to 2.0 m by NEC 240.24(A); this is not an exact installed base elevation.'},physicalTruth:false};
  }
  if(RECEPTACLE_KEYS.has(key)){
   const center=floorZ+.46;
-  return{dimensions,baseZ:center-dimensions.height/2,topZ:center+dimensions.height/2,zAuthority:'HISTORICAL_RECOMMENDATION',zConfidence:.6,recommendation:{kind:'TYPICAL_RECEPTACLE_CENTER',valueMeters:center,rangeMeters:[floorZ+.38,floorZ+1.22],source:'VA Section 26 27 26 (450 mm / 18 in typical); ADA §308 reach range when accessibility applies',sourceUrl:'https://www.wbdg.org/FFC/VA/VAASC/VA%2026%2027%2026.pdf',evidenceClass:'DESIGN_GUIDE',note:'Historical/design-guide placement candidate only. Project drawings and field conditions govern.'},physicalTruth:false};
+  return{dimensions,baseZ:center-dimensions.height/2,topZ:center+dimensions.height/2,zAuthority:surface?'SUPPORT_SURFACE_PLUS_MOUNTING_GUIDANCE':'HISTORICAL_RECOMMENDATION',zConfidence:surface?Math.min(.6,surface.confidence):.4,recommendation:{kind:'TYPICAL_RECEPTACLE_CENTER',valueMeters:center,rangeMeters:[floorZ+.38,floorZ+1.22],source:'VA Section 26 27 26 (450 mm / 18 in typical); ADA §308 reach range when accessibility applies',sourceUrl:'https://www.wbdg.org/FFC/VA/VAASC/VA%2026%2027%2026.pdf',evidenceClass:'DESIGN_GUIDE',note:'Historical/design-guide placement candidate only. Project drawings and field conditions govern.'},physicalTruth:false};
  }
  if(component?.twinShape==='sensor'||component?.twinShape==='light'){
-  return{dimensions,baseZ:floorZ+2.5,topZ:floorZ+2.5+dimensions.height,zAuthority:'HISTORICAL_RECOMMENDATION',zConfidence:.3,recommendation:{kind:'OVERHEAD_DEVICE_CANDIDATE',valueMeters:floorZ+2.5,source:'STRATUM low-confidence visualization profile',evidenceClass:'VISUALIZATION_HEURISTIC',note:'Ceiling/fixture height must come from reflected ceiling plans, OEM data or field evidence.'},physicalTruth:false};
+  return{dimensions,baseZ:floorZ+2.5,topZ:floorZ+2.5+dimensions.height,zAuthority:surface?'SUPPORT_SURFACE_PLUS_MOUNTING_GUIDANCE':'HISTORICAL_RECOMMENDATION',zConfidence:surface?Math.min(.3,surface.confidence):.2,recommendation:{kind:'OVERHEAD_DEVICE_CANDIDATE',valueMeters:floorZ+2.5,source:'STRATUM low-confidence visualization profile',evidenceClass:'VISUALIZATION_HEURISTIC',note:'Ceiling/fixture height must come from reflected ceiling plans, OEM data or field evidence.'},physicalTruth:false};
  }
- return floorDatum!==null?{dimensions,baseZ:floorZ,topZ:floorZ+dimensions.height,zAuthority:'FLOOR_LABEL_ONLY',zConfidence:.35,physicalTruth:false}:{dimensions,baseZ:0,topZ:dimensions.height,zAuthority:'UNRESOLVED',zConfidence:0,recommendation:{kind:'REVIEW_PLANE_ONLY',valueMeters:0,source:'STRATUM review visualization plane',evidenceClass:'VISUALIZATION_HEURISTIC',note:'No source-grounded absolute elevation is available. Review-plane Z=0 is display-only.'},physicalTruth:false};
+ return surface?{dimensions,baseZ:floorZ,topZ:floorZ+dimensions.height,zAuthority:'SOURCE_SUPPORT_SURFACE_CANDIDATE',zConfidence:Math.min(.35,surface.confidence),recommendation:{kind:'BASE_ON_SOURCE_SUPPORT_SURFACE',valueMeters:floorZ,source:`${surface.kind.replaceAll('_',' ')} review surface · ${surface.authority.replaceAll('_',' ')}`,evidenceClass:'TYPE_PROFILE',note:'Generic equipment base is shown on the source-derived support surface for review only; installed elevation remains unverified.'},physicalTruth:false}:{dimensions,baseZ:0,topZ:dimensions.height,zAuthority:'UNRESOLVED',zConfidence:0,recommendation:{kind:'REVIEW_PLANE_ONLY',valueMeters:0,source:'STRATUM review visualization plane',evidenceClass:'VISUALIZATION_HEURISTIC',note:'No source-grounded absolute elevation is available. Review-plane Z=0 is display-only.'},physicalTruth:false};
 }
