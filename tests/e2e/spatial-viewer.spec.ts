@@ -788,3 +788,37 @@ test('site asset uses local grade review surface without claiming physical Z',as
  await expect(page.getByText(/SOURCE ELEVATION TRIANGLE/i)).toBeVisible();
  await expect(page.getByText(/74%/).first()).toBeVisible();
 });
+
+
+test('aligned site asset inherits cross-sheet grade review surface without claiming physical Z',async({page})=>{
+ const terrainSource='Civil Grading.pdf',assetSource='Electrical Site Plan.pdf';
+ const graph={
+  version:'cross-sheet-grade-1',createdAt:'2026-09-28T00:00:00.000Z',reviewState:'REVIEW_REQUIRED',
+  sources:[
+   {name:terrainSource,ext:'pdf',sha256:'a'.repeat(64),discipline:'Civil / Grading',floor:'UNRESOLVED',elevation:0},
+   {name:assetSource,ext:'pdf',sha256:'b'.repeat(64),discipline:'Electrical',floor:'UNRESOLVED',elevation:0}
+  ],
+  entities:[
+   {id:'terrain-triangle',source:terrainSource,layer:'L1',kind:'elevation-review-surface-triangle',name:'GRADE review surface',x:3.33,y:3.33,z:30.8,floor:'UNRESOLVED',confidence:.9,
+    vertices:[{x:0,y:0},{x:10,y:0},{x:0,y:10}],
+    meta:{page:1,sourceSha256:'a'.repeat(64),elevationTriangle:{id:'grade-tri',kind:'GRADE',pointIds:['p1','p2','p3'],zMeters:[30,31,32]},physicalElevationKnown:false,physicalTruth:false,reviewRequired:true}},
+   {id:'aligned-evse',source:assetSource,layer:'L2',kind:'text-asset-candidate',name:'EVSE-X',x:2,y:2,z:0,floor:'UNRESOLVED',confidence:.82,
+    meta:{page:2,sourceSha256:'b'.repeat(64),planType:'SITE_PLAN',crossSheetReviewSurfaceZ:30.6,crossSheetReviewSurfaceKind:'GRADE',crossSheetReviewSurfaceAuthority:'ALIGNED_SOURCE_ELEVATION_TRIANGLE',crossSheetReviewSurfaceConfidence:.8,crossSheetReviewSurfaceAlignmentConfidence:.8,crossSheetReviewSurfaceSource:terrainSource,crossSheetReviewSurfaceSourceFrameKey:'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:1',crossSheetReviewSurfaceFrameGroup:'AUTO_REFERENCE:test',physicalElevationKnown:false,elevationKnown:false,physicalTruth:false,reviewRequired:true}}
+  ],
+  links:[],stats:{L0:0,L1:1,L2:1,L3:0,L4:0}
+ };
+ await page.addInitScript(value=>localStorage.setItem('stratum_compiled_graph',JSON.stringify(value)),graph);
+ await page.goto('/spatial');
+ const select=page.getByLabel('Imported object');
+ await expect(select.locator('option').filter({hasText:'EVSE-X'})).toHaveCount(1);
+ await select.selectOption('aligned-evse');
+ await expect(page.getByRole('heading',{name:'EVSE-X'})).toBeVisible();
+ await expect(page.getByText(/GRADE cross-sheet review surface · object Z unresolved/i)).toBeVisible();
+ await page.getByText('Placement & source confidence').click();
+ const details=page.locator('.placement-details');
+ await expect(details.getByText(/30\.60 m grade cross-sheet surface/i)).toBeVisible();
+ await expect(details.getByText(/ALIGNED SOURCE ELEVATION TRIANGLE/i)).toBeVisible();
+ await expect(details.getByText(terrainSource,{exact:true})).toBeVisible();
+ await expect(details.getByText('Cross-sheet confidence').locator('..')).toContainText('80%');
+ await expect(details.getByText('Alignment confidence').locator('..')).toContainText('80%');
+});

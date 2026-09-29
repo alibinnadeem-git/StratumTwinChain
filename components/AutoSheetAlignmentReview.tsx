@@ -4,8 +4,9 @@ import {useEffect,useState} from 'react';
 import {proposeSheetAlignments,type AlignmentProposal,type AlignmentSheet} from '@/lib/auto-sheet-alignment';
 import {transformSheetPoint} from '@/lib/sheet-similarity';
 import {readPrimarySpatialGraph,writePrimarySpatialGraph} from '@/lib/spatial-browser-recovery';
+import {enrichCrossSheetElevationSurfaces} from '@/lib/cross-sheet-elevation';
 
-type GraphEntity={id:string;name:string;x:number;y:number;z?:number;kind:string;confidence:number;meta?:Record<string,unknown>};
+type GraphEntity={id:string;source:string;name:string;x:number;y:number;z?:number;x2?:number;y2?:number;vertices?:{x:number;y:number}[];kind:string;confidence:number;meta?:Record<string,unknown>};
 type Graph={entities?:GraphEntity[];titleBlocks?:AlignmentSheet[];alignmentCandidates?:AlignmentProposal[];autoAlignmentReviews?:unknown[];[key:string]:unknown};
 function entityKey(entity:GraphEntity){const sha=String(entity.meta?.sourceSha256||'').toLowerCase(),page=Number(entity.meta?.page||0);return sha&&page?`${sha}:${page}`:null}
 async function saveGraph(graph:Graph){await writePrimarySpatialGraph(graph as any);window.dispatchEvent(new Event('stratum:graph-updated'))}
@@ -22,10 +23,13 @@ export default function AutoSheetAlignmentReview(){
    if(entityKey(entity)!==proposal.movingKey)return entity;
    const meta={...(entity.meta||{})};
    if(meta.autoSheetAlignmentCandidateId&&meta.autoSheetAlignmentCandidateId!==proposal.id)return entity;
-   const original=(meta.autoSheetAlignmentOriginal as {x:number;y:number}|undefined)||{x:entity.x,y:entity.y};
-   const point=transformSheetPoint(original,proposal.transform);changed++;
-   return{...entity,x:point.x,y:point.y,meta:{...meta,autoSheetAlignmentOriginal:original,autoSheetAlignmentCandidateId:proposal.id,alignmentMethod:'auto-common-anchor-human-confirmed',alignmentAppliedAt:new Date().toISOString(),alignmentVerified:false}};
+   const original=(meta.autoSheetAlignmentOriginal as {x:number;y:number;x2?:number;y2?:number;vertices?:{x:number;y:number}[]}|undefined)||{x:entity.x,y:entity.y,x2:entity.x2,y2:entity.y2,vertices:entity.vertices};
+   const point=transformSheetPoint({x:original.x,y:original.y},proposal.transform);
+   const end=Number.isFinite(original.x2)&&Number.isFinite(original.y2)?transformSheetPoint({x:Number(original.x2),y:Number(original.y2)},proposal.transform):null;
+   const vertices=original.vertices?.map(vertex=>transformSheetPoint(vertex,proposal.transform));changed++;
+   return{...entity,x:point.x,y:point.y,...(end?{x2:end.x,y2:end.y}:{}),...(vertices?{vertices}:{}),meta:{...meta,autoSheetAlignmentOriginal:original,autoSheetAlignmentCandidateId:proposal.id,alignmentReferenceKey:proposal.referenceKey,alignmentProposalConfidence:proposal.confidence,alignmentRmsResidual:proposal.transform.rmsResidual,alignmentMethod:'auto-common-anchor-human-confirmed',alignmentAppliedAt:new Date().toISOString(),alignmentVerified:false}};
   });
+  graph.entities=enrichCrossSheetElevationSurfaces(graph.entities);
   graph.autoAlignmentReviews=[...(Array.isArray(graph.autoAlignmentReviews)?graph.autoAlignmentReviews:[]),{candidateId:proposal.id,action:'APPLY',occurredAt:new Date().toISOString(),reviewRequired:true,verified:false,crossChecks:proposal.crossChecks}];
   await saveGraph(graph);setMessage(`Applied anchor-derived transform to ${changed} object${changed===1?'':'s'} on ${proposal.movingSheet}. Title-block floor/scale were safety cross-checks only and did not create the transform. Original sheet coordinates were preserved. This remains human-confirmed alignment, not Verified infrastructure state.`);
  }
@@ -33,11 +37,12 @@ export default function AutoSheetAlignmentReview(){
  async function restore(proposal:AlignmentProposal){
   const graph=(await readPrimarySpatialGraph()||{}) as Graph,entities=graph.entities||[];let changed=0;
   graph.entities=entities.map(entity=>{
-   const meta={...(entity.meta||{})},original=meta.autoSheetAlignmentOriginal as {x:number;y:number}|undefined;
+   const meta={...(entity.meta||{})},original=meta.autoSheetAlignmentOriginal as {x:number;y:number;x2?:number;y2?:number;vertices?:{x:number;y:number}[]}|undefined;
    if(meta.autoSheetAlignmentCandidateId!==proposal.id||!original)return entity;
-   changed++;delete meta.autoSheetAlignmentOriginal;delete meta.autoSheetAlignmentCandidateId;delete meta.alignmentMethod;delete meta.alignmentAppliedAt;delete meta.alignmentVerified;
-   return{...entity,x:original.x,y:original.y,meta};
+   changed++;delete meta.autoSheetAlignmentOriginal;delete meta.autoSheetAlignmentCandidateId;delete meta.alignmentReferenceKey;delete meta.alignmentProposalConfidence;delete meta.alignmentRmsResidual;delete meta.alignmentMethod;delete meta.alignmentAppliedAt;delete meta.alignmentVerified;
+   return{...entity,x:original.x,y:original.y,...(original.x2!==undefined&&original.y2!==undefined?{x2:original.x2,y2:original.y2}:{}),...(original.vertices?{vertices:original.vertices}:{}),meta};
   });
+  graph.entities=enrichCrossSheetElevationSurfaces(graph.entities);
   graph.autoAlignmentReviews=[...(Array.isArray(graph.autoAlignmentReviews)?graph.autoAlignmentReviews:[]),{candidateId:proposal.id,action:'RESTORE',occurredAt:new Date().toISOString(),reviewRequired:true,verified:false}];
   await saveGraph(graph);setMessage(`Restored ${changed} object${changed===1?'':'s'} to original sheet coordinates for ${proposal.movingSheet}.`);
  }

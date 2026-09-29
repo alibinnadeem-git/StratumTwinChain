@@ -3,6 +3,7 @@
 import {useEffect,useMemo,useState} from 'react';
 import {applySheetXYTransform,restoreSheetXYCoordinates,sheetXYValidationResidual,solveSheetXYTransform,type Point} from '@/lib/sheet-alignment';
 import {readPrimarySpatialGraph,replaceCurrentSpatialGraph,type SpatialGraphLike} from '@/lib/spatial-browser-recovery';
+import {enrichCrossSheetElevationSurfaces} from '@/lib/cross-sheet-elevation';
 
 type Entity={id:string;source:string;x:number;y:number;z?:number;x2?:number;y2?:number;z2?:number;vertices?:Point[];floor?:string;kind:string;name:string;meta?:Record<string,unknown>};
 type Graph=Omit<SpatialGraphLike,'entities'>&{entities:Entity[];sheetXYCalibrations?:unknown[]};
@@ -62,6 +63,7 @@ export default function ManualSheetXYCalibrationReview(){
     changed++;
     return {...calibrated,meta:{...(calibrated.meta||{}),sheetXYCalibrationId:calibrationId,sheetXYCalibrationAppliedAt:new Date().toISOString(),sheetXYCalibrationReviewRequired:residual>tolerance}};
    });
+   current.entities=enrichCrossSheetElevationSurfaces(current.entities);
    current.sheetXYCalibrations=[...(Array.isArray(current.sheetXYCalibrations)?current.sheetXYCalibrations:[]),{id:calibrationId,frameKey:selected,action:'APPLY',transform,controlPoints:{source,target,validationSource,validationTarget},residualMeters:residual,toleranceMeters:tolerance,validated:residual<=tolerance,occurredAt:new Date().toISOString(),physicalPositionVerified:false,zChanged:false}];
    await replaceCurrentSpatialGraph(current as SpatialGraphLike);
    setMessage(`Applied XY transform to ${changed} object${changed===1?'':'s'}. Third-point residual ${residual.toFixed(3)} m ${residual<=tolerance?'passes':'exceeds'} the ${tolerance.toFixed(3)} m tolerance. Z and elevation authority were not changed.`);
@@ -78,6 +80,7 @@ export default function ManualSheetXYCalibrationReview(){
     const restored=restoreSheetXYCoordinates(entity);const meta={...(restored.meta||{})};delete meta.sheetXYCalibrationId;delete meta.sheetXYCalibrationAppliedAt;delete meta.sheetXYCalibrationReviewRequired;changed++;
     return {...restored,meta};
    });
+   current.entities=enrichCrossSheetElevationSurfaces(current.entities);
    current.sheetXYCalibrations=[...(Array.isArray(current.sheetXYCalibrations)?current.sheetXYCalibrations:[]),{frameKey:selected,action:'RESTORE',occurredAt:new Date().toISOString(),physicalPositionVerified:false,zChanged:false}];
    await replaceCurrentSpatialGraph(current as SpatialGraphLike);
    setMessage(`Restored ${changed} object${changed===1?'':'s'} to original sheet XY. Z was unchanged.`);
