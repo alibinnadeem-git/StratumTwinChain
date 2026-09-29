@@ -16,7 +16,7 @@ assert.deepEqual(
 );
 assert.equal(tesla.zAuthority,'UNRESOLVED');
 assert.equal(tesla.baseZ,0);
-assert.equal(tesla.recommendation?.kind,'REVIEW_PLANE_ONLY');
+assert.equal(tesla.recommendation?.kind,'EVSE_MOUNTING_TYPE_REQUIRED');
 
 const sourceDesign=resolveAssetPlacement({
   name:'PANEL LP-2',
