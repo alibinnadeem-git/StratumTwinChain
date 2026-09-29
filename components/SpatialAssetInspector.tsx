@@ -25,6 +25,8 @@ type InspectorEntity=SpatialAssetEntity&{
  meta?:Record<string,unknown>;
 };
 
+function optionalNumber(value:unknown){if(value===null||value===undefined||value==='')return null;const number=Number(value);return Number.isFinite(number)?number:null}
+
 function verificationUrl(asset:RegisteredSpatialAsset){
  const base=typeof window==='undefined'?'https://stratumspatialverified.vercel.app':window.location.origin;
  const identity=asset.qr_token||asset.asset_code;
@@ -85,13 +87,13 @@ export default function SpatialAssetInspector({
   <p className="subtitle">Identity, placement, lifecycle work, evidence and DIR state will appear here.</p>
  </div>;
 
- const z=Number.isFinite(Number(selected.z))?Number(selected.z):null;
- const zCandidate=Number.isFinite(Number(selected.meta?.zCandidateMeters))?Number(selected.meta?.zCandidateMeters):null;
- const localReviewSurfaceZ=Number.isFinite(Number(selected.meta?.localReviewSurfaceZ))?Number(selected.meta?.localReviewSurfaceZ):null;
+ const z=optionalNumber(selected.z);
+ const zCandidate=optionalNumber(selected.meta?.zCandidateMeters);
+ const localReviewSurfaceZ=optionalNumber(selected.meta?.localReviewSurfaceZ);
  const localReviewSurfaceLabel=String(selected.meta?.localReviewSurfaceKind||'LOCAL SURFACE').replaceAll('_',' ');
- const crossSheetReviewSurfaceZ=Number.isFinite(Number(selected.meta?.crossSheetReviewSurfaceZ))?Number(selected.meta?.crossSheetReviewSurfaceZ):null;
+ const crossSheetReviewSurfaceZ=optionalNumber(selected.meta?.crossSheetReviewSurfaceZ);
  const crossSheetReviewSurfaceLabel=String(selected.meta?.crossSheetReviewSurfaceKind||'CROSS-SHEET SURFACE').replaceAll('_',' ');
- const reviewSurfaceZ=Number.isFinite(Number(selected.meta?.reviewSurfaceZ))?Number(selected.meta?.reviewSurfaceZ):null;
+ const reviewSurfaceZ=optionalNumber(selected.meta?.reviewSurfaceZ);
  const reviewSurfaceLabel=String(selected.meta?.reviewSurfaceKind||'PROJECT DATUM').replaceAll('_',' ');
  const qr=asset?verificationUrl(asset):'';
  const zReviewed=selected.meta?.elevationKnown!==false&&selected.meta?.physicalElevationKnown!==false&&(selected.meta?.elevationKnown===true||selected.meta?.physicalElevationKnown===true||selected.meta?.zPlacementAuthority==='MEASURED_OR_REVIEWED');
@@ -110,6 +112,7 @@ export default function SpatialAssetInspector({
   <div className={`placement-trust ${zReviewed?'reviewed':'needs-review'}`} role="status">
     <div><span>Z placement</span><strong>{zReviewed?'Measured / reviewed':zCandidate!==null?'Design Z candidate · review required':placement&& !['UNRESOLVED','RELATIVE_TO_REVIEW_PLANE'].includes(placement.zAuthority)?`${placement.baseZ.toFixed(2)} m placement candidate · review required`:localReviewSurfaceZ!==null?`${localReviewSurfaceLabel} local review surface · object Z unresolved`:crossSheetReviewSurfaceZ!==null?`${crossSheetReviewSurfaceLabel} cross-sheet review surface · object Z unresolved`:reviewSurfaceZ!==null?`${reviewSurfaceLabel} review surface · object Z unresolved`:'Review plane · physical Z unresolved'}</strong></div>
   </div>
+  {crossSheetReviewSurfaceZ!==null&&!zReviewed&&<div className="notice" role="status"><strong>CROSS-SHEET Z REVIEW SURFACE</strong><span>{crossSheetReviewSurfaceLabel} = {crossSheetReviewSurfaceZ.toFixed(3)} m via reviewed sheet alignment · confidence {Math.round(Number(selected.meta?.crossSheetReviewSurfaceConfidence||0)*100)}%. This remains coordination-derived design evidence, not field-verified physical elevation.</span></div>}
   {selected.kind==='imported-3d-model'&&<div className="notice" role="status"><strong>IMPORTED 3D GEOMETRY · REVIEW-SCALE</strong><span>This uploaded reference model is normalized to a component review envelope for Spatial presentation when its model-space units/dimensions are not trusted. Raw GLB bounds remain preserved in source details. Review-scale rendering does not establish OEM dimensions, installed elevation, asset identity or DIR state.</span></div>}
   {selected.kind==='sheet-callout-candidate'&&<div className="notice" role="status"><strong>DRAWING CALLOUT · REVIEW REQUIRED</strong><span>{selected.name} appears on sheet {String(selected.meta?.sheet||'unknown')}, page {String(selected.meta?.page||'?')}, at sheet X {String(selected.meta?.sheetX??'unresolved')} / Y {String(selected.meta?.sheetY??'unresolved')}, near {selected.zone||'an unresolved room'}. Equipment type, physical position and asset identity need confirmation. Maintenance can be recorded later for both existing and new registered assets. No history recorded by this drawing.</span></div>}
   {selected.kind==='annotated-asset-candidate'&&<div className="notice" role="status"><strong>REVIEWED DRAWING SYMBOL · CANDIDATE</strong><span>{selected.name} was marked on page {String(selected.meta?.page||1)} of {selected.source}. Drawing reference: {String(selected.meta?.reference||'unresolved')}. Legend or schedule: {String(selected.meta?.legendReference||'unresolved')}. Type: {String(selected.meta?.electricalComponentHint||'unresolved')}. Drawing state: {String(selected.meta?.drawingState||'unresolved')}. Sheet location is not a verified 3D position or proof of installation. Maintenance history starts when actual events are recorded.</span></div>}
