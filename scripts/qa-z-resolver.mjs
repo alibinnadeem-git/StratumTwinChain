@@ -45,6 +45,18 @@ const unrelatedStructural=resolveEntityZ({id:'panel-struct',name:'PANEL LP-2',so
 assert.equal(unrelatedStructural.status,'UNRESOLVED');
 assert.equal(unrelatedStructural.zMeters,null);
 
+const realStructuralSplit=extractZEvidenceFromText(
+  'LEVEL 1 SLAB ELEV.\n0\'-0"\nB.O.D.=\n27\'-11 5/8"\n28\'-0" - B.O.D. BEYOND',
+  {source:'Full Rev 3 Set.pdf'}
+);
+const level1=realStructuralSplit.find(item=>item.type==='FLOOR_DATUM'&&item.floor==='L1'&&item.evidence.includes('SPLIT_LINE_STRUCTURAL_DATUM'));
+assert.ok(level1&&Math.abs(Number(level1.valueMeters)-0)<1e-9);
+const splitBod=realStructuralSplit.find(item=>item.type==='SECTION_ELEVATION'&&item.evidence.includes('SPLIT_LINE_STRUCTURAL_DATUM')&&Math.abs(Number(item.valueMeters)-(27+11.625/12)*.3048)<1e-5);
+assert.ok(splitBod);
+const suffixBod=realStructuralSplit.find(item=>item.type==='SECTION_ELEVATION'&&item.evidence.includes('SUFFIX_STRUCTURAL_DATUM')&&Math.abs(Number(item.valueMeters)-28*.3048)<1e-6);
+assert.ok(suffixBod);
+assert.ok(realStructuralSplit.every(item=>item.physicalTruth===false&&item.reviewRequired===true));
+
 const civil=extractZEvidenceFromText('FG 194.56\nTC 195.08',{source:'C-2.pdf'});
 assert.ok(civil.some(item=>item.type==='GRADE_ELEVATION'||item.type==='SPOT_ELEVATION'));
 assert.ok(civil.every(item=>item.physicalTruth===false&&item.reviewRequired===true));
@@ -63,4 +75,4 @@ const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
 assert.match(viewer,/Z CANDIDATE · REVIEW REQUIRED/);
 assert.match(viewer,/design\/drawing candidate, not field-verified physical elevation/);
 
-console.log('Evidence-based Z resolver passed: IFC/DXF source design Z, tagged floor datum + AFF, structural datum parsing with fractional inches, structural evidence kept from arbitrary asset Z, civil elevation evidence, conflict handling, and no guessed floor heights.');
+console.log('Evidence-based Z resolver passed: IFC/DXF source design Z, tagged floor datum + AFF, inline/split-line/suffix structural datum parsing with fractional inches, structural evidence kept from arbitrary asset Z, civil elevation evidence, conflict handling, and no guessed floor heights.');
