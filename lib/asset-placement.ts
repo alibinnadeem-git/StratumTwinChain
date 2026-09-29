@@ -125,7 +125,7 @@ export function resolveAssetPlacement(entity:PlacementEntity,registry?:Electrica
  const sourceMounting=sourceMountingRecommendation(entity,surface,dimensions);if(sourceMounting)return sourceMounting;
  const key=component?.key||'';
 
- if(key==='evse'){
+ if(component?.twinShape==='evse'){
   if(isPedestalMounted(entity)){
    return surface?{dimensions,baseZ:floorZ,topZ:floorZ+dimensions.height,zAuthority:'SOURCE_SUPPORT_SURFACE_CANDIDATE',zConfidence:Math.min(.78,surface.confidence),recommendation:{kind:'EVSE_PEDESTAL_BASE_ON_SUPPORT_SURFACE',valueMeters:floorZ,source:`${surface.kind.replaceAll('_',' ')} review surface · ${surface.authority.replaceAll('_',' ')}`,evidenceClass:'TYPE_PROFILE',note:'Pedestal/floor-standing profile is based on the source-derived support surface. Confirm footing, curb, pad thickness and field elevation.'},physicalTruth:false}:{dimensions,baseZ:0,topZ:dimensions.height,zAuthority:'RELATIVE_TO_REVIEW_PLANE',zConfidence:.5,recommendation:{kind:'EVSE_PEDESTAL_REVIEW_PLANE',valueMeters:0,source:'Explicit pedestal/bollard/floor-mounted EVSE installation type',evidenceClass:'TYPE_PROFILE',note:'Pedestal base is shown on the review plane because absolute finished-floor/grade elevation is unresolved.'},physicalTruth:false};
   }
