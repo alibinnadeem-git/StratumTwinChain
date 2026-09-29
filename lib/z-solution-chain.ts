@@ -218,3 +218,56 @@ export function buildZSolution(entity:PlacementEntity,options?:{toleranceMeters?
     explanation:'No defensible source-grounded Z chain is available.'
   };
 }
+
+
+function reviewAnchorZ(entity:PlacementEntity){
+  const meta=entity.meta||{};
+  for(const key of ['localReviewSurfaceZ','crossSheetReviewSurfaceZ','floorDatumMeters','floorElevationMeters','finishedFloorElevationMeters','reviewSurfaceZ']){
+    const value=finite(meta[key]);if(value!==null)return value;
+  }
+  return 0;
+}
+
+export function resolveReconciledAssetPlacement(
+  entity:PlacementEntity,
+  options?:{toleranceMeters?:number;registry?:ElectricalModelConfig|null}
+):{placement:AssetPlacement;solution:ZSolution}{
+  const solution=buildZSolution(entity,options);
+  const primary=resolveAssetPlacement(entity,options?.registry||null);
+  if(solution.status==='CONFLICT'){
+    const base=reviewAnchorZ(entity);
+    return{
+      solution,
+      placement:{
+        ...primary,
+        baseZ:base,
+        topZ:base+primary.dimensions.height,
+        zAuthority:'UNRESOLVED',
+        zConfidence:0,
+        referenceZ:undefined,
+        referencePoint:undefined,
+        recommendation:{
+          kind:'Z_CONFLICT_REVIEW_SURFACE',
+          valueMeters:base,
+          source:'STRATUM Z reconciliation',
+          evidenceClass:'VISUALIZATION_HEURISTIC',
+          note:'Conflicting absolute-Z evidence chains are present. Equipment is rendered on the underlying review surface only; neither disputed equipment base is selected.'
+        },
+        physicalTruth:false
+      }
+    };
+  }
+  if(solution.chosenCandidateId&&solution.baseZ!==null){
+    return{
+      solution,
+      placement:{
+        ...primary,
+        baseZ:solution.baseZ,
+        topZ:solution.topZ??solution.baseZ+primary.dimensions.height,
+        zConfidence:solution.confidence,
+        physicalTruth:false
+      }
+    };
+  }
+  return{solution,placement:primary};
+}
