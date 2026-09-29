@@ -987,9 +987,10 @@ test('conflicting absolute Z chains block auto-placement and expose both evidenc
  await page.getByText('Placement & source confidence').click();
  const details=page.locator('.placement-details');
  await expect(details.getByText('30.480 m',{exact:false})).toBeVisible();
- await expect(details.getByText('UNRESOLVED',{exact:true})).toBeVisible();
- await expect(details.getByText('CONFLICT',{exact:true})).toBeVisible();
- await expect(details.getByText('3',{exact:true})).toBeVisible();
+ const facts=details.locator('.passport-facts > div');
+ await expect(facts.filter({hasText:'Placement authority'}).getByText('UNRESOLVED',{exact:true})).toBeVisible();
+ await expect(facts.filter({hasText:'Z solution'}).getByText('CONFLICT',{exact:true})).toBeVisible();
+ await expect(facts.filter({hasText:'Z chains compared'}).getByText('3',{exact:true})).toBeVisible();
  await page.getByText('Z solution evidence').click();
  await expect(page.getByText(/source reference/i).first()).toBeVisible();
  await expect(page.getByText(/support surface plus offset/i).first()).toBeVisible();
