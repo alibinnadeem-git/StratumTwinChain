@@ -778,6 +778,12 @@ test('site asset uses local grade review surface without claiming physical Z',as
  };
  await page.addInitScript(value=>localStorage.setItem('stratum_compiled_graph',JSON.stringify(value)),graph);
  await page.goto('/spatial');
+ const sheetSelect=page.getByLabel('Sheet page isolation');
+ const electricalOption=sheetSelect.locator('option').filter({hasText:sourceElectrical}).first();
+ await expect(electricalOption).toHaveCount(1);
+ const electricalValue=await electricalOption.getAttribute('value');
+ expect(electricalValue).toBeTruthy();
+ await sheetSelect.selectOption(electricalValue!);
  const select=page.getByLabel('Imported object');
  await expect(select.locator('option').filter({hasText:'EVSE-1'})).toHaveCount(1);
  await select.selectOption('site-evse');
