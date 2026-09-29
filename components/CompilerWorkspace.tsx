@@ -227,9 +227,9 @@ function enrichZCandidates(parsed:GraphEntity[]){
    :{};
   if(!resolution||resolution.status==='UNRESOLVED')return {...entity,meta:{...entity.meta,...surfaceMeta,...xyzGuide,zResolutionStatus:'UNRESOLVED',physicalElevationKnown:false,elevationKnown:false}};
   if(resolution.status==='RESOLVED_DESIGN_CANDIDATE'&&resolution.zMeters!==null){
-   return {...entity,meta:{...entity.meta,...surfaceMeta,...xyzGuide,zCandidateMeters:resolution.zMeters,zResolutionStatus:resolution.status,zResolutionConfidence:resolution.confidence,zResolutionAuthority:resolution.authority,zResolutionEvidence:resolution.evidence,physicalElevationKnown:false,elevationKnown:false,reviewRequired:true}};
+   return {...entity,meta:{...entity.meta,...surfaceMeta,...xyzGuide,zCandidateMeters:resolution.zMeters,zCandidateReferencePoint:resolution.referencePoint,zResolutionStatus:resolution.status,zResolutionConfidence:resolution.confidence,zResolutionAuthority:resolution.authority,zResolutionEvidence:resolution.evidence,physicalElevationKnown:false,elevationKnown:false,reviewRequired:true}};
   }
-  return {...entity,meta:{...entity.meta,...surfaceMeta,...xyzGuide,zResolutionStatus:resolution.status,zResolutionConfidence:resolution.confidence,zResolutionAuthority:resolution.authority,zResolutionEvidence:resolution.evidence,physicalElevationKnown:false,elevationKnown:false,reviewRequired:true}};
+  return {...entity,meta:{...entity.meta,...surfaceMeta,...xyzGuide,zCandidateReferencePoint:resolution.referencePoint,zResolutionStatus:resolution.status,zResolutionConfidence:resolution.confidence,zResolutionAuthority:resolution.authority,zResolutionEvidence:resolution.evidence,physicalElevationKnown:false,elevationKnown:false,reviewRequired:true}};
  });
 }
 
