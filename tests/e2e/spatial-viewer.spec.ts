@@ -36,7 +36,7 @@ test('component library exposes searchable official OEM sources without treating
  await expect(directory.getByText('OEM data and model sources')).toBeVisible();
  await directory.getByLabel('Search OEM sources').fill('receptacles');
  await expect(directory.getByRole('heading',{name:'Legrand'})).toHaveCount(1);
- await expect(directory.getByRole('link',{name:'Open official source ↗'})).toHaveAttribute('href',/legrand\.us/);
+ await expect(directory.locator('article').filter({has:page.getByRole('heading',{name:'Legrand',exact:true})}).getByRole('link',{name:'Open official source ↗'})).toHaveAttribute('href',/legrand\.us/);
  await directory.getByLabel('Search OEM sources').fill('chillers');
  await expect(directory.getByRole('heading',{name:'Trane'})).toBeVisible();
  await expect(directory.getByText(/Select an exact unit before using its electrical demand or geometry/)).toBeVisible();
@@ -53,6 +53,21 @@ test('component library exposes searchable official OEM sources without treating
  await expect(registry.getByText(/OEM supplied geometry/)).toBeVisible();
  await expect(registry.getByText(/adafruit-bme280-2652\.glb/).first()).toBeVisible();
 });
+test('download inspections expose identity caveats without activating OEM geometry',async({page})=>{
+ await page.goto('/component-library');
+ const queue=page.getByRole('region',{name:'Exact OEM CAD acquisition queue'});
+ await queue.getByLabel('Search exact OEM CAD queue').fill('BSPD48RJ45');
+ const card=queue.locator('article');
+ await expect(card).toContainText('BLOCKED');
+ await card.getByText('Acquisition notes',{exact:true}).click();
+ await expect(card).toContainText('DEHN');
+ await expect(card).toContainText('8242f595a6d5d21e814a05487a0790f12e20bdb91e563af2018735bd7c204398');
+ await expect(card).toContainText('has not been imported into the tenant vault');
+ const directory=page.getByRole('region',{name:'OEM source directory'});
+ await directory.getByLabel('Search OEM sources').fill('ChargePoint');
+ await expect(directory.getByRole('link',{name:'CP6000 configured STEP package'})).toHaveAttribute('href','https://www.chargepoint.com/download-file/step-cp6000-commerical');
+});
+
 import {strToU8,zipSync} from 'fflate';
 import {readFileSync} from 'node:fs';
 

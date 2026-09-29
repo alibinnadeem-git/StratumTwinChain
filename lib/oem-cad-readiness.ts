@@ -17,6 +17,7 @@ export function oemCadReadiness(candidate:OemCadCandidate):OemCadReadiness{
  if(candidate.productUrl)evidence.push('Manufacturer/product source identified');
  if(candidate.cadUrl)evidence.push('CAD download/source URL identified');
  if(candidate.dimensionsMeters?.every(value=>Number.isFinite(value)&&value>0))evidence.push('Physical envelope recorded');
+ if(candidate.downloadInspection)evidence.push('Download inspected; fingerprint recorded separately from tenant-vault verification');
  if(candidate.sourceSha256&&sha256.test(candidate.sourceSha256))evidence.push('Source CAD SHA-256 verified');
  if(candidate.modelSha256&&sha256.test(candidate.modelSha256))evidence.push('Converted model SHA-256 verified');
  if(candidate.reuseTerms?.trim())evidence.push('Reuse terms recorded');
@@ -25,7 +26,7 @@ export function oemCadReadiness(candidate:OemCadCandidate):OemCadReadiness{
   blockers.push('Exact downloadable CAD file has not been identified.');
  }
  if(candidate.status==='CAD_DOWNLOAD_IDENTIFIED'){
-  blockers.push('Downloaded source CAD file has not been hash-verified.');
+  blockers.push(candidate.downloadInspection?'Inspected download still needs exact identity review and tenant-vault source verification.':'Downloaded source CAD file has not been hash-verified.');
  }
  if(candidate.status==='FILE_VERIFIED'&&!candidate.sourceSha256){
   blockers.push('FILE_VERIFIED requires a source CAD SHA-256.');

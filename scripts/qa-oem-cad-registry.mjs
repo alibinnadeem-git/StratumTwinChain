@@ -5,6 +5,16 @@ import {oemCadReadiness} from '../lib/oem-cad-readiness.ts';
 
 const byId=new Map(OEM_CAD_CANDIDATES.map(item=>[item.id,item]));
 const sourceById=new Map(OEM_SOURCES.map(item=>[item.id,item]));
+assert.equal(byId.size,OEM_CAD_CANDIDATES.length,'candidate IDs must be unique');
+for(const item of OEM_CAD_CANDIDATES){
+ assert.ok(sourceById.get(item.sourceId)?.componentKeys.includes(item.componentKey),`${item.id}: source and component must agree`);
+ if(item.downloadInspection){
+  assert.match(item.downloadInspection.sha256,/^[a-f0-9]{64}$/);
+  assert.ok(item.downloadInspection.bytes>0 && item.downloadInspection.filename);
+  assert.equal(item.status,'CAD_DOWNLOAD_IDENTIFIED','inspection metadata alone cannot approve or import a model');
+  assert.equal(item.sourceSha256,undefined,'scratch inspection is not tenant-vault verification');
+ }
+}
 const approved=OEM_CAD_CANDIDATES.filter(item=>item.status==='GLB_APPROVED');
 const pending=OEM_CAD_CANDIDATES.filter(item=>item.status!=='GLB_APPROVED');
 
