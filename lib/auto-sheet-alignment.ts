@@ -20,7 +20,7 @@ export type AlignmentCrossChecks={
  expectedScale:number|null;
  scaleDeviationFactor:number|null;
 };
-export type AlignmentProposal={id:string;referenceKey:string;movingKey:string;referenceSheet:string;movingSheet:string;anchors:{name:string;referenceEntityId:string;movingEntityId:string}[];transform:SheetSimilarity;confidence:number;eligible:boolean;reasons:string[];crossChecks:AlignmentCrossChecks;reviewRequired:true;autoApply:false;verified:false};
+export type AlignmentProposal={id:string;referenceKey:string;movingKey:string;referenceSheet:string;movingSheet:string;anchors:{name:string;referenceEntityId:string;movingEntityId:string}[];transform:SheetSimilarity;confidence:number;eligible:boolean;reasons:string[];warnings:string[];crossChecks:AlignmentCrossChecks;reviewRequired:true;autoApply:false;verified:false};
 
 const normalize=(value:string)=>value.toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim();
 const excluded=new Set(['ROOM','PLAN','ELECTRICAL','POWER','LIGHTING','GENERAL NOTES','NOTES','DETAIL','SECTION','ELEVATION','SHEET']);
@@ -53,14 +53,14 @@ export function proposeSheetAlignments(entities:AlignmentEntity[],sheets:Alignme
   const referenceAnchors=anchorsFor(entities,referenceKey),movingAnchors=anchorsFor(entities,movingKey);
   const names=[...referenceAnchors.keys()].filter(name=>movingAnchors.has(name)).sort();if(names.length<2)continue;
   const transform=fitSheetSimilarity(names.map(name=>({x:movingAnchors.get(name)!.x,y:movingAnchors.get(name)!.y})),names.map(name=>({x:referenceAnchors.get(name)!.x,y:referenceAnchors.get(name)!.y})));if(!transform)continue;
-  const reasons:string[]=[];
+  const reasons:string[]=[],warnings:string[]=[];
   if(names.length<3)reasons.push('At least three shared source-grounded anchors are required.');
   if(transform.scale<.25||transform.scale>4)reasons.push('Estimated scale is outside the bounded review range.');
   if(transform.rmsResidual>.75)reasons.push('Residual exceeds the review threshold.');
 
   const disciplineReference=reference.discipline.value,disciplineMoving=moving.discipline.value;
   const discipline=disciplineReference&&disciplineMoving?(disciplineReference===disciplineMoving?'MATCH':'MISMATCH'):'UNAVAILABLE';
-  if(discipline==='MISMATCH')reasons.push('Confirmed sheet disciplines differ.');
+  if(discipline==='MISMATCH')warnings.push('Confirmed sheet disciplines differ. Cross-discipline coordination is allowed only because repeated anchors independently establish the transform.');
 
   const floorReference=reference.floor?.value,floorMoving=moving.floor?.value;
   const floor=floorReference&&floorMoving?(floorReference===floorMoving?'MATCH':'MISMATCH'):'UNAVAILABLE';
@@ -73,7 +73,7 @@ export function proposeSheetAlignments(entities:AlignmentEntity[],sheets:Alignme
   if(scale==='MISMATCH')reasons.push(`Anchor-derived scale ${transform.scale.toFixed(4)}× strongly disagrees with the title-block/page-geometry expectation ${expectedScale!.toFixed(4)}× (factor ${scaleDeviationFactor!.toFixed(2)}).`);
 
   const confidence=Math.max(0,Math.min(1,(.48+Math.min(names.length,8)*.055+(discipline==='MATCH'?.08:0))*Math.exp(-transform.rmsResidual/.7)));
-  proposals.push({id:`${referenceKey}->${movingKey}`,referenceKey,movingKey,referenceSheet:reference.sheetNumber.value!,movingSheet:moving.sheetNumber.value!,anchors:names.map(name=>({name,referenceEntityId:referenceAnchors.get(name)!.id,movingEntityId:movingAnchors.get(name)!.id})),transform,confidence:Number(confidence.toFixed(3)),eligible:reasons.length===0,reasons,crossChecks:{discipline,floor,scale,expectedScale:expectedScale===null?null:Number(expectedScale.toFixed(6)),scaleDeviationFactor:scaleDeviationFactor===null?null:Number(scaleDeviationFactor.toFixed(4))},reviewRequired:true,autoApply:false,verified:false});
+  proposals.push({id:`${referenceKey}->${movingKey}`,referenceKey,movingKey,referenceSheet:reference.sheetNumber.value!,movingSheet:moving.sheetNumber.value!,anchors:names.map(name=>({name,referenceEntityId:referenceAnchors.get(name)!.id,movingEntityId:movingAnchors.get(name)!.id})),transform,confidence:Number(confidence.toFixed(3)),eligible:reasons.length===0,reasons,warnings,crossChecks:{discipline,floor,scale,expectedScale:expectedScale===null?null:Number(expectedScale.toFixed(6)),scaleDeviationFactor:scaleDeviationFactor===null?null:Number(scaleDeviationFactor.toFixed(4))},reviewRequired:true,autoApply:false,verified:false});
  }
  return proposals.sort((a,b)=>Number(b.eligible)-Number(a.eligible)||b.confidence-a.confidence||a.id.localeCompare(b.id));
 }
