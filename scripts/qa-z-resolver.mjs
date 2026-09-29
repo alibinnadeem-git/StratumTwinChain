@@ -30,6 +30,21 @@ const conflict=resolveEntityZ({id:'x',name:'X',source:'A-201.pdf',floor:'L2',con
 assert.equal(conflict.status,'CONFLICT');
 assert.equal(conflict.zMeters,null);
 
+
+const structural=extractZEvidenceFromText(
+  'TOP OF SLAB ELEVATION = 15\'-0"\nTOP OF STEEL ELEVATION 14\'-6 1/2"\nB.O.D. +18\'-0"',
+  {source:'S-201.pdf',floor:'L2'}
+);
+const slab=structural.find(item=>/TOP OF SLAB/.test(item.evidence[0]));
+const steel=structural.find(item=>/TOP OF STEEL/.test(item.evidence[0]));
+const bod=structural.find(item=>/B\.O\.D\./.test(item.evidence[0]));
+assert.ok(slab&&slab.type==='SECTION_ELEVATION'&&Math.abs(Number(slab.valueMeters)-4.572)<1e-6);
+assert.ok(steel&&steel.type==='SECTION_ELEVATION'&&Math.abs(Number(steel.valueMeters)-4.4323)<1e-4);
+assert.ok(bod&&bod.type==='SECTION_ELEVATION'&&Math.abs(Number(bod.valueMeters)-5.4864)<1e-6);
+const unrelatedStructural=resolveEntityZ({id:'panel-struct',name:'PANEL LP-2',source:'E-201.pdf',floor:'L2',confidence:.8,meta:{}},structural);
+assert.equal(unrelatedStructural.status,'UNRESOLVED');
+assert.equal(unrelatedStructural.zMeters,null);
+
 const civil=extractZEvidenceFromText('FG 194.56\nTC 195.08',{source:'C-2.pdf'});
 assert.ok(civil.some(item=>item.type==='GRADE_ELEVATION'||item.type==='SPOT_ELEVATION'));
 assert.ok(civil.every(item=>item.physicalTruth===false&&item.reviewRequired===true));
@@ -48,4 +63,4 @@ const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
 assert.match(viewer,/Z CANDIDATE · REVIEW REQUIRED/);
 assert.match(viewer,/design\/drawing candidate, not field-verified physical elevation/);
 
-console.log('Evidence-based Z resolver passed: IFC/DXF source design Z, tagged floor datum + AFF, relative-only, unlinked AFF fail-closed, conflict, civil elevation evidence, and no guessed floor heights.');
+console.log('Evidence-based Z resolver passed: IFC/DXF source design Z, tagged floor datum + AFF, structural datum parsing with fractional inches, structural evidence kept from arbitrary asset Z, civil elevation evidence, conflict handling, and no guessed floor heights.');
