@@ -95,6 +95,7 @@ export default function SpatialAssetInspector({
  const crossSheetReviewSurfaceLabel=String(selected.meta?.crossSheetReviewSurfaceKind||'CROSS-SHEET SURFACE').replaceAll('_',' ');
  const reviewSurfaceZ=optionalNumber(selected.meta?.reviewSurfaceZ);
  const reviewSurfaceLabel=String(selected.meta?.reviewSurfaceKind||'PROJECT DATUM').replaceAll('_',' ');
+ const supportBaseOffset=optionalNumber(selected.meta?.supportBaseOffsetMeters);
  const qr=asset?verificationUrl(asset):'';
  const zReviewed=selected.meta?.elevationKnown!==false&&selected.meta?.physicalElevationKnown!==false&&(selected.meta?.elevationKnown===true||selected.meta?.physicalElevationKnown===true||selected.meta?.zPlacementAuthority==='MEASURED_OR_REVIEWED');
  const tierLabel:Record<string,string>={L0:'Tier 0 · Source',L1:'Tier 1 · Drawing geometry',L2:'Tier 2 · Drawing callout, review required',L3:'Tier 3 · Electrical topology',L4:'Tier 4 · Registered asset'};
@@ -216,6 +217,7 @@ export default function SpatialAssetInspector({
     {localReviewSurfaceZ!==null&&<><div><span>Local surface authority</span><strong>{String(selected.meta?.localReviewSurfaceAuthority||'SOURCE_ELEVATION_TRIANGLE').replaceAll('_',' ')}</strong></div><div><span>Surface confidence</span><strong>{Math.round(Number(selected.meta?.localReviewSurfaceConfidence||0)*100)}%</strong></div></>}
     {crossSheetReviewSurfaceZ!==null&&<><div><span>Cross-sheet Z authority</span><strong>{String(selected.meta?.crossSheetReviewSurfaceAuthority||'HUMAN_CONFIRMED_ALIGNMENT_PLUS_SOURCE_ELEVATION_TRIANGLE').replaceAll('_',' ')}</strong></div><div><span>Cross-sheet confidence</span><strong>{Math.round(Number(selected.meta?.crossSheetReviewSurfaceConfidence||0)*100)}%</strong></div></>}
     {reviewSurfaceZ!==null&&<div><span>Datum authority</span><strong>{String(selected.meta?.reviewSurfaceAuthority||'SOURCE_PROJECT_DATUM').replaceAll('_',' ')}</strong></div>}
+    {supportBaseOffset!==null&&<><div><span>Support base offset</span><strong>{supportBaseOffset.toFixed(3)} m · {String(selected.meta?.supportOffsetKind||'SUPPORT').replaceAll('_',' ')}</strong></div><div><span>Support offset authority</span><strong>{String(selected.meta?.supportOffsetAuthority||'SOURCE_SUPPORT_NOTE').replaceAll('_',' ')}</strong></div><div><span>Support offset confidence</span><strong>{Math.round(Number(selected.meta?.supportOffsetConfidence||0)*100)}%</strong></div></>}
     {Number.isFinite(Number(selected.meta?.zScaleGuideMetersPerSourceUnit))&&<div><span>XYZ unit guide</span><strong>{Number(selected.meta?.zScaleGuideMetersPerSourceUnit).toFixed(6)} m/source unit</strong></div>}
     {placement?.recommendation&&<div><span>Placement basis</span><strong>{placement.recommendation.kind.replaceAll('_',' ')}</strong></div>}
    </div>
