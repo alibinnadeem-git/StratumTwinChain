@@ -97,7 +97,7 @@ export function extractSupportOffsetEvidence(input:{
       x:(item.x-.5)*input.planeWidth,
       y:(.5-item.y)*input.planeHeight,
       label,kind,heightMeters,assetTag:tag,
-      confidence:tag?.94:.8,
+      confidence:tag ? .94 : .8,
       physicalTruth:false,reviewRequired:true
     });
   }
