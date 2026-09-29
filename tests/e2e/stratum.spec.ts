@@ -111,7 +111,7 @@ test('compiled Spatial model preserves source placement without inventing floor 
  const value=await imported.locator('option').filter({hasText:'PANELBOARD LP-2'}).first().getAttribute('value');
  await imported.selectOption(value!);
  await expect(page.getByText(/Z CANDIDATE · REVIEW REQUIRED/)).toBeVisible();
- await expect(page.getByText(/0\.000 m/)).toBeVisible();
+ await expect(page.getByText('0.000 m',{exact:true})).toBeVisible();
 });
 
 test('DXF closed architectural polyline becomes reconstructed Spatial room geometry',async({page})=>{
