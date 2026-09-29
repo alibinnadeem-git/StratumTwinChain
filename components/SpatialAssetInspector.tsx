@@ -203,6 +203,7 @@ export default function SpatialAssetInspector({
     <div><span>Floor</span><strong>{selected.floor||'UNRESOLVED'}</strong></div>
     <div><span>Plan X / Y</span><strong>{selected.x.toFixed(2)} / {selected.y.toFixed(2)}</strong></div>
     <div><span>Z</span><strong>{zReviewed&&z!==null?`${z.toFixed(2)} m`:zCandidate!==null?`${zCandidate.toFixed(2)} m candidate`:localReviewSurfaceZ!==null?`${localReviewSurfaceZ.toFixed(2)} m ${localReviewSurfaceLabel.toLowerCase()} local surface`:reviewSurfaceZ!==null?`${reviewSurfaceZ.toFixed(2)} m ${reviewSurfaceLabel.toLowerCase()} review surface`:'Review plane · unresolved'}</strong></div>
+    <div><span>Physical Z</span><strong>{zReviewed?'Reviewed / source-established':'Unverified'}</strong></div>
     <div><span>Source</span><strong>{selected.source}</strong></div>
     <div><span>Confidence</span><strong>{Math.round(selected.confidence*100)}%</strong></div>
     <div><span>Zone</span><strong>{selected.zone||'Unresolved'}</strong></div>
