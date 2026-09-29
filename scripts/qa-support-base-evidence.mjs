@@ -19,6 +19,9 @@ assert.ok(xfmr&&Math.abs(xfmr.offsetMeters-.1524)<1e-9);
 assert.ok(panel&&Math.abs(panel.offsetMeters-.1016)<1e-9);
 assert.ok(generic&&generic.confidence<.6);
 assert.ok(ats&&Math.abs(ats.offsetMeters-.1)<1e-9);
+const metricPad=extractSupportBaseEvidence({items:[{text:'PDU-1 EQUIPMENT PAD 12 CM',x:.2,y:.2}],source:'E-104.pdf',page:4,planeWidth:20,planeHeight:14});
+assert.equal(metricPad.length,1);
+assert.ok(Math.abs(metricPad[0].offsetMeters-.12)<1e-9);
 
 const xfmrResolution=resolveSupportBaseForEntity({name:'PAD MOUNT TRANSFORMER T-1',meta:{}},evidence);
 assert.equal(xfmrResolution.status,'RESOLVED_CANDIDATE');
