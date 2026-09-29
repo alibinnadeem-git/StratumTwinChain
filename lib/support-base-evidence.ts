@@ -42,7 +42,7 @@ function kindOf(text:string):SupportBaseKind|null{
 function distanceMeters(raw:string,unit:string){
  const value=Number(raw);if(!Number.isFinite(value)||value<0)return null;
  const u=unit.toUpperCase();
- const meters=u==='"MM'?value/1000:u==='CM'?value/100:u==='M'?value:value*IN;
+ const meters=u==='MM'?value/1000:u==='CM'?value/100:u==='M'?value:value*IN;
  return Number.isFinite(meters)&&meters>=0&&meters<=.6?meters:null;
 }
 function parseOffset(text:string){
