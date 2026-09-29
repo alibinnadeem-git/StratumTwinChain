@@ -124,9 +124,9 @@ assert.deepEqual(genericSld.entities.map(entity=>entity.meta?.sldLogicalDepth),[
 console.log('✓ generic electrical graphs become SLD spatial models from content even without filename/parser hints');
 
 const oem=resolveAssetPlacement({name:'PANELBOARD LP-1',floor:'L2',meta:{oemDimensionsMeters:[1.2,2.1,.55],dimensionsSource:'OEM submittal'}});
-assert.equal(oem.dimensions.authority,'SOURCE_SPEC');assert.equal(oem.dimensions.height,2.1);assert.equal(oem.zAuthority,'HISTORICAL_RECOMMENDATION');assert.equal(oem.physicalTruth,false);
+assert.equal(oem.dimensions.authority,'SOURCE_SPEC');assert.equal(oem.dimensions.height,2.1);assert.equal(oem.zAuthority,'RELATIVE_TO_REVIEW_PLANE');assert.equal(oem.physicalTruth,false);
 assert.ok(oem.recommendation?.rangeMeters&&oem.recommendation.constraintMaxMeters);assert.equal(oem.recommendation?.evidenceClass,'CODE_CONSTRAINT');
-console.log('✓ explicit OEM/source dimensions outrank registry/nominal geometry while web/code placement remains recommendation-only');
+console.log('✓ explicit OEM/source dimensions outrank registry/nominal geometry while unanchored placement remains relative to the review plane');
 
 const floorStanding=resolveAssetPlacement({name:'DRY TYPE TRANSFORMER T1',floor:'L2',meta:{}});
 assert.equal(floorStanding.baseZ,0);assert.equal(floorStanding.zAuthority,'UNRESOLVED');assert.equal(floorStanding.recommendation?.kind,'REVIEW_PLANE_ONLY');assert.equal(floorStanding.physicalTruth,false);
