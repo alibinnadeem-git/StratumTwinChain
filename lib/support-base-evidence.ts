@@ -50,14 +50,14 @@ function mixedNumber(value:string){
 }
 function parseHeightMeters(label:string){
   const t=upper(label);
-  let m=t.match(/((?:\d+\s+)?(?:\d+\/\d+|\d+(?:\.\d+)?))\s*'\s*(?:-\s*((?:\d+\s+)?(?:\d+\/\d+|\d+(?:\.\d+)?))\s*")?/);
+  let m=t.match(/(?<![A-Z0-9])((?:\d+\s+)?(?:\d+\/\d+|\d+(?:\.\d+)?))\s*'\s*(?:-\s*((?:\d+\s+)?(?:\d+\/\d+|\d+(?:\.\d+)?))\s*")?/);
   if(m){
     const feet=mixedNumber(m[1]),inches=m[2]?mixedNumber(m[2]):0;
     if(feet!==null&&inches!==null&&feet>=0&&inches>=0&&inches<12)return feet*FT+inches*IN;
   }
-  m=t.match(/((?:\d+\s+)?(?:\d+\/\d+|\d+(?:\.\d+)?))\s*"/);
+  m=t.match(/(?<![A-Z0-9])((?:\d+\s+)?(?:\d+\/\d+|\d+(?:\.\d+)?))\s*"/);
   if(m){const inches=mixedNumber(m[1]);if(inches!==null&&inches>0)return inches*IN}
-  m=t.match(/((?:\d+\s+)?(?:\d+\/\d+|\d+(?:\.\d+)?))\s*(MM|CM|M|IN|INCHES|FT|FEET)\b/);
+  m=t.match(/(?<![A-Z0-9])((?:\d+\s+)?(?:\d+\/\d+|\d+(?:\.\d+)?))\s*(MM|CM|M|IN|INCHES|FT|FEET)\b/);
   if(!m)return null;
   const value=mixedNumber(m[1]),unit=m[2];
   if(value===null||value<=0)return null;
