@@ -127,7 +127,7 @@ export function resolveEntityZ(entity:ZEntityLike,evidence:ZEvidence[]):ZResolut
   }
   const floor=(entity.floor||'').toUpperCase();
   const sameFloor=evidence.filter(e=>!e.floor||!floor||String(e.floor).toUpperCase()===floor);
-  const datums=sameFloor.filter(e=>['FLOOR_DATUM','SECTION_ELEVATION'].includes(e.type)&&e.valueMeters!==null&&!e.evidence.some(item=>/UNITS_REQUIRE_SOURCE_DATUM_REVIEW/i.test(item)));
+  const datums=sameFloor.filter(e=>e.type==='FLOOR_DATUM'&&e.valueMeters!==null&&!e.evidence.some(item=>/UNITS_REQUIRE_SOURCE_DATUM_REVIEW/i.test(item)));
   const aff=sameFloor.filter(e=>e.type==='MOUNTING_HEIGHT_AFF'&&e.valueMeters!==null&&tagMatchesEntity(e.tag,entity.name));
   if(datums.length){
     const sorted=[...datums].sort((a,b)=>b.confidence-a.confidence),base=sorted[0];
