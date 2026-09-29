@@ -24,6 +24,7 @@ import {enrichCoordinationIntelligence} from '../lib/coordination-intelligence';
 import {buildZResolutionIndex,extractZEvidenceFromText,type ZEvidence} from '../lib/z-resolver';
 import {buildProjectDatumSurfaces,datumSurfaceMetadata,projectDatumSurfaceForEntity} from '../lib/project-datum';
 import {buildElevationTriangles,extractPositionedElevationControls,resolveLocalElevationSurface,type ElevationControlPoint,type ElevationTriangle} from '../lib/elevation-surface';
+import {enrichSupportBaseOffsets,extractSupportOffsetEvidence,type SupportOffsetEvidence} from '../lib/support-base-evidence';
 import {ChangeEvent,DragEvent,useEffect,useMemo,useState} from 'react';
 
 type Layer='L0'|'L1'|'L2'|'L3'|'L4';
@@ -121,6 +122,7 @@ async function parsePdf(file:File,level:{floor:string;elevation:number},discipli
  const scaleValidationByPage=new Map<number,ReturnType<typeof validateIndependentScale>>();
  const elevationControlsByPage=new Map<number,ElevationControlPoint[]>();
  const elevationTrianglesByPage=new Map<number,ElevationTriangle[]>();
+ const supportOffsetsByPage=new Map<number,SupportOffsetEvidence[]>();
  for(let page=1;page<=doc.numPages;page++){
   const preview=rasterPreviewByPage.get(page),pageGeometry=pageGeometryByPage.get(page);
   const nativeItems=raw.filter(item=>item.page===page).map(item=>({text:item.str,x:item.x/20+.5,y:.5-item.y/20}));
@@ -132,12 +134,17 @@ async function parsePdf(file:File,level:{floor:string;elevation:number},discipli
   if(validation.status!=='UNRESOLVED'||validation.declaredMetersPerNormalizedSheetUnit!==null){
    ocrEntities.push({id:`pdf-scale-validation-${page}`,source:file.name,layer:'L0',kind:'scale-validation-candidate',name:`Scale validation · page ${page} · ${validation.status}`,x:0,y:0,z:0,floor:pageFloors.get(page)||'UNRESOLVED',confidence:validation.confidence,meta:{page,nonSpatial:true,physicalTruth:false,reviewRequired:true,scaleValidationEvidence:validation,geometryScaleAuthority:false,autoApply:false,elevationKnown:false,physicalElevationKnown:false}} as GraphEntity);
   }
-  const usingRasterGeometry=Boolean(preview?.geometryItems?.length);
+  const usingRasterGeometry=Boolean(preview?.geometryItems?.length),sourcePlaneWidth=usingRasterGeometry?(preview?.planeWidth||20):20,sourcePlaneHeight=usingRasterGeometry?(preview?.planeHeight||20):20;
   const controls=extractPositionedElevationControls({
    items,source:file.name,page,declaredScale:geometryEvidence.drawingScale.value,scaleValidation:validation,
-   planeWidth:usingRasterGeometry?(preview?.planeWidth||20):20,
-   planeHeight:usingRasterGeometry?(preview?.planeHeight||20):20
+   planeWidth:sourcePlaneWidth,
+   planeHeight:sourcePlaneHeight
   });
+  const supportOffsets=extractSupportOffsetEvidence({items,source:file.name,page,planeWidth:sourcePlaneWidth,planeHeight:sourcePlaneHeight});
+  supportOffsetsByPage.set(page,supportOffsets);
+  for(const support of supportOffsets){
+   ocrEntities.push({id:`pdf-support-offset-${page}-${support.id}`,source:file.name,layer:'L0',kind:'support-offset-evidence',name:support.label,x:support.x,y:support.y,z:0,floor:pageFloors.get(page)||'UNRESOLVED',confidence:support.confidence,meta:{page,nonSpatial:true,supportOffsetEvidence:support,sourceType:'PDF_SUPPORT_OFFSET_EVIDENCE',physicalTruth:false,physicalElevationKnown:false,elevationKnown:false,reviewRequired:true}});
+  }
   elevationControlsByPage.set(page,controls);
   const triangles=[...buildElevationTriangles(controls,'GRADE'),...buildElevationTriangles(controls,'FINISHED_FLOOR')];
   elevationTrianglesByPage.set(page,triangles);
@@ -189,7 +196,8 @@ async function parsePdf(file:File,level:{floor:string;elevation:number},discipli
   if(local.status!=='RESOLVED_REVIEW_SURFACE'||local.zMeters===null)continue;
   entity.meta={...entity.meta,localReviewSurfaceZ:local.zMeters,localReviewSurfaceKind:local.kind,localReviewSurfaceAuthority:local.authority,localReviewSurfaceConfidence:local.confidence,localReviewSurfaceTriangleId:local.triangleId,localReviewSurfaceControlPointIds:local.controlPointIds,physicalTruth:false,reviewRequired:true};
  }
- return{entities,summary:`${doc.numPages} page${doc.numPages===1?'':'s'} · ${raw.length} positioned text objects · ${vectors} PDF drawing operators · ${nonSldPlanPages} non-SLD plan page${nonSldPlanPages===1?'':'s'} recognized${planTypes.length?` (${planTypes.join(', ')})`:''} · ${sourcePlanSegments} retained source-plan vector segment${sourcePlanSegments===1?'':'s'} · ${rasterPlanUnderlays} raster drawing underlay${rasterPlanUnderlays===1?'':'s'} · ${ocrPages} raster OCR fallback page${ocrPages===1?'':'s'} · ${ocrTextChars} OCR text character${ocrTextChars===1?'':'s'} · ${sldPages} SLD page${sldPages===1?'':'s'} recognized from content/topology · ${vectorFeederSegments} source-vector feeder segment${vectorFeederSegments===1?'':'s'} · ${entities.length} spatial/review candidates`,pages:doc.numPages,vectors,textItems:raw.length,sldPages,nonSldPlanPages,planTypes,disciplines:uniqueDisciplines};
+ const supportEnriched=enrichSupportBaseOffsets(entities,[...supportOffsetsByPage.values()].flat());
+ return{entities:supportEnriched,summary:`${doc.numPages} page${doc.numPages===1?'':'s'} · ${raw.length} positioned text objects · ${vectors} PDF drawing operators · ${nonSldPlanPages} non-SLD plan page${nonSldPlanPages===1?'':'s'} recognized${planTypes.length?` (${planTypes.join(', ')})`:''} · ${sourcePlanSegments} retained source-plan vector segment${sourcePlanSegments===1?'':'s'} · ${rasterPlanUnderlays} raster drawing underlay${rasterPlanUnderlays===1?'':'s'} · ${ocrPages} raster OCR fallback page${ocrPages===1?'':'s'} · ${ocrTextChars} OCR text character${ocrTextChars===1?'':'s'} · ${sldPages} SLD page${sldPages===1?'':'s'} recognized from content/topology · ${vectorFeederSegments} source-vector feeder segment${vectorFeederSegments===1?'':'s'} · ${supportEnriched.length} spatial/review candidates`,pages:doc.numPages,vectors,textItems:raw.length,sldPages,nonSldPlanPages,planTypes,disciplines:uniqueDisciplines};
  } finally {if(ocrWorker)await ocrWorker.terminate().catch(()=>{});await doc.destroy()}
 }
 

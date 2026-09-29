@@ -3,7 +3,7 @@ import type {ElectricalModelConfig} from './electrical-model-registry.ts';
 
 export type PlacementEntity={name:string;floor?:string;z?:number;meta?:Record<string,unknown>};
 export type DimensionAuthority='SOURCE_SPEC'|'MODEL_REGISTRY'|'WEB_OEM_REFERENCE'|'STRATUM_NOMINAL';
-export type ZAuthority='MEASURED_OR_REVIEWED'|'SOURCE_DESIGN_CANDIDATE'|'SOURCE_SUPPORT_SURFACE_CANDIDATE'|'SUPPORT_SURFACE_PLUS_MOUNTING_GUIDANCE'|'RELATIVE_TO_REVIEW_PLANE'|'FLOOR_STANDING_PROFILE'|'HISTORICAL_RECOMMENDATION'|'FLOOR_LABEL_ONLY'|'UNRESOLVED';
+export type ZAuthority='MEASURED_OR_REVIEWED'|'SOURCE_DESIGN_CANDIDATE'|'SOURCE_SUPPORT_SURFACE_CANDIDATE'|'SUPPORT_SURFACE_PLUS_SOURCE_BASE_OFFSET'|'SUPPORT_SURFACE_PLUS_MOUNTING_GUIDANCE'|'RELATIVE_TO_REVIEW_PLANE'|'FLOOR_STANDING_PROFILE'|'HISTORICAL_RECOMMENDATION'|'FLOOR_LABEL_ONLY'|'UNRESOLVED';
 export type PlacementEvidenceClass='SOURCE_SPEC'|'OEM_INSTALLATION_GUIDANCE'|'CODE_CONSTRAINT'|'ACCESSIBILITY_GUIDANCE'|'DESIGN_GUIDE'|'TYPE_PROFILE'|'VISUALIZATION_HEURISTIC';
 export type PlacementRecommendation={kind:string;valueMeters?:number;rangeMeters?:[number,number];constraintMaxMeters?:number;source:string;sourceUrl?:string;evidenceClass:PlacementEvidenceClass;note:string};
 export type AssetPlacement={
@@ -86,17 +86,29 @@ function webOemDimensions(entity:PlacementEntity):{dims:[number,number,number];s
 }
 function sourceMountingBaseOffset(entity:PlacementEntity){
  const meta=entity.meta||{};
- for(const key of ['mountingBaseFromFloorMeters','recommendedBaseFromFloorMeters','manufacturerMountingBaseMeters','installationBaseFromFloorMeters']){
+ for(const key of ['supportBaseOffsetMeters','mountingBaseFromFloorMeters','recommendedBaseFromFloorMeters','manufacturerMountingBaseMeters','installationBaseFromFloorMeters']){
   const value=finite(meta[key]);if(value!==null&&value>=0)return value;
  }
  return null;
 }
 function sourceMountingRecommendation(entity:PlacementEntity,surface:SupportSurface|null,dimensions:AssetPlacement['dimensions']):AssetPlacement|null{
  const offset=sourceMountingBaseOffset(entity);if(offset===null)return null;
+ const meta=entity.meta||{},supportOffset=finite(meta.supportBaseOffsetMeters),isSupportOffset=supportOffset!==null;
  const floorZ=surface?.z??0,base=floorZ+offset;
- const source=String(entity.meta?.mountingInstructionSource||entity.meta?.installationGuideSource||entity.meta?.oemSpecSource||'Source asset installation metadata');
- const sourceUrl=String(entity.meta?.mountingInstructionSourceUrl||entity.meta?.installationGuideSourceUrl||'').trim()||undefined;
- return{dimensions,baseZ:base,topZ:base+dimensions.height,zAuthority:surface?'SUPPORT_SURFACE_PLUS_MOUNTING_GUIDANCE':'RELATIVE_TO_REVIEW_PLANE',zConfidence:surface?Math.min(.84,surface.confidence):.58,recommendation:{kind:surface?'SOURCE_INSTALLATION_BASE_ON_REVIEW_SURFACE':'SOURCE_INSTALLATION_BASE_RELATIVE_TO_REVIEW_PLANE',valueMeters:base,source,sourceUrl,evidenceClass:'OEM_INSTALLATION_GUIDANCE',note:surface?`Mounting guidance is composed with the ${surface.kind.replaceAll('_',' ').toLowerCase()} review surface from ${surface.authority.replaceAll('_',' ')}. This is a design placement candidate, not measured/installed elevation.`:'Source/OEM mounting offset is known, but no absolute support surface is resolved. Value is rendered relative to the review plane and is not absolute project Z.'},physicalTruth:false};
+ const source=isSupportOffset
+  ?String(meta.supportOffsetEvidenceLabel||meta.supportOffsetSource||'Source support-base note')
+  :String(meta.mountingInstructionSource||meta.installationGuideSource||meta.oemSpecSource||'Source asset installation metadata');
+ const sourceUrl=isSupportOffset?undefined:String(meta.mountingInstructionSourceUrl||meta.installationGuideSourceUrl||'').trim()||undefined;
+ const supportConfidence=Math.max(0,Math.min(1,Number(meta.supportOffsetConfidence||.7)));
+ const zAuthority:ZAuthority=surface?(isSupportOffset?'SUPPORT_SURFACE_PLUS_SOURCE_BASE_OFFSET':'SUPPORT_SURFACE_PLUS_MOUNTING_GUIDANCE'):'RELATIVE_TO_REVIEW_PLANE';
+ const zConfidence=surface?Math.min(surface.confidence,isSupportOffset?supportConfidence:.84):Math.min(.58,isSupportOffset?supportConfidence:.58);
+ return{dimensions,baseZ:base,topZ:base+dimensions.height,zAuthority,zConfidence,recommendation:{
+  kind:isSupportOffset?(surface?'SOURCE_SUPPORT_BASE_OFFSET_ON_REVIEW_SURFACE':'SOURCE_SUPPORT_BASE_OFFSET_RELATIVE_TO_REVIEW_PLANE'):(surface?'SOURCE_INSTALLATION_BASE_ON_REVIEW_SURFACE':'SOURCE_INSTALLATION_BASE_RELATIVE_TO_REVIEW_PLANE'),
+  valueMeters:base,source,sourceUrl,evidenceClass:isSupportOffset?'SOURCE_SPEC':'OEM_INSTALLATION_GUIDANCE',
+  note:isSupportOffset
+   ?(surface?`Explicit ${String(meta.supportOffsetKind||'support base').replaceAll('_',' ').toLowerCase()} height ${offset.toFixed(3)} m is composed with the ${surface.kind.replaceAll('_',' ').toLowerCase()} review surface. This is source-derived design evidence, not measured installed elevation.`:`Explicit support-base height ${offset.toFixed(3)} m is known, but no absolute support surface is resolved. It is shown relative to the review plane only.`)
+   :(surface?`Mounting guidance is composed with the ${surface.kind.replaceAll('_',' ').toLowerCase()} review surface from ${surface.authority.replaceAll('_',' ')}. This is a design placement candidate, not measured/installed elevation.`:'Source/OEM mounting offset is known, but no absolute support surface is resolved. Value is rendered relative to the review plane and is not absolute project Z.')
+ },physicalTruth:false};
 }
 
 export function nominalDimensionsFor(name:string):[number,number,number]{
