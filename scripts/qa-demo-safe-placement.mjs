@@ -35,6 +35,44 @@ assert.equal(sourceDesign.zAuthority,'SOURCE_DESIGN_CANDIDATE');
 assert.ok(Math.abs(sourceDesign.baseZ-5.4864)<1e-9);
 assert.equal(sourceDesign.physicalTruth,false);
 
+
+const localSurfaceTransformer=resolveAssetPlacement({
+  name:'PAD-MOUNT TRANSFORMER T-1',
+  floor:'UNRESOLVED',
+  z:0,
+  meta:{
+    physicalElevationKnown:false,
+    elevationKnown:false,
+    localReviewSurfaceZ:30.48,
+    localReviewSurfaceKind:'GRADE',
+    localReviewSurfaceAuthority:'SOURCE_ELEVATION_TRIANGLE',
+    localReviewSurfaceConfidence:.82
+  }
+});
+assert.equal(localSurfaceTransformer.zAuthority,'LOCAL_REVIEW_SURFACE');
+assert.ok(Math.abs(localSurfaceTransformer.baseZ-30.48)<1e-9);
+assert.equal(localSurfaceTransformer.physicalTruth,false);
+
+const paddedTransformer=resolveAssetPlacement({
+  name:'PAD-MOUNT TRANSFORMER T-1',
+  floor:'UNRESOLVED',
+  z:0,
+  meta:{
+    physicalElevationKnown:false,
+    elevationKnown:false,
+    localReviewSurfaceZ:30.48,
+    localReviewSurfaceKind:'GRADE',
+    localReviewSurfaceAuthority:'SOURCE_ELEVATION_TRIANGLE',
+    localReviewSurfaceConfidence:.82,
+    baseOffsetAboveSurfaceMeters:.1524,
+    mountingInstructionSource:'C-2 transformer pad note'
+  }
+});
+assert.equal(paddedTransformer.zAuthority,'LOCAL_SURFACE_PLUS_SOURCE_OFFSET');
+assert.ok(Math.abs(paddedTransformer.baseZ-30.6324)<1e-9);
+assert.ok(paddedTransformer.recommendation?.note.includes('not evidence of the installed or measured elevation'));
+assert.equal(paddedTransformer.physicalTruth,false);
+
 const plan=planUniformMeterScale(
   [11.616250038,22.794077901,5.697649956],
   [tesla.dimensions.width,tesla.dimensions.height,tesla.dimensions.depth],
@@ -56,8 +94,9 @@ assert.match(placement,/SOURCE_DESIGN_CANDIDATE/);
 const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
 assert.match(viewer,/placement\.dimensions\.width/);
 assert.match(viewer,/sourceModelBounds/);
-assert.match(viewer,/REVIEW_PLANE_ONLY/);
 assert.match(viewer,/zCandidateMeters/);
+assert.match(viewer,/placementY=placement\.baseZ\+extra\(e\)/);
+assert.match(viewer,/baseZMeters=placement\.baseZ/);
 assert.doesNotMatch(viewer,/const target=dimensions as \[number,number,number\]/);
 
 const inspector=fs.readFileSync('components/SpatialAssetInspector.tsx','utf8');
@@ -65,4 +104,4 @@ assert.match(inspector,/IMPORTED 3D GEOMETRY · REVIEW-SCALE/);
 assert.match(inspector,/Review plane · physical Z unresolved/);
 assert.match(inspector,/m candidate/);
 
-console.log('Demo-safe placement passed: Tesla reference GLB normalized to review envelope, unresolved Z uses review plane only, and source-design Z candidates remain reviewable.');
+console.log('Demo-safe placement passed: Tesla reference GLB normalization, local-surface asset base placement, source-backed pad offset composition, unresolved review plane, and source-design Z candidates.');
