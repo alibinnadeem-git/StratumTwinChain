@@ -61,7 +61,7 @@ ok('alignment UI requires explicit apply action',component.includes('Apply revie
 ok('alignment UI states repeated anchors create the transform',component.includes('Repeated anchors create the transform'));
 ok('title-block floor and scale are safety cross-checks only',component.includes('can only reject or flag a suspicious proposal')&&component.includes('never create or modify the transform'));
 ok('alignment UI preserves original coordinates before transforming',component.includes('autoSheetAlignmentOriginal'));
-ok('alignment applies the similarity transform to endpoints and polygon vertices',component.includes('x2:end.x')&&component.includes('vertices=Array.isArray(original.vertices)')&&component.includes('vertices.map(vertex=>transformSheetPoint')));
+ok('alignment applies the similarity transform to endpoints and polygon vertices',component.includes('x2:end.x')&&component.includes('vertices=Array.isArray(original.vertices)')&&component.includes('vertices.map(vertex=>transformSheetPoint'));
 ok('alignment can derive review-only cross-sheet Z and clears it on restore',component.includes('enrichCrossSheetElevationSurfaces')&&component.includes('clearCrossSheetElevationForAlignment'));
 ok('alignment UI provides explicit coordinate restoration',component.includes('Restore original coordinates'));
 ok('alignment UI records alignmentVerified false',component.includes('alignmentVerified:false'));
