@@ -1,5 +1,6 @@
 import {resolveElectricalComponent} from './electrical-component-library.ts';
 import type {ElectricalModelConfig} from './electrical-model-registry.ts';
+import type {ZReferencePoint} from './z-resolver.ts';
 
 export type PlacementEntity={name:string;floor?:string;z?:number;meta?:Record<string,unknown>};
 export type DimensionAuthority='SOURCE_SPEC'|'MODEL_REGISTRY'|'WEB_OEM_REFERENCE'|'STRATUM_NOMINAL';
@@ -8,7 +9,7 @@ export type PlacementEvidenceClass='SOURCE_SPEC'|'OEM_INSTALLATION_GUIDANCE'|'CO
 export type PlacementRecommendation={kind:string;valueMeters?:number;rangeMeters?:[number,number];constraintMaxMeters?:number;source:string;sourceUrl?:string;evidenceClass:PlacementEvidenceClass;note:string};
 export type AssetPlacement={
  dimensions:{width:number;height:number;depth:number;authority:DimensionAuthority;source:string;confidence:number};
- baseZ:number;topZ:number;zAuthority:ZAuthority;zConfidence:number;recommendation?:PlacementRecommendation;physicalTruth:false;
+ baseZ:number;topZ:number;zAuthority:ZAuthority;zConfidence:number;referenceZ?:number;referencePoint?:ZReferencePoint;recommendation?:PlacementRecommendation;physicalTruth:false;
 };
 
 const NOMINAL:Record<string,[number,number,number]>={
@@ -37,10 +38,24 @@ function supportSurface(entity:PlacementEntity):SupportSurface|null{
  }
  return null;
 }
-function sourceDesignZCandidate(entity:PlacementEntity):number|null{
+function sourceDesignZCandidate(entity:PlacementEntity):{z:number;referencePoint:ZReferencePoint}|null{
  if(entity.meta?.zResolutionStatus!=='RESOLVED_DESIGN_CANDIDATE')return null;
  const value=Number(entity.meta?.zCandidateMeters);
- return Number.isFinite(value)?value:null;
+ if(!Number.isFinite(value))return null;
+ const raw=String(entity.meta?.zCandidateReferencePoint||entity.meta?.sourceZReferencePoint||'SOURCE_ORIGIN') as ZReferencePoint;
+ const allowed:ZReferencePoint[]=['BASE','BOTTOM','CENTERLINE','TOP','MOUNTING_POINT','SOURCE_ORIGIN','PROJECT_DATUM','UNSPECIFIED'];
+ return{z:value,referencePoint:allowed.includes(raw)?raw:'UNSPECIFIED'};
+}
+function baseFromReference(candidate:{z:number;referencePoint:ZReferencePoint},dimensions:AssetPlacement['dimensions'],entity:PlacementEntity):number|null{
+ const {z,referencePoint}=candidate;
+ if(referencePoint==='BASE'||referencePoint==='BOTTOM'||referencePoint==='SOURCE_ORIGIN')return z;
+ if(referencePoint==='CENTERLINE')return z-dimensions.height/2;
+ if(referencePoint==='TOP')return z-dimensions.height;
+ if(referencePoint==='MOUNTING_POINT'){
+  const offset=finite(entity.meta?.mountingPointFromBaseMeters??entity.meta?.mountingPointOffsetFromBaseMeters);
+  return offset!==null?z-offset:null;
+ }
+ return null;
 }
 function tuple(value:unknown):[number,number,number]|null{
  if(!Array.isArray(value)||value.length!==3)return null;
@@ -135,7 +150,11 @@ export function resolveAssetPlacement(entity:PlacementEntity,registry?:Electrica
   const base=Number.isFinite(Number(entity.z))?Number(entity.z):floorZ;
   return{dimensions,baseZ:base,topZ:base+dimensions.height,zAuthority:'MEASURED_OR_REVIEWED',zConfidence:.98,physicalTruth:false};
  }
- const designCandidate=sourceDesignZCandidate(entity);if(designCandidate!==null)return{dimensions,baseZ:designCandidate,topZ:designCandidate+dimensions.height,zAuthority:'SOURCE_DESIGN_CANDIDATE',zConfidence:Number(entity.meta?.zResolutionConfidence||0),recommendation:{kind:'SOURCE_DESIGN_Z_CANDIDATE',valueMeters:designCandidate,source:String(entity.meta?.zResolutionAuthority||'Source Z evidence'),evidenceClass:'SOURCE_SPEC',note:'Rendered from a source-design Z candidate. This is reviewable design evidence, not field-verified physical elevation.'},physicalTruth:false};
+ const designCandidate=sourceDesignZCandidate(entity);
+ if(designCandidate!==null){
+  const base=baseFromReference(designCandidate,dimensions,entity);
+  if(base!==null)return{dimensions,baseZ:base,topZ:base+dimensions.height,zAuthority:'SOURCE_DESIGN_CANDIDATE',zConfidence:Number(entity.meta?.zResolutionConfidence||0),referenceZ:designCandidate.z,referencePoint:designCandidate.referencePoint,recommendation:{kind:`SOURCE_Z_REFERENCE_${designCandidate.referencePoint}`,valueMeters:designCandidate.z,source:String(entity.meta?.zResolutionAuthority||'Source Z evidence'),evidenceClass:'SOURCE_SPEC',note:designCandidate.referencePoint==='SOURCE_ORIGIN'?'Rendered from the source coordinate origin Z as a review anchor. This does not prove that the source origin equals the physical equipment base.':`Source Z refers to the equipment ${designCandidate.referencePoint.toLowerCase().replaceAll('_',' ')}; STRATUM converts that reference to model base Z using the current equipment height. This remains reviewable design evidence, not field-verified physical elevation.`},physicalTruth:false};
+ }
  const sourceMounting=sourceMountingRecommendation(entity,surface,dimensions);if(sourceMounting)return sourceMounting;
  const key=component?.key||'';
 
