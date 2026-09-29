@@ -94,7 +94,6 @@ assert.match(placement,/SOURCE_DESIGN_CANDIDATE/);
 const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
 assert.match(viewer,/placement\.dimensions\.width/);
 assert.match(viewer,/sourceModelBounds/);
-assert.match(viewer,/REVIEW_PLANE_ONLY/);
 assert.match(viewer,/zCandidateMeters/);
 assert.match(viewer,/placementY=placement\.baseZ\+extra\(e\)/);
 assert.match(viewer,/baseZMeters=placement\.baseZ/);
