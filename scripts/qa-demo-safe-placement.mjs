@@ -56,7 +56,8 @@ assert.match(placement,/SOURCE_DESIGN_CANDIDATE/);
 const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
 assert.match(viewer,/placement\.dimensions\.width/);
 assert.match(viewer,/sourceModelBounds/);
-assert.match(viewer,/REVIEW_PLANE_ONLY/);
+assert.match(viewer,/zDisplayAuthority=placement\.zAuthority/);
+assert.match(viewer,/root\.position\.set\(e\.x,placement\.baseZ,e\.y\)/);
 assert.match(viewer,/zCandidateMeters/);
 assert.doesNotMatch(viewer,/const target=dimensions as \[number,number,number\]/);
 
