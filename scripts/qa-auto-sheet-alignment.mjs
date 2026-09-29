@@ -41,7 +41,7 @@ ok('title-block plus page geometry independently expects the same normalized sca
 ok('confirmed floor and discipline are safety matches',proposals[0].crossChecks.floor==='MATCH'&&proposals[0].crossChecks.discipline==='MATCH');
 
 const mismatch=proposeSheetAlignments(entities,[sheets[0],{...sheets[1],discipline:{value:'Mechanical'}}]);
-ok('confirmed discipline mismatch blocks automatic proposal application',mismatch.length===1&&!mismatch[0].eligible&&mismatch[0].crossChecks.discipline==='MISMATCH'&&mismatch[0].reasons.some(reason=>reason.includes('disciplines differ')));
+ok('confirmed cross-discipline sheets remain reviewable when anchors, floor and scale are defensible',mismatch.length===1&&mismatch[0].eligible&&mismatch[0].crossChecks.discipline==='MISMATCH'&&mismatch[0].warnings.some(warning=>warning.includes('disciplines differ')));
 const floorMismatch=proposeSheetAlignments(entities,[sheets[0],{...sheets[1],floor:{value:'L2'}}]);
 ok('confirmed floor mismatch blocks automatic proposal application',floorMismatch.length===1&&!floorMismatch[0].eligible&&floorMismatch[0].crossChecks.floor==='MISMATCH'&&floorMismatch[0].reasons.some(reason=>reason.includes('floors differ')));
 const scaleMismatch=proposeSheetAlignments(entities,[sheets[0],{...sheets[1],drawingScale:{value:'1:100'}}]);
@@ -61,9 +61,12 @@ ok('alignment UI requires explicit apply action',component.includes('Apply revie
 ok('alignment UI states repeated anchors create the transform',component.includes('Repeated anchors create the transform'));
 ok('title-block floor and scale are safety cross-checks only',component.includes('can only reject or flag a suspicious proposal')&&component.includes('never create or modify the transform'));
 ok('alignment UI preserves original coordinates before transforming',component.includes('autoSheetAlignmentOriginal'));
+ok('alignment applies the similarity transform to endpoints and polygon vertices',component.includes('x2:end.x')&&component.includes('vertices=Array.isArray(original.vertices)')&&component.includes('vertices.map(vertex=>transformSheetPoint')));
+ok('alignment can derive review-only cross-sheet Z and clears it on restore',component.includes('enrichCrossSheetElevationSurfaces')&&component.includes('clearCrossSheetElevationForAlignment'));
 ok('alignment UI provides explicit coordinate restoration',component.includes('Restore original coordinates'));
 ok('alignment UI records alignmentVerified false',component.includes('alignmentVerified:false'));
 ok('alignment review ledger stores cross-check evidence',component.includes('crossChecks:proposal.crossChecks'));
+ok('cross-discipline coordination warnings are surfaced to the reviewer',component.includes('proposal.warnings')&&component.includes('COORDINATION REVIEW'));
 ok('alignment UI states no asset DIR PoVI or physical-truth promotion',component.includes('do not create STRATUM Assets')&&component.includes('PoVI finality')&&component.includes('physical truth'));
 ok('alignment UI cannot call asset lifecycle chain or approval APIs',!/["'`]\/api\/(?:assets|lifecycle|chain|approvals)/.test(component));
 
