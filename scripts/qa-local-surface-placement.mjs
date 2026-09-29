@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {resolveAssetPlacement} from '../lib/asset-placement.ts';
 import {resolveElectricalComponent} from '../lib/electrical-component-library.ts';
+import {DEFAULT_ELECTRICAL_MODEL_REGISTRY} from '../lib/electrical-model-registry.ts';
 
 const surfaceMeta={
   localReviewSurfaceZ:30.7848,
@@ -34,6 +35,10 @@ assert.ok(Math.abs(transformer.baseZ-30.7848)<1e-9);
 
 assert.equal(resolveElectricalComponent('Tesla Universal Wall Connector')?.twinShape,'evse');
 assert.equal(resolveElectricalComponent('Tesla Universal Wall Connector')?.key,'evse-tesla-wall-connector-gen3');
+const wallConnectorModel=DEFAULT_ELECTRICAL_MODEL_REGISTRY.find(item=>item.componentKey==='evse-tesla-wall-connector-gen3');
+assert.ok(wallConnectorModel?.modelUrl);
+assert.equal(wallConnectorModel?.geometryStatus,'DIMENSIONAL_VISUALIZATION');
+assert.deepEqual(wallConnectorModel?.dimensionsMeters,[.155,.345,.15]);
 
 const tesla=resolveAssetPlacement({
   name:'Tesla Universal Wall Connector',
