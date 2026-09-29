@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import {useMemo,useState} from 'react';
 import {readPrimarySpatialGraph,replaceCurrentSpatialGraph} from '@/lib/spatial-browser-recovery';
-import {resolveAssetPlacement} from '@/lib/asset-placement';
+import {resolveReconciledAssetPlacement} from '@/lib/z-solution-chain';
 import AssetActivityPanel from '@/components/AssetActivityPanel';
 import AssetQR from '@/components/AssetQR';
 import {
@@ -45,7 +45,9 @@ export default function SpatialAssetInspector({
  const [linkId,setLinkId]=useState('');
  const [message,setMessage]=useState('');
  const binding=useMemo(()=>resolveRegisteredSpatialAsset(selected,registeredAssets),[selected,registeredAssets]);
- const placement=useMemo(()=>selected?resolveAssetPlacement({name:selected.name,floor:selected.floor,z:selected.z,meta:selected.meta}):null,[selected]);
+ const reconciliation=useMemo(()=>selected?resolveReconciledAssetPlacement({name:selected.name,floor:selected.floor,z:selected.z,meta:selected.meta}):null,[selected]);
+ const placement=reconciliation?.placement||null;
+ const zSolution=reconciliation?.solution||null;
  const dir=useMemo(()=>spatialAssetDirState(binding),[binding]);
  const asset=binding?.asset||null;
 
@@ -113,8 +115,9 @@ export default function SpatialAssetInspector({
   </div>
 
   <div className={`placement-trust ${zReviewed?'reviewed':'needs-review'}`} role="status">
-    <div><span>Z placement</span><strong>{zReviewed?'Measured / reviewed':zCandidate!==null?`${zCandidateReferencePoint} design Z reference · review required`:placement&& !['UNRESOLVED','RELATIVE_TO_REVIEW_PLANE'].includes(placement.zAuthority)?`${placement.baseZ.toFixed(2)} m placement candidate · review required`:localReviewSurfaceZ!==null?`${localReviewSurfaceLabel} local review surface · object Z unresolved`:crossSheetReviewSurfaceZ!==null?`${crossSheetReviewSurfaceLabel} cross-sheet review surface · object Z unresolved`:reviewSurfaceZ!==null?`${reviewSurfaceLabel} review surface · object Z unresolved`:'Review plane · physical Z unresolved'}</strong></div>
+    <div><span>Z placement</span><strong>{zReviewed?'Measured / reviewed':zSolution?.status==='CONFLICT'?'Z CONFLICT · review required':zCandidate!==null?`${zCandidateReferencePoint} design Z reference · review required`:placement&& !['UNRESOLVED','RELATIVE_TO_REVIEW_PLANE'].includes(placement.zAuthority)?`${placement.baseZ.toFixed(2)} m placement candidate · review required`:localReviewSurfaceZ!==null?`${localReviewSurfaceLabel} local review surface · object Z unresolved`:crossSheetReviewSurfaceZ!==null?`${crossSheetReviewSurfaceLabel} cross-sheet review surface · object Z unresolved`:reviewSurfaceZ!==null?`${reviewSurfaceLabel} review surface · object Z unresolved`:'Review plane · physical Z unresolved'}</strong></div>
   </div>
+  {zSolution?.status==='CONFLICT'&&<div className="notice" role="status"><strong>Z CONFLICT · AUTO-PLACEMENT BLOCKED</strong><span>{zSolution.explanation}</span><ul style={{margin:'8px 0 0',paddingLeft:18}}>{zSolution.conflicts.map((conflict,index)=><li key={index}><small>{conflict.candidateA} vs {conflict.candidateB} · Δ {conflict.deltaMeters.toFixed(3)} m · threshold {conflict.toleranceMeters.toFixed(3)} m</small></li>)}</ul></div>}
   {zResolutionAuthority==='AFF_REFERENCE_UNSPECIFIED'&&!zReviewed&&<div className="notice" role="status"><strong>AFF HEIGHT FOUND · REFERENCE POINT REQUIRED</strong><span>STRATUM found an object-linked height above finished floor, but the drawing does not state whether that height is to the base, bottom, centerline, top, or mounting point. The height is preserved as evidence but is not converted into absolute equipment Z.</span></div>}
   {crossSheetReviewSurfaceZ!==null&&!zReviewed&&<div className="notice" role="status"><strong>CROSS-SHEET Z REVIEW SURFACE</strong><span>{crossSheetReviewSurfaceLabel} = {crossSheetReviewSurfaceZ.toFixed(3)} m via reviewed sheet alignment · confidence {Math.round(Number(selected.meta?.crossSheetReviewSurfaceConfidence||0)*100)}%. This remains coordination-derived design evidence, not field-verified physical elevation.</span></div>}
   {selected.kind==='imported-3d-model'&&<div className="notice" role="status"><strong>IMPORTED 3D GEOMETRY · REVIEW-SCALE</strong><span>This uploaded reference model is normalized to a component review envelope for Spatial presentation when its model-space units/dimensions are not trusted. Raw GLB bounds remain preserved in source details. Review-scale rendering does not establish OEM dimensions, installed elevation, asset identity or DIR state.</span></div>}
@@ -182,6 +185,15 @@ export default function SpatialAssetInspector({
     ?<AssetActivityPanel key={asset.id} assetId={asset.id} projectId={asset.project_id}/>
     :<div className="notice" style={{marginTop:12}}><strong>ACTIVITY UNAVAILABLE</strong><span>This asset summary is missing its project identifier. Reload the live asset registry before submitting activity.</span></div>}
 
+   {zSolution&&<details className="secondary-details z-solution-details">
+    <summary>Z solution evidence</summary>
+    <p className="muted">{zSolution.explanation}</p>
+    {zSolution.candidates.map(candidate=><div className="binding-panel" key={candidate.id} style={{marginTop:8}}>
+      <strong>{candidate.id.replaceAll('_',' ')} · {candidate.kind.replaceAll('_',' ')}</strong>
+      <small style={{display:'block',marginTop:4}}>Base {candidate.baseZ===null?'unresolved':candidate.baseZ.toFixed(3)+' m'} · {candidate.authority.replaceAll('_',' ')} · confidence {Math.round(candidate.confidence*100)}%</small>
+      <ol style={{margin:'8px 0 0',paddingLeft:18}}>{candidate.steps.map((step,index)=><li key={index}><small>{step.label}{step.valueMeters!==undefined?` · ${step.valueMeters.toFixed(3)} m`:''}{step.authority?` · ${step.authority.replaceAll('_',' ')}`:''}</small></li>)}</ol>
+    </div>)}
+   </details>}
    <details className="secondary-details">
     <summary>Asset binding</summary>
     <p className="muted">This is an explicit Spatial-to-registry relationship. Unlinking removes only the viewer binding; it does not delete the asset, lifecycle records, evidence or DIRs.</p>
@@ -222,6 +234,7 @@ export default function SpatialAssetInspector({
     {reviewSurfaceZ!==null&&<div><span>Datum authority</span><strong>{String(selected.meta?.reviewSurfaceAuthority||'SOURCE_PROJECT_DATUM').replaceAll('_',' ')}</strong></div>}
     {supportBaseOffset!==null&&<><div><span>Support base offset</span><strong>{supportBaseOffset.toFixed(3)} m · {String(selected.meta?.supportOffsetKind||'SUPPORT').replaceAll('_',' ')}</strong></div><div><span>Support offset authority</span><strong>{String(selected.meta?.supportOffsetAuthority||'SOURCE_SUPPORT_NOTE').replaceAll('_',' ')}</strong></div><div><span>Support offset confidence</span><strong>{Math.round(Number(selected.meta?.supportOffsetConfidence||0)*100)}%</strong></div></>}
     {Number.isFinite(Number(selected.meta?.zScaleGuideMetersPerSourceUnit))&&<div><span>XYZ unit guide</span><strong>{Number(selected.meta?.zScaleGuideMetersPerSourceUnit).toFixed(6)} m/source unit</strong></div>}
+    {zSolution&&<><div><span>Z solution</span><strong>{zSolution.status.replaceAll('_',' ')}</strong></div><div><span>Z chains compared</span><strong>{zSolution.candidates.length}</strong></div>{zSolution.chosenCandidateId&&<div><span>Chosen Z chain</span><strong>{zSolution.chosenCandidateId.replaceAll('_',' ')}</strong></div>}</>}
     {placement?.recommendation&&<div><span>Placement basis</span><strong>{placement.recommendation.kind.replaceAll('_',' ')}</strong></div>}
    </div>
    <details className="proof-details"><summary>Raw source details</summary><dl>{Object.entries(selected.meta||{}).filter(([key])=>key!=='embeddedGlb'&&(zReviewed||!/(?:^z$|^inferredZCandidate$)/i.test(key))).map(([key,value])=><div key={key}><dt>{key}</dt><dd style={{overflowWrap:'anywhere'}}>{typeof value==='object'?JSON.stringify(value):String(value)}</dd></div>)}</dl></details>
