@@ -579,6 +579,72 @@ test('Spatial restores the saved project among multiple tenant projects when bro
 });
 
 
+test('Spatial restores an authenticated Z review receipt with the exact server compilation',async({page})=>{
+ const projectId='30000000-0000-4000-8000-000000000010';
+ const compilationId='30000000-0000-4000-8000-000000000011';
+ const decisionId='30000000-0000-4000-8000-000000000012';
+ const source='E-301-Z-Conflict.pdf';
+ const graph={
+  version:'z-review-hydration-1',createdAt:'2026-09-30T14:40:00.000Z',reviewState:'REVIEW_REQUIRED',
+  sources:[{name:source,ext:'pdf',sha256:'e'.repeat(64),discipline:'Electrical / Civil',floor:'UNRESOLVED',elevation:0}],
+  entities:[{id:'server-xfmr-z',source,layer:'L2',kind:'text-asset-candidate',name:'SERVER PAD MOUNT TRANSFORMER',x:0,y:0,z:0,floor:'UNRESOLVED',confidence:.93,
+   meta:{assetDimensionAuthority:'SOURCE_SPEC',assetDimensionsMeters:[1.7,1.6,1.25],
+    localReviewSurfaceZ:30.48,localReviewSurfaceKind:'GRADE',localReviewSurfaceAuthority:'SOURCE_ELEVATION_TRIANGLE',localReviewSurfaceConfidence:.84,
+    supportBaseOffsetMeters:.1524,supportOffsetKind:'PAD',supportOffsetAuthority:'TAG_LINKED_SOURCE_SUPPORT_NOTE',supportOffsetConfidence:.94,
+    supportOffsetEvidenceLabel:'XFMR 6" CONC PAD',
+    zResolutionStatus:'RESOLVED_DESIGN_CANDIDATE',zCandidateMeters:31.1,zCandidateReferencePoint:'BASE',zResolutionConfidence:.9,zResolutionAuthority:'SOURCE_BASE_ELEVATION',
+    physicalElevationKnown:false,elevationKnown:false,physicalTruth:false,reviewRequired:true}}],
+  links:[],stats:{L0:0,L1:0,L2:1,L3:0,L4:0}
+ };
+ await page.route('**/api/spatial/compilations**',async route=>{
+  const url=new URL(route.request().url());
+  if(url.searchParams.get('projectId')){
+   await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
+    schemaReady:true,projects:[{id:projectId,project_code:'SV-Z-001',name:'Z Review Project'}],
+    latest:{id:compilationId,revision:12,graph_sha256:'f'.repeat(64),graph_json:graph}
+   })});
+  }else{
+   await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
+    schemaReady:true,projects:[{id:projectId,project_code:'SV-Z-001',name:'Z Review Project'}],restorableProjectId:projectId,latest:null
+   })});
+  }
+ });
+ await page.route('**/api/spatial/z-reviews**',async route=>{
+  const url=new URL(route.request().url());
+  expect(url.searchParams.get('projectId')).toBe(projectId);
+  expect(url.searchParams.get('compilationId')).toBe(compilationId);
+  await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
+   schemaReady:true,
+   decisions:[{
+    id:decisionId,project_id:projectId,compilation_id:compilationId,entity_id:'server-xfmr-z',
+    action:'ACCEPT_DESIGN_CHAIN',candidate_id:'support-chain',reason:'Use grade plus explicit pad for the coordination model.',
+    graph_sha256:'f'.repeat(64),decision_sha256:'a'.repeat(64),occurred_at:'2026-09-30T14:41:00.000Z'
+   }]
+  })});
+ });
+ await page.goto('/spatial');
+ await expect(page.getByRole('heading',{name:'Spatial model'})).toBeVisible();
+ await page.getByLabel('Imported object').selectOption('server-xfmr-z');
+ await expect(page.getByText(/HUMAN REVIEW PLACEMENT · PHYSICAL Z UNVERIFIED/)).toBeVisible();
+ await page.getByText('Placement & source confidence').click();
+ const details=page.locator('.placement-details');
+ await expect(details.getByText(/30\.632 m/)).toBeVisible();
+ await expect(details.getByText(/HUMAN REVIEWED DESIGN CANDIDATE/)).toBeVisible();
+ await expect.poll(()=>page.evaluate(()=>{
+  const g=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
+  const entity=(g.entities||[]).find((item:any)=>item.id==='server-xfmr-z');
+  return entity?.meta?{
+   authority:entity.meta.zReviewDecisionAuthority,
+   receipt:entity.meta.zReviewDecisionId,
+   candidate:entity.meta.zReviewDecisionCandidateId,
+   physical:entity.meta.physicalElevationKnown,
+   truth:entity.meta.physicalTruth
+  }:null;
+ })).toEqual({
+  authority:'SERVER_AUTHENTICATED_HUMAN_REVIEW',receipt:decisionId,candidate:'support-chain',physical:false,truth:false
+ });
+});
+
 test('Spatial keeps a restoring state while the latest server model is still loading',async({page})=>{
  const projectId='30000000-0000-4000-8000-000000000001';
  const source='M-201-Server-Pump.ifc';
