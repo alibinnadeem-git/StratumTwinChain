@@ -53,6 +53,16 @@ ok('historical priors do not leak across projects',()=>{
  assert.equal(historicalZPrior('disconnect',{projectId:'project-b',supportKind:'FINISHED_FLOOR'}),null);
 });
 
+ok('historical prior never mixes base and centerline reference semantics',()=>{
+ clearConfirmedZ();
+ const common={projectId:'project-mixed',componentKey:'disconnect',supportKind:'FINISHED_FLOOR',supportZMeters:0,inferenceMethod:'CLASS_MOUNTING_PRIOR',basis:['review'],sourceRefs:[]};
+ recordConfirmedZ({...common,entityId:'b1',offsetMeters:1,referencePoint:'BASE',absoluteReferenceZMeters:1,sourceInferenceId:'b1'});
+ recordConfirmedZ({...common,entityId:'b2',offsetMeters:1.1,referencePoint:'BASE',absoluteReferenceZMeters:1.1,sourceInferenceId:'b2'});
+ recordConfirmedZ({...common,entityId:'c1',offsetMeters:1.4,referencePoint:'CENTERLINE',absoluteReferenceZMeters:1.4,sourceInferenceId:'c1'});
+ recordConfirmedZ({...common,entityId:'c2',offsetMeters:1.5,referencePoint:'CENTERLINE',absoluteReferenceZMeters:1.5,sourceInferenceId:'c2'});
+ assert.equal(historicalZPrior('disconnect',{projectId:'project-mixed',supportKind:'FINISHED_FLOOR'}),null);
+});
+
 ok('history confidence is capped and penalized by dispersion',()=>{
  assert.ok(historicalZConfidence(20,0)<=.78);
  assert.ok(historicalZConfidence(5,.4)<historicalZConfidence(5,.01));
