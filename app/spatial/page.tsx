@@ -4,6 +4,7 @@ import SpatialReviewQueue from '@/components/SpatialReviewQueue';
 import SpatialWorkspaceStatus from '@/components/SpatialWorkspaceStatus';
 import SpatialAutoSync from '@/components/SpatialAutoSync';
 import SpatialServerHydrator from '@/components/SpatialServerHydrator';
+import ServerNewerBanner from '@/components/ServerNewerBanner';
 import PowerIntelligencePanel from '@/components/PowerIntelligencePanel';
 import CoordinationFindingsPanel from '@/components/CoordinationFindingsPanel';
 import TrustBadge from '@/components/TrustBadge';
@@ -43,6 +44,7 @@ export default async function SpatialPage(){
   <div className="page-head"><div><div className="eyebrow">Spatial</div><h1 className="title">See the project.</h1><p className="subtitle">The project model is the workspace. Click equipment for identity, field activity and DIR status; open review details only when something needs attention.</p></div><div className="badge">{session?(backendOnline?'MODEL · LIVE ASSETS':'MODEL · BROWSER'):'MODEL · SOURCE-ONLY'}</div></div>
 
   <SpatialWorkspaceStatus compact authenticated={Boolean(session)}/>
+  <ServerNewerBanner/>
 
   <SpatialExperience assets={assets} authenticated={Boolean(session)}/>
   <PowerIntelligencePanel/>
