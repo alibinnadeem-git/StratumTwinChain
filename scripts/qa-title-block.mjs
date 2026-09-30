@@ -66,6 +66,29 @@ ok('standalone inference remains review-only',standalone.reviewState==='CANDIDAT
 ok('NTS deliberately has no numeric scale denominator',drawingScaleDenominator('NTS')===null);
 ok('mixed architectural scale denominator is normalized',close(drawingScaleDenominator('1 1/2" = 1\'-0"'),8));
 
+ok('word-form architectural scale normalizes to denominator 120',drawingScaleDenominator('1 inch = 10 feet')===120&&drawingScaleDenominator('1 in = 10 ft')===120);
+
+const civilFraction=extractSheetIdentity({page:1,sourceName:'civil.pdf',sourceSha256:'e'.repeat(64),items:[
+ {text:'GRADING PLAN',x:.7,y:.86,width:.18,height:.04},
+ {text:'1/1',x:.88,y:.94,width:.05,height:.03},
+ {text:'SEE ARCHITECTURAL PLANS',x:.2,y:.45,width:.2,height:.02}
+]});
+ok('prefix-less civil sheet fraction resolves only in plausible title-block position',civilFraction.sheetNumber.value==='1/1'&&civilFraction.sheetNumber.method==='SHEET_FRACTION_STANDALONE');
+ok('civil title evidence beats cross-discipline keyed-note reference',civilFraction.discipline.value==='Civil');
+
+const prefixVsReference=extractSheetIdentity({page:1,sourceName:'civil-prefix.pdf',sourceSha256:'f'.repeat(64),items:[
+ {text:'C-1',x:.88,y:.94,width:.05,height:.03},
+ {text:'SITE PLAN',x:.72,y:.84,width:.16,height:.04},
+ {text:'SEE ARCHITECTURAL PLANS',x:.2,y:.45,width:.2,height:.02}
+]});
+ok('sheet prefix participates in weighted discipline evidence rather than fallback-only logic',prefixVsReference.discipline.value==='Civil');
+
+const detailFraction=extractSheetIdentity({page:1,sourceName:'notes.pdf',sourceSha256:'9'.repeat(64),items:[
+ {text:'GENERAL NOTES',x:.2,y:.2,width:.2,height:.03},
+ {text:'1/1',x:.25,y:.3,width:.04,height:.02}
+]});
+ok('body detail fraction is not promoted to sheet identity',detailFraction.sheetNumber.value===null);
+
 const compass=extractSheetGeometryEvidence({pageWidthPoints:2592,pageHeightPoints:1728,items:[
  {text:'N',x:.12,y:.08,width:.01,height:.01},
  {text:'S',x:.12,y:.20,width:.01,height:.01},
@@ -104,6 +127,8 @@ ok('title-block review surfaces metric scale and north-orientation candidates',c
 ok('PDF page dimensions are persisted only as normalization context',component.includes('pageWidthPoints:viewport.width')&&component.includes('pageHeightPoints:viewport.height'));
 ok('human confirmation keeps automatic alignment disabled',component.includes("alignmentEligible:false as const")&&component.includes('Automatic alignment and geometry scale remain disabled'));
 ok('human confirmation keeps parsed scale non-authoritative',component.includes("geometryScaleAuthority:false as const")&&component.includes('SCALE IS NOT GEOMETRY AUTHORITY'));
+ok('sheet identity may confirm with explicit gaps when number or title exists',component.includes('identityGaps')&&component.includes("item.sheetNumber.value||item.sheetTitle.value"));
+ok('human correction is available before publish and reopens review',component.includes('Correct extracted identity')&&component.includes('HUMAN_CORRECTED')&&component.includes("reviewState:'CANDIDATE'"));
 ok('component states confirmation does not establish trust',component.includes('confirmation never establishes geometry scale, alignment, Verified state, DIR finality or physical truth.'));
 ok('title-block component cannot call asset/lifecycle/chain mutation APIs',!/["'`]\/api\/(?:assets|lifecycle|chain|approvals)/.test(component));
 ok('server compilation schema preserves reviewed extension fields',persistence.includes('}).passthrough();'));
