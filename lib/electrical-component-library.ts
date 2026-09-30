@@ -18,7 +18,7 @@ export const ELECTRICAL_CATEGORIES=[
 
 export const ELECTRICAL_COMPONENTS:ElectricalComponent[]=[
  {key:'utility-transformer',name:'Utility Transformer',category:'Power Intake & Utility',aliases:['utility transformer','service transformer'],twinShape:'transformer',trackAsAsset:true},
- {key:'pad-mount-transformer',name:'Pad-Mount Transformer',category:'Power Intake & Utility',aliases:['pad mount transformer','pad-mounted transformer'],twinShape:'transformer',trackAsAsset:true},
+ {key:'pad-mount-transformer',name:'Pad-Mount Transformer',category:'Power Intake & Utility',aliases:['pad-mount transformer','pad mount transformer','pad-mounted transformer'],twinShape:'transformer',trackAsAsset:true},
  {key:'utility-switchgear',name:'Utility Switchgear',category:'Power Intake & Utility',aliases:['utility switchgear','service switchgear'],twinShape:'cabinet',trackAsAsset:true},
  {key:'metering-cabinet',name:'Metering Cabinet',category:'Power Intake & Utility',aliases:['metering cabinet','meter cabinet'],twinShape:'meter',trackAsAsset:true},
  {key:'service-entrance',name:'Service Entrance Equipment',category:'Power Intake & Utility',aliases:['service entrance','service equipment'],twinShape:'cabinet',trackAsAsset:true},
@@ -122,3 +122,35 @@ export function resolveElectricalComponent(name:string){
  const n=name.toLowerCase();
  return ELECTRICAL_COMPONENTS.find(c=>c.aliases.some(a=>aliasMatches(n,a)))||null;
 }
+
+
+/**
+ * External 3D-model research leads. These records are discovery metadata only:
+ * no entry is considered bundle-safe until license, redistribution, format and
+ * geometry QA are independently completed.
+ */
+export type ElectricalModelSourceRef={
+ label:string;
+ url:string;
+ access:'LINK_OUT_LOGIN'|'LINK_OUT_UNVERIFIED'|'CANDIDATE_CONVERTIBLE';
+ status:'DISCOVERED_NOT_LICENSE_CLEARED';
+ note:string;
+};
+export const ELECTRICAL_MODEL_SOURCE_REFS:Record<string,ElectricalModelSourceRef[]>={
+ 'fire-alarm':[
+  {label:'NOTIFIER NFS-320 FACP (BIMobject)',url:'https://www.bimobject.com/pt/notifier-by-honeywell-us/product/nst42533',access:'LINK_OUT_LOGIN',status:'DISCOVERED_NOT_LICENSE_CLEARED',note:'Exact OEM family lead. Account/license review required; do not bundle.'},
+  {label:'NOTIFIER NFS2-3030 panel (BIMobject)',url:'https://www.bimobject.com/en-us/notifier-by-honeywell-us/product/nst42535',access:'LINK_OUT_LOGIN',status:'DISCOVERED_NOT_LICENSE_CLEARED',note:'Exact OEM family lead. Account/license review required; do not bundle.'},
+ ],
+ panelboard:[{label:'Schneider Electric CAD/BIM resources',url:'https://www.se.com/us/en/work/support/resources-and-tools/cad-drawings/',access:'LINK_OUT_LOGIN',status:'DISCOVERED_NOT_LICENSE_CLEARED',note:'OEM portal lead; model-specific selection and redistribution review required.'}],
+ disconnect:[{label:'Schneider Electric CAD/BIM resources',url:'https://www.se.com/us/en/work/support/resources-and-tools/cad-drawings/',access:'LINK_OUT_LOGIN',status:'DISCOVERED_NOT_LICENSE_CLEARED',note:'OEM safety-switch portal lead; do not bundle without license review.'}],
+ 'fused-switch':[{label:'Schneider Electric CAD/BIM resources',url:'https://www.se.com/us/en/work/support/resources-and-tools/cad-drawings/',access:'LINK_OUT_LOGIN',status:'DISCOVERED_NOT_LICENSE_CLEARED',note:'OEM safety-switch portal lead; do not bundle without license review.'}],
+ 'main-switchboard':[
+  {label:'Schneider Electric CAD/BIM resources',url:'https://www.se.com/us/en/work/support/resources-and-tools/cad-drawings/',access:'LINK_OUT_LOGIN',status:'DISCOVERED_NOT_LICENSE_CLEARED',note:'OEM switchboard portal lead; model/license review required.'},
+  {label:'ABB BIM content (BIMobject)',url:'https://www.bimobject.com',access:'LINK_OUT_LOGIN',status:'DISCOVERED_NOT_LICENSE_CLEARED',note:'Discovery portal only; exact family and redistribution terms remain unresolved.'},
+ ],
+ 'lv-switchboard':[{label:'Schneider Electric CAD/BIM resources',url:'https://www.se.com/us/en/work/support/resources-and-tools/cad-drawings/',access:'LINK_OUT_LOGIN',status:'DISCOVERED_NOT_LICENSE_CLEARED',note:'OEM switchboard portal lead; model/license review required.'}],
+ mcc:[{label:'ABB / BIMobject discovery',url:'https://www.bimobject.com',access:'LINK_OUT_LOGIN',status:'DISCOVERED_NOT_LICENSE_CLEARED',note:'Discovery lead only. Exact MCC family and license remain unresolved.'}],
+ 'dry-transformer':[{label:'transformer_1885 DWG (cadblocksfree)',url:'https://www.cadblocksfree.com/en/free-3d-cad-models/transformer-3d-dwg-model.html',access:'CANDIDATE_CONVERTIBLE',status:'DISCOVERED_NOT_LICENSE_CLEARED',note:'Convertible DWG lead; redistribution rights must be confirmed before inclusion.'}],
+ 'pad-mount-transformer':[{label:'Bibliocad 100 kVA transformer DWG',url:'https://www.bibliocad.com/en/library/transformer_132190/',access:'LINK_OUT_UNVERIFIED',status:'DISCOVERED_NOT_LICENSE_CLEARED',note:'Discovery lead; login/license and exact applicability remain unresolved.'}],
+};
+export function modelSourceRefsFor(key:string):ElectricalModelSourceRef[]{return ELECTRICAL_MODEL_SOURCE_REFS[key]||[]}
