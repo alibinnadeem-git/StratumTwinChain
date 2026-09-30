@@ -6,6 +6,7 @@ const api=fs.readFileSync('app/api/spatial/z-reviews/route.ts','utf8');
 const inspector=fs.readFileSync('components/SpatialAssetInspector.tsx','utf8');
 const readiness=fs.readFileSync('lib/server/database-readiness.ts','utf8');
 const compilationApi=fs.readFileSync('app/api/spatial/compilations/route.ts','utf8');
+const hydrator=fs.readFileSync('components/SpatialServerHydrator.tsx','utf8');
 
 assert.match(migration,/CREATE TABLE IF NOT EXISTS spatial_z_review_decisions/);
 assert.match(migration,/organization_id uuid NOT NULL/);
@@ -24,6 +25,7 @@ assert.match(api,/buildZSolution\(rawPlacementEntity\(entity\)\)/);
 assert.match(api,/item\.absolute&&item\.baseZ!==null/);
 assert.match(api,/Stored entity does not currently contain a Z conflict requiring adjudication/);
 assert.match(api,/Requested Z chain is not an absolute candidate in the stored conflict/);
+assert.match(api,/Measured\/reviewed Z evidence cannot be overridden by design-chain adjudication/);
 assert.match(api,/domain:'STRATUM\/SPATIAL\/Z-REVIEW\/1'/);
 assert.match(api,/graphSha256:stored\.graph_sha256/);
 assert.match(api,/candidate_snapshot/);
@@ -49,5 +51,10 @@ assert.match(compilationApi,/Spatial Z review evidence changed after the authent
 assert.match(compilationApi,/zReviewEvidenceSnapshot/);
 assert.match(compilationApi,/canonicalHash\(currentSnapshot\.candidate\)/);
 assert.match(compilationApi,/canonicalHash\(currentSnapshot\.conflicts\)/);
+
+assert.match(hydrator,/\/api\/spatial\/z-reviews\?projectId=/);
+assert.match(hydrator,/overlayZReviewDecisions/);
+assert.match(hydrator,/SERVER_AUTHENTICATED_HUMAN_REVIEW/);
+assert.match(hydrator,/zReviewDecisionCount/);
 
 console.log('Spatial Z review provenance contract passed: authenticated project-scoped review events are append-only, recomputed from stored compilation evidence, hash-bound to the source graph, and cannot create physical truth, assets, lifecycle state, DIRs or PoVI finality.');
