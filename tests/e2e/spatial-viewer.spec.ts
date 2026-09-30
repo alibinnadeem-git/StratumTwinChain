@@ -269,7 +269,7 @@ test('DXF native units are retained while explicit design Z remains review-only'
  await imported.selectOption(panelValue!);
  await expect(page.getByText('SOURCE ORIGIN design Z reference · review required',{exact:true})).toBeVisible();
  await expect(page.getByText(/Z REFERENCE CANDIDATE · REVIEW REQUIRED/)).toBeVisible();
- await expect(page.getByText(/SOURCE DXF DESIGN Z/i)).toBeVisible();
+ await expect(page.locator('.placement-details').getByText(/SOURCE DXF DESIGN Z/i).first()).toBeVisible();
 });
 test('SLD becomes review-only spatial electrical hierarchy',async({page})=>{
  await page.goto('/spatial');
@@ -785,7 +785,7 @@ test('site asset uses local grade review surface without claiming physical Z',as
  await expect(page.getByText(/GRADE local review surface · object Z unresolved/i)).toBeVisible();
  await page.getByText('Placement & source confidence').click();
  await expect(page.locator('.placement-details').getByText(/30\.78 m grade local surface/i)).toBeVisible();
- await expect(page.getByText(/SOURCE ELEVATION TRIANGLE/i)).toBeVisible();
+ await expect(page.locator('.placement-details').getByText(/SOURCE ELEVATION TRIANGLE/i).first()).toBeVisible();
  await expect(page.getByText(/74%/).first()).toBeVisible();
 });
 
@@ -886,8 +886,9 @@ test('reviewed civil-to-electrical alignment transfers grade Z across sheets wit
  await expect(page.getByText(/coordination-derived design evidence, not field-verified physical elevation/i)).toBeVisible();
  await expect(page.getByText(/GRADE cross-sheet review surface · object Z unresolved/i)).toBeVisible();
  await page.getByText('Placement & source confidence').click();
- await expect(page.getByText(/Cross-sheet Z authority/)).toBeVisible();
- await expect(page.getByText(/HUMAN CONFIRMED ALIGNMENT PLUS SOURCE ELEVATION TRIANGLE/)).toBeVisible();
+ const placementDetails=page.locator('.placement-details');
+ await expect(placementDetails.getByText(/Cross-sheet Z authority/)).toBeVisible();
+ await expect(placementDetails.getByText(/HUMAN CONFIRMED ALIGNMENT PLUS SOURCE ELEVATION TRIANGLE/)).toBeVisible();
 });
 
 
