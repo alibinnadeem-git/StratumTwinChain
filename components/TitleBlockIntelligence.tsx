@@ -75,8 +75,16 @@ export default function TitleBlockIntelligence(){
           const prior=existing.get(keyOf(candidate));
           if(prior){
             const corrected=new Set(prior.correctedFields||[]);
-            const merged={...candidate};
-            for(const key of corrected)merged[key]=prior[key] as never;
+            const merged:StoredSheetIdentity={
+              ...candidate,
+              sheetNumber:corrected.has('sheetNumber')?prior.sheetNumber:candidate.sheetNumber,
+              sheetTitle:corrected.has('sheetTitle')?prior.sheetTitle:candidate.sheetTitle,
+              discipline:corrected.has('discipline')?prior.discipline:candidate.discipline,
+              drawingScale:corrected.has('drawingScale')?prior.drawingScale:candidate.drawingScale,
+              floor:corrected.has('floor')?prior.floor:candidate.floor,
+              revision:corrected.has('revision')?prior.revision:candidate.revision,
+              issueDate:corrected.has('issueDate')?prior.issueDate:candidate.issueDate,
+            };
             if(corrected.has('drawingScale')){
               const denominator=drawingScaleDenominator(merged.drawingScale.value);
               merged.scaleCalibration={...merged.scaleCalibration,denominator,metersPerNormalizedSheetUnit:declaredScaleMetersPerNormalizedSheetUnit(merged.drawingScale.value,merged.pageGeometry.maxDimensionPoints,merged.scaleCalibration.normalizedSheetSpan),method:'HUMAN_CORRECTED_SCALE_CANDIDATE',reviewRequired:true,autoApply:false,physicalPositionVerified:false};
