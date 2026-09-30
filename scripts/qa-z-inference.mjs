@@ -69,6 +69,11 @@ ok('history confidence is capped and penalized by dispersion',()=>{
 });
 
 ok('inference uses project-scoped reviewed history only when support is resolved',()=>{
+ clearConfirmedZ();
+ const base={projectId:'project-a',componentKey:'disconnect',supportKind:'FINISHED_FLOOR',supportZMeters:10,referencePoint:'MOUNTING_POINT',inferenceMethod:'CLASS_MOUNTING_PRIOR',basis:['review'],sourceRefs:[]};
+ recordConfirmedZ({...base,entityId:'d1',offsetMeters:1.2,absoluteReferenceZMeters:11.2,sourceInferenceId:'a'});
+ recordConfirmedZ({...base,entityId:'d2',offsetMeters:1.25,absoluteReferenceZMeters:11.25,sourceInferenceId:'b'});
+ recordConfirmedZ({...base,entityId:'d3',offsetMeters:1.3,absoluteReferenceZMeters:11.3,sourceInferenceId:'c'});
  const withHistory=inferEquipmentZ({name:'Safety Switch Disconnect',projectId:'project-a',meta:{reviewSurfaceZ:20,reviewSurfaceKind:'FINISHED_FLOOR',reviewSurfaceConfidence:.8}});
  assert.ok(withHistory.some(item=>item.method==='HISTORICAL_CLASS_PRIOR'));
  const withoutSupport=inferEquipmentZ({name:'Safety Switch Disconnect',projectId:'project-a',meta:{}});
