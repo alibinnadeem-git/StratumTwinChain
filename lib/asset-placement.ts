@@ -4,7 +4,7 @@ import type {ZReferencePoint} from './z-resolver.ts';
 
 export type PlacementEntity={name:string;floor?:string;z?:number;meta?:Record<string,unknown>};
 export type DimensionAuthority='SOURCE_SPEC'|'MODEL_REGISTRY'|'WEB_OEM_REFERENCE'|'STRATUM_NOMINAL';
-export type ZAuthority='MEASURED_OR_REVIEWED'|'SOURCE_DESIGN_CANDIDATE'|'SOURCE_SUPPORT_SURFACE_CANDIDATE'|'SUPPORT_SURFACE_PLUS_SOURCE_BASE_OFFSET'|'SUPPORT_SURFACE_PLUS_MOUNTING_GUIDANCE'|'RELATIVE_TO_REVIEW_PLANE'|'FLOOR_STANDING_PROFILE'|'HISTORICAL_RECOMMENDATION'|'FLOOR_LABEL_ONLY'|'UNRESOLVED';
+export type ZAuthority='MEASURED_OR_REVIEWED'|'SOURCE_DESIGN_CANDIDATE'|'SOURCE_SUPPORT_SURFACE_CANDIDATE'|'SUPPORT_SURFACE_PLUS_SOURCE_BASE_OFFSET'|'SUPPORT_SURFACE_PLUS_MOUNTING_GUIDANCE'|'RELATIVE_TO_REVIEW_PLANE'|'FLOOR_STANDING_PROFILE'|'HISTORICAL_RECOMMENDATION'|'H2_ACCEPTED_INFERRED_PREVIEW'|'FLOOR_LABEL_ONLY'|'UNRESOLVED';
 export type PlacementEvidenceClass='SOURCE_SPEC'|'OEM_INSTALLATION_GUIDANCE'|'CODE_CONSTRAINT'|'ACCESSIBILITY_GUIDANCE'|'DESIGN_GUIDE'|'TYPE_PROFILE'|'VISUALIZATION_HEURISTIC';
 export type PlacementRecommendation={kind:string;valueMeters?:number;rangeMeters?:[number,number];constraintMaxMeters?:number;source:string;sourceUrl?:string;evidenceClass:PlacementEvidenceClass;note:string};
 export type AssetPlacement={
@@ -156,6 +156,15 @@ export function resolveAssetPlacement(entity:PlacementEntity,registry?:Electrica
   if(base!==null)return{dimensions,baseZ:base,topZ:base+dimensions.height,zAuthority:'SOURCE_DESIGN_CANDIDATE',zConfidence:Number(entity.meta?.zResolutionConfidence||0),referenceZ:designCandidate.z,referencePoint:designCandidate.referencePoint,recommendation:{kind:`SOURCE_Z_REFERENCE_${designCandidate.referencePoint}`,valueMeters:designCandidate.z,source:String(entity.meta?.zResolutionAuthority||'Source Z evidence'),evidenceClass:'SOURCE_SPEC',note:designCandidate.referencePoint==='SOURCE_ORIGIN'?'Rendered from the source coordinate origin Z as a review anchor. This does not prove that the source origin equals the physical equipment base.':`Source Z refers to the equipment ${designCandidate.referencePoint.toLowerCase().replaceAll('_',' ')}; STRATUM converts that reference to model base Z using the current equipment height. This remains reviewable design evidence, not field-verified physical elevation.`},physicalTruth:false};
  }
  const sourceMounting=sourceMountingRecommendation(entity,surface,dimensions);if(sourceMounting)return sourceMounting;
+
+ // H2 accepted inference is a visualization-only placement and is considered
+ // only after stronger reviewed/source/reference/support evidence. It never
+ // changes entity.z and never becomes physical truth.
+ const previewBase=finite(entity.meta?.zPreviewBaseMeters);
+ if(previewBase!==null){
+  return{dimensions,baseZ:previewBase,topZ:previewBase+dimensions.height,zAuthority:'H2_ACCEPTED_INFERRED_PREVIEW',zConfidence:Math.max(0,Math.min(1,Number(entity.meta?.zPreviewConfidence||.5))),recommendation:{kind:'H2_ACCEPTED_INFERRED_Z_PREVIEW',valueMeters:previewBase,source:String(entity.meta?.zPreviewBasis||'Human-accepted inferred Z preview'),evidenceClass:'VISUALIZATION_HEURISTIC',note:'H2 coordination preview only. The authoritative entity Z remains unchanged, and the placement remains AI inferred, unverified, review-required and physicalTruth:false.'},physicalTruth:false};
+ }
+
  const key=component?.key||'';
 
  if(component?.twinShape==='evse'){
