@@ -185,15 +185,6 @@ export default function SpatialAssetInspector({
     ?<AssetActivityPanel key={asset.id} assetId={asset.id} projectId={asset.project_id}/>
     :<div className="notice" style={{marginTop:12}}><strong>ACTIVITY UNAVAILABLE</strong><span>This asset summary is missing its project identifier. Reload the live asset registry before submitting activity.</span></div>}
 
-   {zSolution&&<details className="secondary-details z-solution-details">
-    <summary>Z solution evidence</summary>
-    <p className="muted">{zSolution.explanation}</p>
-    {zSolution.candidates.map(candidate=><div className="binding-panel" key={candidate.id} style={{marginTop:8}}>
-      <strong>{candidate.id.replaceAll('_',' ')} · {candidate.kind.replaceAll('_',' ')}</strong>
-      <small style={{display:'block',marginTop:4}}>Base {candidate.baseZ===null?'unresolved':candidate.baseZ.toFixed(3)+' m'} · {candidate.authority.replaceAll('_',' ')} · confidence {Math.round(candidate.confidence*100)}%</small>
-      <ol style={{margin:'8px 0 0',paddingLeft:18}}>{candidate.steps.map((step,index)=><li key={index}><small>{step.label}{step.valueMeters!==undefined?` · ${step.valueMeters.toFixed(3)} m`:''}{step.authority?` · ${step.authority.replaceAll('_',' ')}`:''}</small></li>)}</ol>
-    </div>)}
-   </details>}
    <details className="secondary-details">
     <summary>Asset binding</summary>
     <p className="muted">This is an explicit Spatial-to-registry relationship. Unlinking removes only the viewer binding; it does not delete the asset, lifecycle records, evidence or DIRs.</p>
@@ -239,6 +230,15 @@ export default function SpatialAssetInspector({
    </div>
    <details className="proof-details"><summary>Raw source details</summary><dl>{Object.entries(selected.meta||{}).filter(([key])=>key!=='embeddedGlb'&&(zReviewed||!/(?:^z$|^inferredZCandidate$)/i.test(key))).map(([key,value])=><div key={key}><dt>{key}</dt><dd style={{overflowWrap:'anywhere'}}>{typeof value==='object'?JSON.stringify(value):String(value)}</dd></div>)}</dl></details>
   </details>
+  {zSolution&&<details className="secondary-details z-solution-details">
+   <summary>Z solution evidence</summary>
+   <p className="muted">{zSolution.explanation}</p>
+   {zSolution.candidates.map(candidate=><div className="binding-panel" key={candidate.id} style={{marginTop:8}}>
+    <strong>{candidate.id.replaceAll('_',' ')} · {candidate.kind.replaceAll('_',' ')}</strong>
+    <small style={{display:'block',marginTop:4}}>Base {candidate.baseZ===null?'unresolved':candidate.baseZ.toFixed(3)+' m'} · {candidate.authority.replaceAll('_',' ')} · confidence {Math.round(candidate.confidence*100)}%</small>
+    <ol style={{margin:'8px 0 0',paddingLeft:18}}>{candidate.steps.map((step,index)=><li key={index}><small>{step.label}{step.valueMeters!==undefined?` · ${step.valueMeters.toFixed(3)} m`:''}{step.authority?` · ${step.authority.replaceAll('_',' ')}`:''}</small></li>)}</ol>
+   </div>)}
+  </details>}
   {message&&<p role="status" className="muted">{message}</p>}
  </div>;
 }
