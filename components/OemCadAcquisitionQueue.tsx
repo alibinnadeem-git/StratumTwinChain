@@ -1,20 +1,57 @@
 'use client';
 
-import {useMemo,useState} from 'react';
+import {useEffect,useMemo,useState} from 'react';
 import {OEM_CAD_CANDIDATES,type OemCadCandidate} from '@/lib/oem-cad-candidates';
 import {oemCadReadiness,oemCadStageLabel} from '@/lib/oem-cad-readiness';
 import {ELECTRICAL_COMPONENTS} from '@/lib/electrical-component-library';
 import {OEM_SOURCES} from '@/lib/oem-source-catalog';
 import styles from './OemCadAcquisitionQueue.module.css';
 
+type VerificationRecord={
+ candidate_id:string;revision:string|null;source_file_name:string;source_sha256:string;reuse_terms:string;verified_at:string;verification_status:'FILE_VERIFIED';
+};
+
 const stages:OemCadCandidate['status'][]=['SOURCE_IDENTIFIED','CAD_DOWNLOAD_IDENTIFIED','FILE_VERIFIED','GLB_APPROVED'];
+const VERIFICATION_EVENT='stratum:oem-cad-verification-updated';
 
 export default function OemCadAcquisitionQueue(){
  const [query,setQuery]=useState('');
  const [stage,setStage]=useState<'ALL'|OemCadCandidate['status']>('ALL');
+ const [verifications,setVerifications]=useState<VerificationRecord[]>([]);
  const components=useMemo(()=>new Map(ELECTRICAL_COMPONENTS.map(item=>[item.key,item.name])),[]);
  const sources=useMemo(()=>new Map(OEM_SOURCES.map(item=>[item.id,item])),[]);
- const items=useMemo(()=>OEM_CAD_CANDIDATES.map(candidate=>({candidate,readiness:oemCadReadiness(candidate)})),[]);
+ useEffect(()=>{
+  let active=true;
+  const refresh=async()=>{
+   try{
+    const response=await fetch('/api/oem/cad-verifications',{cache:'no-store'});
+    if(response.status===401||response.status===403){if(active)setVerifications([]);return}
+    if(!response.ok)return;
+    const body=await response.json().catch(()=>({}));
+    if(active)setVerifications(Array.isArray(body.records)?body.records:[]);
+   }catch{/* Static acquisition registry remains available when tenant verification is unavailable. */}
+  };
+  const onUpdate=()=>{void refresh()};
+  void refresh();
+  window.addEventListener(VERIFICATION_EVENT,onUpdate);
+  return()=>{active=false;window.removeEventListener(VERIFICATION_EVENT,onUpdate)};
+ },[]);
+ const latestVerification=useMemo(()=>{
+  const map=new Map<string,VerificationRecord>();
+  for(const record of verifications)if(!map.has(record.candidate_id))map.set(record.candidate_id,record);
+  return map;
+ },[verifications]);
+ const items=useMemo(()=>OEM_CAD_CANDIDATES.map(candidate=>{
+  const verification=latestVerification.get(candidate.id);
+  const effectiveCandidate:OemCadCandidate=candidate.status==='GLB_APPROVED'||!verification?candidate:{
+   ...candidate,
+   status:'FILE_VERIFIED',
+   sourceSha256:verification.source_sha256,
+   reuseTerms:verification.reuse_terms,
+   verifiedAt:verification.verified_at,
+  };
+  return{candidate:effectiveCandidate,staticCandidate:candidate,verification,readiness:oemCadReadiness(effectiveCandidate)};
+ }),[latestVerification]);
  const visible=useMemo(()=>items.filter(({candidate})=>(stage==='ALL'||candidate.status===stage)&&`${candidate.manufacturer} ${candidate.sku} ${candidate.product} ${components.get(candidate.componentKey)||candidate.componentKey}`.toLowerCase().includes(query.trim().toLowerCase())),[items,stage,query,components]);
  const counts=useMemo(()=>({
   total:items.length,
@@ -44,7 +81,7 @@ export default function OemCadAcquisitionQueue(){
    <label>Acquisition stage<select aria-label="Filter OEM CAD acquisition stage" value={stage} onChange={event=>setStage(event.target.value as typeof stage)}><option value="ALL">All stages</option>{stages.map(value=><option key={value} value={value}>{oemCadStageLabel(value)}</option>)}</select></label>
   </div>
 
-  <div className={styles.list}>{visible.map(({candidate,readiness})=>{
+  <div className={styles.list}>{visible.map(({candidate,readiness,verification})=>{
    const source=sources.get(candidate.sourceId);
    const className=components.get(candidate.componentKey)||candidate.componentKey;
    return <article className={styles.card} key={candidate.id}>
@@ -64,6 +101,7 @@ export default function OemCadAcquisitionQueue(){
      <div><h4>{readiness.blockers.length?'Activation blockers':'Activation gate'}</h4>{readiness.blockers.length?<ul className={styles.blockers}>{readiness.blockers.map(item=><li key={item}>{item}</li>)}</ul>:<p className={styles.ready}>Required provenance gates are complete.</p>}</div>
     </div>
     <div className={styles.next}><b>Next controlled action</b><span>{readiness.nextAction}</span></div>
+    {verification&&candidate.status==='FILE_VERIFIED'&&<div className={styles.next}><b>Tenant verification</b><span>{verification.source_file_name}{verification.revision?' · revision '+verification.revision:''} · SHA-256 {verification.source_sha256} · verified {new Date(verification.verified_at).toLocaleString()}</span></div>}
     <details><summary>Acquisition notes</summary><p>{candidate.notes}</p>{candidate.reuseTerms&&<p><b>Reuse terms:</b> {candidate.reuseTerms}</p>}{candidate.sourceSha256&&<p><b>Source SHA-256:</b> <code>{candidate.sourceSha256}</code></p>}{candidate.modelSha256&&<p><b>Model SHA-256:</b> <code>{candidate.modelSha256}</code></p>}</details>
     <div className={styles.actions}>
      <a href={candidate.productUrl} target="_blank" rel="noopener noreferrer">Official product ↗</a>
