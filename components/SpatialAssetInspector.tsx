@@ -130,7 +130,7 @@ export default function SpatialAssetInspector({
    let updated:InspectorEntity|null=null;
    graph.entities=(graph.entities as InspectorEntity[]).map((entity:InspectorEntity)=>{
     if(entity.id!==selected.id)return entity;
-    const meta={...(entity.meta||{}),
+    const meta:Record<string,unknown>={...(entity.meta||{}),
       zReviewDecision:'H2_ACCEPTED_INFERENCE',zReviewDecisionAt:acceptedAt,zReviewInferenceId:inference.id,
       zReviewMethod:inference.method,zReviewReferencePoint:inference.referencePoint,
       zReviewOffsetMeters:inference.offsetMeters,zReviewAbsoluteReferenceMeters:inference.absoluteReferenceZMeters,
@@ -149,7 +149,7 @@ export default function SpatialAssetInspector({
    await replaceCurrentSpatialGraph(graph);
    if(updated)onEntityUpdated?.(updated);
    if(projectId&&component?.key&&inference.support&&inference.offsetMeters!==null&&inference.absoluteReferenceZMeters!==null){
-    recordConfirmedZ({projectId,entityId:selected.id,componentKey:component.key,supportKind:inference.support.kind,supportZMeters:inference.support.zMeters,offsetMeters:inference.offsetMeters,referencePoint:inference.referencePoint,absoluteReferenceZMeters:inference.absoluteReferenceZMeters,inferenceMethod:inference.method,sourceInferenceId:inference.id,basis:inference.basis,sourceRefs:inference.sourceRefs});
+    recordAcceptedZInference({projectId,entityId:selected.id,componentKey:component.key,supportKind:inference.support.kind,supportZMeters:inference.support.zMeters,offsetMeters:inference.offsetMeters,referencePoint:inference.referencePoint,absoluteReferenceZMeters:inference.absoluteReferenceZMeters,inferenceMethod:inference.method,sourceInferenceId:inference.id,basis:inference.basis,sourceRefs:inference.sourceRefs});
    }
    setMessage(inference.absoluteReferenceZMeters===null
     ?`Accepted ${inference.offsetMeters?.toFixed(2)??'unresolved'} m relative mounting evidence for H2 coordination review. No absolute project Z was created.`
