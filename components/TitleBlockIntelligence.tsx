@@ -54,7 +54,7 @@ async function inspectPdf(file:File,onProgress:(label:string)=>void):Promise<Sto
   return out;
 }
 
-export default function TitleBlockIntelligence(){
+export default function TitleBlockIntelligence({authenticated=false}:{authenticated?:boolean}){
   const [items,setItems]=useState<StoredSheetIdentity[]>([]);
   const [busy,setBusy]=useState(false);
   const [message,setMessage]=useState('');
@@ -133,6 +133,7 @@ export default function TitleBlockIntelligence(){
   }
 
   async function updateReview(target:StoredSheetIdentity,confirmedState:boolean){
+    if(confirmedState&&!authenticated){setMessage('Sign in before recording an H2 sheet-identity confirmation. Draft corrections remain available locally.');return;}
     const gaps=confirmedState?identityGaps(target):[];
     const next=items.map(item=>keyOf(item)===keyOf(target)?{...item,reviewState:confirmedState?'CONFIRMED':'CANDIDATE',confirmedAt:confirmedState?new Date().toISOString():undefined,identityGaps:confirmedState?gaps:[],alignmentEligible:false as const,geometryScaleAuthority:false as const}:item) as StoredSheetIdentity[];
     setItems(next);await writeStored(next);
@@ -155,11 +156,11 @@ export default function TitleBlockIntelligence(){
       <details className="secondary-details" style={{marginTop:8}}>
        <summary>Correct extracted identity</summary>
        <div className="grid two" style={{marginTop:8}}>
-        {([['sheetNumber','Sheet number'],['sheetTitle','Sheet title'],['discipline','Discipline'],['drawingScale','Drawing scale'],['floor','Floor / level'],['revision','Revision'],['issueDate','Issue date']] as [EditableIdentityField,string][]).map(([key,label])=><label key={key}><span>{label}</span><input value={(item[key] as SheetField).value||''} onChange={event=>void correctField(item,key,event.target.value)}/></label>)}
+        {([['sheetNumber','Sheet number'],['sheetTitle','Sheet title'],['discipline','Discipline'],['drawingScale','Drawing scale'],['floor','Floor / level'],['revision','Revision'],['issueDate','Issue date']] as [EditableIdentityField,string][]).map(([key,label])=><label key={key}><span>{label}</span><input defaultValue={(item[key] as SheetField).value||''} onBlur={event=>{if(event.target.value.trim()!==((item[key] as SheetField).value||''))void correctField(item,key,event.target.value)}}/></label>)}
        </div>
        <small className="muted">A correction is human review evidence, not physical verification. Any correction reopens identity review.</small>
       </details>
-      <div className="button-row">{item.reviewState==='CONFIRMED'?<button type="button" onClick={()=>void updateReview(item,false)}>Reopen identity review</button>:<button type="button" onClick={()=>void updateReview(item,true)} disabled={!(item.sheetNumber.value||item.sheetTitle.value)} title={item.sheetNumber.value||item.sheetTitle.value?'Confirm identity; unresolved fields remain explicit gaps':'A sheet number or title is required before confirmation'}>Confirm sheet identity</button>}</div>
+      <div className="button-row">{item.reviewState==='CONFIRMED'?<button type="button" onClick={()=>void updateReview(item,false)}>Reopen identity review</button>:<button type="button" onClick={()=>void updateReview(item,true)} disabled={!authenticated||!(item.sheetNumber.value||item.sheetTitle.value)} title={!authenticated?'Sign in to record an H2 sheet-identity confirmation':item.sheetNumber.value||item.sheetTitle.value?'Confirm identity; unresolved fields remain explicit gaps':'A sheet number or title is required before confirmation'}>Confirm sheet identity</button>}</div>
       {item.reviewState==='CONFIRMED'&&item.identityGaps&&item.identityGaps.length>0&&<p className="muted" style={{marginTop:6,marginBottom:0}}><strong>Confirmed with gaps:</strong> {item.identityGaps.join(', ')} unresolved — excluded from alignment eligibility and geometry authority.</p>}
     </article>)}</div>}
   </section>;
