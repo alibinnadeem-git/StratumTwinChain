@@ -98,6 +98,6 @@ assert.match(inspector,/Source Z reference/);
 
 const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
 assert.match(viewer,/Z REFERENCE CANDIDATE · REVIEW REQUIRED/);
-assert.match(viewer,/resolveAssetPlacement\(\{name:e\.name,floor:e\.floor,z:e\.z,meta:e\.meta\}/);
+assert.match(viewer,/resolveReconciledAssetPlacement\(\{name:e\.name,floor:e\.floor,z:e\.z,meta:e\.meta\}/);
 
 console.log('Vertical Z reference semantics passed: unspecified AFF fails closed; base/bottom/centerline/top/mounting-point/source-origin references remain distinct and convert to reviewable equipment base Z without claiming physical truth.');

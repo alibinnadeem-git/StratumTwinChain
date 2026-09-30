@@ -269,7 +269,8 @@ test('DXF native units are retained while explicit design Z remains review-only'
  await imported.selectOption(panelValue!);
  await expect(page.getByText('SOURCE ORIGIN design Z reference · review required',{exact:true})).toBeVisible();
  await expect(page.getByText(/Z REFERENCE CANDIDATE · REVIEW REQUIRED/)).toBeVisible();
- await expect(page.getByText(/SOURCE DXF DESIGN Z/i)).toBeVisible();
+ await page.getByText('Z solution evidence').click();
+ await expect(page.locator('.z-solution-details').getByText(/SOURCE DXF DESIGN Z/i).first()).toBeVisible();
 });
 test('SLD becomes review-only spatial electrical hierarchy',async({page})=>{
  await page.goto('/spatial');
@@ -785,7 +786,7 @@ test('site asset uses local grade review surface without claiming physical Z',as
  await expect(page.getByText(/GRADE local review surface · object Z unresolved/i)).toBeVisible();
  await page.getByText('Placement & source confidence').click();
  await expect(page.locator('.placement-details').getByText(/30\.78 m grade local surface/i)).toBeVisible();
- await expect(page.getByText(/SOURCE ELEVATION TRIANGLE/i)).toBeVisible();
+ await expect(page.locator('.placement-details').getByText(/SOURCE ELEVATION TRIANGLE/i).first()).toBeVisible();
  await expect(page.getByText(/74%/).first()).toBeVisible();
 });
 
@@ -886,8 +887,9 @@ test('reviewed civil-to-electrical alignment transfers grade Z across sheets wit
  await expect(page.getByText(/coordination-derived design evidence, not field-verified physical elevation/i)).toBeVisible();
  await expect(page.getByText(/GRADE cross-sheet review surface · object Z unresolved/i)).toBeVisible();
  await page.getByText('Placement & source confidence').click();
- await expect(page.getByText(/Cross-sheet Z authority/)).toBeVisible();
- await expect(page.getByText(/HUMAN CONFIRMED ALIGNMENT PLUS SOURCE ELEVATION TRIANGLE/)).toBeVisible();
+ const placementDetails=page.locator('.placement-details');
+ await expect(placementDetails.getByText(/Cross-sheet Z authority/)).toBeVisible();
+ await expect(placementDetails.getByText(/HUMAN CONFIRMED ALIGNMENT PLUS SOURCE ELEVATION TRIANGLE/)).toBeVisible();
 });
 
 
@@ -953,4 +955,45 @@ test('vertical Z reference semantics convert centerline to equipment base and ke
  await expect(page.getByRole('heading',{name:'PANEL LP-3'})).toBeVisible();
  await expect(page.getByText(/AFF HEIGHT FOUND · REFERENCE POINT REQUIRED/)).toBeVisible();
  await expect(page.getByText(/does not state whether that height is to the base, bottom, centerline, top, or mounting point/i)).toBeVisible();
+});
+
+
+test('conflicting absolute Z chains block auto-placement and expose both evidence paths',async({page})=>{
+ const source='Synthetic Z Conflict Plan.pdf';
+ const graph={
+  version:'z-conflict-browser-1',createdAt:'2026-09-29T10:40:00.000Z',reviewState:'REVIEW_REQUIRED',
+  sources:[{name:source,ext:'pdf',sha256:'z'.repeat(64),discipline:'Electrical / Civil',floor:'UNRESOLVED',elevation:0}],
+  entities:[
+   {id:'xfmr-z-conflict',source,layer:'L2',kind:'text-asset-candidate',name:'PAD MOUNT TRANSFORMER T1',x:0,y:0,z:0,floor:'UNRESOLVED',confidence:.93,
+    meta:{
+      page:1,
+      assetDimensionAuthority:'SOURCE_SPEC',assetDimensionsMeters:[1.7,1.6,1.25],
+      localReviewSurfaceZ:30.48,localReviewSurfaceKind:'GRADE',localReviewSurfaceAuthority:'SOURCE_ELEVATION_TRIANGLE',localReviewSurfaceConfidence:.84,
+      supportBaseOffsetMeters:.1524,supportOffsetKind:'PAD',supportOffsetAuthority:'TAG_LINKED_SOURCE_SUPPORT_NOTE',supportOffsetConfidence:.94,
+      supportOffsetEvidenceLabel:'XFMR T1 6" CONC PAD',
+      zResolutionStatus:'RESOLVED_DESIGN_CANDIDATE',zCandidateMeters:31.1,zCandidateReferencePoint:'BASE',zResolutionConfidence:.9,zResolutionAuthority:'SOURCE_BASE_ELEVATION',
+      physicalElevationKnown:false,elevationKnown:false,physicalTruth:false,reviewRequired:true
+    }}
+  ],
+  links:[],stats:{L0:0,L1:0,L2:1,L3:0,L4:0}
+ };
+ await page.addInitScript(value=>localStorage.setItem('stratum_compiled_graph',JSON.stringify(value)),graph);
+ await page.goto('/spatial');
+ const select=page.getByLabel('Imported object');
+ await expect(select.locator('option').filter({hasText:'PAD MOUNT TRANSFORMER T1'})).toHaveCount(1);
+ await select.selectOption('xfmr-z-conflict');
+ await expect(page.getByRole('heading',{name:'PAD MOUNT TRANSFORMER T1'})).toBeVisible();
+ await expect(page.getByText('Z CONFLICT · review required',{exact:true})).toBeVisible();
+ await expect(page.getByText(/Z CONFLICT · AUTO-PLACEMENT BLOCKED/)).toBeVisible();
+ await expect(page.getByText(/Independent absolute-Z chains disagree/i)).toBeVisible();
+ await page.getByText('Placement & source confidence').click();
+ const details=page.locator('.placement-details');
+ await expect(details.getByText('30.480 m',{exact:false})).toBeVisible();
+ const facts=details.locator('.passport-facts > div');
+ await expect(facts.filter({hasText:'Placement authority'}).getByText('UNRESOLVED',{exact:true})).toBeVisible();
+ await expect(facts.filter({hasText:'Z solution'}).getByText('CONFLICT',{exact:true})).toBeVisible();
+ await expect(facts.filter({hasText:'Z chains compared'}).locator('strong')).toHaveText(/^[2-9]\d*$/);
+ await page.getByText('Z solution evidence').click();
+ await expect(page.getByText(/source reference/i).first()).toBeVisible();
+ await expect(page.getByText(/support surface plus offset/i).first()).toBeVisible();
 });
