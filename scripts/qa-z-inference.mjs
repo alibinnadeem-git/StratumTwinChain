@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import {inferEquipmentZ,inferenceMethodLabel} from '../lib/z-inference.ts';
 import {clearAcceptedZInferenceHistory,historicalZConfidence,historicalZPrior,recordAcceptedZInference} from '../lib/z-history.ts';
 
@@ -89,6 +90,17 @@ ok('all proposals remain inferred and non-physical',()=>{
 ok('method labels communicate reviewed history and OEM boundaries',()=>{
  assert.ok(inferenceMethodLabel('HISTORICAL_CLASS_PRIOR').includes('Reviewed'));
  assert.ok(inferenceMethodLabel('OEM_MOUNTING_REFERENCE').includes('OEM'));
+});
+
+ok('H2 inferred-Z acceptance is authenticated and source conflicts block it',()=>{
+ const inspector=fs.readFileSync(new URL('../components/SpatialAssetInspector.tsx',import.meta.url),'utf8');
+ const experience=fs.readFileSync(new URL('../components/SpatialExperience.tsx',import.meta.url),'utf8');
+ const viewer=fs.readFileSync(new URL('../components/CompiledGraphViewer.tsx',import.meta.url),'utf8');
+ assert.ok(inspector.includes('if(!authenticated)'));
+ assert.ok(inspector.includes("zSolution?.status==='CONFLICT'"));
+ assert.ok(inspector.includes('disabled={!authenticated||'));
+ assert.ok(experience.includes('authenticated={authenticated}'));
+ assert.ok(viewer.includes('authenticated={authenticated}'));
 });
 
 console.log(`\n${passed} Z inference safety checks passed`);
