@@ -121,7 +121,8 @@ ok('unresolved page remains review-only',unresolved.reviewRequired===true&&unres
 const component=read('components/TitleBlockIntelligence.tsx');
 const page=read('app/compiler/page.tsx');
 const persistence=read('app/api/spatial/compilations/route.ts');
-ok('compiler mounts title-block review before server persistence',page.indexOf('<TitleBlockIntelligence/>')>-1&&page.indexOf('<TitleBlockIntelligence/>')<page.indexOf('<SpatialCompilationPersistence/>'));
+ok('compiler mounts title-block review before server persistence',page.indexOf('<TitleBlockIntelligence authenticated={Boolean(session)}/>')>-1&&page.indexOf('<TitleBlockIntelligence authenticated={Boolean(session)}/>')<page.indexOf('<SpatialCompilationPersistence/>'));
+ok('H2 sheet-identity confirmation requires an authenticated session',component.includes('authenticated=false')&&component.includes('if(confirmedState&&!authenticated)')&&component.includes("disabled={!authenticated||!(item.sheetNumber.value||item.sheetTitle.value)}"));
 ok('reviewed title blocks are embedded in the compiled graph artifact',component.includes('graph.titleBlocks=next'));
 ok('title-block review surfaces metric scale and north-orientation candidates',component.includes('North / orientation evidence')&&component.includes('m / normalized sheet unit'));
 ok('PDF page dimensions are persisted only as normalization context',component.includes('pageWidthPoints:viewport.width')&&component.includes('pageHeightPoints:viewport.height'));
