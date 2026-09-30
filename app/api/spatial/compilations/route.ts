@@ -7,6 +7,7 @@ import {createHash} from 'node:crypto';
 import {inspectStandaloneGlb,MAX_EMBEDDED_GLB_BYTES} from '@/lib/spatial-glb-import';
 import {parsePowerIntelligence,persistPowerIntelligence} from '@/lib/server/power-intelligence-persistence';
 import {parseCoordination,persistCoordination} from '@/lib/server/coordination-persistence';
+import {buildZSolution} from '@/lib/z-solution-chain';
 
 const Sha=z.string().regex(/^[a-f0-9]{64}$/i).transform(value=>value.toLowerCase());
 const Point=z.object({x:z.number().finite(),y:z.number().finite()});
@@ -62,6 +63,25 @@ async function schemaReady(){
 
 function status(error:unknown,otherwise=400){
   return typeof error==='object'&&error&&'status' in error?Number((error as {status?:number}).status)||otherwise:otherwise;
+}
+
+function rawZReviewEntity(entity:any){
+  const meta={...(entity?.meta||{})};
+  for(const key of Object.keys(meta))if(key.startsWith('zReviewDecision'))delete meta[key];
+  return{name:String(entity?.name||''),floor:entity?.floor,z:entity?.z,meta};
+}
+
+function zReviewEvidenceSnapshot(entity:any,candidateId:string){
+  const solution=buildZSolution(rawZReviewEntity(entity));
+  const candidate=solution.candidates.find(item=>item.id===candidateId&&item.absolute&&item.baseZ!==null)||null;
+  if(!candidate||!solution.conflicts.length)return null;
+  return{
+    candidate:{
+      id:candidate.id,kind:candidate.kind,baseZ:candidate.baseZ,topZ:candidate.topZ,confidence:candidate.confidence,
+      authority:candidate.authority,absolute:candidate.absolute,steps:candidate.steps,note:candidate.note
+    },
+    conflicts:solution.conflicts
+  };
 }
 
 export async function GET(req:Request){
@@ -140,8 +160,8 @@ export async function POST(req:Request){
         const readiness=await client.query<{ready:boolean}>(`SELECT to_regclass('public.spatial_z_review_decisions') IS NOT NULL ready`);
         if(!readiness.rows[0]?.ready)throw Object.assign(new Error('Spatial Z review persistence schema is not ready'),{status:503});
         const receiptIds=zReviewClaims.map(claim=>claim.decisionId);
-        const receipts=await client.query<{id:string;entity_id:string;candidate_id:string;compilation_id:string;graph_sha256:string}>(`SELECT
-          id::text,entity_id,candidate_id,compilation_id::text,graph_sha256
+        const receipts=await client.query<{id:string;entity_id:string;candidate_id:string;compilation_id:string;graph_sha256:string;candidate_snapshot:any;conflict_snapshot:any}>(`SELECT
+          id::text,entity_id,candidate_id,compilation_id::text,graph_sha256,candidate_snapshot,conflict_snapshot
           FROM spatial_z_review_decisions
           WHERE organization_id=$1 AND project_id=$2 AND action='ACCEPT_DESIGN_CHAIN' AND id=ANY($3::uuid[])`,[
             session.organizationId,body.projectId,receiptIds
@@ -151,6 +171,12 @@ export async function POST(req:Request){
           const receipt=receiptById.get(claim.decisionId);
           if(!receipt||receipt.entity_id!==claim.entityId||receipt.candidate_id!==claim.candidateId||receipt.compilation_id!==claim.compilationId||receipt.graph_sha256!==claim.sourceGraphSha256)
             throw Object.assign(new Error('Spatial Z review receipt does not match the persisted server decision'),{status:409});
+          const currentEntity=graph.entities.find(entity=>entity.id===claim.entityId);
+          const currentSnapshot=currentEntity?zReviewEvidenceSnapshot(currentEntity,claim.candidateId):null;
+          if(!currentSnapshot
+            ||canonicalHash(currentSnapshot.candidate)!==canonicalHash(receipt.candidate_snapshot)
+            ||canonicalHash(currentSnapshot.conflicts)!==canonicalHash(receipt.conflict_snapshot))
+            throw Object.assign(new Error('Spatial Z review evidence changed after the authenticated decision; review again before sync'),{status:409});
         }
       }
       const duplicate=await client.query<any>(`SELECT id::text,revision,graph_sha256,created_at FROM spatial_compilations
