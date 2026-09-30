@@ -117,12 +117,42 @@ export async function POST(req:Request){
     const sourceNames=new Set(graph.sources.map(source=>source.name));
     const powerPayload=parsePowerIntelligence((graph as Record<string,unknown>).powerIntelligence,entityIds);
     const coordinationPayload=parseCoordination((graph as Record<string,unknown>).coordinationIntelligence,entityIds,sourceNames);
+    const zReviewClaims=graph.entities.flatMap(entity=>{
+      const meta=entity.meta||{};
+      if(meta.zReviewDecisionStatus!=='ACCEPTED_DESIGN_CHAIN')return[];
+      const decisionId=String(meta.zReviewDecisionId||'');
+      const candidateId=String(meta.zReviewDecisionCandidateId||'');
+      const authority=String(meta.zReviewDecisionAuthority||'');
+      const compilationId=String(meta.zReviewDecisionCompilationId||'');
+      const sourceGraphSha256=String(meta.zReviewDecisionGraphSha256||'').toLowerCase();
+      if(!z.string().uuid().safeParse(decisionId).success||!z.string().uuid().safeParse(compilationId).success||!candidateId||authority!=='SERVER_AUTHENTICATED_HUMAN_REVIEW'||!/^[a-f0-9]{64}$/.test(sourceGraphSha256))
+        throw Object.assign(new Error('Authenticated Z review metadata is incomplete or invalid'),{status:409});
+      return[{entityId:entity.id,decisionId,candidateId,compilationId,sourceGraphSha256}];
+    });
     const graphSha256=canonicalHash({domain:'STRATUM/SPATIAL/COMPILATION/1',projectId:body.projectId,graph});
     const sourceSha256s=[...new Set(graph.sources.map(source=>source.sha256))].sort();
     const result=await tx(async client=>{
       const project=await client.query<{id:string}>(`SELECT id::text FROM projects
         WHERE id=$1 AND organization_id=$2 FOR SHARE`,[body.projectId,session.organizationId]);
       if(!project.rows[0])throw Object.assign(new Error('Project not found in this organization'),{status:404});
+
+      if(zReviewClaims.length){
+        const readiness=await client.query<{ready:boolean}>(`SELECT to_regclass('public.spatial_z_review_decisions') IS NOT NULL ready`);
+        if(!readiness.rows[0]?.ready)throw Object.assign(new Error('Spatial Z review persistence schema is not ready'),{status:503});
+        const receiptIds=zReviewClaims.map(claim=>claim.decisionId);
+        const receipts=await client.query<{id:string;entity_id:string;candidate_id:string;compilation_id:string;graph_sha256:string}>(`SELECT
+          id::text,entity_id,candidate_id,compilation_id::text,graph_sha256
+          FROM spatial_z_review_decisions
+          WHERE organization_id=$1 AND project_id=$2 AND action='ACCEPT_DESIGN_CHAIN' AND id=ANY($3::uuid[])`,[
+            session.organizationId,body.projectId,receiptIds
+          ]);
+        const receiptById=new Map(receipts.rows.map(receipt=>[receipt.id,receipt]));
+        for(const claim of zReviewClaims){
+          const receipt=receiptById.get(claim.decisionId);
+          if(!receipt||receipt.entity_id!==claim.entityId||receipt.candidate_id!==claim.candidateId||receipt.compilation_id!==claim.compilationId||receipt.graph_sha256!==claim.sourceGraphSha256)
+            throw Object.assign(new Error('Spatial Z review receipt does not match the persisted server decision'),{status:409});
+        }
+      }
       const duplicate=await client.query<any>(`SELECT id::text,revision,graph_sha256,created_at FROM spatial_compilations
         WHERE organization_id=$1 AND project_id=$2 AND graph_sha256=$3 LIMIT 1`,[session.organizationId,body.projectId,graphSha256]);
       if(duplicate.rows[0]){
