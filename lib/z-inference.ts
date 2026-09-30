@@ -137,9 +137,14 @@ function placementEngineInference(input:ZInferenceInput,support:ZInferenceSuppor
   try{
     const placement=resolveAssetPlacement({name:input.name,floor:input.floor,z:input.z,meta:input.meta},input.registry||undefined);
     const rec=placement.recommendation;
-    if(!rec||placement.zAuthority==='UNRESOLVED'||placement.zAuthority==='RELATIVE_TO_REVIEW_PLANE'||!Number.isFinite(placement.baseZ))return null;
+    if(!rec||placement.zAuthority==='UNRESOLVED'||placement.zAuthority==='RELATIVE_TO_REVIEW_PLANE'||placement.zAuthority==='H2_ACCEPTED_INFERRED_PREVIEW'||!Number.isFinite(placement.baseZ))return null;
     const offset=support?placement.baseZ-support.zMeters:null;
-    const refs:ZInferenceSourceRef[]=rec.sourceUrl?[{url:rec.sourceUrl,label:rec.source||rec.kind,claimType:rec.evidenceClass==='OEM_INSTALLATION_GUIDANCE'?'OEM_DOCUMENT':'SOURCE_DESIGN',verification:'EXACT_DOCUMENT'}]:[{label:rec.source||rec.kind,claimType:'SOURCE_DESIGN',verification:'INTERNAL_REVIEW_EVIDENCE'}];
+    const claimType:ZInferenceSourceRef['claimType']=rec.evidenceClass==='OEM_INSTALLATION_GUIDANCE'?'OEM_DOCUMENT'
+      :rec.evidenceClass==='SOURCE_SPEC'?'SOURCE_DESIGN'
+      :rec.evidenceClass==='CODE_CONSTRAINT'?'JURISDICTIONAL_GUIDANCE'
+      :rec.evidenceClass==='DESIGN_GUIDE'||rec.evidenceClass==='TYPE_PROFILE'||rec.evidenceClass==='VISUALIZATION_HEURISTIC'?'STRATUM_TYPE_PRIOR'
+      :'TRADE_PRACTICE';
+    const refs:ZInferenceSourceRef[]=rec.sourceUrl?[{url:rec.sourceUrl,label:rec.source||rec.kind,claimType,verification:claimType==='OEM_DOCUMENT'||claimType==='SOURCE_DESIGN'?'EXACT_DOCUMENT':'SECONDARY_REFERENCE'}]:[{label:rec.source||rec.kind,claimType,verification:'INTERNAL_REVIEW_EVIDENCE'}];
     return candidate(input,{method:'PLACEMENT_ENGINE',offsetMeters:offset,absoluteReferenceZMeters:placement.baseZ,renderBaseZMeters:placement.baseZ,confidence:placement.zConfidence,referencePoint:'BASE',support,basis:[`Placement engine: ${rec.kind.replaceAll('_',' ').toLowerCase()} → base ${placement.baseZ.toFixed(2)} m`,rec.note||''],sourceRefs:refs});
   }catch{return null}
 }
