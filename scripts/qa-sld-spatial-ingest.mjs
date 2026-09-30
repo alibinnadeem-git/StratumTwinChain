@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import {classifyElectricalLabel,detectSldPage,sldLogicalDepth} from '../lib/sld-recognition.ts';
 import {buildSldVectorTopology} from '../lib/sld-vector-topology.ts';
 import {enrichSpatialProjection} from '../lib/spatial-projection.ts';
+import {resolveElectricalComponent} from '../lib/electrical-component-library.ts';
+import {DEFAULT_ELECTRICAL_MODEL_REGISTRY} from '../lib/electrical-model-registry.ts';
 
 const expected=[
  ['XFMR-1','TRANSFORMER',1],
@@ -20,6 +22,28 @@ const expected=[
 for(const [label,kind,depth] of expected){
  assert.equal(classifyElectricalLabel(label),kind,`${label} must be recognized as ${kind}`);
  assert.equal(sldLogicalDepth(label),depth,`${label} logical depth`);
+}
+
+const modelMappings=[
+ ['XFMR-1','utility-transformer'],
+ ['SWGR-1','utility-switchgear'],
+ ['SWBD-1','main-switchboard'],
+ ['MDP-1','main-switchboard'],
+ ['MDB-1','main-switchboard'],
+ ['CB-12','circuit-breaker'],
+ ['MCCB-1','mccb'],
+ ['GEN-1','generator'],
+ ['PDU-1','power-distribution-unit'],
+ ['PV-1','pv-array'],
+ ['BESS-1','battery-bank'],
+ ['PANEL-LP1','panelboard'],
+ ['METER-1','power-meter'],
+];
+for(const [label,key] of modelMappings){
+ const component=resolveElectricalComponent(label);
+ assert.equal(component?.key,key,`${label} must resolve to the ${key} 3D family`);
+ const model=DEFAULT_ELECTRICAL_MODEL_REGISTRY.find(item=>item.componentKey===key);
+ assert.ok(model?.modelUrl,`${key} must have a non-empty representative model URL`);
 }
 
 const contentOnly=detectSldPage(['UTILITY SERVICE','XFMR-1','SWBD-1','MDP-1','CB-12','480V'],80);
