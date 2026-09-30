@@ -40,7 +40,7 @@ export type ZSolutionConflict={
 };
 
 export type ZSolution={
-  status:'RESOLVED_CANDIDATE'|'CONFLICT'|'RELATIVE_ONLY'|'UNRESOLVED';
+  status:'RESOLVED_CANDIDATE'|'REVIEW_RESOLVED_CANDIDATE'|'CONFLICT'|'RELATIVE_ONLY'|'UNRESOLVED';
   chosenCandidateId:string|null;
   baseZ:number|null;
   topZ:number|null;
@@ -189,6 +189,19 @@ export function buildZSolution(entity:PlacementEntity,options?:{toleranceMeters?
 
   const ranked=[...all].sort((a,b)=>priority(b)-priority(a)||b.confidence-a.confidence);
   const chosen=ranked.find(c=>c.baseZ!==null&&c.kind!=='UNRESOLVED')||null;
+  const reviewDecision=String(meta.zReviewDecisionStatus||'');
+  const reviewCandidateId=String(meta.zReviewDecisionCandidateId||'').trim();
+  const reviewedCandidate=reviewDecision==='ACCEPTED_DESIGN_CHAIN'
+    ?all.find(candidate=>candidate.id===reviewCandidateId&&candidate.absolute&&candidate.baseZ!==null)||null
+    :null;
+
+  if(conflicts.length&&reviewedCandidate){
+    return{
+      status:'REVIEW_RESOLVED_CANDIDATE',chosenCandidateId:reviewedCandidate.id,baseZ:reviewedCandidate.baseZ,topZ:reviewedCandidate.topZ,confidence:reviewedCandidate.confidence,
+      candidates:all,conflicts,toleranceMeters:tolerance,physicalTruth:false,reviewRequired:true,
+      explanation:`Human review selected ${reviewedCandidate.id.replaceAll('_',' ')} as the design placement chain after STRATUM detected conflicting absolute-Z evidence. The competing chains remain preserved for audit; this does not establish field-verified physical elevation.`
+    };
+  }
 
   if(conflicts.length){
     return{
@@ -258,13 +271,24 @@ export function resolveReconciledAssetPlacement(
     };
   }
   if(solution.chosenCandidateId&&solution.baseZ!==null){
+    const reviewed=solution.status==='REVIEW_RESOLVED_CANDIDATE';
     return{
       solution,
       placement:{
         ...primary,
         baseZ:solution.baseZ,
         topZ:solution.topZ??solution.baseZ+primary.dimensions.height,
+        zAuthority:reviewed?'HUMAN_REVIEWED_DESIGN_CANDIDATE':primary.zAuthority,
         zConfidence:solution.confidence,
+        referenceZ:reviewed?undefined:primary.referenceZ,
+        referencePoint:reviewed?undefined:primary.referencePoint,
+        recommendation:reviewed?{
+          kind:'HUMAN_REVIEWED_Z_CHAIN',
+          valueMeters:solution.baseZ,
+          source:'STRATUM Z conflict review',
+          evidenceClass:'DESIGN_GUIDE',
+          note:'A human reviewer selected one preserved design/source Z chain after a conflict. This remains a review placement candidate and does not establish physical truth.'
+        }:primary.recommendation,
         physicalTruth:false
       }
     };
