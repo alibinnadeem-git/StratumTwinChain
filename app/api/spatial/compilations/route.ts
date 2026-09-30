@@ -123,6 +123,10 @@ export async function POST(req:Request){
       const project=await client.query<{id:string}>(`SELECT id::text FROM projects
         WHERE id=$1 AND organization_id=$2 FOR SHARE`,[body.projectId,session.organizationId]);
       if(!project.rows[0])throw Object.assign(new Error('Project not found in this organization'),{status:404});
+      // Serialize append-head decisions per organization/project. SELECT ... FOR
+      // UPDATE on the current latest row alone is insufficient because two
+      // transactions can both snapshot rN before either inserts rN+1.
+      await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1,0))`,[`${session.organizationId}:${body.projectId}`]);
       const prior=await client.query<{id:string;revision:number;graph_sha256:string;created_at:string}>(`SELECT id::text,revision,graph_sha256,created_at FROM spatial_compilations
         WHERE organization_id=$1 AND project_id=$2 ORDER BY revision DESC LIMIT 1 FOR UPDATE`,[session.organizationId,body.projectId]);
       const serverRevision=prior.rows[0]?.revision||0;
