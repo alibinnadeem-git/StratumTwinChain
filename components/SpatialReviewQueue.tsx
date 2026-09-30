@@ -10,6 +10,7 @@ type Graph={entities?:Entity[]};
 type ReviewItem={id:string;name:string;source:string;reason:string;floor:string};
 
 function reasonFor(entity:Entity){
+ if(entity.meta?.equipmentType==='UNRESOLVED'&&/callout|annotated-asset/i.test(entity.kind))return 'Asset type needs legend / schedule review';
  if(entity.meta?.zReviewRequired===true)return 'Elevation needs review';
  if(entity.floor==='UNRESOLVED'&&entity.layer==='L2')return 'Floor needs review';
  if(entity.meta?.reviewRequired===true)return 'Source needs review';

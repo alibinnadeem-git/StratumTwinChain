@@ -18,7 +18,7 @@ export function enrichAudiE4SourceReview<T extends SpatialGraphLike>(graph:T):T{
  const existing=new Set(graph.entities.map(item=>(item as {id?:string})?.id));
  const added=CALLOUTS.filter(item=>!existing.has(`${AUDI_E4_SHA256}:callout:${item.tag}`)).map(item=>({
   id:`${AUDI_E4_SHA256}:callout:${item.tag}`,source:source.name,layer:'L2',kind:'sheet-callout-candidate',name:`(E) ${item.tag}`,
-  x:(item.x-PAGE_WIDTH/2)*20/PAGE_WIDTH,y:(PAGE_HEIGHT/2-item.y)*20/PAGE_WIDTH,z:0,floor:'L1',zone:'ELEC 108',confidence:.8,
+  x:(item.x-PAGE_WIDTH/2)*20/PAGE_WIDTH,y:(PAGE_HEIGHT/2-item.y)*20/PAGE_WIDTH,floor:'L1',zone:'ELEC 108',confidence:.8,
   meta:{sourceSha256:AUDI_E4_SHA256,page:1,sheet:'E4.0',sourceType:'PDF_VISUAL_REVIEW',
    sheetX:item.x,sheetY:item.y,coordinateUnits:'sheet',geometryAuthority:'SHEET_CALLOUT_ONLY',
    equipmentType:'UNRESOLVED',existingDesignation:true,registrationState:'CANDIDATE',referenceOnly:true,

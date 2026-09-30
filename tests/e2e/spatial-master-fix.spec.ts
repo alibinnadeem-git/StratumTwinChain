@@ -1,6 +1,7 @@
 import {expect,test} from '@playwright/test';
 import {mkdir} from 'node:fs/promises';
 import {join} from 'node:path';
+import {AUDI_E4_SHA256,enrichAudiE4SourceReview} from '../../lib/audi-e4-source-review';
 
 // Deliberately synthetic source and designations. No customer drawing enters UAT artifacts.
 const source='Synthetic E-101.pdf';
@@ -61,4 +62,25 @@ test('Spatial review truth and layout at device width',async({page},testInfo)=>{
   await expect(page.getByText('No SLD topology in this project yet')).toBeVisible();
   await expect(page.getByRole('heading',{name:'(E) C1'})).toBeVisible();
   expect(errors).toEqual([]);
+});
+
+
+test('Audi E4 source review stores unknown elevation without numeric Z',()=>{
+ const sourceName='Synthetic filename for known audited source hash.pdf';
+ const enriched=enrichAudiE4SourceReview({
+  version:'1.1',
+  createdAt:'2026-01-01T00:00:00.000Z',
+  sources:[{name:sourceName,sha256:AUDI_E4_SHA256}],
+  entities:[],
+  links:[],
+  stats:{L0:1,L1:0,L2:0,L3:0,L4:0},
+ });
+ const callouts=(enriched.entities as any[]).filter(entity=>entity.kind==='sheet-callout-candidate');
+ expect(callouts).toHaveLength(5);
+ for(const entity of callouts){
+  expect(entity.z).toBeUndefined();
+  expect(entity.meta?.elevationKnown).toBe(false);
+  expect(entity.meta?.equipmentType).toBe('UNRESOLVED');
+  expect(entity.meta?.registrationState).toBe('CANDIDATE');
+ }
 });
