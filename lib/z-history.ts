@@ -67,7 +67,7 @@ function median(values:number[]){
 }
 function safeId(value:string){return value.replace(/[^a-zA-Z0-9_.:-]/g,'_').slice(0,220)}
 
-export function recordConfirmedZ(input:{
+export function recordAcceptedZInference(input:{
   projectId:string;
   entityId:string;
   componentKey:string;
@@ -131,4 +131,4 @@ export function historicalZConfidence(n:number,stdMeters=0):number{
 
 export function listConfirmedZEvents(){return readAll()}
 export function clearZHistory(){memoryFallback=[];try{localStorage.removeItem(KEY)}catch{}}
-export const clearConfirmedZ=clearZHistory;
+export const clearAcceptedZInferenceHistory=clearZHistory;
