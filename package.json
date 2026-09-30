@@ -66,7 +66,7 @@
     "qa:plc": "node scripts/plc-conformance.mjs",
     "qa:vrf": "node scripts/vrf-proposer-conformance.mjs",
     "qa:e2e": "playwright test",
-    "prebuild": "npm run qa:z-resolver && npm run qa:z-reference && npm run qa:z-solution && npm run qa:project-datum && npm run qa:elevation-surface && npm run qa:cross-sheet-z && npm run qa:local-surface-placement && npm run qa:support-base-offset && node scripts/prepare-pdf-assets.mjs",
+    "prebuild": "npm run qa:z-resolver && npm run qa:z-reference && npm run qa:z-solution && npm run qa:z-inference && npm run qa:project-datum && npm run qa:elevation-surface && npm run qa:cross-sheet-z && npm run qa:local-surface-placement && npm run qa:support-base-offset && node scripts/prepare-pdf-assets.mjs",
     "predev": "node scripts/prepare-pdf-assets.mjs",
     "db:migrate": "node scripts/apply-database-migrations.mjs",
     "db:bootstrap-organization": "node scripts/bootstrap-production-organization.mjs",
@@ -76,7 +76,8 @@
     "qa:agent-uiux": "node scripts/agent-uiux-gate.mjs",
     "qa:agent-security": "node scripts/agent-security-gate.mjs",
     "qa:agent-quality": "node scripts/agent-qa-gate.mjs",
-    "qa:agents": "npm run qa:agent-product && npm run qa:agent-design && npm run qa:agent-uiux && npm run qa:agent-security && npm run qa:agent-quality"
+    "qa:agents": "npm run qa:agent-product && npm run qa:agent-design && npm run qa:agent-uiux && npm run qa:agent-security && npm run qa:agent-quality",
+    "qa:z-inference": "node --experimental-strip-types scripts/qa-z-inference.mjs"
   },
   "dependencies": {
     "@zxing/browser": "^0.2.1",
