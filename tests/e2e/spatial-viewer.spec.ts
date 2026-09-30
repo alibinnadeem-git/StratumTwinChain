@@ -996,3 +996,45 @@ test('conflicting absolute Z chains block auto-placement and expose both evidenc
  await expect(page.getByText(/source reference/i).first()).toBeVisible();
  await expect(page.getByText(/support surface plus offset/i).first()).toBeVisible();
 });
+
+test('human Z review selects one preserved design chain without establishing physical truth',async({page})=>{
+ const source='Synthetic Z Conflict Review.pdf';
+ const graph={
+  version:'z-conflict-review-browser-1',createdAt:'2026-09-30T08:00:00.000Z',reviewState:'REVIEW_REQUIRED',
+  sources:[{name:source,ext:'pdf',sha256:'y'.repeat(64),discipline:'Electrical / Civil',floor:'UNRESOLVED',elevation:0}],
+  entities:[
+   {id:'xfmr-z-review',source,layer:'L2',kind:'text-asset-candidate',name:'PAD MOUNT TRANSFORMER T2',x:0,y:0,z:0,floor:'UNRESOLVED',confidence:.93,
+    meta:{page:1,assetDimensionAuthority:'SOURCE_SPEC',assetDimensionsMeters:[1.7,1.6,1.25],
+      localReviewSurfaceZ:30.48,localReviewSurfaceKind:'GRADE',localReviewSurfaceAuthority:'SOURCE_ELEVATION_TRIANGLE',localReviewSurfaceConfidence:.84,
+      supportBaseOffsetMeters:.1524,supportOffsetKind:'PAD',supportOffsetAuthority:'TAG_LINKED_SOURCE_SUPPORT_NOTE',supportOffsetConfidence:.94,
+      supportOffsetEvidenceLabel:'XFMR T2 6" CONC PAD',
+      zResolutionStatus:'RESOLVED_DESIGN_CANDIDATE',zCandidateMeters:31.1,zCandidateReferencePoint:'BASE',zResolutionConfidence:.9,zResolutionAuthority:'SOURCE_BASE_ELEVATION',
+      physicalElevationKnown:false,elevationKnown:false,physicalTruth:false,reviewRequired:true}}
+  ],
+  links:[],stats:{L0:0,L1:0,L2:1,L3:0,L4:0}
+ };
+ await page.addInitScript(value=>localStorage.setItem('stratum_compiled_graph',JSON.stringify(value)),graph);
+ await page.goto('/spatial');
+ await page.getByLabel('Imported object').selectOption('xfmr-z-review');
+ await expect(page.getByText(/Z CONFLICT · AUTO-PLACEMENT BLOCKED/)).toBeVisible();
+ await page.getByText('Z solution evidence').click();
+ const supportCard=page.locator('.binding-panel').filter({hasText:'support-chain'}).first();
+ await supportCard.getByRole('button',{name:'Use this design chain for review placement'}).click();
+ await expect(page.getByText(/HUMAN REVIEW PLACEMENT · PHYSICAL Z UNVERIFIED/)).toBeVisible();
+ await page.getByText('Placement & source confidence').click();
+ const details=page.locator('.placement-details');
+ await expect(details.getByText(/30\.632 m/)).toBeVisible();
+ await expect(details.getByText(/HUMAN REVIEWED DESIGN CANDIDATE/)).toBeVisible();
+ await expect(details.getByText(/Unverified/)).toBeVisible();
+ await expect.poll(()=>page.evaluate(()=>{
+  const g=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
+  const entity=(g.entities||[]).find((item:any)=>item.id==='xfmr-z-review');
+  return entity?.meta?{
+   decision:entity.meta.zReviewDecisionStatus,
+   candidate:entity.meta.zReviewDecisionCandidateId,
+   physical:entity.meta.physicalElevationKnown,
+   truth:entity.meta.physicalTruth,
+   review:entity.meta.reviewRequired
+  }:null;
+ })).toEqual({decision:'ACCEPTED_DESIGN_CHAIN',candidate:'support-chain',physical:false,truth:false,review:true});
+});
