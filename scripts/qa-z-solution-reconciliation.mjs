@@ -35,6 +35,22 @@ assert.equal(reconciled.placement.zAuthority,'UNRESOLVED');
 assert.ok(Math.abs(reconciled.placement.baseZ-30.48)<1e-9);
 assert.equal(reconciled.placement.recommendation?.kind,'Z_CONFLICT_REVIEW_SURFACE');
 
+const reviewedConflict={
+ ...conflict,
+ meta:{...conflict.meta,zReviewDecisionStatus:'ACCEPTED_DESIGN_CHAIN',zReviewDecisionCandidateId:'support-chain',zReviewDecisionAuthority:'LOCAL_HUMAN_REVIEW',zReviewDecisionPhysicalTruth:false}
+};
+const reviewedSolution=buildZSolution(reviewedConflict);
+assert.equal(reviewedSolution.status,'REVIEW_RESOLVED_CANDIDATE');
+assert.equal(reviewedSolution.chosenCandidateId,'support-chain');
+assert.ok(reviewedSolution.conflicts.length>=1);
+assert.equal(reviewedSolution.physicalTruth,false);
+assert.equal(reviewedSolution.reviewRequired,true);
+const reviewedPlacement=resolveReconciledAssetPlacement(reviewedConflict);
+assert.equal(reviewedPlacement.placement.zAuthority,'HUMAN_REVIEWED_DESIGN_CANDIDATE');
+assert.ok(Math.abs(reviewedPlacement.placement.baseZ-30.6324)<1e-9);
+assert.equal(reviewedPlacement.placement.physicalTruth,false);
+assert.equal(reviewedPlacement.placement.recommendation?.kind,'HUMAN_REVIEWED_Z_CHAIN');
+
 const centerline={
  name:'PANEL LP-2',floor:'L2',z:0,
  meta:{
@@ -63,5 +79,7 @@ const inspector=fs.readFileSync('components/SpatialAssetInspector.tsx','utf8');
 assert.match(inspector,/Z CONFLICT · AUTO-PLACEMENT BLOCKED/);
 assert.match(inspector,/Z solution evidence/);
 assert.match(inspector,/Z chains compared/);
+assert.match(inspector,/Use this design chain for review placement/);
+assert.match(inspector,/HUMAN REVIEW PLACEMENT · PHYSICAL Z UNVERIFIED/);
 
-console.log('Z solution reconciliation passed: independent source-reference and support-surface chains are compared, consistent chains resolve, conflicting chains block auto-placement and fall back to the underlying review surface.');
+console.log('Z solution reconciliation passed: independent chains are compared, conflicts block automatic placement, and an explicit human review can select one preserved design chain without claiming physical truth.');
