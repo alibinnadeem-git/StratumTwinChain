@@ -46,7 +46,7 @@ const Graph=z.object({
   links:z.array(Link).max(50000),
   stats:z.record(z.string(),z.number().finite().nonnegative())
 }).passthrough();
-const SaveBody=z.object({projectId:z.string().uuid(),graph:Graph});
+const SaveBody=z.object({projectId:z.string().uuid(),expectedRevision:z.number().int().min(0),graph:Graph});
 const ReviewBody=z.object({
   compilationId:z.string().uuid(),
   action:z.enum(['ACCEPT_REVIEW_BASELINE','REOPEN_REVIEW']),
@@ -123,16 +123,22 @@ export async function POST(req:Request){
       const project=await client.query<{id:string}>(`SELECT id::text FROM projects
         WHERE id=$1 AND organization_id=$2 FOR SHARE`,[body.projectId,session.organizationId]);
       if(!project.rows[0])throw Object.assign(new Error('Project not found in this organization'),{status:404});
-      const duplicate=await client.query<any>(`SELECT id::text,revision,graph_sha256,created_at FROM spatial_compilations
-        WHERE organization_id=$1 AND project_id=$2 AND graph_sha256=$3 LIMIT 1`,[session.organizationId,body.projectId,graphSha256]);
-      if(duplicate.rows[0]){
-        const power=await persistPowerIntelligence(client,{organizationId:session.organizationId,projectId:body.projectId,compilationId:duplicate.rows[0].id,userId:session.userId,payload:powerPayload});
-        const coordination=await persistCoordination(client,{organizationId:session.organizationId,projectId:body.projectId,compilationId:duplicate.rows[0].id,userId:session.userId,payload:coordinationPayload});
-        return {...duplicate.rows[0],idempotent:true,powerIntelligence:power,coordinationIntelligence:coordination};
-      }
-      const prior=await client.query<{id:string;revision:number}>(`SELECT id::text,revision FROM spatial_compilations
+      // Serialize append-head decisions per organization/project. SELECT ... FOR
+      // UPDATE on the current latest row alone is insufficient because two
+      // transactions can both snapshot rN before either inserts rN+1.
+      await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1,0))`,[`${session.organizationId}:${body.projectId}`]);
+      const prior=await client.query<{id:string;revision:number;graph_sha256:string;created_at:string}>(`SELECT id::text,revision,graph_sha256,created_at FROM spatial_compilations
         WHERE organization_id=$1 AND project_id=$2 ORDER BY revision DESC LIMIT 1 FOR UPDATE`,[session.organizationId,body.projectId]);
-      const revision=(prior.rows[0]?.revision||0)+1;
+      const serverRevision=prior.rows[0]?.revision||0;
+      if(body.expectedRevision!==serverRevision)throw Object.assign(new Error(`Spatial revision conflict: browser expected r${body.expectedRevision}, server is r${serverRevision}`),{
+        status:409,code:'SPATIAL_REVISION_CONFLICT',serverRevision,expectedRevision:body.expectedRevision
+      });
+      if(prior.rows[0]?.graph_sha256===graphSha256){
+        const power=await persistPowerIntelligence(client,{organizationId:session.organizationId,projectId:body.projectId,compilationId:prior.rows[0].id,userId:session.userId,payload:powerPayload});
+        const coordination=await persistCoordination(client,{organizationId:session.organizationId,projectId:body.projectId,compilationId:prior.rows[0].id,userId:session.userId,payload:coordinationPayload});
+        return {...prior.rows[0],idempotent:true,powerIntelligence:power,coordinationIntelligence:coordination};
+      }
+      const revision=serverRevision+1;
       const inserted=await client.query<any>(`INSERT INTO spatial_compilations
         (organization_id,project_id,revision,graph_sha256,graph_version,source_count,entity_count,link_count,source_sha256s,graph_json,supersedes_compilation_id,created_by)
         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11,$12)
@@ -147,6 +153,7 @@ export async function POST(req:Request){
     return NextResponse.json({...result,reviewState:'REVIEW_REQUIRED',truthBoundary:'STORED_COMPILATION_DOES_NOT_CREATE_OR_VERIFY_ASSETS'},{status:201});
   }catch(error:any){
     if(error instanceof z.ZodError)return NextResponse.json({error:'Invalid Spatial compilation payload',issues:error.issues},{status:400});
+    if(error?.code==='SPATIAL_REVISION_CONFLICT')return NextResponse.json({error:error.message,code:error.code,serverRevision:error.serverRevision,expectedRevision:error.expectedRevision,truthBoundary:'STALE_BROWSER_GRAPH_NOT_SAVED'},{status:409});
     return NextResponse.json({error:error.message},{status:status(error)});
   }
 }

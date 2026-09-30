@@ -54,6 +54,24 @@ assert.ok(['RELATIVE_ONLY','UNRESOLVED'].includes(unresolved.status));
 assert.equal(unresolved.physicalTruth,false);
 assert.equal(unresolved.reviewRequired,true);
 
+const inferredPreviewEntity={
+ name:'PANEL LP-9',floor:'L1',z:0,
+ meta:{physicalElevationKnown:false,elevationKnown:false,zPreviewBaseMeters:1.1,zPreviewConfidence:.61,zPreviewBasis:'H2 accepted inferred preview'}
+};
+const inferredPreview=buildZSolution(inferredPreviewEntity);
+assert.equal(inferredPreview.status,'RELATIVE_ONLY');
+assert.ok(inferredPreview.candidates.some(candidate=>candidate.kind==='INFERRED_PREVIEW'));
+assert.equal(inferredPreview.physicalTruth,false);
+assert.equal(inferredPreview.reviewRequired,true);
+
+const strongerSourceWins=buildZSolution({
+ ...inferredPreviewEntity,
+ meta:{...inferredPreviewEntity.meta,zResolutionStatus:'RESOLVED_DESIGN_CANDIDATE',zCandidateMeters:2.2,zCandidateReferencePoint:'BASE',zResolutionConfidence:.9,zResolutionAuthority:'SOURCE_BASE_ELEVATION'}
+});
+assert.equal(strongerSourceWins.status,'RESOLVED_CANDIDATE');
+assert.ok(Math.abs(Number(strongerSourceWins.baseZ)-2.2)<1e-9);
+assert.ok(strongerSourceWins.candidates.some(candidate=>candidate.kind==='SOURCE_REFERENCE'));
+
 const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
 assert.match(viewer,/resolveReconciledAssetPlacement/);
 assert.match(viewer,/zSolutionStatus/);

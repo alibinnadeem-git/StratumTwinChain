@@ -7,6 +7,7 @@ export type ZSolutionCandidateKind=
   |'SUPPORT_SURFACE_PLUS_OFFSET'
   |'SUPPORT_SURFACE_BASE'
   |'MOUNTING_GUIDANCE'
+  |'INFERRED_PREVIEW'
   |'RELATIVE_ONLY'
   |'UNRESOLVED';
 
@@ -93,6 +94,7 @@ function classifyPlacement(placement:AssetPlacement):ZSolutionCandidateKind{
     case'SUPPORT_SURFACE_PLUS_MOUNTING_GUIDANCE':
     case'HISTORICAL_RECOMMENDATION':
     case'FLOOR_STANDING_PROFILE':return'MOUNTING_GUIDANCE';
+    case'H2_ACCEPTED_INFERRED_PREVIEW':return'INFERRED_PREVIEW';
     case'RELATIVE_TO_REVIEW_PLANE':return'RELATIVE_ONLY';
     default:return'UNRESOLVED';
   }
@@ -121,8 +123,8 @@ function candidateFromPlacement(id:string,entity:PlacementEntity,placement:Asset
   const kind=classifyPlacement(placement),absolute=absoluteAuthority(String(placement.zAuthority));
   return{
     id,kind,
-    baseZ:absolute||kind==='MOUNTING_GUIDANCE'||kind==='RELATIVE_ONLY'?placement.baseZ:null,
-    topZ:absolute||kind==='MOUNTING_GUIDANCE'||kind==='RELATIVE_ONLY'?placement.topZ:null,
+    baseZ:absolute||kind==='MOUNTING_GUIDANCE'||kind==='INFERRED_PREVIEW'||kind==='RELATIVE_ONLY'?placement.baseZ:null,
+    topZ:absolute||kind==='MOUNTING_GUIDANCE'||kind==='INFERRED_PREVIEW'||kind==='RELATIVE_ONLY'?placement.topZ:null,
     confidence:placement.zConfidence,
     authority:placement.zAuthority,
     absolute,
@@ -151,6 +153,7 @@ function priority(candidate:ZSolutionCandidate){
     case'SUPPORT_SURFACE_PLUS_OFFSET':return 80;
     case'SUPPORT_SURFACE_BASE':return 70;
     case'MOUNTING_GUIDANCE':return 40;
+    case'INFERRED_PREVIEW':return 30;
     case'RELATIVE_ONLY':return 20;
     default:return 0;
   }
@@ -209,7 +212,9 @@ export function buildZSolution(entity:PlacementEntity,options?:{toleranceMeters?
     return{
       status:'RELATIVE_ONLY',chosenCandidateId:chosen.id,baseZ:chosen.baseZ,topZ:chosen.topZ,confidence:chosen.confidence,
       candidates:all,conflicts:[],toleranceMeters:tolerance,physicalTruth:false,reviewRequired:true,
-      explanation:'Only relative/review-plane placement is available; no source-grounded absolute project Z is established.'
+      explanation:chosen.kind==='INFERRED_PREVIEW'
+       ?'A human accepted an AI-inferred coordinate for H2 coordination preview only. It is not source-grounded absolute Z, does not mutate entity.z, and remains unverified.'
+       :'Only relative/review-plane placement is available; no source-grounded absolute project Z is established.'
     };
   }
   return{

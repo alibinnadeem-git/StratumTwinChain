@@ -87,7 +87,7 @@ function bounds2d(entities:Entity[]){
   return{minX,maxX,minY,maxY};
 }
 
-export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAssets?:RegisteredSpatialAsset[]}){
+export default function CompiledGraphViewer({registeredAssets=[],authenticated=false}:{registeredAssets?:RegisteredSpatialAsset[];authenticated?:boolean}){
   const mount=useRef<HTMLDivElement|null>(null),runtime=useRef<any>(null);
   const [graph,setGraph]=useState<Graph|null>(null);
   const [registry,setRegistry]=useState<ElectricalModelConfig[]>(DEFAULT_ELECTRICAL_MODEL_REGISTRY);
@@ -571,7 +571,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
 
       <aside style={{padding:15,borderLeft:"1px solid #17334a",overflow:"auto"}}>
         <label>Imported object<select aria-label="Imported object" value={selected?.id||""} onChange={e=>setSelected(graph.entities.find(x=>x.id===e.target.value)||null)} style={{width:"100%"}}><option value="">{matching.length?'Select an object':'No selectable objects in this view'}</option>{matching.map(e=><option key={e.id} value={e.id}>{e.name} · {e.floor||"UNRESOLVED"}</option>)}</select></label>
-        <SpatialAssetInspector selected={selected} registeredAssets={projectAssets} onEntityUpdated={entity=>setSelected(entity as Entity)}/>
+        <SpatialAssetInspector selected={selected} registeredAssets={projectAssets} authenticated={authenticated} onEntityUpdated={entity=>setSelected(entity as Entity)}/>
         {selected&&findingsForEntity(coordinationSnapshot,selected.id).length>0&&<div className="card" style={{marginTop:10,padding:12}} aria-label="Selected asset coordination review">
           <div className="eyebrow">Coordination review</div>
           <strong>{findingsForEntity(coordinationSnapshot,selected.id).length} open source conflict{findingsForEntity(coordinationSnapshot,selected.id).length===1?"":"s"}</strong>

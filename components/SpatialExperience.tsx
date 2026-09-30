@@ -95,7 +95,7 @@ export default function SpatialExperience({assets,authenticated=false}:{assets:R
       <strong>PROJECT MODEL</strong>
       <span>This view is generated from your compiled engineering sources. Click equipment to inspect its registered asset, activity, QR identity and DIR state.</span>
     </div>}
-    <CompiledGraphViewer registeredAssets={assets}/>
+    <CompiledGraphViewer registeredAssets={assets} authenticated={authenticated}/>
   </section>;
 
   return <section className="card" aria-label="Spatial source required" style={{marginBottom:18}}>

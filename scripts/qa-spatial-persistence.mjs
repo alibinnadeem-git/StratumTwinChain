@@ -14,6 +14,8 @@ const serverHydrator=read('components/SpatialServerHydrator.tsx');
 const compiler=read('components/CompilerWorkspace.tsx');
 const experience=read('components/SpatialExperience.tsx');
 const projectSelection=read('lib/spatial-project-selection.ts');
+const serverRevision=read('lib/spatial-server-revision.ts');
+const serverNewerBanner=read('components/ServerNewerBanner.tsx');
 
 const forbiddenMutations=[
   /INSERT\s+INTO\s+assets/i,/UPDATE\s+assets/i,/DELETE\s+FROM\s+assets/i,
@@ -32,8 +34,10 @@ const checks=[
  ['API validates project belongs to session organization',api.includes('WHERE id=$1 AND organization_id=$2 FOR SHARE')],
  ['API uses a domain-separated canonical compilation hash',api.includes("domain:'STRATUM/SPATIAL/COMPILATION/1'")&&api.includes('canonicalHash(')],
  ['API accepts projected SLD feeder relationships for server snapshots',api.includes("'SLD_FEEDS'")],
- ['API makes identical graph save idempotent',api.includes('graph_sha256=$3')&&api.includes('idempotent:true')],
- ['API creates append-only revisions instead of mutating prior compilations',api.includes('supersedes_compilation_id')&&api.includes('revision=(prior.rows[0]?.revision||0)+1')],
+ ['API makes only the current-head identical save idempotent',api.includes('prior.rows[0]?.graph_sha256===graphSha256')&&api.includes('idempotent:true')],
+ ['API creates append-only revisions instead of mutating prior compilations',api.includes('supersedes_compilation_id')&&api.includes('revision=serverRevision+1')],
+ ['API requires optimistic concurrency against the current project revision',api.includes('expectedRevision')&&api.includes("SPATIAL_REVISION_CONFLICT")&&api.includes("truthBoundary:'STALE_BROWSER_GRAPH_NOT_SAVED'")],
+ ['API serializes concurrent append-head decisions per organization/project',api.includes('pg_advisory_xact_lock')&&api.includes('hashtextextended')],
  ['API records explicit human review transitions',api.includes("'ACCEPT_REVIEW_BASELINE','REOPEN_REVIEW'")&&api.includes('INSERT INTO spatial_compilation_reviews')],
  ['API performs no asset/lifecycle/chain state mutation',forbiddenMutations.every(pattern=>!pattern.test(api))],
  ['manual review UI still supports explicit save/load and human accept/reopen',ui.includes('Save review snapshot')&&ui.includes('Confirm load')&&ui.includes('Accept as Spatial review baseline')&&ui.includes('Reopen review')],
@@ -41,7 +45,10 @@ const checks=[
  ['human review decisions still require a reason',ui.includes('reason.trim()')&&ui.includes('cleaned.length<5')],
  ['project selection is remembered for safe background snapshots',projectSelection.includes("stratum_spatial_project_id")&&ui.includes('readSelectedSpatialProjectId')&&ui.includes('writeSelectedSpatialProjectId')],
  ['shared project selection owns the canonical project key and only publishes real changes',projectSelection.includes("SPATIAL_PROJECT_KEY='stratum_spatial_project_id'")&&projectSelection.includes('previous!==projectId')],
+ ['server revision base is scoped by project instead of one global scalar',serverRevision.includes("stratum_local_server_revisions_v2")&&serverRevision.includes('readLocalServerRevision(projectId:string)')&&serverRevision.includes('writeLocalServerRevision(projectId:string,revision:number)')],
  ['automatic sync only stores the primary browser graph as a review snapshot',autoSync.includes('readPrimarySpatialGraph')&&autoSync.includes("method:'POST'")&&autoSync.includes('/api/spatial/compilations')],
+ ['automatic sync sends the project-scoped expected revision',autoSync.includes('expectedRevision:localRevision')&&autoSync.includes('readLocalServerRevision(projectId)')],
+ ['automatic sync blocks stale/unknown bases instead of silently superseding them',autoSync.includes("state:'CONFLICT'")&&autoSync.includes('publishServerNewer')&&autoSync.includes('localRevision!==serverRevision')],
  ['automatic sync requires a real server project and never invents one',autoSync.includes("state:'PROJECT_REQUIRED'")&&autoSync.includes('projects.length===1')],
  ['automatic sync uses same-origin authenticated calls',autoSync.includes("credentials:'same-origin'")],
  ['automatic sync never performs review acceptance, approval or DIR finality',!autoSync.includes("method:'PATCH'")&&!autoSync.includes('/api/approvals')&&!autoSync.includes('getLedger')],
@@ -53,8 +60,10 @@ const checks=[
  ['global persistence guard captures graph updates',guard.includes("stratum:graph-updated")&&guard.includes('protectSpatialGraph')],
  ['compiler keeps server review controls secondary',compilerPage.includes('<details className="secondary-details card">')&&compilerPage.includes('<summary>Server sync, source backup & review baseline</summary>')],
  ['authenticated compiler mounts automatic append-only Spatial sync',compilerPage.includes('session&&<SpatialAutoSync/>')],
+ ['compiler surfaces server-newer conflict banner',compilerPage.includes('<ServerNewerBanner/>')&&serverNewerBanner.includes('SPATIAL REVISION CONFLICT')&&serverNewerBanner.includes('actualRevision')],
  ['Spatial route mounts server hydration before rendering the project workspace',spatialPage.includes('<SpatialServerHydrator/>')],
- ['server hydrator only restores a renderable graph from an organization project',serverHydrator.includes('validRenderableGraph')&&serverHydrator.includes('projects.some(project=>project.id===restorable)')&&serverHydrator.includes('replaceCurrentSpatialGraph(graph)')],
+ ['server hydrator only restores a renderable graph from an organization project',serverHydrator.includes('validRenderableGraph')&&serverHydrator.includes('replaceCurrentSpatialGraph(graph)')],
+ ['server hydrator treats any existing browser graph as local work and checks its base revision',serverHydrator.includes('hasLocalWorkingGraph=Boolean(current)')&&serverHydrator.includes('readLocalServerRevision(projectId)')&&serverHydrator.includes('publishServerNewer')],
  ['server suggests only a saved, nonempty compilation scoped to the organization',api.includes('restorableProjectId')&&api.includes('WHERE organization_id=$1 AND entity_count>0')],
  ['legacy recovery remains available after hydration and clears prior project selection',workspaceStatus.includes('{sourceSheetOnly&&<button className="ghost" type="button" onClick={recoverLegacy}>')&&workspaceStatus.includes('{graph&&!sourceSheetOnly&&<button className="ghost" type="button" onClick={recoverLegacy}>')&&workspaceStatus.includes("writeSelectedSpatialProjectId('')")],
  ['server hydration uses same-origin authenticated compilation API calls',serverHydrator.includes("credentials:'same-origin'")&&serverHydrator.includes('/api/spatial/compilations')],

@@ -62,17 +62,33 @@ function labeledField(items:PositionedSheetText[],labels:RegExp,predicate:(value
 }
 
 const sheetPattern=/^[A-Z]{1,4}(?:[-.]?[A-Z]{0,2})?[-.]?\d{1,3}(?:[.-]\d{1,3})?[A-Z]?$/i;
+/** Bare sheet fractions are common on civil/site sets, e.g. "1/1". */
+const sheetFractionPattern=/^\d{1,3}\s*\/\s*\d{1,3}$/;
+const sheetNumberPattern=(value:string)=>sheetPattern.test(value)||sheetFractionPattern.test(value);
+const normalizeSheetNumber=(value:string)=>{const text=compact(value);const match=text.match(/^(\d{1,3})\s*\/\s*(\d{1,3})$/);return match?`${Number(match[1])}/${Number(match[2])}`:upper(text)};
 const revisionPattern=/^(?:[A-Z]|\d{1,3}|P\d{1,2}|R\d{1,2})$/i;
 const datePattern=/^(?:\d{1,2}[\/-]\d{1,2}[\/-](?:\d{2}|\d{4})|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|SEPT|OCT|NOV|DEC)[A-Z]*[ .-]+\d{1,2}[, .-]+\d{2,4}|\d{1,2}[ .-]+(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|SEPT|OCT|NOV|DEC)[A-Z.]*[ .-]+\d{2,4}|\d{4}-\d{2}-\d{2})$/i;
 const architecturalScalePattern=/^(?:\d+\s+)?(?:\d+\/\d+|\d+(?:\.\d+)?)?\s*["”]\s*=\s*\d+(?:\.\d+)?\s*['’](?:\s*-\s*\d+(?:\.\d+)?\s*["”])?$/i;
+const architecturalScaleWordPattern=/^(?:\d+(?:\s+\d+\/\d+)?|\d+\/\d+)\s*(?:inch|inches|in\.?)\s*=\s*\d+(?:\.\d+)?\s*(?:feet|foot|ft\.?)$/i;
 const metricScalePattern=/^1\s*:\s*\d{1,5}(?:\.\d+)?$/i;
 const ntsPattern=/^(?:NTS|NOT TO SCALE)$/i;
-const scalePattern=(value:string)=>architecturalScalePattern.test(compact(value))||metricScalePattern.test(compact(value))||ntsPattern.test(compact(value));
+const scalePattern=(value:string)=>architecturalScalePattern.test(compact(value))||architecturalScaleWordPattern.test(compact(value))||metricScalePattern.test(compact(value))||ntsPattern.test(compact(value));
 
 function inferSheetNumber(items:PositionedSheetText[]){
-  const labeled=labeledField(items,/^(?:SHEET(?: NO\.?| NUMBER)?|DRAWING(?: NO\.?| NUMBER)?)\b/i,value=>sheetPattern.test(value),.97);if(labeled)return labeled;
-  const candidates=items.filter(item=>sheetPattern.test(upper(item.text))&&/\d/.test(item.text)).sort((a,b)=>(b.x+b.y)-(a.x+a.y));
-  return candidates[0]?field(upper(candidates[0].text),.72,[compact(candidates[0].text)],'STANDALONE_PATTERN'):field(null,0,[],'UNRESOLVED');
+  const labeled=labeledField(items,/^(?:SHEET(?: NO\.?| NUMBER)?|DRAWING(?: NO\.?| NUMBER)?)\b/i,value=>sheetNumberPattern(value),.97);
+  if(labeled)return field(normalizeSheetNumber(labeled.value||''),labeled.confidence,labeled.evidence,'LABELED_SHEET_NO');
+  const candidates=items
+    .filter(item=>{
+      const text=upper(item.text);
+      if(!sheetNumberPattern(text)||!/\d/.test(text))return false;
+      // A bare fraction can also be a detail/reference marker. Without a label,
+      // only accept it when it is spatially plausible as title-block identity.
+      return !sheetFractionPattern.test(text)||(item.x>=.55&&item.y>=.65);
+    })
+    .sort((a,b)=>(b.x+b.y)-(a.x+a.y));
+  if(!candidates[0])return field(null,0,[],'UNRESOLVED');
+  const text=upper(candidates[0].text),fraction=sheetFractionPattern.test(text);
+  return field(normalizeSheetNumber(candidates[0].text),fraction?.62:.72,[compact(candidates[0].text)],fraction?'SHEET_FRACTION_STANDALONE':'STANDALONE_PATTERN');
 }
 
 function inferRevision(items:PositionedSheetText[]){
@@ -88,18 +104,49 @@ function inferDate(items:PositionedSheetText[]){
 }
 
 function inferTitle(items:PositionedSheetText[]){
-  const labeled=labeledField(items,/^(?:SHEET TITLE|DRAWING TITLE|TITLE)\b/i,value=>value.length>=4&&!sheetPattern.test(value)&&!datePattern.test(value),.92);if(labeled)return labeled;
-  const candidates=items.filter(item=>{const value=compact(item.text);return value.length>=6&&value.length<=140&&!isLabel(value)&&!sheetPattern.test(upper(value))&&!datePattern.test(upper(value))&&!scalePattern(value)&&!/^(?:REV|REVISION)\b/i.test(value);}).sort((a,b)=>((b.width||0)*(b.height||0))-((a.width||0)*(a.height||0))||b.text.length-a.text.length);
+  const labeled=labeledField(items,/^(?:SHEET TITLE|DRAWING TITLE|TITLE)\b/i,value=>value.length>=4&&!sheetNumberPattern(value)&&!datePattern.test(value),.92);if(labeled)return labeled;
+  const candidates=items.filter(item=>{const value=compact(item.text);return value.length>=6&&value.length<=140&&!isLabel(value)&&!sheetNumberPattern(upper(value))&&!datePattern.test(upper(value))&&!scalePattern(value)&&!/^(?:REV|REVISION)\b/i.test(value);}).sort((a,b)=>((b.width||0)*(b.height||0))-((a.width||0)*(a.height||0))||b.text.length-a.text.length);
   return candidates[0]?field(compact(candidates[0].text),.58,[compact(candidates[0].text)],'TITLE_BLOCK_TEXT_HEURISTIC'):field(null,0,[],'UNRESOLVED');
 }
 
 const disciplineMap:Record<string,string>={A:'Architectural',C:'Civil',E:'Electrical',M:'Mechanical',P:'Plumbing',S:'Structural',T:'Telecommunications',G:'General',L:'Landscape',FP:'Fire Protection',FA:'Fire Alarm'};
+const DISCIPLINE_KEYWORDS:[RegExp,string][]=[
+  [/\bFIRE ALARM\b/g,'Fire Alarm'],[/\bFIRE PROTECTION\b|\bSPRINKLER\b/g,'Fire Protection'],
+  [/\bELECTRICAL\b|\bPOWER\b|\bLIGHTING\b|\bONE[- ]?LINE\b/g,'Electrical'],
+  [/\bARCHITECTURAL\b|\bFLOOR PLAN\b/g,'Architectural'],
+  [/\bMECHANICAL\b|\bHVAC\b/g,'Mechanical'],[/\bPLUMBING\b/g,'Plumbing'],
+  [/\bCIVIL\b|\bGRADING\b|\bSITE PLAN\b/g,'Civil'],[/\bSTRUCTURAL\b/g,'Structural'],
+  [/\bTELECOM(?:MUNICATIONS?)?\b|\bLOW VOLTAGE\b/g,'Telecommunications'],
+  [/\bLANDSCAPE\b|\bPLANTING\b/g,'Landscape'],
+];
+const REFERENCE_CONTEXT=/(SEE|PER|REF\.?|REFERENCE|REFER TO|COORDINATE WITH|IN ACCORDANCE WITH|SUBMITTED TO)\b[^.;]{0,60}$/i;
 function inferDiscipline(sheetNumber:SheetField,title:SheetField,items:PositionedSheetText[]){
-  const combined=upper(`${title.value||''} ${items.map(item=>item.text).join(' ')}`);
-  const keyword:[RegExp,string][]=[[/\bFIRE ALARM\b/,'Fire Alarm'],[/\bFIRE PROTECTION\b|\bSPRINKLER\b/,'Fire Protection'],[/\bELECTRICAL\b|\bPOWER\b|\bLIGHTING\b|\bONE[- ]?LINE\b/,'Electrical'],[/\bARCHITECTURAL\b|\bFLOOR PLAN\b/,'Architectural'],[/\bMECHANICAL\b|\bHVAC\b/,'Mechanical'],[/\bPLUMBING\b/,'Plumbing'],[/\bCIVIL\b|\bGRADING\b/,'Civil'],[/\bSTRUCTURAL\b/,'Structural'],[/\b(?:TELECOM|TELECOMMUNICATION|LOW VOLTAGE)\b/,'Telecommunications']];
-  for(const [pattern,value] of keyword)if(pattern.test(combined))return field(value,.86,[title.value||pattern.source],'TITLE_KEYWORD');
+  const titleText=upper(title.value||'');
+  const scores=new Map<string,{score:number;snippets:string[]}>();
+  const add=(discipline:string,score:number,snippet:string)=>{
+    const entry=scores.get(discipline)||{score:0,snippets:[]};entry.score+=score;
+    if(snippet&&entry.snippets.length<4)entry.snippets.push(snippet);scores.set(discipline,entry);
+  };
   const prefix=sheetNumber.value?.match(/^([A-Z]{1,2})/i)?.[1]?.toUpperCase();
-  return prefix&&disciplineMap[prefix]?field(disciplineMap[prefix],.78,[sheetNumber.value!],'SHEET_PREFIX'):field(null,0,[],'UNRESOLVED');
+  if(prefix&&disciplineMap[prefix])add(disciplineMap[prefix],3.5,`sheet prefix ${sheetNumber.value}`);
+  for(const item of items){
+    const text=upper(item.text);
+    const exactTitle=Boolean(titleText&&text.includes(titleText)&&titleText.length>=4);
+    const regionWeight=exactTitle?4:(item.x>=.48||item.y>=.72)?2:1;
+    for(const [pattern,discipline] of DISCIPLINE_KEYWORDS){
+      pattern.lastIndex=0;let match:RegExpExecArray|null;
+      while((match=pattern.exec(text))!==null){
+        const before=text.slice(Math.max(0,match.index-60),match.index);
+        const reference=REFERENCE_CONTEXT.test(before);
+        add(discipline,regionWeight*(reference?.2:1),compact(item.text));
+      }
+    }
+  }
+  const ranked=[...scores.entries()].sort((a,b)=>b[1].score-a[1].score);
+  if(!ranked.length)return field(null,0,[],'UNRESOLVED');
+  const [winner,win]=ranked[0],runner=ranked[1]?.[1].score||0;
+  const clear=runner===0||win.score>=runner*1.5;
+  return field(winner,clear?.86:.68,win.snippets.slice(0,4),clear?'DISCIPLINE_EVIDENCE_SCORED':'DISCIPLINE_EVIDENCE_CONTESTED');
 }
 
 const ordinalLevel:Record<string,number>={FIRST:1,SECOND:2,THIRD:3,FOURTH:4,FIFTH:5,SIXTH:6,SEVENTH:7,EIGHTH:8,NINTH:9,TENTH:10};
@@ -125,6 +172,8 @@ function normalizeScale(value:string){
   const text=upper(value).replace(/[”]/g,'"').replace(/[’]/g,"'").replace(/\s+/g,' ').trim();
   if(ntsPattern.test(text))return'NTS';
   const metric=text.match(/^1\s*:\s*(\d{1,5}(?:\.\d+)?)$/);if(metric)return`1:${Number(metric[1])}`;
+  const word=text.match(/^((?:\d+(?:\s+\d+\/\d+)?|\d+\/\d+))\s*(?:INCH|INCHES|IN\.?)\s*=\s*(\d+(?:\.\d+)?)\s*(?:FEET|FOOT|FT\.?)$/);
+  if(word)return`${word[1]}" = ${word[2]}'`;
   return text;
 }
 function inferScale(items:PositionedSheetText[]){
