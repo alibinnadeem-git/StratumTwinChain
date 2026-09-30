@@ -5,6 +5,7 @@ const migration=fs.readFileSync('migrations/012_spatial_z_review_provenance.sql'
 const api=fs.readFileSync('app/api/spatial/z-reviews/route.ts','utf8');
 const inspector=fs.readFileSync('components/SpatialAssetInspector.tsx','utf8');
 const readiness=fs.readFileSync('lib/server/database-readiness.ts','utf8');
+const compilationApi=fs.readFileSync('app/api/spatial/compilations/route.ts','utf8');
 
 assert.match(migration,/CREATE TABLE IF NOT EXISTS spatial_z_review_decisions/);
 assert.match(migration,/organization_id uuid NOT NULL/);
@@ -32,8 +33,17 @@ assert.doesNotMatch(api,/INSERT\s+INTO\s+assets|UPDATE\s+assets|INSERT\s+INTO\s+
 assert.match(api,/NOT_PHYSICAL_TRUTH_NOT_DIR_NOT_POVI/);
 
 assert.match(inspector,/Use this design chain for review placement/);
+assert.match(inspector,/\/api\/spatial\/z-reviews/);
+assert.match(inspector,/SERVER_AUTHENTICATED_HUMAN_REVIEW/);
+assert.match(inspector,/credentials:'same-origin'/);
+assert.match(inspector,/Review rationale/);
 assert.match(inspector,/PHYSICAL Z UNVERIFIED/);
 assert.match(readiness,/spatialZReview/);
 assert.match(readiness,/spatial_z_review_decisions/);
+
+assert.match(compilationApi,/zReviewClaims/);
+assert.match(compilationApi,/SERVER_AUTHENTICATED_HUMAN_REVIEW/);
+assert.match(compilationApi,/spatial_z_review_decisions/);
+assert.match(compilationApi,/Spatial Z review receipt does not match the persisted server decision/);
 
 console.log('Spatial Z review provenance contract passed: authenticated project-scoped review events are append-only, recomputed from stored compilation evidence, hash-bound to the source graph, and cannot create physical truth, assets, lifecycle state, DIRs or PoVI finality.');
