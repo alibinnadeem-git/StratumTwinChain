@@ -107,13 +107,19 @@ export function historicalZPrior(componentKey:string,input:{projectId:string;sup
     const prior=latestByDecision.get(event.decisionKey);
     if(!prior||Date.parse(event.occurredAt)>=Date.parse(prior.occurredAt))latestByDecision.set(event.decisionKey,event);
   }
-  const events=[...latestByDecision.values()];
+  let events=[...latestByDecision.values()];
+  if(!input.referencePoint){
+    // Never average unlike reference semantics (for example BASE with
+    // CENTERLINE). Select the best-supported homogeneous reference group.
+    const groups=new Map<ZHistoryReferencePoint,ZHistoryEvent[]>();
+    for(const event of events)groups.set(event.referencePoint,[...(groups.get(event.referencePoint)||[]),event]);
+    events=[...groups.values()].sort((a,b)=>b.length-a.length)[0]||[];
+  }
   if(events.length<MIN_SAMPLES)return null;
+  const referencePoint=events[0]?.referencePoint||'UNSPECIFIED';
+  if(events.some(event=>event.referencePoint!==referencePoint))return null;
   const offsets=events.map(event=>event.offsetMeters),mean=offsets.reduce((sum,value)=>sum+value,0)/offsets.length;
   const variance=offsets.length>1?offsets.reduce((sum,value)=>sum+(value-mean)**2,0)/(offsets.length-1):0;
-  const referenceCounts=new Map<ZHistoryReferencePoint,number>();
-  for(const event of events)referenceCounts.set(event.referencePoint,(referenceCounts.get(event.referencePoint)||0)+1);
-  const referencePoint=[...referenceCounts.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||'UNSPECIFIED';
   return{n:events.length,meanOffsetMeters:mean,medianOffsetMeters:median(offsets),stdMeters:Math.sqrt(Math.max(0,variance)),minOffsetMeters:Math.min(...offsets),maxOffsetMeters:Math.max(...offsets),supportKind,referencePoint,eventIds:events.map(event=>event.id)};
 }
 
