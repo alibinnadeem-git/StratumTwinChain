@@ -94,6 +94,8 @@ export async function POST(req:Request){
       const solution=buildZSolution(rawPlacementEntity(entity));
       const conflicts=solution.conflicts;
       if(!conflicts.length)throw Object.assign(new Error('Stored entity does not currently contain a Z conflict requiring adjudication'),{status:409});
+      if(solution.candidates.some(item=>item.kind==='REVIEWED_OR_MEASURED'&&item.absolute&&item.baseZ!==null))
+        throw Object.assign(new Error('Measured/reviewed Z evidence cannot be overridden by design-chain adjudication'),{status:409});
 
       const duplicate=await client.query<any>(`SELECT id::text,action,candidate_id,reason,graph_sha256,decision_sha256,occurred_at
         FROM spatial_z_review_decisions
