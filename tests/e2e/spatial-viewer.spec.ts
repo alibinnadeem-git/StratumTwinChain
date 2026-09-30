@@ -269,7 +269,7 @@ test('DXF native units are retained while explicit design Z remains review-only'
  await imported.selectOption(panelValue!);
  await expect(page.getByText('SOURCE ORIGIN design Z reference · review required',{exact:true})).toBeVisible();
  await expect(page.getByText(/Z REFERENCE CANDIDATE · REVIEW REQUIRED/)).toBeVisible();
- await expect(page.locator('.placement-details').getByText(/SOURCE DXF DESIGN Z/i).first()).toBeVisible();
+ await expect(page.locator('.z-solution-details').getByText(/SOURCE DXF DESIGN Z/i).first()).toBeVisible();
 });
 test('SLD becomes review-only spatial electrical hierarchy',async({page})=>{
  await page.goto('/spatial');
