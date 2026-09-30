@@ -5,7 +5,7 @@ import {useMemo,useState} from 'react';
 import {readPrimarySpatialGraph,replaceCurrentSpatialGraph} from '@/lib/spatial-browser-recovery';
 import {resolveReconciledAssetPlacement} from '@/lib/z-solution-chain';
 import {resolveElectricalComponent,modelSourceRefsFor} from '@/lib/electrical-component-library';
-import {recordConfirmedZ} from '@/lib/z-history';
+import {recordAcceptedZInference} from '@/lib/z-history';
 import {inferenceMethodLabel,type ZInference} from '@/lib/z-inference';
 import {readSelectedSpatialProjectId} from '@/lib/spatial-project-selection';
 import AssetActivityPanel from '@/components/AssetActivityPanel';
