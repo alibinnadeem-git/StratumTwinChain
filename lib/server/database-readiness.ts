@@ -5,6 +5,7 @@ export const DATABASE_CAPABILITY_TABLES={
  archive:['organizations','users','memberships','projects','sites','assets','asset_archive_events'],
  spatialPersistence:['organizations','users','memberships','projects','sites','assets','spatial_compilations','spatial_compilation_reviews'],
  spatialSourceVault:['organizations','users','memberships','projects','spatial_project_sources','spatial_project_source_chunks','spatial_project_source_verifications'],
+ spatialZReview:['organizations','users','memberships','projects','spatial_compilations','spatial_z_review_decisions'],
  powerIntelligence:['organizations','users','memberships','projects','sites','assets','spatial_compilations','power_intelligence_snapshots','expected_power_requirements','power_gap_findings','power_finding_dispositions'],
  engineeringKnowledge:['organizations','users','memberships','projects','sites','assets','engineering_applicability_records','oem_reference_documents','asset_maintenance_plans'],
  oemCadVerification:['organizations','users','memberships','oem_cad_verifications','oem_cad_source_files'],
@@ -34,6 +35,7 @@ export type DatabaseReadiness={
  archiveReady:boolean;
  spatialPersistenceReady:boolean;
  spatialSourceVaultReady:boolean;
+ spatialZReviewReady:boolean;
  powerIntelligenceReady:boolean;
  engineeringKnowledgeReady:boolean;
  coordinationReady:boolean;
@@ -56,6 +58,7 @@ export function summarizeDatabaseReadiness(tableNames:string[]):DatabaseReadines
  const archiveReady=capabilityReady(present,'archive');
  const spatialPersistenceReady=capabilityReady(present,'spatialPersistence');
  const spatialSourceVaultReady=capabilityReady(present,'spatialSourceVault');
+ const spatialZReviewReady=capabilityReady(present,'spatialZReview');
  const powerIntelligenceReady=capabilityReady(present,'powerIntelligence');
  const engineeringKnowledgeReady=capabilityReady(present,'engineeringKnowledge');
  const coordinationReady=capabilityReady(present,'coordination');
@@ -66,7 +69,7 @@ export function summarizeDatabaseReadiness(tableNames:string[]):DatabaseReadines
   requiredTableCount:REQUIRED_DATABASE_TABLES.length,
   presentTableCount:REQUIRED_DATABASE_TABLES.length-missingTables.length,
   missingTables,
-  coreReady,lifecycleReady,evidenceReady,archiveReady,spatialPersistenceReady,spatialSourceVaultReady,powerIntelligenceReady,engineeringKnowledgeReady,coordinationReady,oemCadVerificationReady,attestationsReady,dirRuntimeReady,
+  coreReady,lifecycleReady,evidenceReady,archiveReady,spatialPersistenceReady,spatialSourceVaultReady,spatialZReviewReady,powerIntelligenceReady,engineeringKnowledgeReady,coordinationReady,oemCadVerificationReady,attestationsReady,dirRuntimeReady,
   fullSchemaReady:missingTables.length===0,
  };
 }
