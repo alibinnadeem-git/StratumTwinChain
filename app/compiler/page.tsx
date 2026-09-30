@@ -29,7 +29,7 @@ export default async function CompilerPage(){const session=await readSession();r
    <summary>Review exceptions</summary>
    <p className="muted">Open this only when STRATUM flags uncertain rooms, title blocks, alignment or elevation. Automatic proposals remain reviewable and never become Verified state by themselves.</p>
    <RoomReconstructionReview/>
-   <TitleBlockIntelligence/>
+   <TitleBlockIntelligence authenticated={Boolean(session)}/>
    <AutoSheetAlignmentReview/>
    <ManualSheetXYCalibrationReview/>
   </details>
