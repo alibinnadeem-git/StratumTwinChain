@@ -191,7 +191,10 @@ export function buildZSolution(entity:PlacementEntity,options?:{toleranceMeters?
   const chosen=ranked.find(c=>c.baseZ!==null&&c.kind!=='UNRESOLVED')||null;
   const reviewDecision=String(meta.zReviewDecisionStatus||'');
   const reviewCandidateId=String(meta.zReviewDecisionCandidateId||'').trim();
-  const reviewedCandidate=reviewDecision==='ACCEPTED_DESIGN_CHAIN'
+  const reviewAuthority=String(meta.zReviewDecisionAuthority||'');
+  const reviewReceiptId=String(meta.zReviewDecisionId||'');
+  const serverReceipt=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(reviewReceiptId);
+  const reviewedCandidate=reviewDecision==='ACCEPTED_DESIGN_CHAIN'&&reviewAuthority==='SERVER_AUTHENTICATED_HUMAN_REVIEW'&&serverReceipt
     ?all.find(candidate=>candidate.id===reviewCandidateId&&candidate.absolute&&candidate.baseZ!==null)||null
     :null;
 
