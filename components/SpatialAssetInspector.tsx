@@ -40,10 +40,12 @@ function verificationUrl(asset:RegisteredSpatialAsset){
 export default function SpatialAssetInspector({
  selected,
  registeredAssets,
+ authenticated=false,
  onEntityUpdated,
 }:{
  selected:InspectorEntity|null;
  registeredAssets:RegisteredSpatialAsset[];
+ authenticated?:boolean;
  onEntityUpdated?:(entity:InspectorEntity)=>void;
 }){
  const [linkId,setLinkId]=useState('');
@@ -118,6 +120,7 @@ export default function SpatialAssetInspector({
 
  async function acceptInferredZ(inference:ZInference){
   if(!selected)return;
+  if(!authenticated){setMessage('Sign in before recording an H2 coordination-review decision. You may still preview the inference locally.');return;}
   if(zSolution?.status==='CONFLICT'){setMessage('H2 acceptance is blocked while source-grounded Z chains conflict. Resolve the source conflict instead of selecting an AI inference.');return;}
   try{
    const graph=await readPrimarySpatialGraph();
@@ -134,7 +137,7 @@ export default function SpatialAssetInspector({
       zReviewSupportKind:inference.support?.kind||null,zReviewSupportZMeters:inference.support?.zMeters??null,
       zReviewProjectId:projectId||null,zPlacementAuthority:'H2_ACCEPTED_INFERENCE',
       verificationState:'UNVERIFIED',physicalTruth:false,physicalElevationKnown:false,elevationKnown:false,reviewRequired:true,
-      zReviewPromotionBlocked:true,zReviewActorIdentity:'UNRECORDED_BROWSER_REVIEW'
+      zReviewPromotionBlocked:true,zReviewActorClass:'AUTHENTICATED_SESSION',zReviewActorId:null
     };
     if(inference.renderBaseZMeters!==null){
       meta.zPreviewBaseMeters=inference.renderBaseZMeters;meta.zPreviewReferenceMeters=inference.absoluteReferenceZMeters;
@@ -220,7 +223,7 @@ export default function SpatialAssetInspector({
   </div>}
   {visibleZInferences.length>0&&!zReviewed&&<div className="notice" role="status" style={{marginTop:10}}>
    <strong>AI INFERRED Z PROPOSALS · NOT VERIFIED</strong>
-   <span>Inference is below source/review evidence in the Z hierarchy. Relative offsets never become absolute coordinates without a resolved support datum. H2 acceptance is coordination-only and cannot resolve a source-chain conflict.</span>
+   <span>Inference is below source/review evidence in the Z hierarchy. Relative offsets never become absolute coordinates without a resolved support datum. H2 acceptance is coordination-only, requires sign-in, and cannot resolve a source-chain conflict.</span>
    <ol style={{margin:'8px 0 0',paddingLeft:18}}>{visibleZInferences.map((inference,index)=><li key={inference.id||index} style={{marginBottom:10}}>
     <b>{inference.absoluteReferenceZMeters!==null?`${inference.absoluteReferenceZMeters.toFixed(2)} m absolute ${inference.referencePoint.replaceAll('_',' ').toLowerCase()}`:`${inference.offsetMeters?.toFixed(2)??'—'} m relative ${inference.referencePoint.replaceAll('_',' ').toLowerCase()}`}</b>
     <small> · {Math.round(inference.confidence*100)}% · {inferenceMethodLabel(inference.method)}{inference.corroboratingMethods.length>1?` · corroborated by ${inference.corroboratingMethods.length} methods`:''}</small>
@@ -229,7 +232,7 @@ export default function SpatialAssetInspector({
     {inference.sourceRefs.length>0&&<><br/><small className="muted">Evidence: {inference.sourceRefs.map((ref,i)=>ref.url?<span key={i}><a href={ref.url} target="_blank" rel="noreferrer">{ref.label}</a>{i<inference.sourceRefs.length-1?' · ':''}</span>:<span key={i}>{ref.label}{i<inference.sourceRefs.length-1?' · ':''}</span>)}</small></>}
     <div className="button-row" style={{marginTop:4}}>
      <button type="button" onClick={()=>void persistZPreview(inference)} disabled={inference.renderBaseZMeters===null||zSolution?.status==='CONFLICT'}>Preview in 3D</button>
-     <button type="button" onClick={()=>void acceptInferredZ(inference)} disabled={zSolution?.status==='CONFLICT'}>Accept for coordination</button>
+     <button type="button" onClick={()=>void acceptInferredZ(inference)} disabled={!authenticated||zSolution?.status==='CONFLICT'} title={!authenticated?'Sign in to record an H2 review decision':zSolution?.status==='CONFLICT'?'Resolve the source-grounded Z conflict first':'Record an H2 coordination-review decision'}>Accept for coordination</button>
      <button type="button" className="ghost" onClick={()=>void rejectInference(inference)}>Reject</button>
     </div>
    </li>)}</ol>
