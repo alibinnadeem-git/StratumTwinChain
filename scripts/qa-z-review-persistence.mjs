@@ -45,5 +45,9 @@ assert.match(compilationApi,/zReviewClaims/);
 assert.match(compilationApi,/SERVER_AUTHENTICATED_HUMAN_REVIEW/);
 assert.match(compilationApi,/spatial_z_review_decisions/);
 assert.match(compilationApi,/Spatial Z review receipt does not match the persisted server decision/);
+assert.match(compilationApi,/Spatial Z review evidence changed after the authenticated decision; review again before sync/);
+assert.match(compilationApi,/zReviewEvidenceSnapshot/);
+assert.match(compilationApi,/canonicalHash\(currentSnapshot\.candidate\)/);
+assert.match(compilationApi,/canonicalHash\(currentSnapshot\.conflicts\)/);
 
 console.log('Spatial Z review provenance contract passed: authenticated project-scoped review events are append-only, recomputed from stored compilation evidence, hash-bound to the source graph, and cannot create physical truth, assets, lifecycle state, DIRs or PoVI finality.');
