@@ -10,6 +10,7 @@ assert.equal(full.evidenceReady,true);
 assert.equal(full.archiveReady,true);
 assert.equal(full.spatialPersistenceReady,true);
 assert.equal(full.spatialSourceVaultReady,true);
+assert.equal(full.spatialZReviewReady,true);
 assert.equal(full.oemCadVerificationReady,true);
 assert.equal(full.attestationsReady,true);
 assert.equal(full.dirRuntimeReady,true);
@@ -30,6 +31,12 @@ const sourceVaultMissing=summarizeDatabaseReadiness(withoutSourceVault);
 assert.equal(sourceVaultMissing.spatialPersistenceReady,true);
 assert.equal(sourceVaultMissing.spatialSourceVaultReady,false);
 console.log('✓ source-vault readiness fails independently without disabling Spatial graph persistence');
+
+const withoutZReview=REQUIRED_DATABASE_TABLES.filter(table=>table!=='spatial_z_review_decisions');
+const zReviewMissing=summarizeDatabaseReadiness(withoutZReview);
+assert.equal(zReviewMissing.spatialPersistenceReady,true);
+assert.equal(zReviewMissing.spatialZReviewReady,false);
+console.log('✓ Z-review provenance readiness fails independently without disabling Spatial graph persistence');
 
 const withoutLifecycle=REQUIRED_DATABASE_TABLES.filter(table=>table!=='lifecycle_events');
 const lifecycleMissing=summarizeDatabaseReadiness(withoutLifecycle);
@@ -53,6 +60,7 @@ assert.ok(DATABASE_CAPABILITY_TABLES.spatialPersistence.includes('spatial_compil
 assert.ok(DATABASE_CAPABILITY_TABLES.spatialSourceVault.includes('spatial_project_sources'));
 assert.ok(DATABASE_CAPABILITY_TABLES.spatialSourceVault.includes('spatial_project_source_chunks'));
 assert.ok(DATABASE_CAPABILITY_TABLES.spatialSourceVault.includes('spatial_project_source_verifications'));
+assert.ok(DATABASE_CAPABILITY_TABLES.spatialZReview.includes('spatial_z_review_decisions'));
 assert.ok(DATABASE_CAPABILITY_TABLES.attestations.includes('human_attestations'));
 assert.ok(DATABASE_CAPABILITY_TABLES.archive.includes('asset_archive_events'));
 assert.ok(DATABASE_CAPABILITY_TABLES.oemCadVerification.includes('oem_cad_verifications'));
