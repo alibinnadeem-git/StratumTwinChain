@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {inferEquipmentZ,inferenceMethodLabel} from '../lib/z-inference.ts';
-import {clearConfirmedZ,historicalZConfidence,historicalZPrior,recordConfirmedZ} from '../lib/z-history.ts';
+import {clearAcceptedZInferenceHistory,historicalZConfidence,historicalZPrior,recordAcceptedZInference} from '../lib/z-history.ts';
 
 let passed=0;
 const ok=(name,fn)=>{fn();passed++;console.log('ok -',name)};
@@ -32,19 +32,19 @@ ok('pad-mount transformer composes base offset with grade',()=>{
 });
 
 ok('historical learning requires three unique project/entity decisions',()=>{
- clearConfirmedZ();
+ clearAcceptedZInferenceHistory();
  const base={projectId:'project-a',componentKey:'disconnect',supportKind:'FINISHED_FLOOR',supportZMeters:10,referencePoint:'MOUNTING_POINT',inferenceMethod:'CLASS_MOUNTING_PRIOR',basis:['review'],sourceRefs:[]};
- recordConfirmedZ({...base,entityId:'d1',offsetMeters:1.2,absoluteReferenceZMeters:11.2,sourceInferenceId:'a'});
- recordConfirmedZ({...base,entityId:'d2',offsetMeters:1.25,absoluteReferenceZMeters:11.25,sourceInferenceId:'b'});
+ recordAcceptedZInference({...base,entityId:'d1',offsetMeters:1.2,absoluteReferenceZMeters:11.2,sourceInferenceId:'a'});
+ recordAcceptedZInference({...base,entityId:'d2',offsetMeters:1.25,absoluteReferenceZMeters:11.25,sourceInferenceId:'b'});
  assert.equal(historicalZPrior('disconnect',{projectId:'project-a',supportKind:'FINISHED_FLOOR'}),null);
- recordConfirmedZ({...base,entityId:'d3',offsetMeters:1.3,absoluteReferenceZMeters:11.3,sourceInferenceId:'c'});
+ recordAcceptedZInference({...base,entityId:'d3',offsetMeters:1.3,absoluteReferenceZMeters:11.3,sourceInferenceId:'c'});
  const prior=historicalZPrior('disconnect',{projectId:'project-a',supportKind:'FINISHED_FLOOR'});
  assert.ok(prior);assert.equal(prior.n,3);assert.ok(Math.abs(prior.medianOffsetMeters-1.25)<1e-9);
 });
 
 ok('repeat acceptance on one entity is idempotent for historical sample count',()=>{
  const before=historicalZPrior('disconnect',{projectId:'project-a',supportKind:'FINISHED_FLOOR'});
- recordConfirmedZ({projectId:'project-a',entityId:'d1',componentKey:'disconnect',supportKind:'FINISHED_FLOOR',supportZMeters:10,offsetMeters:1.2,referencePoint:'MOUNTING_POINT',absoluteReferenceZMeters:11.2,inferenceMethod:'CLASS_MOUNTING_PRIOR',sourceInferenceId:'a',basis:['review'],sourceRefs:[]});
+ recordAcceptedZInference({projectId:'project-a',entityId:'d1',componentKey:'disconnect',supportKind:'FINISHED_FLOOR',supportZMeters:10,offsetMeters:1.2,referencePoint:'MOUNTING_POINT',absoluteReferenceZMeters:11.2,inferenceMethod:'CLASS_MOUNTING_PRIOR',sourceInferenceId:'a',basis:['review'],sourceRefs:[]});
  const after=historicalZPrior('disconnect',{projectId:'project-a',supportKind:'FINISHED_FLOOR'});
  assert.equal(before?.n,3);assert.equal(after?.n,3);
 });
@@ -54,12 +54,12 @@ ok('historical priors do not leak across projects',()=>{
 });
 
 ok('historical prior never mixes base and centerline reference semantics',()=>{
- clearConfirmedZ();
+ clearAcceptedZInferenceHistory();
  const common={projectId:'project-mixed',componentKey:'disconnect',supportKind:'FINISHED_FLOOR',supportZMeters:0,inferenceMethod:'CLASS_MOUNTING_PRIOR',basis:['review'],sourceRefs:[]};
- recordConfirmedZ({...common,entityId:'b1',offsetMeters:1,referencePoint:'BASE',absoluteReferenceZMeters:1,sourceInferenceId:'b1'});
- recordConfirmedZ({...common,entityId:'b2',offsetMeters:1.1,referencePoint:'BASE',absoluteReferenceZMeters:1.1,sourceInferenceId:'b2'});
- recordConfirmedZ({...common,entityId:'c1',offsetMeters:1.4,referencePoint:'CENTERLINE',absoluteReferenceZMeters:1.4,sourceInferenceId:'c1'});
- recordConfirmedZ({...common,entityId:'c2',offsetMeters:1.5,referencePoint:'CENTERLINE',absoluteReferenceZMeters:1.5,sourceInferenceId:'c2'});
+ recordAcceptedZInference({...common,entityId:'b1',offsetMeters:1,referencePoint:'BASE',absoluteReferenceZMeters:1,sourceInferenceId:'b1'});
+ recordAcceptedZInference({...common,entityId:'b2',offsetMeters:1.1,referencePoint:'BASE',absoluteReferenceZMeters:1.1,sourceInferenceId:'b2'});
+ recordAcceptedZInference({...common,entityId:'c1',offsetMeters:1.4,referencePoint:'CENTERLINE',absoluteReferenceZMeters:1.4,sourceInferenceId:'c1'});
+ recordAcceptedZInference({...common,entityId:'c2',offsetMeters:1.5,referencePoint:'CENTERLINE',absoluteReferenceZMeters:1.5,sourceInferenceId:'c2'});
  assert.equal(historicalZPrior('disconnect',{projectId:'project-mixed',supportKind:'FINISHED_FLOOR'}),null);
 });
 
@@ -69,11 +69,11 @@ ok('history confidence is capped and penalized by dispersion',()=>{
 });
 
 ok('inference uses project-scoped reviewed history only when support is resolved',()=>{
- clearConfirmedZ();
+ clearAcceptedZInferenceHistory();
  const base={projectId:'project-a',componentKey:'disconnect',supportKind:'FINISHED_FLOOR',supportZMeters:10,referencePoint:'MOUNTING_POINT',inferenceMethod:'CLASS_MOUNTING_PRIOR',basis:['review'],sourceRefs:[]};
- recordConfirmedZ({...base,entityId:'d1',offsetMeters:1.2,absoluteReferenceZMeters:11.2,sourceInferenceId:'a'});
- recordConfirmedZ({...base,entityId:'d2',offsetMeters:1.25,absoluteReferenceZMeters:11.25,sourceInferenceId:'b'});
- recordConfirmedZ({...base,entityId:'d3',offsetMeters:1.3,absoluteReferenceZMeters:11.3,sourceInferenceId:'c'});
+ recordAcceptedZInference({...base,entityId:'d1',offsetMeters:1.2,absoluteReferenceZMeters:11.2,sourceInferenceId:'a'});
+ recordAcceptedZInference({...base,entityId:'d2',offsetMeters:1.25,absoluteReferenceZMeters:11.25,sourceInferenceId:'b'});
+ recordAcceptedZInference({...base,entityId:'d3',offsetMeters:1.3,absoluteReferenceZMeters:11.3,sourceInferenceId:'c'});
  const withHistory=inferEquipmentZ({name:'Safety Switch Disconnect',projectId:'project-a',meta:{reviewSurfaceZ:20,reviewSurfaceKind:'FINISHED_FLOOR',reviewSurfaceConfidence:.8}});
  assert.ok(withHistory.some(item=>item.method==='HISTORICAL_CLASS_PRIOR'));
  const withoutSupport=inferEquipmentZ({name:'Safety Switch Disconnect',projectId:'project-a',meta:{}});
