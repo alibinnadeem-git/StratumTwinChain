@@ -7,10 +7,11 @@ import {useRouter} from 'next/navigation';
 export default function SetPasswordPage(){
  const router=useRouter();
  const [token,setToken]=useState('');
+ const [bootstrap,setBootstrap]=useState(false);
  const [error,setError]=useState('');
  const [busy,setBusy]=useState(false);
 
- useEffect(()=>{setToken(new URLSearchParams(window.location.search).get('token')||'')},[]);
+ useEffect(()=>{const params=new URLSearchParams(window.location.search);setToken(params.get('token')||'');setBootstrap(params.get('mode')==='bootstrap')},[]);
 
  async function submit(event:FormEvent<HTMLFormElement>){
   event.preventDefault();
@@ -19,7 +20,7 @@ export default function SetPasswordPage(){
   const password=String(form.get('password')||'');
   const confirm=String(form.get('confirm')||'');
   if(password!==confirm){setError('Passwords do not match');setBusy(false);return}
-  const response=await fetch('/api/auth/password-setup/complete',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token,password})});
+  const response=await fetch(bootstrap?'/api/auth/bootstrap-first-admin':'/api/auth/password-setup/complete',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token,password})});
   const body=await response.json();
   if(!response.ok){setError(body.error||'Password setup failed');setBusy(false);return}
   router.push('/login?setup=complete');
@@ -29,9 +30,9 @@ export default function SetPasswordPage(){
  return <main style={{maxWidth:560,margin:'8vh auto',padding:24}}><div className="card">
   <div className="eyebrow">STRATUM Spatial Verified</div>
   <h1>Configure your account password</h1>
-  <p className="muted">Use the short-lived one-time setup token issued for your account. The token is a credential and should not be shared.</p>
+  <p className="muted">{bootstrap?'Use the short-lived, single-use bootstrap credential issued for the sole STRATUM Power SUPER_ADMIN. It becomes unusable once the account is provisioned.':'Use the short-lived one-time setup token issued for your account. The token is a credential and should not be shared.'}</p>
   <form onSubmit={submit} style={{display:'grid',gap:12}}>
-   <input aria-label="One-time setup token" value={token} onChange={e=>setToken(e.target.value)} required minLength={20} maxLength={256} placeholder="One-time setup token" autoComplete="off"/>
+   <input aria-label={bootstrap?'One-time admin bootstrap token':'One-time setup token'} value={token} onChange={e=>setToken(e.target.value)} required minLength={20} maxLength={256} placeholder="One-time setup token" autoComplete="off"/>
    <input name="password" type="password" minLength={12} maxLength={128} required placeholder="New password" autoComplete="new-password"/>
    <input name="confirm" type="password" minLength={12} maxLength={128} required placeholder="Confirm new password" autoComplete="new-password"/>
    <button type="submit" className="action" disabled={busy}>{busy?'Configuring…':'Configure password'}</button>
