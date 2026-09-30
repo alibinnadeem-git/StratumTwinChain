@@ -22,6 +22,8 @@ import {drawingSourceReprocessReason,findDrawingSourcesNeedingReprocess} from '.
 import {archiveSourceBytes,archivedSourceToFile,listArchivedSourceMetadata,readArchivedSource} from '../lib/source-browser-archive';
 import {enrichCoordinationIntelligence} from '../lib/coordination-intelligence';
 import {buildZResolutionIndex,extractZEvidenceFromText,type ZEvidence} from '../lib/z-resolver';
+import {inferEquipmentZ} from '../lib/z-inference';
+import {readSelectedSpatialProjectId} from '../lib/spatial-project-selection';
 import {buildProjectDatumSurfaces,datumSurfaceMetadata,projectDatumSurfaceForEntity} from '../lib/project-datum';
 import {buildElevationTriangles,extractPositionedElevationControls,resolveLocalElevationSurface,type ElevationControlPoint,type ElevationTriangle} from '../lib/elevation-surface';
 import {enrichSupportBaseOffsets,extractSupportOffsetEvidence,type SupportOffsetEvidence} from '../lib/support-base-evidence';
@@ -218,14 +220,20 @@ function enrichZCandidates(parsed:GraphEntity[]){
  const evidence=parsed.flatMap(entity=>entity.meta?.zEvidence?[entity.meta.zEvidence as ZEvidence]:[]);
  const surfaces=buildProjectDatumSurfaces(evidence);
  const index=buildZResolutionIndex(parsed,evidence);
+ const projectId=readSelectedSpatialProjectId()||undefined;
  return parsed.map(entity=>{
   const resolution=index.get(entity.id);
   const surface=projectDatumSurfaceForEntity(entity,surfaces);
   const surfaceMeta=datumSurfaceMetadata(surface);
   const xyzGuide=Number.isFinite(Number(entity.meta?.unitToMeters))&&String(entity.meta?.unitName||'')!=='unitless'
-   ?{zScaleGuideMetersPerSourceUnit:Number(entity.meta?.unitToMeters),zScaleGuideAuthority:'XY_AND_Z_SHARE_SOURCE_UNITS'}
+   ?{zScaleGuideMetersPerSourceUnit:Number(entity.meta?.unitToMeters),zScaleGuideAuthority:'XY_AND_Z_SHARE_SOURCE_UNITS',zScaleGuideMeaning:'DISTANCE_SCALE_ONLY_NOT_Z_ORIGIN'}
    :{};
-  if(!resolution||resolution.status==='UNRESOLVED')return {...entity,meta:{...entity.meta,...surfaceMeta,...xyzGuide,zResolutionStatus:'UNRESOLVED',physicalElevationKnown:false,elevationKnown:false}};
+  if(!resolution||resolution.status==='UNRESOLVED'){
+   const meta={...entity.meta,...surfaceMeta,...xyzGuide};
+   const inferences=inferEquipmentZ({name:entity.name,floor:entity.floor,z:entity.z,meta,x:entity.x,y:entity.y,projectId});
+   if(inferences.length)return {...entity,meta:{...meta,zResolutionStatus:'INFERRED_CANDIDATES',zInferences:inferences,zInferenceCount:inferences.length,zInferenceHasAbsolute:inferences.some(item=>item.absoluteReferenceZMeters!==null),zPlacementAuthority:'AI_INFERRED_REVIEW_ONLY',zInferenceEngineVersion:'2',physicalTruth:false,physicalElevationKnown:false,elevationKnown:false,reviewRequired:true}};
+   return {...entity,meta:{...meta,zResolutionStatus:'UNRESOLVED',physicalElevationKnown:false,elevationKnown:false}};
+  }
   if(resolution.status==='RESOLVED_DESIGN_CANDIDATE'&&resolution.zMeters!==null){
    return {...entity,meta:{...entity.meta,...surfaceMeta,...xyzGuide,zCandidateMeters:resolution.zMeters,zCandidateReferencePoint:resolution.referencePoint,zResolutionStatus:resolution.status,zResolutionConfidence:resolution.confidence,zResolutionAuthority:resolution.authority,zResolutionEvidence:resolution.evidence,physicalElevationKnown:false,elevationKnown:false,reviewRequired:true}};
   }
