@@ -16,6 +16,9 @@ export const dynamic='force-dynamic';
 
 export default async function SpatialPage(){
  const session=await readSession();
+ const zReviewActor=session&&(['SUPER_ADMIN','ORG_ADMIN','PROJECT_MANAGER'] as const).includes(session.role as 'SUPER_ADMIN'|'ORG_ADMIN'|'PROJECT_MANAGER')
+  ?{userId:session.userId,organizationId:session.organizationId,role:session.role}
+  :null;
  let assets:RegisteredSpatialAsset[]=[];let backendOnline=true;
  if(session)try{
   const rows=await liveAssets();
@@ -46,7 +49,7 @@ export default async function SpatialPage(){
   <SpatialWorkspaceStatus compact authenticated={Boolean(session)}/>
   <ServerNewerBanner/>
 
-  <SpatialExperience assets={assets} authenticated={Boolean(session)} reviewActor={session?{userId:session.userId,organizationId:session.organizationId,role:session.role}:null}/>
+  <SpatialExperience assets={assets} authenticated={Boolean(session)} reviewActor={zReviewActor}/>
   <PowerIntelligencePanel/>
   <CoordinationFindingsPanel/>
 
