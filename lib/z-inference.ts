@@ -52,6 +52,7 @@ export type ZInferenceInput={
   x?:number;
   y?:number;
   projectId?:string;
+  organizationId?:string;
   registry?:ElectricalModelConfig|null;
 };
 
@@ -144,8 +145,8 @@ function placementEngineInference(input:ZInferenceInput,support:ZInferenceSuppor
   }catch{return null}
 }
 function historicalInference(input:ZInferenceInput,componentKey:string,support:ZInferenceSupport|null):ZInference|null{
-  if(!support||!input.projectId)return null;
-  const prior=historicalZPrior(componentKey,{projectId:input.projectId,supportKind:support.kind});
+  if(!support||!input.projectId||!input.organizationId)return null;
+  const prior=historicalZPrior(componentKey,{projectId:input.projectId,organizationId:input.organizationId,supportKind:support.kind});
   if(!prior)return null;
   const absolute=support.zMeters+prior.medianOffsetMeters;
   return candidate(input,{method:'HISTORICAL_CLASS_PRIOR',offsetMeters:prior.medianOffsetMeters,absoluteReferenceZMeters:absolute,confidence:historicalZConfidence(prior.n,prior.stdMeters),referencePoint:prior.referencePoint,support,basis:[`${prior.n} unique reviewed placements in this project for this component/support context; median offset ${prior.medianOffsetMeters.toFixed(2)} m, range ${prior.minOffsetMeters.toFixed(2)}–${prior.maxOffsetMeters.toFixed(2)} m, σ ${prior.stdMeters.toFixed(2)} m`],sourceRefs:[{label:`${prior.n} H2 accepted-inference review events`,claimType:'HUMAN_HISTORY',verification:'INTERNAL_REVIEW_EVIDENCE'}]});
