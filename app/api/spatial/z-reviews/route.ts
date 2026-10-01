@@ -80,20 +80,23 @@ export async function POST(req:Request){
     const body=ReviewBody.parse(await req.json());
 
     const result=await tx(async client=>{
+      await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1,0))`,[
+        `STRATUM/SPATIAL/PROJECT/${session.organizationId}/${body.projectId}`
+      ]);
       const compilation=await client.query<StoredCompilation>(`SELECT id::text,project_id::text,graph_sha256,revision,graph_json
         FROM spatial_compilations
         WHERE id=$1 AND project_id=$2 AND organization_id=$3
         FOR SHARE`,[body.compilationId,body.projectId,session.organizationId]);
       const stored=compilation.rows[0];
       if(!stored)throw Object.assign(new Error('Compilation not found in this organization/project'),{status:404});
+      const latestCompilation=await client.query<{id:string}>(`SELECT id::text FROM spatial_compilations
+        WHERE organization_id=$1 AND project_id=$2 ORDER BY revision DESC LIMIT 1`,[session.organizationId,body.projectId]);
+      if(latestCompilation.rows[0]?.id!==body.compilationId)
+        throw Object.assign(new Error('Spatial Z review must target the latest project compilation'),{status:409});
 
       const entities=Array.isArray(stored.graph_json?.entities)?stored.graph_json.entities:[];
       const entity=entities.find((item:any)=>String(item?.id||'')===body.entityId);
       if(!entity)throw Object.assign(new Error('Entity not found in the stored Spatial compilation'),{status:404});
-
-      await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1,0))`,[
-        `STRATUM/SPATIAL/Z-REVIEW/${session.organizationId}/${body.projectId}/${body.entityId}`
-      ]);
 
       const solution=buildZSolution(rawPlacementEntity(entity));
       const conflicts=solution.conflicts;
