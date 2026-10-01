@@ -51,6 +51,38 @@ export default function SpatialAssetInspector({
  const dir=useMemo(()=>spatialAssetDirState(binding),[binding]);
  const asset=binding?.asset||null;
 
+ async function persistZReview(candidateId:string|null){
+  if(!selected)return;
+  try{
+   const graph=await readPrimarySpatialGraph();
+   if(!graph||!Array.isArray(graph.entities))throw new Error('No compiled graph is available');
+   let updated:InspectorEntity|null=null;
+   graph.entities=(graph.entities as InspectorEntity[]).map((entity:InspectorEntity)=>{
+    if(entity.id!==selected.id)return entity;
+    const meta={...(entity.meta||{})};
+    for(const key of ['zReviewDecisionStatus','zReviewDecisionCandidateId','zReviewDecisionAt','zReviewDecisionAuthority','zReviewDecisionPhysicalTruth'])delete meta[key];
+    if(candidateId){
+     meta.zReviewDecisionStatus='ACCEPTED_DESIGN_CHAIN';
+     meta.zReviewDecisionCandidateId=candidateId;
+     meta.zReviewDecisionAt=new Date().toISOString();
+     meta.zReviewDecisionAuthority='LOCAL_HUMAN_REVIEW';
+     meta.zReviewDecisionPhysicalTruth=false;
+     meta.physicalElevationKnown=false;
+     meta.elevationKnown=false;
+     meta.physicalTruth=false;
+     meta.reviewRequired=true;
+    }
+    updated={...entity,meta};
+    return updated;
+   });
+   await replaceCurrentSpatialGraph(graph);
+   if(updated)onEntityUpdated?.(updated);
+   setMessage(candidateId?'Design Z chain selected for review placement. Physical elevation remains unverified.':'Z review decision cleared; automatic conflict blocking restored.');
+  }catch(error){
+   setMessage(error instanceof Error?error.message:'Unable to update Z review decision');
+  }
+ }
+
  async function persistBinding(nextAsset:RegisteredSpatialAsset|null){
   if(!selected)return;
   try{
@@ -237,7 +269,9 @@ export default function SpatialAssetInspector({
     <strong>{candidate.id.replaceAll('_',' ')} · {candidate.kind.replaceAll('_',' ')}</strong>
     <small style={{display:'block',marginTop:4}}>Base {candidate.baseZ===null?'unresolved':candidate.baseZ.toFixed(3)+' m'} · {candidate.authority.replaceAll('_',' ')} · confidence {Math.round(candidate.confidence*100)}%</small>
     <ol style={{margin:'8px 0 0',paddingLeft:18}}>{candidate.steps.map((step,index)=><li key={index}><small>{step.label}{step.valueMeters!==undefined?` · ${step.valueMeters.toFixed(3)} m`:''}{step.authority?` · ${step.authority.replaceAll('_',' ')}`:''}</small></li>)}</ol>
+    {zSolution.status==='CONFLICT'&&candidate.absolute&&candidate.baseZ!==null&&<button className="ghost" type="button" style={{marginTop:8}} onClick={()=>persistZReview(candidate.id)}>Use this design chain for review placement</button>}
    </div>)}
+   {zSolution.status==='REVIEW_RESOLVED_CANDIDATE'&&<div className="notice" style={{marginTop:10}}><strong>HUMAN REVIEW PLACEMENT · PHYSICAL Z UNVERIFIED</strong><span>The selected chain controls the review model only. Conflicting evidence remains preserved and field/review evidence is still required before physical elevation can be established.</span><button className="ghost" type="button" style={{marginTop:8}} onClick={()=>persistZReview(null)}>Clear Z review decision</button></div>}
   </details>}
   {message&&<p role="status" className="muted">{message}</p>}
  </div>;
