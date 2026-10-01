@@ -172,9 +172,16 @@ export async function PATCH(req:Request){
     if(!await schemaReady())return NextResponse.json({error:'Spatial compilation persistence schema is not ready'},{status:503});
     const body=ReviewBody.parse(await req.json());
     const result=await tx(async client=>{
-      const compilation=await client.query<{id:string}>(`SELECT id::text FROM spatial_compilations
+      const compilation=await client.query<{id:string;project_id:string;revision:number}>(`SELECT id::text,project_id::text,revision FROM spatial_compilations
         WHERE id=$1 AND organization_id=$2 FOR UPDATE`,[body.compilationId,session.organizationId]);
       if(!compilation.rows[0])throw Object.assign(new Error('Compilation not found in this organization'),{status:404});
+      if(body.action==='ACCEPT_REVIEW_BASELINE'){
+        const head=await client.query<{id:string;revision:number}>(`SELECT id::text,revision FROM spatial_compilations
+          WHERE organization_id=$1 AND project_id=$2 ORDER BY revision DESC LIMIT 1`,[session.organizationId,compilation.rows[0].project_id]);
+        if(head.rows[0]?.id!==compilation.rows[0].id)throw Object.assign(new Error(`Cannot accept stale Spatial revision r${compilation.rows[0].revision}; current head is r${head.rows[0]?.revision||0}`),{
+          status:409,code:'SPATIAL_REVIEW_STALE_COMPILATION',reviewRevision:compilation.rows[0].revision,serverRevision:head.rows[0]?.revision||0
+        });
+      }
       const current=await client.query<any>(`SELECT id::text,action,reason,occurred_at FROM spatial_compilation_reviews
         WHERE organization_id=$1 AND compilation_id=$2 ORDER BY occurred_at DESC,id DESC LIMIT 1`,[session.organizationId,body.compilationId]);
       const prior=current.rows[0]||null;
@@ -189,6 +196,7 @@ export async function PATCH(req:Request){
     return NextResponse.json({...result,truthBoundary:'REVIEW_ACCEPTANCE_IS_NOT_VERIFIED_STATE_OR_POVI_FINALITY'});
   }catch(error:any){
     if(error instanceof z.ZodError)return NextResponse.json({error:'Invalid review action',issues:error.issues},{status:400});
+    if(error?.code==='SPATIAL_REVIEW_STALE_COMPILATION')return NextResponse.json({error:error.message,code:error.code,reviewRevision:error.reviewRevision,serverRevision:error.serverRevision,truthBoundary:'STALE_REVIEW_BASELINE_NOT_ACCEPTED'},{status:409});
     return NextResponse.json({error:error.message},{status:status(error)});
   }
 }
