@@ -1015,6 +1015,12 @@ test('conflicting absolute Z chains block auto-placement and expose both evidenc
 
 test('human Z review selects one preserved design chain without establishing physical truth',async({page})=>{
  const source='Synthetic Z Conflict Review.pdf';
+ const projectId='22222222-2222-4222-8222-222222222222';
+ const compilationId='33333333-3333-4333-8333-333333333333';
+ const decisionId='44444444-4444-4444-8444-444444444444';
+ const graphSha='c'.repeat(64);
+ const decisionSha='d'.repeat(64);
+ const reason='Use the grade plus explicit transformer pad evidence for review placement.';
  const graph={
   version:'z-conflict-review-browser-1',createdAt:'2026-09-30T08:00:00.000Z',reviewState:'REVIEW_REQUIRED',
   sources:[{name:source,ext:'pdf',sha256:'y'.repeat(64),discipline:'Electrical / Civil',floor:'UNRESOLVED',elevation:0}],
@@ -1029,14 +1035,37 @@ test('human Z review selects one preserved design chain without establishing phy
   ],
   links:[],stats:{L0:0,L1:0,L2:1,L3:0,L4:0}
  };
- await page.addInitScript(value=>localStorage.setItem('stratum_compiled_graph',JSON.stringify(value)),graph);
+ let reviewRequest:any=null;
+ await page.route('**/api/spatial/compilations?projectId=*',async route=>{
+  await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({schemaReady:true,latest:{id:compilationId,graph_sha256:graphSha}})});
+ });
+ await page.route('**/api/spatial/z-reviews',async route=>{
+  reviewRequest=route.request().postDataJSON();
+  await route.fulfill({status:201,contentType:'application/json',body:JSON.stringify({
+   id:decisionId,action:'ACCEPT_DESIGN_CHAIN',candidate_id:'support-chain',reason,
+   graph_sha256:graphSha,decision_sha256:decisionSha,occurred_at:'2026-09-30T08:05:00.000Z',
+   reviewState:'REVIEW_RESOLVED_CANDIDATE',
+   truthBoundary:'AUTHENTICATED_Z_REVIEW_SELECTS_A_DESIGN_PLACEMENT_CHAIN_ONLY_NOT_PHYSICAL_TRUTH_NOT_DIR_NOT_POVI'
+  })});
+ });
+ await page.addInitScript(({graph,projectId})=>{
+  localStorage.setItem('stratum_compiled_graph',JSON.stringify(graph));
+  localStorage.setItem('stratum_spatial_project_id',projectId);
+ },{graph,projectId});
  await page.goto('/spatial');
  await page.getByLabel('Imported object').selectOption('xfmr-z-review');
  await expect(page.getByText(/Z CONFLICT · AUTO-PLACEMENT BLOCKED/)).toBeVisible();
  await page.getByText('Z solution evidence').click();
+ await page.getByLabel('Review rationale').fill(reason);
  const supportCard=page.locator('.binding-panel').filter({hasText:'support-chain'}).first();
- await supportCard.getByRole('button',{name:'Use this design chain for review placement'}).click();
+ const choose=supportCard.getByRole('button',{name:'Use this design chain for review placement'});
+ await expect(choose).toBeEnabled();
+ await choose.click();
+ await expect(page.getByText(/Authenticated design Z review recorded/)).toBeVisible();
  await expect(page.getByText(/HUMAN REVIEW PLACEMENT · PHYSICAL Z UNVERIFIED/)).toBeVisible();
+ expect(reviewRequest).toMatchObject({
+  projectId,compilationId,entityId:'xfmr-z-review',action:'ACCEPT_DESIGN_CHAIN',candidateId:'support-chain',reason
+ });
  await page.getByText('Placement & source confidence').click();
  const details=page.locator('.placement-details');
  await expect(details.getByText(/30\.632 m/)).toBeVisible();
@@ -1048,9 +1077,16 @@ test('human Z review selects one preserved design chain without establishing phy
   return entity?.meta?{
    decision:entity.meta.zReviewDecisionStatus,
    candidate:entity.meta.zReviewDecisionCandidateId,
+   authority:entity.meta.zReviewDecisionAuthority,
+   receipt:entity.meta.zReviewDecisionId,
+   decisionSha:entity.meta.zReviewDecisionSha256,
+   reason:entity.meta.zReviewDecisionReason,
    physical:entity.meta.physicalElevationKnown,
    truth:entity.meta.physicalTruth,
    review:entity.meta.reviewRequired
   }:null;
- })).toEqual({decision:'ACCEPTED_DESIGN_CHAIN',candidate:'support-chain',physical:false,truth:false,review:true});
+ })).toEqual({
+  decision:'ACCEPTED_DESIGN_CHAIN',candidate:'support-chain',authority:'SERVER_AUTHENTICATED_HUMAN_REVIEW',
+  receipt:decisionId,decisionSha,reason,physical:false,truth:false,review:true
+ });
 });
