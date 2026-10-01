@@ -1122,7 +1122,7 @@ test('Spatial restores an authenticated Z review receipt with the exact server c
 });
 
 
-test('human Z review selects one preserved design chain without establishing physical truth',async({page})=>{
+test('authenticated human Z review persists one preserved design chain without establishing physical truth',async({page})=>{
  const source='Synthetic Z Conflict Review.pdf';
  const projectId='22222222-2222-4222-8222-222222222222';
  const compilationId='33333333-3333-4333-8333-333333333333';
