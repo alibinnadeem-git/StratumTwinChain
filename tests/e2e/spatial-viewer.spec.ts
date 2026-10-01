@@ -1018,9 +1018,12 @@ test('human Z review selects one preserved design chain without establishing phy
  const projectId='22222222-2222-4222-8222-222222222222';
  const compilationId='33333333-3333-4333-8333-333333333333';
  const decisionId='44444444-4444-4444-8444-444444444444';
+ const clearDecisionId='88888888-8888-4888-8888-888888888888';
  const graphSha='c'.repeat(64);
  const decisionSha='d'.repeat(64);
+ const clearDecisionSha='e'.repeat(64);
  const reason='Use the grade plus explicit transformer pad evidence for review placement.';
+ const clearReason='Clear the design-chain review after updated project evidence.';
  const graph={
   version:'z-conflict-review-browser-1',createdAt:'2026-09-30T08:00:00.000Z',reviewState:'REVIEW_REQUIRED',
   sources:[{name:source,ext:'pdf',sha256:'y'.repeat(64),discipline:'Electrical / Civil',floor:'UNRESOLVED',elevation:0}],
@@ -1036,11 +1039,24 @@ test('human Z review selects one preserved design chain without establishing phy
   links:[],stats:{L0:0,L1:0,L2:1,L3:0,L4:0}
  };
  let reviewRequest:any=null;
+ let clearRequest:any=null;
  await page.route('**/api/spatial/compilations?projectId=*',async route=>{
   await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({schemaReady:true,latest:{id:compilationId,graph_sha256:graphSha}})});
  });
  await page.route('**/api/spatial/z-reviews',async route=>{
-  reviewRequest=route.request().postDataJSON();
+  const request=route.request().postDataJSON();
+  if(request.action==='CLEAR_DESIGN_CHAIN'){
+   clearRequest=request;
+   await route.fulfill({status:201,contentType:'application/json',body:JSON.stringify({
+    id:clearDecisionId,action:'CLEAR_DESIGN_CHAIN',candidate_id:null,reason:clearReason,
+    graph_sha256:graphSha,decision_sha256:clearDecisionSha,candidate_snapshot:null,
+    conflict_snapshot:[{candidateA:'support-chain',candidateB:'source-reference-chain',deltaMeters:.4676,toleranceMeters:.15}],
+    occurred_at:'2026-09-30T08:06:00.000Z',reviewState:'CONFLICT',
+    truthBoundary:'AUTHENTICATED_Z_REVIEW_SELECTS_A_DESIGN_PLACEMENT_CHAIN_ONLY_NOT_PHYSICAL_TRUTH_NOT_DIR_NOT_POVI'
+   })});
+   return;
+  }
+  reviewRequest=request;
   await route.fulfill({status:201,contentType:'application/json',body:JSON.stringify({
    id:decisionId,action:'ACCEPT_DESIGN_CHAIN',candidate_id:'support-chain',reason,
    graph_sha256:graphSha,decision_sha256:decisionSha,
@@ -1095,6 +1111,24 @@ test('human Z review selects one preserved design chain without establishing phy
   decision:'ACCEPTED_DESIGN_CHAIN',candidate:'support-chain',authority:'SERVER_AUTHENTICATED_HUMAN_REVIEW',
   receipt:decisionId,decisionSha,reason,physical:false,truth:false,review:true
  });
+
+ await page.getByLabel('Review rationale').fill(clearReason);
+ await page.getByRole('button',{name:'Clear Z review decision'}).click();
+ await expect(page.getByText(/Authenticated Z review clear event recorded/)).toBeVisible();
+ await expect(page.getByText(/Z CONFLICT · AUTO-PLACEMENT BLOCKED/)).toBeVisible();
+ expect(clearRequest).toMatchObject({
+  projectId,compilationId,entityId:'xfmr-z-review',action:'CLEAR_DESIGN_CHAIN',reason:clearReason
+ });
+ await expect.poll(()=>page.evaluate(()=>{
+  const g=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
+  const entity=(g.entities||[]).find((item:any)=>item.id==='xfmr-z-review');
+  return entity?.meta?{
+   hasDecision:Object.keys(entity.meta).some(key=>key.startsWith('zReviewDecision')),
+   physical:entity.meta.physicalElevationKnown,
+   truth:entity.meta.physicalTruth,
+   review:entity.meta.reviewRequired
+  }:null;
+ })).toEqual({hasDecision:false,physical:false,truth:false,review:true});
 });
 
 
