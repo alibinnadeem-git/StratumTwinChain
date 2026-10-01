@@ -38,6 +38,7 @@ const checks=[
  ['API creates append-only revisions instead of mutating prior compilations',api.includes('supersedes_compilation_id')&&api.includes('revision=serverRevision+1')],
  ['API requires optimistic concurrency against the current project revision',api.includes('expectedRevision')&&api.includes("SPATIAL_REVISION_CONFLICT")&&api.includes("truthBoundary:'STALE_BROWSER_GRAPH_NOT_SAVED'")],
  ['API rejects a working graph bound to another project',api.includes("SPATIAL_GRAPH_PROJECT_MISMATCH")&&api.includes("truthBoundary:'CROSS_PROJECT_GRAPH_SAVE_BLOCKED'")&&api.includes('graphProjectId!==body.projectId')],
+ ['API requires every saved graph to carry an explicit project binding',api.includes('workingProjectId:z.string().uuid()')&&api.includes('const graphProjectId=graph.workingProjectId')],
  ['API records explicit human review transitions',api.includes("'ACCEPT_REVIEW_BASELINE','REOPEN_REVIEW'")&&api.includes('INSERT INTO spatial_compilation_reviews')],
  ['API performs no asset/lifecycle/chain state mutation',forbiddenMutations.every(pattern=>!pattern.test(api))],
  ['manual review UI still supports explicit save/load and human accept/reopen',ui.includes('Save review snapshot')&&ui.includes('Confirm load')&&ui.includes('Accept as Spatial review baseline')&&ui.includes('Reopen review')],
