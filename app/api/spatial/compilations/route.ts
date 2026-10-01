@@ -41,6 +41,7 @@ const Link=z.object({
 const Graph=z.object({
   version:z.string().min(1).max(40),
   createdAt:z.string().min(1).max(80),
+  workingProjectId:z.string().uuid(),
   sources:z.array(Source).max(2000),
   entities:z.array(Entity).max(25000),
   links:z.array(Link).max(50000),
@@ -101,8 +102,8 @@ export async function POST(req:Request){
     if(!await schemaReady())return NextResponse.json({error:'Spatial compilation persistence schema is not ready'},{status:503});
     const body=SaveBody.parse(await req.json());
     const graph=body.graph;
-    const graphProjectId=typeof (graph as Record<string,unknown>).workingProjectId==='string'?String((graph as Record<string,unknown>).workingProjectId):'';
-    if(graphProjectId&&graphProjectId!==body.projectId)return NextResponse.json({
+    const graphProjectId=graph.workingProjectId;
+    if(graphProjectId!==body.projectId)return NextResponse.json({
       error:'Spatial working graph is bound to a different project',
       code:'SPATIAL_GRAPH_PROJECT_MISMATCH',
       graphProjectId,
