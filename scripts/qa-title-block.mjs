@@ -124,6 +124,7 @@ const persistence=read('app/api/spatial/compilations/route.ts');
 const compiler=read('components/CompilerWorkspace.tsx');
 ok('compiler mounts title-block review before server persistence',page.indexOf('<TitleBlockIntelligence/>')>-1&&page.indexOf('<TitleBlockIntelligence/>')<page.indexOf('<SpatialCompilationPersistence/>'));
 ok('reviewed title blocks are embedded only for compiled source fingerprints',component.includes('sourceShas.has(item.sourceSha256)')&&component.includes('graph.titleBlocks=next.filter'));
+ok('title-block review graph mutations use the protected recovery replacement path',component.includes('replaceCurrentSpatialGraph(graph)')&&!component.includes('writePrimarySpatialGraph(graph)'));
 ok('primary PDF import produces title-block candidates without a second upload',compiler.includes('extractSheetIdentity({page,sourceName:file.name,sourceSha256')&&compiler.includes('titleBlocks.push('));
 ok('compiler persists imported title-block candidates in the primary Spatial graph',compiler.includes('newTitleBlocks:SheetIdentityCandidate[]')&&compiler.includes('titleBlocks,stats:'));
 ok('title-block review automatically consumes primary graph candidates',component.includes("window.addEventListener('stratum:graph-updated',onGraph)")&&component.includes('graph?.titleBlocks'));
