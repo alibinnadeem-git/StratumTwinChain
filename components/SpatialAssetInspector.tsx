@@ -5,7 +5,7 @@ import {useMemo,useState} from 'react';
 import {readPrimarySpatialGraph,replaceCurrentSpatialGraph} from '@/lib/spatial-browser-recovery';
 import {resolveReconciledAssetPlacement} from '@/lib/z-solution-chain';
 import {resolveElectricalComponent,modelSourceRefsFor} from '@/lib/electrical-component-library';
-import {recordConfirmedZ,type ZReviewActor} from '@/lib/z-history';
+import {recordConfirmedZ,recordRejectedZ,type ZReviewActor} from '@/lib/z-history';
 import {inferenceMethodLabel,type ZInference} from '@/lib/z-inference';
 import {readSelectedSpatialProjectId} from '@/lib/spatial-project-selection';
 import AssetActivityPanel from '@/components/AssetActivityPanel';
@@ -182,7 +182,10 @@ export default function SpatialAssetInspector({
     updated={...entity,meta};return updated;
    });
    await replaceCurrentSpatialGraph(graph);if(updated)onEntityUpdated?.(updated);
-   setMessage('Inference rejected for this object. The source geometry and authoritative Z remain unchanged.');
+   if(component?.key){
+    recordRejectedZ({projectId:graphProjectId,entityId:selected.id,componentKey:component.key,supportKind:inference.support?.kind||null,supportZMeters:inference.support?.zMeters??null,offsetMeters:inference.offsetMeters,referencePoint:inference.referencePoint,absoluteReferenceZMeters:inference.absoluteReferenceZMeters,inferenceMethod:inference.method,sourceInferenceId:inference.id,basis:inference.basis,sourceRefs:inference.sourceRefs,actorUserId:reviewActor.userId,organizationId:reviewActor.organizationId,actorRole:reviewActor.role});
+   }
+   setMessage('Inference rejected for this object. The source geometry and authoritative Z remain unchanged; any prior accepted history for this object is superseded.');
   }catch(error){setMessage(error instanceof Error?error.message:'Unable to reject inferred Z');}
  }
 
