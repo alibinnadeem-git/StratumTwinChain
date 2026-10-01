@@ -19,7 +19,11 @@ async function writeStored(next:StoredSheetIdentity[]){
   try{
     const graph=await readPrimarySpatialGraph();
     if(graph&&typeof graph==='object'&&!Array.isArray(graph)){
-      graph.titleBlocks=next;
+      const sourceShas=new Set((Array.isArray(graph.sources)?graph.sources:[]).map(source=>String((source as {sha256?:unknown}).sha256||'')).filter(Boolean));
+      // The fallback analyzer may inspect an arbitrary PDF, but only identities
+      // tied to an actual compiled source are allowed into the project graph.
+      // This prevents a second/shadow upload from contaminating project truth.
+      graph.titleBlocks=next.filter(item=>sourceShas.has(item.sourceSha256));
       await writePrimarySpatialGraph(graph);
       window.dispatchEvent(new Event('stratum:graph-updated'));
     }
