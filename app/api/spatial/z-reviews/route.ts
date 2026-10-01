@@ -106,7 +106,7 @@ export async function POST(req:Request){
         throw Object.assign(new Error('Measured/reviewed Z evidence cannot be overridden by design-chain adjudication'),{status:409});
 
       const prior=await client.query<any>(`SELECT
-        id::text,action,candidate_id,reason,compilation_id::text,graph_sha256,decision_sha256,candidate_snapshot,conflict_snapshot,occurred_at
+        id::text,action,candidate_id,reason,compilation_id::text,graph_sha256,decision_sha256,candidate_snapshot,conflict_snapshot,actor_user_id::text,occurred_at
         FROM spatial_z_review_decisions
         WHERE organization_id=$1 AND project_id=$2 AND entity_id=$3
         ORDER BY occurred_at DESC,id DESC LIMIT 1 FOR UPDATE`,[session.organizationId,body.projectId,body.entityId]);
@@ -118,6 +118,7 @@ export async function POST(req:Request){
         &&previous.action===body.action
         &&previous.candidate_id===requestedCandidateId
         &&previous.reason===body.reason
+        &&previous.actor_user_id===session.userId
       )return{...previous,idempotent:true,reviewState:body.action==='ACCEPT_DESIGN_CHAIN'?'REVIEW_RESOLVED_CANDIDATE':'CONFLICT'};
 
       let candidate:any=null;
