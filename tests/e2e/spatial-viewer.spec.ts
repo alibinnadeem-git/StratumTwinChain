@@ -1043,7 +1043,10 @@ test('human Z review selects one preserved design chain without establishing phy
   reviewRequest=route.request().postDataJSON();
   await route.fulfill({status:201,contentType:'application/json',body:JSON.stringify({
    id:decisionId,action:'ACCEPT_DESIGN_CHAIN',candidate_id:'support-chain',reason,
-   graph_sha256:graphSha,decision_sha256:decisionSha,occurred_at:'2026-09-30T08:05:00.000Z',
+   graph_sha256:graphSha,decision_sha256:decisionSha,
+   candidate_snapshot:{id:'support-chain',kind:'SUPPORT_SURFACE_PLUS_OFFSET',baseZ:30.6324,topZ:32.2324,confidence:.84,authority:'SUPPORT_SURFACE_PLUS_SOURCE_BASE_OFFSET',absolute:true},
+   conflict_snapshot:[{candidateA:'support-chain',candidateB:'source-reference-chain',deltaMeters:.4676,toleranceMeters:.15}],
+   occurred_at:'2026-09-30T08:05:00.000Z',
    reviewState:'REVIEW_RESOLVED_CANDIDATE',
    truthBoundary:'AUTHENTICATED_Z_REVIEW_SELECTS_A_DESIGN_PLACEMENT_CHAIN_ONLY_NOT_PHYSICAL_TRUTH_NOT_DIR_NOT_POVI'
   })});
