@@ -91,14 +91,18 @@ export async function POST(req:Request){
       const entity=entities.find((item:any)=>String(item?.id||'')===body.entityId);
       if(!entity)throw Object.assign(new Error('Entity not found in the stored Spatial compilation'),{status:404});
 
+      await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1,0))`,[
+        `STRATUM/SPATIAL/Z-REVIEW/${session.organizationId}/${body.projectId}/${body.entityId}`
+      ]);
+
       const solution=buildZSolution(rawPlacementEntity(entity));
       const conflicts=solution.conflicts;
       if(!conflicts.length)throw Object.assign(new Error('Stored entity does not currently contain a Z conflict requiring adjudication'),{status:409});
-      if(solution.candidates.some(item=>item.kind==='REVIEWED_OR_MEASURED'&&item.absolute&&item.baseZ!==null))
+      if(body.action==='ACCEPT_DESIGN_CHAIN'&&solution.candidates.some(item=>item.kind==='REVIEWED_OR_MEASURED'&&item.absolute&&item.baseZ!==null))
         throw Object.assign(new Error('Measured/reviewed Z evidence cannot be overridden by design-chain adjudication'),{status:409});
 
       const prior=await client.query<any>(`SELECT
-        id::text,action,candidate_id,reason,compilation_id::text,graph_sha256,decision_sha256,occurred_at
+        id::text,action,candidate_id,reason,compilation_id::text,graph_sha256,decision_sha256,candidate_snapshot,conflict_snapshot,occurred_at
         FROM spatial_z_review_decisions
         WHERE organization_id=$1 AND project_id=$2 AND entity_id=$3
         ORDER BY occurred_at DESC,id DESC LIMIT 1 FOR UPDATE`,[session.organizationId,body.projectId,body.entityId]);
@@ -135,13 +139,14 @@ export async function POST(req:Request){
         candidate:candidateSnapshot,
         conflicts,
         reason:body.reason,
+        actorUserId:session.userId,
         previousDecisionId:previous?.id||null,
       });
 
       const inserted=await client.query<any>(`INSERT INTO spatial_z_review_decisions
         (organization_id,project_id,compilation_id,entity_id,action,candidate_id,reason,graph_sha256,decision_sha256,candidate_snapshot,conflict_snapshot,actor_user_id,previous_decision_id)
         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11::jsonb,$12,$13)
-        RETURNING id::text,action,candidate_id,reason,graph_sha256,decision_sha256,occurred_at`,[
+        RETURNING id::text,action,candidate_id,reason,graph_sha256,decision_sha256,candidate_snapshot,conflict_snapshot,occurred_at`,[
           session.organizationId,body.projectId,body.compilationId,body.entityId,body.action,candidate?.id||null,body.reason,
           stored.graph_sha256,decisionSha256,JSON.stringify(candidateSnapshot),JSON.stringify(conflicts),session.userId,previous?.id||null
         ]);
