@@ -240,7 +240,7 @@ export default function SpatialAssetInspector({
      <button type="button" className="ghost" onClick={()=>void rejectInference(inference)} disabled={!reviewActor} title={reviewActor?'Persist an authenticated H2 rejection':'Sign in required for H2 review'}>Reject</button>
     </div>
    </li>)}</ol>
-  </div>
+  </div>}
   {zResolutionAuthority==='AFF_REFERENCE_UNSPECIFIED'&&!zReviewed&&<div className="notice" role="status"><strong>AFF HEIGHT FOUND · REFERENCE POINT REQUIRED</strong><span>STRATUM found an object-linked height above finished floor, but the drawing does not state whether that height is to the base, bottom, centerline, top, or mounting point. The height is preserved as evidence but is not converted into absolute equipment Z.</span></div>}
   {crossSheetReviewSurfaceZ!==null&&!zReviewed&&<div className="notice" role="status"><strong>CROSS-SHEET Z REVIEW SURFACE</strong><span>{crossSheetReviewSurfaceLabel} = {crossSheetReviewSurfaceZ.toFixed(3)} m via reviewed sheet alignment · confidence {Math.round(Number(selected.meta?.crossSheetReviewSurfaceConfidence||0)*100)}%. This remains coordination-derived design evidence, not field-verified physical elevation.</span></div>}
   {selected.kind==='imported-3d-model'&&<div className="notice" role="status"><strong>IMPORTED 3D GEOMETRY · REVIEW-SCALE</strong><span>This uploaded reference model is normalized to a component review envelope for Spatial presentation when its model-space units/dimensions are not trusted. Raw GLB bounds remain preserved in source details. Review-scale rendering does not establish OEM dimensions, installed elevation, asset identity or DIR state.</span></div>}
