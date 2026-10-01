@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import {inferEquipmentZ,inferenceMethodLabel} from '../lib/z-inference.ts';
 import {clearConfirmedZ,historicalZConfidence,historicalZPrior,recordConfirmedZ} from '../lib/z-history.ts';
 
@@ -33,24 +34,24 @@ ok('pad-mount transformer composes base offset with grade',()=>{
 
 ok('historical learning requires three unique project/entity decisions',()=>{
  clearConfirmedZ();
- const base={projectId:'project-a',componentKey:'disconnect',supportKind:'FINISHED_FLOOR',supportZMeters:10,referencePoint:'MOUNTING_POINT',inferenceMethod:'CLASS_MOUNTING_PRIOR',basis:['review'],sourceRefs:[]};
+ const base={projectId:'project-a',organizationId:'org-a',actorUserId:'user-1',actorRole:'PROJECT_MANAGER',componentKey:'disconnect',supportKind:'FINISHED_FLOOR',supportZMeters:10,referencePoint:'MOUNTING_POINT',inferenceMethod:'CLASS_MOUNTING_PRIOR',basis:['review'],sourceRefs:[]};
  recordConfirmedZ({...base,entityId:'d1',offsetMeters:1.2,absoluteReferenceZMeters:11.2,sourceInferenceId:'a'});
  recordConfirmedZ({...base,entityId:'d2',offsetMeters:1.25,absoluteReferenceZMeters:11.25,sourceInferenceId:'b'});
- assert.equal(historicalZPrior('disconnect',{projectId:'project-a',supportKind:'FINISHED_FLOOR'}),null);
+ assert.equal(historicalZPrior('disconnect',{projectId:'project-a',organizationId:'org-a',supportKind:'FINISHED_FLOOR'}),null);
  recordConfirmedZ({...base,entityId:'d3',offsetMeters:1.3,absoluteReferenceZMeters:11.3,sourceInferenceId:'c'});
- const prior=historicalZPrior('disconnect',{projectId:'project-a',supportKind:'FINISHED_FLOOR'});
+ const prior=historicalZPrior('disconnect',{projectId:'project-a',organizationId:'org-a',supportKind:'FINISHED_FLOOR'});
  assert.ok(prior);assert.equal(prior.n,3);assert.ok(Math.abs(prior.medianOffsetMeters-1.25)<1e-9);
 });
 
 ok('repeat acceptance on one entity is idempotent for historical sample count',()=>{
- const before=historicalZPrior('disconnect',{projectId:'project-a',supportKind:'FINISHED_FLOOR'});
- recordConfirmedZ({projectId:'project-a',entityId:'d1',componentKey:'disconnect',supportKind:'FINISHED_FLOOR',supportZMeters:10,offsetMeters:1.2,referencePoint:'MOUNTING_POINT',absoluteReferenceZMeters:11.2,inferenceMethod:'CLASS_MOUNTING_PRIOR',sourceInferenceId:'a',basis:['review'],sourceRefs:[]});
- const after=historicalZPrior('disconnect',{projectId:'project-a',supportKind:'FINISHED_FLOOR'});
+ const before=historicalZPrior('disconnect',{projectId:'project-a',organizationId:'org-a',supportKind:'FINISHED_FLOOR'});
+ recordConfirmedZ({projectId:'project-a',organizationId:'org-a',actorUserId:'user-1',actorRole:'PROJECT_MANAGER',entityId:'d1',componentKey:'disconnect',supportKind:'FINISHED_FLOOR',supportZMeters:10,offsetMeters:1.2,referencePoint:'MOUNTING_POINT',absoluteReferenceZMeters:11.2,inferenceMethod:'CLASS_MOUNTING_PRIOR',sourceInferenceId:'a',basis:['review'],sourceRefs:[]});
+ const after=historicalZPrior('disconnect',{projectId:'project-a',organizationId:'org-a',supportKind:'FINISHED_FLOOR'});
  assert.equal(before?.n,3);assert.equal(after?.n,3);
 });
 
 ok('historical priors do not leak across projects',()=>{
- assert.equal(historicalZPrior('disconnect',{projectId:'project-b',supportKind:'FINISHED_FLOOR'}),null);
+ assert.equal(historicalZPrior('disconnect',{projectId:'project-b',organizationId:'org-a',supportKind:'FINISHED_FLOOR'}),null);
 });
 
 ok('history confidence is capped and penalized by dispersion',()=>{
@@ -58,10 +59,18 @@ ok('history confidence is capped and penalized by dispersion',()=>{
  assert.ok(historicalZConfidence(5,.4)<historicalZConfidence(5,.01));
 });
 
+ok('history is isolated by organization and reference point',()=>{
+ assert.equal(historicalZPrior('disconnect',{projectId:'project-a',organizationId:'org-b',supportKind:'FINISHED_FLOOR'}),null);
+ recordConfirmedZ({projectId:'project-a',organizationId:'org-a',actorUserId:'user-2',actorRole:'PROJECT_MANAGER',entityId:'base-1',componentKey:'disconnect',supportKind:'FINISHED_FLOOR',supportZMeters:10,offsetMeters:.1,referencePoint:'BASE',absoluteReferenceZMeters:10.1,inferenceMethod:'CLASS_MOUNTING_PRIOR',sourceInferenceId:'base-a',basis:['review'],sourceRefs:[]});
+ recordConfirmedZ({projectId:'project-a',organizationId:'org-a',actorUserId:'user-2',actorRole:'PROJECT_MANAGER',entityId:'base-2',componentKey:'disconnect',supportKind:'FINISHED_FLOOR',supportZMeters:10,offsetMeters:.2,referencePoint:'BASE',absoluteReferenceZMeters:10.2,inferenceMethod:'CLASS_MOUNTING_PRIOR',sourceInferenceId:'base-b',basis:['review'],sourceRefs:[]});
+ const prior=historicalZPrior('disconnect',{projectId:'project-a',organizationId:'org-a',supportKind:'FINISHED_FLOOR'});
+ assert.ok(prior);assert.equal(prior.referencePoint,'MOUNTING_POINT');assert.equal(prior.n,3);
+});
+
 ok('inference uses project-scoped reviewed history only when support is resolved',()=>{
- const withHistory=inferEquipmentZ({name:'Safety Switch Disconnect',projectId:'project-a',meta:{reviewSurfaceZ:20,reviewSurfaceKind:'FINISHED_FLOOR',reviewSurfaceConfidence:.8}});
+ const withHistory=inferEquipmentZ({name:'Safety Switch Disconnect',projectId:'project-a',organizationId:'org-a',meta:{reviewSurfaceZ:20,reviewSurfaceKind:'FINISHED_FLOOR',reviewSurfaceConfidence:.8}});
  assert.ok(withHistory.some(item=>item.method==='HISTORICAL_CLASS_PRIOR'));
- const withoutSupport=inferEquipmentZ({name:'Safety Switch Disconnect',projectId:'project-a',meta:{}});
+ const withoutSupport=inferEquipmentZ({name:'Safety Switch Disconnect',projectId:'project-a',organizationId:'org-a',meta:{}});
  assert.ok(!withoutSupport.some(item=>item.method==='HISTORICAL_CLASS_PRIOR'));
 });
 
@@ -79,6 +88,17 @@ ok('accepted preview cannot feed back as a placement-engine inference',()=>{
 ok('method labels communicate reviewed history and OEM boundaries',()=>{
  assert.ok(inferenceMethodLabel('HISTORICAL_CLASS_PRIOR').includes('Reviewed'));
  assert.ok(inferenceMethodLabel('OEM_MOUNTING_REFERENCE').includes('OEM'));
+});
+
+
+const inspector=fs.readFileSync('components/SpatialAssetInspector.tsx','utf8');
+const spatialPage=fs.readFileSync('app/spatial/page.tsx','utf8');
+ok('persisted H2 Z decisions require authenticated actor provenance',()=>{
+ assert.match(inspector,/if\(!reviewActor\).*Sign in is required/);
+ assert.match(inspector,/zReviewActorUserId:reviewActor\.userId/);
+ assert.match(inspector,/actorUserId:reviewActor\.userId/);
+ assert.match(inspector,/disabled=\{!reviewActor\}/);
+ assert.match(spatialPage,/reviewActor=\{session\?\{userId:session\.userId,organizationId:session\.organizationId,role:session\.role\}:null\}/);
 });
 
 console.log(`\n${passed} Z inference safety checks passed`);
