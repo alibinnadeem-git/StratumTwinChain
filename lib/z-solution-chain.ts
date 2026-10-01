@@ -266,6 +266,7 @@ export function resolveReconciledAssetPlacement(
       }
     };
   }
+  let resolvedPlacement=primary;
   if(primary.zAuthority==='H2_ACCEPTED_INFERRED_PREVIEW'){
     const chosen=solution.candidates.find(candidate=>candidate.id===solution.chosenCandidateId)||null;
     const strongSource=Boolean(chosen&&['REVIEWED_OR_MEASURED','SOURCE_REFERENCE','SUPPORT_SURFACE_PLUS_OFFSET'].includes(chosen.kind));
@@ -273,14 +274,18 @@ export function resolveReconciledAssetPlacement(
     // but it can never outrank measured/reviewed Z, an explicit source Z
     // reference, a source support-base offset, or a reconciled conflict.
     if(solution.status!=='CONFLICT'&&!strongSource)return{solution,placement:primary};
+    // When stronger source evidence wins, strip preview metadata before
+    // constructing the returned placement so its authority/recommendation do
+    // not falsely continue to describe the displaced H2 preview.
+    resolvedPlacement=resolveAssetPlacement(entityWithMeta(entity,omitMeta(entity.meta||{},WITHOUT_REVIEW_PREVIEW)),options?.registry||null);
   }
   if(solution.chosenCandidateId&&solution.baseZ!==null){
     return{
       solution,
       placement:{
-        ...primary,
+        ...resolvedPlacement,
         baseZ:solution.baseZ,
-        topZ:solution.topZ??solution.baseZ+primary.dimensions.height,
+        topZ:solution.topZ??solution.baseZ+resolvedPlacement.dimensions.height,
         zConfidence:solution.confidence,
         physicalTruth:false
       }
