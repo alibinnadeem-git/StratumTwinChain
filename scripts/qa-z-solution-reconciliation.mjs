@@ -77,8 +77,9 @@ const strongSourceWithPreview=resolveReconciledAssetPlacement({
 });
 assert.equal(strongSourceWithPreview.solution.status,'RESOLVED_CANDIDATE');
 assert.ok(strongSourceWithPreview.solution.candidates.some(c=>c.kind==='SOURCE_REFERENCE'));
-assert.equal(strongSourceWithPreview.placement.zAuthority,'H2_ACCEPTED_INFERRED_PREVIEW','authority remains review-only in the underlying placement object');
+assert.equal(strongSourceWithPreview.placement.zAuthority,'SOURCE_DESIGN_CANDIDATE','returned authority must describe the stronger source evidence, not the displaced H2 preview');
 assert.ok(Math.abs(strongSourceWithPreview.placement.baseZ-6.25)<1e-9,'explicit source Z must outrank an H2 inferred preview');
+assert.notEqual(strongSourceWithPreview.placement.recommendation?.kind,'H2_ACCEPTED_INFERRED_Z_PREVIEW');
 
 const centerline={
  name:'PANEL LP-2',floor:'L2',z:0,
