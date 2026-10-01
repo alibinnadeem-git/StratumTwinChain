@@ -5,7 +5,7 @@ import {useMemo,useState} from 'react';
 import {readPrimarySpatialGraph,replaceCurrentSpatialGraph} from '@/lib/spatial-browser-recovery';
 import {resolveReconciledAssetPlacement} from '@/lib/z-solution-chain';
 import {resolveElectricalComponent,modelSourceRefsFor} from '@/lib/electrical-component-library';
-import {recordConfirmedZ} from '@/lib/z-history';
+import {recordConfirmedZ,type ZReviewActor} from '@/lib/z-history';
 import {inferenceMethodLabel,type ZInference} from '@/lib/z-inference';
 import {readSelectedSpatialProjectId} from '@/lib/spatial-project-selection';
 import AssetActivityPanel from '@/components/AssetActivityPanel';
@@ -40,10 +40,12 @@ function verificationUrl(asset:RegisteredSpatialAsset){
 export default function SpatialAssetInspector({
  selected,
  registeredAssets,
+ reviewActor=null,
  onEntityUpdated,
 }:{
  selected:InspectorEntity|null;
  registeredAssets:RegisteredSpatialAsset[];
+ reviewActor?:ZReviewActor|null;
  onEntityUpdated?:(entity:InspectorEntity)=>void;
 }){
  const [linkId,setLinkId]=useState('');
@@ -118,6 +120,7 @@ export default function SpatialAssetInspector({
 
  async function acceptInferredZ(inference:ZInference){
   if(!selected)return;
+  if(!reviewActor){setMessage('Sign in is required before STRATUM can persist an H2 inferred-Z review decision.');return;}
   if(zSolution?.status==='CONFLICT'){setMessage('H2 acceptance is blocked while independent source-grounded Z chains conflict. Resolve or supersede the conflicting evidence first.');return;}
   try{
    const graph=await readPrimarySpatialGraph();
@@ -132,7 +135,8 @@ export default function SpatialAssetInspector({
       zReviewMethod:inference.method,zReviewReferencePoint:inference.referencePoint,
       zReviewOffsetMeters:inference.offsetMeters,zReviewAbsoluteReferenceMeters:inference.absoluteReferenceZMeters,
       zReviewSupportKind:inference.support?.kind||null,zReviewSupportZMeters:inference.support?.zMeters??null,
-      zReviewProjectId:projectId||null,zPlacementAuthority:'H2_ACCEPTED_INFERENCE',
+      zReviewProjectId:projectId||null,zReviewActorUserId:reviewActor.userId,zReviewActorOrganizationId:reviewActor.organizationId,
+      zReviewActorRole:reviewActor.role,zReviewControlLevel:'H2',zReviewCanonical:false,zPlacementAuthority:'H2_ACCEPTED_INFERENCE',
       verificationState:'UNVERIFIED',physicalTruth:false,physicalElevationKnown:false,elevationKnown:false,reviewRequired:true};
     if(inference.renderBaseZMeters!==null){
       meta.zPreviewBaseMeters=inference.renderBaseZMeters;meta.zPreviewReferenceMeters=inference.absoluteReferenceZMeters;
@@ -146,7 +150,7 @@ export default function SpatialAssetInspector({
    // Historical learning occurs only after the graph mutation succeeds, and only
    // for a project-scoped absolute proposal backed by a named support datum.
    if(projectId&&component?.key&&inference.support&&inference.offsetMeters!==null&&inference.absoluteReferenceZMeters!==null){
-     recordConfirmedZ({projectId,entityId:selected.id,componentKey:component.key,supportKind:inference.support.kind,supportZMeters:inference.support.zMeters,offsetMeters:inference.offsetMeters,referencePoint:inference.referencePoint,absoluteReferenceZMeters:inference.absoluteReferenceZMeters,inferenceMethod:inference.method,sourceInferenceId:inference.id,basis:inference.basis,sourceRefs:inference.sourceRefs});
+     recordConfirmedZ({projectId,entityId:selected.id,componentKey:component.key,supportKind:inference.support.kind,supportZMeters:inference.support.zMeters,offsetMeters:inference.offsetMeters,referencePoint:inference.referencePoint,absoluteReferenceZMeters:inference.absoluteReferenceZMeters,inferenceMethod:inference.method,sourceInferenceId:inference.id,basis:inference.basis,sourceRefs:inference.sourceRefs,actorUserId:reviewActor.userId,organizationId:reviewActor.organizationId,actorRole:reviewActor.role});
    }
    setMessage(inference.absoluteReferenceZMeters===null
     ?`Accepted ${inference.offsetMeters?.toFixed(2)??'unresolved'} m relative mounting evidence for coordination. No absolute project Z was created.`
@@ -156,6 +160,7 @@ export default function SpatialAssetInspector({
 
  async function rejectInference(inference:ZInference){
   if(!selected)return;
+  if(!reviewActor){setMessage('Sign in is required before STRATUM can persist an H2 inferred-Z rejection.');return;}
   try{
    const graph=await readPrimarySpatialGraph();
    if(!graph||!Array.isArray(graph.entities))throw new Error('No compiled graph is available');
@@ -165,6 +170,7 @@ export default function SpatialAssetInspector({
     const meta={...(entity.meta||{})};
     const rejected=[...new Set([...(Array.isArray(meta.rejectedZInferenceIds)?meta.rejectedZInferenceIds.map(String):[]),inference.id])];
     meta.rejectedZInferenceIds=rejected;meta.zInferenceRejectedAt=new Date().toISOString();
+    meta.zInferenceRejectedByUserId=reviewActor.userId;meta.zInferenceRejectedByOrganizationId=reviewActor.organizationId;meta.zInferenceRejectedByRole=reviewActor.role;meta.zInferenceRejectControlLevel='H2';meta.zInferenceRejectCanonical=false;
     if(meta.zPreviewInferenceId===inference.id)for(const key of ['zPreviewBaseMeters','zPreviewReferenceMeters','zPreviewReferencePoint','zPreviewConfidence','zPreviewInferenceId','zPreviewMethod','zPreviewBasis','zPreviewAppliedAt','zPreviewAuthority'])delete meta[key];
     updated={...entity,meta};return updated;
    });
@@ -221,7 +227,7 @@ export default function SpatialAssetInspector({
   </div>}
   {visibleZInferences.length>0&&!zReviewed&&zSolution?.status!=='CONFLICT'&&<div className="notice" role="status" style={{marginTop:10}}>
    <strong>AI INFERRED Z PROPOSALS · NOT VERIFIED</strong>
-   <span>Each proposal preserves its support datum, reference point and relative/absolute boundary. Accepting one is H2 coordination review only; it never changes entity.z or establishes field truth.</span>
+   <span>Each proposal preserves its support datum, reference point and relative/absolute boundary. Accepting one requires an authenticated H2 coordination review actor; the browser decision remains non-canonical, never changes entity.z, and never establishes field truth.</span>
    <ol style={{margin:'8px 0 0',paddingLeft:18}}>{visibleZInferences.map((inference,index)=><li key={inference.id||index} style={{marginBottom:10}}>
     <b>{inference.absoluteReferenceZMeters!==null?`${inference.absoluteReferenceZMeters.toFixed(2)} m absolute ${inference.referencePoint.replaceAll('_',' ').toLowerCase()}`:`${inference.offsetMeters?.toFixed(2)??'—'} m relative ${inference.referencePoint.replaceAll('_',' ').toLowerCase()}`}</b>
     <small> · {Math.round(inference.confidence*100)}% · {inferenceMethodLabel(inference.method)}{inference.corroboratingMethods.length>1?` · corroborated by ${inference.corroboratingMethods.length} methods`:''}</small>
@@ -230,8 +236,8 @@ export default function SpatialAssetInspector({
     {inference.sourceRefs.length>0&&<><br/><small className="muted">Evidence: {inference.sourceRefs.map((ref,i)=>ref.url?<span key={i}><a href={ref.url} target="_blank" rel="noreferrer">{ref.label}</a>{i<inference.sourceRefs.length-1?' · ':''}</span>:<span key={i}>{ref.label}{i<inference.sourceRefs.length-1?' · ':''}</span>)}</small></>}
     <div className="button-row" style={{marginTop:4}}>
      <button type="button" onClick={()=>void persistZPreview(inference)} disabled={inference.renderBaseZMeters===null} title={inference.renderBaseZMeters===null?'Absolute render base is unresolved until the support/reference relationship is known':'Preview this inferred base in 3D'}>Preview in 3D</button>
-     <button type="button" onClick={()=>void acceptInferredZ(inference)}>Accept for coordination</button>
-     <button type="button" className="ghost" onClick={()=>void rejectInference(inference)}>Reject</button>
+     <button type="button" onClick={()=>void acceptInferredZ(inference)} disabled={!reviewActor} title={reviewActor?'Persist an authenticated H2 coordination review decision':'Sign in required for H2 review'}>Accept for coordination · H2</button>
+     <button type="button" className="ghost" onClick={()=>void rejectInference(inference)} disabled={!reviewActor} title={reviewActor?'Persist an authenticated H2 rejection':'Sign in required for H2 review'}>Reject</button>
     </div>
    </li>)}</ol>
   </div>
