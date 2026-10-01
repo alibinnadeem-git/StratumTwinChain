@@ -46,7 +46,7 @@ export default async function SpatialPage(){
   <SpatialWorkspaceStatus compact authenticated={Boolean(session)}/>
   <ServerNewerBanner/>
 
-  <SpatialExperience assets={assets} authenticated={Boolean(session)}/>
+  <SpatialExperience assets={assets} authenticated={Boolean(session)} reviewActor={session?{userId:session.userId,organizationId:session.organizationId,role:session.role}:null}/>
   <PowerIntelligencePanel/>
   <CoordinationFindingsPanel/>
 
