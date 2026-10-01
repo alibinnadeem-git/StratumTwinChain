@@ -23,7 +23,11 @@ export type ZHistoryEvent={
   sourceInferenceId:string;
   basis:string[];
   sourceRefs:unknown[];
+  actorUserId:string;
+  organizationId:string;
+  actorRole:string;
   decision:'H2_ACCEPTED_INFERENCE';
+  canonical:false;
   physicalTruth:false;
   occurredAt:string;
   supersedesId?:string;
@@ -53,7 +57,7 @@ function readAll():ZHistoryEvent[]{
   try{
     const parsed=JSON.parse(localStorage.getItem(KEY)||'[]');
     if(!Array.isArray(parsed))return[];
-    return parsed.filter((event:ZHistoryEvent)=>event&&event.physicalTruth===false&&event.decision==='H2_ACCEPTED_INFERENCE'&&Number.isFinite(event.offsetMeters)&&Number.isFinite(event.supportZMeters));
+    return parsed.filter((event:ZHistoryEvent)=>event&&event.physicalTruth===false&&event.canonical===false&&event.decision==='H2_ACCEPTED_INFERENCE'&&Boolean(event.actorUserId)&&Boolean(event.organizationId)&&Number.isFinite(event.offsetMeters)&&Number.isFinite(event.supportZMeters));
   }catch{return[]}
 }
 function writeAll(events:ZHistoryEvent[]){
@@ -80,9 +84,13 @@ export function recordConfirmedZ(input:{
   sourceInferenceId:string;
   basis?:string[];
   sourceRefs?:unknown[];
+  actorUserId:string;
+  organizationId:string;
+  actorRole:string;
 }):ZHistoryEvent|null{
   const projectId=clean(input.projectId),entityId=clean(input.entityId),componentKey=clean(input.componentKey).toLowerCase(),supportKind=clean(input.supportKind).toUpperCase();
-  if(!projectId||!entityId||!componentKey||!supportKind||![input.supportZMeters,input.offsetMeters,input.absoluteReferenceZMeters].every(Number.isFinite))return null;
+  const actorUserId=clean(input.actorUserId),organizationId=clean(input.organizationId),actorRole=clean(input.actorRole);
+  if(!projectId||!entityId||!componentKey||!supportKind||!actorUserId||!organizationId||!actorRole||![input.supportZMeters,input.offsetMeters,input.absoluteReferenceZMeters].every(Number.isFinite))return null;
   const events=readAll(),decisionKey=`${projectId}:${entityId}`;
   const prior=[...events].reverse().find(event=>event.decisionKey===decisionKey);
   if(prior&&prior.sourceInferenceId===input.sourceInferenceId&&Math.abs(prior.offsetMeters-input.offsetMeters)<1e-9)return prior;
@@ -91,7 +99,7 @@ export function recordConfirmedZ(input:{
     id:safeId(`${decisionKey}:${occurredAt}:${input.sourceInferenceId}`),decisionKey,projectId,entityId,componentKey,supportKind,
     supportZMeters:input.supportZMeters,offsetMeters:input.offsetMeters,referencePoint:input.referencePoint,
     absoluteReferenceZMeters:input.absoluteReferenceZMeters,inferenceMethod:input.inferenceMethod,sourceInferenceId:input.sourceInferenceId,
-    basis:(input.basis||[]).slice(0,12),sourceRefs:(input.sourceRefs||[]).slice(0,12),decision:'H2_ACCEPTED_INFERENCE',physicalTruth:false,occurredAt,
+    basis:(input.basis||[]).slice(0,12),sourceRefs:(input.sourceRefs||[]).slice(0,12),actorUserId,organizationId,actorRole,decision:'H2_ACCEPTED_INFERENCE',canonical:false,physicalTruth:false,occurredAt,
     ...(prior?{supersedesId:prior.id}:{})
   };
   events.push(event);writeAll(events);return event;
