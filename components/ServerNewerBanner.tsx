@@ -2,12 +2,12 @@
 
 import {useEffect,useState} from 'react';
 import {replaceCurrentSpatialGraph} from '@/lib/spatial-browser-recovery';
-import {SERVER_NEWER_EVENT,SERVER_NEWER_RESOLVED_EVENT,publishServerNewerResolved,writeLocalServerRevision,type ServerNewerDetail} from '@/lib/spatial-server-revision';
+import {SERVER_NEWER_EVENT,SERVER_NEWER_RESOLVED_EVENT,publishServerNewerResolved,readServerNewerNotice,writeLocalServerRevision,type ServerNewerDetail} from '@/lib/spatial-server-revision';
 
 type LatestBody={latest?:{revision?:number;created_at?:string|null;graph_json?:unknown}|null};
 
 export default function ServerNewerBanner(){
- const [notice,setNotice]=useState<ServerNewerDetail|null>(null);
+ const [notice,setNotice]=useState<ServerNewerDetail|null>(()=>readServerNewerNotice());
  const [armed,setArmed]=useState(false);
  const [busy,setBusy]=useState(false);
  const [message,setMessage]=useState('');
