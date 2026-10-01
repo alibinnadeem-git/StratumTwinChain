@@ -170,8 +170,14 @@ function oemInference(input:ZInferenceInput,componentKey:string,text:string,supp
 }
 function mergeCandidate(high:ZInference,other:ZInference):ZInference{
   const methods=[...new Set([...high.corroboratingMethods,...other.corroboratingMethods])];
-  const confidence=Math.min(.9,1-(1-high.confidence)*(1-other.confidence));
-  return{...high,confidence,corroboratingMethods:methods,basis:[...new Set([...high.basis,...other.basis])].slice(0,12),sourceRefs:[...high.sourceRefs,...other.sourceRefs].filter((ref,index,all)=>all.findIndex(otherRef=>otherRef.url===ref.url&&otherRef.label===ref.label)===index).slice(0,12)};
+  // Near-identical proposals may share an underlying source (for example the
+  // placement engine and a class prior can both reflect the same mounting
+  // guidance). Do not apply a probabilistic confidence boost unless evidence
+  // independence has been established. Preserve the strongest input only.
+  const confidence=Math.max(high.confidence,other.confidence);
+  const basis=[...new Set([...high.basis,...other.basis])];
+  if(methods.length>1)basis.push('Multiple proposal paths align within 5 cm; confidence was not increased because evidence independence is not established.');
+  return{...high,confidence,corroboratingMethods:methods,basis:basis.slice(0,12),sourceRefs:[...high.sourceRefs,...other.sourceRefs].filter((ref,index,all)=>all.findIndex(otherRef=>otherRef.url===ref.url&&otherRef.label===ref.label)===index).slice(0,12)};
 }
 function comparableDistance(a:ZInference,b:ZInference){
   if(a.referencePoint!==b.referencePoint||a.relativeOnly!==b.relativeOnly)return null;
