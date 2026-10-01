@@ -1209,3 +1209,65 @@ test('server hydration restores authenticated Z review onto an empty browser wit
   receipt:decisionId,decisionSha,compilation:compilationId,physical:false,truth:false,review:true
  });
 });
+
+
+test('existing browser removes superseded authenticated Z receipt after server clear',async({page})=>{
+ const source='Synthetic Stale Z Review.pdf';
+ const projectId='99999999-9999-4999-8999-999999999999';
+ const compilationId='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+ const acceptedDecisionId='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+ const clearDecisionId='cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+ const graphSha='1'.repeat(64);
+ const acceptedDecisionSha='2'.repeat(64);
+ const clearDecisionSha='3'.repeat(64);
+ const graph={
+  version:'z-review-stale-browser-1',createdAt:'2026-10-01T21:00:00.000Z',reviewState:'REVIEW_REQUIRED',
+  sources:[{name:source,ext:'pdf',sha256:'4'.repeat(64),discipline:'Electrical / Civil',floor:'UNRESOLVED',elevation:0}],
+  entities:[
+   {id:'xfmr-z-stale',source,layer:'L2',kind:'text-asset-candidate',name:'PAD MOUNT TRANSFORMER T4',x:0,y:0,z:0,floor:'UNRESOLVED',confidence:.93,
+    meta:{page:1,assetDimensionAuthority:'SOURCE_SPEC',assetDimensionsMeters:[1.7,1.6,1.25],
+      localReviewSurfaceZ:30.48,localReviewSurfaceKind:'GRADE',localReviewSurfaceAuthority:'SOURCE_ELEVATION_TRIANGLE',localReviewSurfaceConfidence:.84,
+      supportBaseOffsetMeters:.1524,supportOffsetKind:'PAD',supportOffsetAuthority:'TAG_LINKED_SOURCE_SUPPORT_NOTE',supportOffsetConfidence:.94,
+      supportOffsetEvidenceLabel:'XFMR T4 6" CONC PAD',
+      zResolutionStatus:'RESOLVED_DESIGN_CANDIDATE',zCandidateMeters:31.1,zCandidateReferencePoint:'BASE',zResolutionConfidence:.9,zResolutionAuthority:'SOURCE_BASE_ELEVATION',
+      zReviewDecisionStatus:'ACCEPTED_DESIGN_CHAIN',zReviewDecisionCandidateId:'support-chain',
+      zReviewDecisionAuthority:'SERVER_AUTHENTICATED_HUMAN_REVIEW',zReviewDecisionId:acceptedDecisionId,
+      zReviewDecisionCompilationId:compilationId,zReviewDecisionSha256:acceptedDecisionSha,zReviewDecisionGraphSha256:graphSha,
+      zReviewDecisionReason:'Use grade plus pad for design review.',zReviewDecisionPhysicalTruth:false,
+      physicalElevationKnown:false,elevationKnown:false,physicalTruth:false,reviewRequired:true}}
+  ],
+  links:[],stats:{L0:0,L1:0,L2:1,L3:0,L4:0}
+ };
+ await page.route('**/api/spatial/z-reviews?projectId=*',async route=>{
+  await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
+   schemaReady:true,truthBoundary:'Z_REVIEW_IS_DESIGN_PLACEMENT_REVIEW_NOT_PHYSICAL_TRUTH',
+   decisions:[{
+    id:clearDecisionId,project_id:projectId,compilation_id:compilationId,entity_id:'xfmr-z-stale',
+    action:'CLEAR_DESIGN_CHAIN',candidate_id:null,reason:'Clear stale design review.',
+    graph_sha256:graphSha,decision_sha256:clearDecisionSha,occurred_at:'2026-10-01T21:05:00.000Z'
+   }]
+  })});
+ });
+ await page.addInitScript(({graph,projectId})=>{
+  localStorage.setItem('stratum_compiled_graph',JSON.stringify(graph));
+  localStorage.setItem('stratum_spatial_project_id',projectId);
+ },{graph,projectId});
+ await page.goto('/spatial');
+ await expect.poll(()=>page.evaluate(()=>{
+  const g=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
+  const entity=(g.entities||[]).find((item:any)=>item.id==='xfmr-z-stale');
+  return entity?.meta?Object.keys(entity.meta).some((key:string)=>key.startsWith('zReviewDecision')):null;
+ })).toBe(false);
+ await page.getByLabel('Imported object').selectOption('xfmr-z-stale');
+ await expect(page.getByText(/Z CONFLICT · AUTO-PLACEMENT BLOCKED/)).toBeVisible();
+ await expect(page.getByText('Z CONFLICT · review required',{exact:true})).toBeVisible();
+ await expect.poll(()=>page.evaluate(()=>{
+  const g=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
+  const entity=(g.entities||[]).find((item:any)=>item.id==='xfmr-z-stale');
+  return entity?.meta?{
+   physical:entity.meta.physicalElevationKnown,
+   truth:entity.meta.physicalTruth,
+   review:entity.meta.reviewRequired
+  }:null;
+ })).toEqual({physical:false,truth:false,review:true});
+});
