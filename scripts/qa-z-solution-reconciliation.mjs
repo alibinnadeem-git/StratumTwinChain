@@ -37,8 +37,23 @@ assert.equal(reconciled.placement.recommendation?.kind,'Z_CONFLICT_REVIEW_SURFAC
 
 const reviewedConflict={
  ...conflict,
+ meta:{
+  ...conflict.meta,
+  zReviewDecisionStatus:'ACCEPTED_DESIGN_CHAIN',
+  zReviewDecisionCandidateId:'support-chain',
+  zReviewDecisionAuthority:'SERVER_AUTHENTICATED_HUMAN_REVIEW',
+  zReviewDecisionId:'11111111-1111-4111-8111-111111111111',
+  zReviewDecisionCompilationId:'22222222-2222-4222-8222-222222222222',
+  zReviewDecisionSha256:'a'.repeat(64),
+  zReviewDecisionGraphSha256:'b'.repeat(64),
+  zReviewDecisionPhysicalTruth:false
+ }
+};
+const localOnlyReview={
+ ...conflict,
  meta:{...conflict.meta,zReviewDecisionStatus:'ACCEPTED_DESIGN_CHAIN',zReviewDecisionCandidateId:'support-chain',zReviewDecisionAuthority:'LOCAL_HUMAN_REVIEW',zReviewDecisionPhysicalTruth:false}
 };
+assert.equal(buildZSolution(localOnlyReview).status,'CONFLICT','browser-only review metadata must not resolve a Z conflict');
 const reviewedSolution=buildZSolution(reviewedConflict);
 assert.equal(reviewedSolution.status,'REVIEW_RESOLVED_CANDIDATE');
 assert.equal(reviewedSolution.chosenCandidateId,'support-chain');
