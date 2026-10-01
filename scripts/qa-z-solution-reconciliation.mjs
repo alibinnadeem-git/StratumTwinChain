@@ -35,6 +35,24 @@ assert.equal(reconciled.placement.zAuthority,'UNRESOLVED');
 assert.ok(Math.abs(reconciled.placement.baseZ-30.48)<1e-9);
 assert.equal(reconciled.placement.recommendation?.kind,'Z_CONFLICT_REVIEW_SURFACE');
 
+const conflictWithPreview={
+ ...conflict,
+ meta:{...conflict.meta,zPreviewBaseMeters:99,zPreviewConfidence:.9,zPreviewAuthority:'H2_ACCEPTED_INFERRED_PREVIEW'}
+};
+const previewConflict=resolveReconciledAssetPlacement(conflictWithPreview);
+assert.equal(previewConflict.solution.status,'CONFLICT');
+assert.equal(previewConflict.placement.zAuthority,'UNRESOLVED');
+assert.ok(Math.abs(previewConflict.placement.baseZ-30.48)<1e-9,'inferred preview must not mask or override source-chain conflict');
+
+const previewOnly=resolveReconciledAssetPlacement({
+ name:'UNKNOWN DEVICE',floor:'UNRESOLVED',z:0,
+ meta:{zPreviewBaseMeters:4.2,zPreviewConfidence:.61,zPreviewBasis:'H2 accepted inferred preview',physicalTruth:false,reviewRequired:true}
+});
+assert.equal(previewOnly.solution.status,'UNRESOLVED');
+assert.equal(previewOnly.placement.zAuthority,'H2_ACCEPTED_INFERRED_PREVIEW');
+assert.ok(Math.abs(previewOnly.placement.baseZ-4.2)<1e-9);
+assert.equal(previewOnly.placement.physicalTruth,false);
+
 const centerline={
  name:'PANEL LP-2',floor:'L2',z:0,
  meta:{

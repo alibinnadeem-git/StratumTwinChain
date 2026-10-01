@@ -104,6 +104,8 @@ jobs:
         run: npm run qa:z-reference
       - name: Reconciled Z solution chain conformance
         run: npm run qa:z-solution
+      - name: Review-only Z inference authority conformance
+        run: npm run qa:z-inference
       - name: Project datum review-surface conformance
         run: npm run qa:project-datum
       - name: Local triangulated elevation surface conformance

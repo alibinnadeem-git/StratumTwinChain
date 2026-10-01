@@ -60,6 +60,10 @@ const WITHOUT_SOURCE_REFERENCE=[
   'zCandidateMeters','zCandidateReferencePoint','zResolutionStatus','zResolutionConfidence','zResolutionAuthority','zResolutionEvidence',
   'sourceDesignElevationKnown','sourceZReferencePoint'
 ];
+const WITHOUT_REVIEW_PREVIEW=[
+  'zPreviewBaseMeters','zPreviewReferenceMeters','zPreviewReferencePoint','zPreviewConfidence','zPreviewInferenceId',
+  'zPreviewMethod','zPreviewBasis','zPreviewAppliedAt','zPreviewAuthority'
+];
 const WITHOUT_SUPPORT=[
   'localReviewSurfaceZ','localReviewSurfaceKind','localReviewSurfaceAuthority','localReviewSurfaceConfidence',
   'crossSheetReviewSurfaceZ','crossSheetReviewSurfaceKind','crossSheetReviewSurfaceAuthority','crossSheetReviewSurfaceConfidence',
@@ -161,15 +165,20 @@ export function buildZSolution(entity:PlacementEntity,options?:{toleranceMeters?
   const registry=options?.registry||null;
   const meta=entity.meta||{};
   const candidates:ZSolutionCandidate[]=[];
+  // Human-applied inferred previews are rendering state, not an evidence chain.
+  // Strip them while reconciling source/support evidence so a preview can never
+  // hide a newly discovered conflict or become self-corroborating evidence.
+  const evidenceEntity=entityWithMeta(entity,omitMeta(meta,WITHOUT_REVIEW_PREVIEW));
+  const evidenceMeta=evidenceEntity.meta||{};
 
-  const primary=resolveAssetPlacement(entity,registry);
-  candidates.push(candidateFromPlacement('primary',entity,primary));
+  const primary=resolveAssetPlacement(evidenceEntity,registry);
+  candidates.push(candidateFromPlacement('primary',evidenceEntity,primary));
 
-  const supportOnlyEntity=entityWithMeta(entity,omitMeta(meta,WITHOUT_SOURCE_REFERENCE));
+  const supportOnlyEntity=entityWithMeta(evidenceEntity,omitMeta(evidenceMeta,WITHOUT_SOURCE_REFERENCE));
   const supportPlacement=resolveAssetPlacement(supportOnlyEntity,registry);
   candidates.push(candidateFromPlacement('support-chain',supportOnlyEntity,supportPlacement));
 
-  const sourceOnlyEntity=entityWithMeta(entity,omitMeta(meta,WITHOUT_SUPPORT));
+  const sourceOnlyEntity=entityWithMeta(evidenceEntity,omitMeta(evidenceMeta,WITHOUT_SUPPORT));
   const sourcePlacement=resolveAssetPlacement(sourceOnlyEntity,registry);
   candidates.push(candidateFromPlacement('source-reference-chain',sourceOnlyEntity,sourcePlacement));
 
@@ -256,6 +265,9 @@ export function resolveReconciledAssetPlacement(
         physicalTruth:false
       }
     };
+  }
+  if(primary.zAuthority==='H2_ACCEPTED_INFERRED_PREVIEW'&&solution.status!=='RESOLVED_CANDIDATE'){
+    return{solution,placement:primary};
   }
   if(solution.chosenCandidateId&&solution.baseZ!==null){
     return{
