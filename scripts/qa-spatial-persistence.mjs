@@ -64,7 +64,7 @@ const checks=[
  ['authenticated compiler mounts automatic append-only Spatial sync',compilerPage.includes('session&&<SpatialAutoSync/>')],
  ['compiler surfaces server-newer conflict banner',compilerPage.includes('<ServerNewerBanner/>')&&serverNewerBanner.includes('SPATIAL REVISION CONFLICT')&&serverNewerBanner.includes('actualRevision')],
  ['Spatial route mounts server hydration before rendering the project workspace',spatialPage.includes('<SpatialServerHydrator/>')],
- ['server hydrator only restores a renderable graph from an organization project',serverHydrator.includes('validRenderableGraph')&&serverHydrator.includes('replaceCurrentSpatialGraph(graph)')],
+ ['server hydrator only restores a renderable graph from an organization project',serverHydrator.includes('validRenderableGraph')&&serverHydrator.includes('replaceCurrentSpatialGraph({...graph,workingProjectId:projectId})')],
  ['server hydrator treats any existing browser graph as local work and checks its base revision',serverHydrator.includes('hasLocalWorkingGraph=Boolean(current)')&&serverHydrator.includes('readLocalServerRevision(projectId)')&&serverHydrator.includes('publishServerNewer')],
  ['server hydrator will not silently rebind a local graph to another project',serverHydrator.includes('projectBindingRequired:true')&&serverHydrator.includes('projectMismatch:true')&&serverHydrator.includes('current?.workingProjectId')],
  ['server suggests only a saved, nonempty compilation scoped to the organization',api.includes('restorableProjectId')&&api.includes('WHERE organization_id=$1 AND entity_count>0')],
