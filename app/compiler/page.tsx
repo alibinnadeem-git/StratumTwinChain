@@ -23,7 +23,7 @@ export default async function CompilerPage(){const session=await readSession();r
   <SpatialWorkspaceStatus compact authenticated={Boolean(session)}/>
   <ServerNewerBanner/>
 
-  <CompilerWorkspace/>
+  <CompilerWorkspace organizationId={session?.organizationId||null}/>
 
   <details className="secondary-details card">
    <summary>Review exceptions</summary>
