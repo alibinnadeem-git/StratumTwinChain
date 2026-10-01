@@ -97,20 +97,20 @@ export async function POST(req:Request){
       if(solution.candidates.some(item=>item.kind==='REVIEWED_OR_MEASURED'&&item.absolute&&item.baseZ!==null))
         throw Object.assign(new Error('Measured/reviewed Z evidence cannot be overridden by design-chain adjudication'),{status:409});
 
-      const duplicate=await client.query<any>(`SELECT id::text,action,candidate_id,reason,graph_sha256,decision_sha256,occurred_at
-        FROM spatial_z_review_decisions
-        WHERE organization_id=$1 AND project_id=$2 AND compilation_id=$3 AND entity_id=$4
-          AND action=$5 AND candidate_id IS NOT DISTINCT FROM $6 AND reason=$7
-        ORDER BY occurred_at DESC,id DESC LIMIT 1`,[
-          session.organizationId,body.projectId,body.compilationId,body.entityId,body.action,body.candidateId||null,body.reason
-        ]);
-      if(duplicate.rows[0])return{...duplicate.rows[0],idempotent:true,reviewState:body.action==='ACCEPT_DESIGN_CHAIN'?'REVIEW_RESOLVED_CANDIDATE':'CONFLICT'};
-
-      const prior=await client.query<any>(`SELECT id::text,action,candidate_id
+      const prior=await client.query<any>(`SELECT
+        id::text,action,candidate_id,reason,compilation_id::text,graph_sha256,decision_sha256,occurred_at
         FROM spatial_z_review_decisions
         WHERE organization_id=$1 AND project_id=$2 AND entity_id=$3
         ORDER BY occurred_at DESC,id DESC LIMIT 1 FOR UPDATE`,[session.organizationId,body.projectId,body.entityId]);
       const previous=prior.rows[0]||null;
+      const requestedCandidateId=body.candidateId||null;
+      if(
+        previous
+        &&previous.compilation_id===body.compilationId
+        &&previous.action===body.action
+        &&previous.candidate_id===requestedCandidateId
+        &&previous.reason===body.reason
+      )return{...previous,idempotent:true,reviewState:body.action==='ACCEPT_DESIGN_CHAIN'?'REVIEW_RESOLVED_CANDIDATE':'CONFLICT'};
 
       let candidate:any=null;
       if(body.action==='ACCEPT_DESIGN_CHAIN'){
