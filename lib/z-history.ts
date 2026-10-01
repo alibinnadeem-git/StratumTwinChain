@@ -7,6 +7,7 @@
  * pairs and from normalized offsets relative to a named support datum.
  */
 export type ZHistoryReferencePoint='BASE'|'CENTERLINE'|'MOUNTING_POINT'|'GRADE'|'FLOOR_DATUM'|'UNSPECIFIED';
+export type ZReviewActor={userId:string;organizationId:string;role:string};
 
 export type ZHistoryEvent={
   id:string;
@@ -105,24 +106,29 @@ export function recordConfirmedZ(input:{
   events.push(event);writeAll(events);return event;
 }
 
-export function historicalZPrior(componentKey:string,input:{projectId:string;supportKind:string;referencePoint?:ZHistoryReferencePoint}):ZHistoryPrior|null{
-  const key=clean(componentKey).toLowerCase(),projectId=clean(input.projectId),supportKind=clean(input.supportKind).toUpperCase();
-  if(!key||!projectId||!supportKind)return null;
+export function historicalZPrior(componentKey:string,input:{projectId:string;organizationId:string;supportKind:string;referencePoint?:ZHistoryReferencePoint}):ZHistoryPrior|null{
+  const key=clean(componentKey).toLowerCase(),projectId=clean(input.projectId),organizationId=clean(input.organizationId),supportKind=clean(input.supportKind).toUpperCase();
+  if(!key||!projectId||!organizationId||!supportKind)return null;
   const latestByDecision=new Map<string,ZHistoryEvent>();
   for(const event of readAll()){
-    if(event.componentKey!==key||event.projectId!==projectId||event.supportKind!==supportKind)continue;
-    if(input.referencePoint&&event.referencePoint!==input.referencePoint)continue;
+    if(event.componentKey!==key||event.projectId!==projectId||event.organizationId!==organizationId||event.supportKind!==supportKind)continue;
     const prior=latestByDecision.get(event.decisionKey);
     if(!prior||Date.parse(event.occurredAt)>=Date.parse(prior.occurredAt))latestByDecision.set(event.decisionKey,event);
   }
-  const events=[...latestByDecision.values()];
-  if(events.length<MIN_SAMPLES)return null;
-  const offsets=events.map(event=>event.offsetMeters),mean=offsets.reduce((sum,value)=>sum+value,0)/offsets.length;
+  const latest=[...latestByDecision.values()];
+  const groups=new Map<ZHistoryReferencePoint,ZHistoryEvent[]>();
+  for(const event of latest){
+    if(input.referencePoint&&event.referencePoint!==input.referencePoint)continue;
+    const group=groups.get(event.referencePoint)||[];group.push(event);groups.set(event.referencePoint,group);
+  }
+  const selected=input.referencePoint
+    ?groups.get(input.referencePoint)||[]
+    :[...groups.values()].sort((a,b)=>b.length-a.length||String(a[0]?.referencePoint||'').localeCompare(String(b[0]?.referencePoint||'')))[0]||[];
+  if(selected.length<MIN_SAMPLES)return null;
+  const referencePoint=selected[0].referencePoint;
+  const offsets=selected.map(event=>event.offsetMeters),mean=offsets.reduce((sum,value)=>sum+value,0)/offsets.length;
   const variance=offsets.length>1?offsets.reduce((sum,value)=>sum+(value-mean)**2,0)/(offsets.length-1):0;
-  const referenceCounts=new Map<ZHistoryReferencePoint,number>();
-  for(const event of events)referenceCounts.set(event.referencePoint,(referenceCounts.get(event.referencePoint)||0)+1);
-  const referencePoint=[...referenceCounts.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||'UNSPECIFIED';
-  return{n:events.length,meanOffsetMeters:mean,medianOffsetMeters:median(offsets),stdMeters:Math.sqrt(Math.max(0,variance)),minOffsetMeters:Math.min(...offsets),maxOffsetMeters:Math.max(...offsets),supportKind,referencePoint,eventIds:events.map(event=>event.id)};
+  return{n:selected.length,meanOffsetMeters:mean,medianOffsetMeters:median(offsets),stdMeters:Math.sqrt(Math.max(0,variance)),minOffsetMeters:Math.min(...offsets),maxOffsetMeters:Math.max(...offsets),supportKind,referencePoint,eventIds:selected.map(event=>event.id)};
 }
 
 export function historicalZConfidence(n:number,stdMeters=0):number{
