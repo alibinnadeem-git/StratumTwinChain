@@ -18,6 +18,10 @@ assert.match(migration,/previous_decision_id uuid/);
 assert.match(migration,/BEFORE UPDATE OR DELETE ON spatial_z_review_decisions/);
 assert.match(migration,/append-only/i);
 assert.match(migration,/NOT_PHYSICAL_TRUTH_NOT_DIR_NOT_POVI/);
+assert.match(migration,/candidate_id IS NULL OR char_length\(btrim\(candidate_id\)\) BETWEEN 1 AND 120/);
+assert.match(migration,/jsonb_typeof\(candidate_snapshot\)='object'/);
+assert.match(migration,/jsonb_typeof\(conflict_snapshot\)='array'/);
+assert.match(migration,/CLEAR_DESIGN_CHAIN' AND candidate_id IS NULL AND candidate_snapshot IS NULL/);
 assert.doesNotMatch(migration,/ON DELETE CASCADE/,'review provenance must not cascade-delete with source records');
 
 assert.match(api,/requireSession\(\['SUPER_ADMIN','ORG_ADMIN','PROJECT_MANAGER'\]\)/);
