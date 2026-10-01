@@ -25,6 +25,7 @@ assert.match(api,/WHERE id=\$1 AND project_id=\$2 AND organization_id=\$3/);
 assert.match(api,/buildZSolution\(rawPlacementEntity\(entity\)\)/);
 assert.match(api,/item\.absolute&&item\.baseZ!==null/);
 assert.match(api,/Stored entity does not currently contain a Z conflict requiring adjudication/);
+assert.match(api,/body\.action==='ACCEPT_DESIGN_CHAIN'&&!conflicts\.length/);
 assert.match(api,/Requested Z chain is not an absolute candidate in the stored conflict/);
 assert.match(api,/ORDER BY occurred_at DESC,id DESC LIMIT 1 FOR UPDATE/);
 assert.match(api,/previous\.compilation_id===body\.compilationId/);
