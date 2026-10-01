@@ -2,7 +2,7 @@
 
 import {ChangeEvent,useEffect,useMemo,useState} from 'react';
 import {declaredScaleMetersPerNormalizedSheetUnit,drawingScaleDenominator,extractSheetIdentity,type PositionedSheetText,type SheetField,type SheetIdentityCandidate} from '@/lib/title-block';
-import {readPrimarySpatialGraph,writePrimarySpatialGraph} from '@/lib/spatial-browser-recovery';
+import {readPrimarySpatialGraph,replaceCurrentSpatialGraph} from '@/lib/spatial-browser-recovery';
 
 type EditableIdentityField='sheetNumber'|'sheetTitle'|'discipline'|'drawingScale'|'floor'|'revision'|'issueDate';
 type StoredSheetIdentity=SheetIdentityCandidate&{confirmedAt?:string;identityGaps?:string[];correctedAt?:string;correctedFields?:EditableIdentityField[]};
@@ -24,8 +24,7 @@ async function writeStored(next:StoredSheetIdentity[]){
       // tied to an actual compiled source are allowed into the project graph.
       // This prevents a second/shadow upload from contaminating project truth.
       graph.titleBlocks=next.filter(item=>sourceShas.has(item.sourceSha256));
-      await writePrimarySpatialGraph(graph);
-      window.dispatchEvent(new Event('stratum:graph-updated'));
+      await replaceCurrentSpatialGraph(graph);
     }
   }catch{}
 }
