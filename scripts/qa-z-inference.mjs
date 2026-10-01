@@ -62,6 +62,14 @@ ok('historical priors do not leak across projects',()=>{
  assert.equal(historicalZPrior('disconnect',{projectId:'project-b',organizationId:'org-a',supportKind:'FINISHED_FLOOR'}),null);
 });
 
+ok('a later review decision supersedes stale accepted history even when support context changes',()=>{
+ const base={projectId:'project-c',organizationId:'org-a',actorUserId:'user-3',actorRole:'PROJECT_MANAGER',componentKey:'disconnect',supportKind:'FINISHED_FLOOR',supportZMeters:0,referencePoint:'MOUNTING_POINT',inferenceMethod:'CLASS_MOUNTING_PRIOR',basis:['review'],sourceRefs:[]};
+ for(const [entityId,offset] of [['c1',1.2],['c2',1.22],['c3',1.24]])recordConfirmedZ({...base,entityId,offsetMeters:Number(offset),absoluteReferenceZMeters:Number(offset),sourceInferenceId:`accept-${entityId}`});
+ assert.equal(historicalZPrior('disconnect',{projectId:'project-c',organizationId:'org-a',supportKind:'FINISHED_FLOOR'})?.n,3);
+ recordRejectedZ({projectId:'project-c',organizationId:'org-a',actorUserId:'user-3',actorRole:'PROJECT_MANAGER',entityId:'c1',componentKey:'disconnect',supportKind:'GRADE',supportZMeters:0,offsetMeters:1.2,referencePoint:'MOUNTING_POINT',absoluteReferenceZMeters:1.2,inferenceMethod:'CLASS_MOUNTING_PRIOR',sourceInferenceId:'reject-c1',basis:['support context changed'],sourceRefs:[]});
+ assert.equal(historicalZPrior('disconnect',{projectId:'project-c',organizationId:'org-a',supportKind:'FINISHED_FLOOR'}),null);
+});
+
 ok('history confidence is capped and penalized by dispersion',()=>{
  assert.ok(historicalZConfidence(20,0)<=.78);
  assert.ok(historicalZConfidence(5,.4)<historicalZConfidence(5,.01));
