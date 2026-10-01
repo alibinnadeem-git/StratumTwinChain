@@ -167,7 +167,19 @@ export async function POST(req:Request){
             session.organizationId,body.projectId,receiptIds
           ]);
         const receiptById=new Map(receipts.rows.map(receipt=>[receipt.id,receipt]));
+        const claimEntityIds=[...new Set(zReviewClaims.map(claim=>claim.entityId))];
+        const latestDecisions=await client.query<{id:string;entity_id:string;action:string}>(`SELECT DISTINCT ON (entity_id)
+          id::text,entity_id,action
+          FROM spatial_z_review_decisions
+          WHERE organization_id=$1 AND project_id=$2 AND entity_id=ANY($3::text[])
+          ORDER BY entity_id,occurred_at DESC,id DESC`,[
+            session.organizationId,body.projectId,claimEntityIds
+          ]);
+        const latestByEntity=new Map(latestDecisions.rows.map(decision=>[decision.entity_id,decision]));
         for(const claim of zReviewClaims){
+          const latestDecision=latestByEntity.get(claim.entityId);
+          if(!latestDecision||latestDecision.id!==claim.decisionId||latestDecision.action!=='ACCEPT_DESIGN_CHAIN')
+            throw Object.assign(new Error('Spatial Z review receipt has been superseded by a newer server decision'),{status:409});
           const receipt=receiptById.get(claim.decisionId);
           if(!receipt||receipt.entity_id!==claim.entityId||receipt.candidate_id!==claim.candidateId||receipt.compilation_id!==claim.compilationId||receipt.graph_sha256!==claim.sourceGraphSha256)
             throw Object.assign(new Error('Spatial Z review receipt does not match the persisted server decision'),{status:409});
