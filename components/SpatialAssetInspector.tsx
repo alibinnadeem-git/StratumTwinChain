@@ -130,7 +130,7 @@ export default function SpatialAssetInspector({
    let updated:InspectorEntity|null=null;
    graph.entities=(graph.entities as InspectorEntity[]).map((entity:InspectorEntity)=>{
     if(entity.id!==selected.id)return entity;
-    const meta={...(entity.meta||{}),
+    const meta:Record<string,unknown>={...(entity.meta||{}),
       zReviewDecision:'H2_ACCEPTED_INFERENCE',zReviewDecisionAt:acceptedAt,zReviewInferenceId:inference.id,
       zReviewMethod:inference.method,zReviewReferencePoint:inference.referencePoint,
       zReviewOffsetMeters:inference.offsetMeters,zReviewAbsoluteReferenceMeters:inference.absoluteReferenceZMeters,
