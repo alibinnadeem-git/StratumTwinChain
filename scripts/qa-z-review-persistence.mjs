@@ -55,6 +55,10 @@ assert.match(inspector,/PHYSICAL Z UNVERIFIED/);
 assert.match(inspector,/human-reviewed design placement/);
 assert.match(inspector,/Z review receipt/);
 assert.match(inspector,/Z review rationale/);
+assert.match(inspector,/receipt\?\.candidate_snapshot/);
+assert.match(inspector,/localCandidate/);
+assert.match(inspector,/serverCandidate/);
+assert.match(inspector,/different stored compilation/);
 assert.match(readiness,/spatialZReview/);
 assert.match(readiness,/spatial_z_review_decisions/);
 
