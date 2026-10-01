@@ -66,6 +66,17 @@ assert.ok(Math.abs(reviewedPlacement.placement.baseZ-30.6324)<1e-9);
 assert.equal(reviewedPlacement.placement.physicalTruth,false);
 assert.equal(reviewedPlacement.placement.recommendation?.kind,'HUMAN_REVIEWED_Z_CHAIN');
 
+const measuredAfterReview={
+ ...reviewedConflict,
+ z:30.7,
+ meta:{...reviewedConflict.meta,elevationKnown:true,physicalElevationKnown:true,zPlacementAuthority:'MEASURED_OR_REVIEWED'}
+};
+assert.equal(
+ buildZSolution(measuredAfterReview).status,
+ 'CONFLICT',
+ 'an authenticated design-chain receipt must not override later measured/reviewed absolute Z evidence'
+);
+
 const centerline={
  name:'PANEL LP-2',floor:'L2',z:0,
  meta:{
