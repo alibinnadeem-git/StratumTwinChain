@@ -82,6 +82,19 @@ export default function SpatialAssetInspector({
    });
    const receipt=await reviewResponse.json().catch(()=>({}));
    if(!reviewResponse.ok)throw new Error(receipt?.error||'Unable to persist authenticated Z review');
+   if(candidateId){
+    const localCandidate=zSolution?.candidates.find(candidate=>candidate.id===candidateId&&candidate.absolute&&candidate.baseZ!==null)||null;
+    const serverCandidate=receipt?.candidate_snapshot;
+    const serverBase=Number(serverCandidate?.baseZ);
+    if(
+     !localCandidate
+     ||!serverCandidate
+     ||String(serverCandidate.id||'')!==candidateId
+     ||!Number.isFinite(serverBase)
+     ||Math.abs(serverBase-Number(localCandidate.baseZ))>1e-6
+     ||String(serverCandidate.authority||'')!==String(localCandidate.authority)
+    )throw new Error('The authenticated Z review was recorded against a different stored compilation. Reload Spatial before applying that review locally.');
+   }
 
    const graph=await readPrimarySpatialGraph();
    if(!graph||!Array.isArray(graph.entities))throw new Error('No compiled graph is available');
