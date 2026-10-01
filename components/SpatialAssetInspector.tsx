@@ -126,6 +126,8 @@ export default function SpatialAssetInspector({
    const graph=await readPrimarySpatialGraph();
    if(!graph||!Array.isArray(graph.entities))throw new Error('No compiled graph is available');
    const projectId=readSelectedSpatialProjectId();
+   const graphProjectId=String((graph as {workingProjectId?:unknown}).workingProjectId||'');
+   if(!projectId||!graphProjectId||projectId!==graphProjectId)throw new Error('H2 review blocked: the browser working graph is not bound to the currently selected project.');
    const acceptedAt=new Date().toISOString();
    let updated:InspectorEntity|null=null;
    graph.entities=(graph.entities as InspectorEntity[]).map((entity:InspectorEntity)=>{
@@ -135,7 +137,7 @@ export default function SpatialAssetInspector({
       zReviewMethod:inference.method,zReviewReferencePoint:inference.referencePoint,
       zReviewOffsetMeters:inference.offsetMeters,zReviewAbsoluteReferenceMeters:inference.absoluteReferenceZMeters,
       zReviewSupportKind:inference.support?.kind||null,zReviewSupportZMeters:inference.support?.zMeters??null,
-      zReviewProjectId:projectId||null,zReviewActorUserId:reviewActor.userId,zReviewActorOrganizationId:reviewActor.organizationId,
+      zReviewProjectId:graphProjectId,zReviewActorUserId:reviewActor.userId,zReviewActorOrganizationId:reviewActor.organizationId,
       zReviewActorRole:reviewActor.role,zReviewControlLevel:'H2',zReviewCanonical:false,zPlacementAuthority:'H2_ACCEPTED_INFERENCE',
       verificationState:'UNVERIFIED',physicalTruth:false,physicalElevationKnown:false,elevationKnown:false,reviewRequired:true};
     if(inference.renderBaseZMeters!==null){
@@ -149,8 +151,8 @@ export default function SpatialAssetInspector({
    if(updated)onEntityUpdated?.(updated);
    // Historical learning occurs only after the graph mutation succeeds, and only
    // for a project-scoped absolute proposal backed by a named support datum.
-   if(projectId&&component?.key&&inference.support&&inference.offsetMeters!==null&&inference.absoluteReferenceZMeters!==null){
-     recordConfirmedZ({projectId,entityId:selected.id,componentKey:component.key,supportKind:inference.support.kind,supportZMeters:inference.support.zMeters,offsetMeters:inference.offsetMeters,referencePoint:inference.referencePoint,absoluteReferenceZMeters:inference.absoluteReferenceZMeters,inferenceMethod:inference.method,sourceInferenceId:inference.id,basis:inference.basis,sourceRefs:inference.sourceRefs,actorUserId:reviewActor.userId,organizationId:reviewActor.organizationId,actorRole:reviewActor.role});
+   if(component?.key&&inference.support&&inference.offsetMeters!==null&&inference.absoluteReferenceZMeters!==null){
+     recordConfirmedZ({projectId:graphProjectId,entityId:selected.id,componentKey:component.key,supportKind:inference.support.kind,supportZMeters:inference.support.zMeters,offsetMeters:inference.offsetMeters,referencePoint:inference.referencePoint,absoluteReferenceZMeters:inference.absoluteReferenceZMeters,inferenceMethod:inference.method,sourceInferenceId:inference.id,basis:inference.basis,sourceRefs:inference.sourceRefs,actorUserId:reviewActor.userId,organizationId:reviewActor.organizationId,actorRole:reviewActor.role});
    }
    setMessage(inference.absoluteReferenceZMeters===null
     ?`Accepted ${inference.offsetMeters?.toFixed(2)??'unresolved'} m relative mounting evidence for coordination. No absolute project Z was created.`
@@ -164,13 +166,16 @@ export default function SpatialAssetInspector({
   try{
    const graph=await readPrimarySpatialGraph();
    if(!graph||!Array.isArray(graph.entities))throw new Error('No compiled graph is available');
+   const projectId=readSelectedSpatialProjectId();
+   const graphProjectId=String((graph as {workingProjectId?:unknown}).workingProjectId||'');
+   if(!projectId||!graphProjectId||projectId!==graphProjectId)throw new Error('H2 review blocked: the browser working graph is not bound to the currently selected project.');
    let updated:InspectorEntity|null=null;
    graph.entities=(graph.entities as InspectorEntity[]).map((entity:InspectorEntity)=>{
     if(entity.id!==selected.id)return entity;
     const meta={...(entity.meta||{})};
     const rejected=[...new Set([...(Array.isArray(meta.rejectedZInferenceIds)?meta.rejectedZInferenceIds.map(String):[]),inference.id])];
     meta.rejectedZInferenceIds=rejected;meta.zInferenceRejectedAt=new Date().toISOString();
-    meta.zInferenceRejectedByUserId=reviewActor.userId;meta.zInferenceRejectedByOrganizationId=reviewActor.organizationId;meta.zInferenceRejectedByRole=reviewActor.role;meta.zInferenceRejectControlLevel='H2';meta.zInferenceRejectCanonical=false;
+    meta.zInferenceRejectedByUserId=reviewActor.userId;meta.zInferenceRejectedByOrganizationId=reviewActor.organizationId;meta.zInferenceRejectedByRole=reviewActor.role;meta.zInferenceRejectedProjectId=graphProjectId;meta.zInferenceRejectControlLevel='H2';meta.zInferenceRejectCanonical=false;
     if(meta.zPreviewInferenceId===inference.id)for(const key of ['zPreviewBaseMeters','zPreviewReferenceMeters','zPreviewReferencePoint','zPreviewConfidence','zPreviewInferenceId','zPreviewMethod','zPreviewBasis','zPreviewAppliedAt','zPreviewAuthority'])delete meta[key];
     updated={...entity,meta};return updated;
    });
