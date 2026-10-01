@@ -36,7 +36,11 @@ assert.doesNotMatch(api,/const duplicate=await client\.query/,'historical matchi
 assert.match(api,/Measured\/reviewed Z evidence cannot be overridden by design-chain adjudication/);
 assert.match(api,/body\.action==='ACCEPT_DESIGN_CHAIN'&&solution\.candidates\.some/);
 assert.match(api,/pg_advisory_xact_lock\(hashtextextended\(\$1,0\)\)/);
-assert.match(api,/STRATUM\/SPATIAL\/Z-REVIEW/);
+assert.match(api,/STRATUM\/SPATIAL\/PROJECT/);
+assert.match(api,/Spatial Z review must target the latest project compilation/);
+assert.match(api,/ORDER BY revision DESC LIMIT 1/);
+assert.match(compilationApi,/pg_advisory_xact_lock\(hashtextextended\(\$1,0\)\)/);
+assert.match(compilationApi,/STRATUM\/SPATIAL\/PROJECT/);
 assert.match(api,/actorUserId:session\.userId/);
 assert.match(api,/RETURNING id::text,action,candidate_id,reason,graph_sha256,decision_sha256,candidate_snapshot,conflict_snapshot,occurred_at/);
 assert.match(api,/domain:'STRATUM\/SPATIAL\/Z-REVIEW\/1'/);
