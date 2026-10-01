@@ -202,7 +202,8 @@ export function buildZSolution(entity:PlacementEntity,options?:{toleranceMeters?
   const chosen=ranked.find(c=>c.baseZ!==null&&c.kind!=='UNRESOLVED')||null;
   const reviewDecision=String(meta.zReviewDecisionStatus||'');
   const reviewCandidateId=String(meta.zReviewDecisionCandidateId||'').trim();
-  const authenticatedReview=reviewDecision==='ACCEPTED_DESIGN_CHAIN'&&hasAuthenticatedZReviewReceipt(meta);
+  const hasMeasuredOrReviewedAbsolute=all.some(candidate=>candidate.kind==='REVIEWED_OR_MEASURED'&&candidate.absolute&&candidate.baseZ!==null);
+  const authenticatedReview=reviewDecision==='ACCEPTED_DESIGN_CHAIN'&&hasAuthenticatedZReviewReceipt(meta)&&!hasMeasuredOrReviewedAbsolute;
   const reviewedCandidate=authenticatedReview
     ?all.find(candidate=>candidate.id===reviewCandidateId&&candidate.absolute&&candidate.baseZ!==null)||null
     :null;
