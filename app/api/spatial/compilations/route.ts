@@ -129,8 +129,11 @@ export async function POST(req:Request){
     const graphSha256=canonicalHash({domain:'STRATUM/SPATIAL/COMPILATION/1',projectId:body.projectId,graph});
     const sourceSha256s=[...new Set(graph.sources.map(source=>source.sha256))].sort();
     const result=await tx(async client=>{
+      // Serialize append-only compilation writes at the project row. Locking
+      // only the previous compilation is insufficient for the first write and
+      // can allow two concurrent writers to calculate the same next revision.
       const project=await client.query<{id:string}>(`SELECT id::text FROM projects
-        WHERE id=$1 AND organization_id=$2 FOR SHARE`,[body.projectId,session.organizationId]);
+        WHERE id=$1 AND organization_id=$2 FOR UPDATE`,[body.projectId,session.organizationId]);
       if(!project.rows[0])throw Object.assign(new Error('Project not found in this organization'),{status:404});
       const prior=await client.query<{id:string;revision:number;graph_sha256:string;created_at:string}>(`SELECT id::text,revision,graph_sha256,created_at FROM spatial_compilations
         WHERE organization_id=$1 AND project_id=$2 ORDER BY revision DESC LIMIT 1 FOR UPDATE`,[session.organizationId,body.projectId]);
