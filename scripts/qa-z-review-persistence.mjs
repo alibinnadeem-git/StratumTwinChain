@@ -40,6 +40,9 @@ assert.match(inspector,/SERVER_AUTHENTICATED_HUMAN_REVIEW/);
 assert.match(inspector,/credentials:'same-origin'/);
 assert.match(inspector,/Review rationale/);
 assert.match(inspector,/PHYSICAL Z UNVERIFIED/);
+assert.match(inspector,/human-reviewed design placement/);
+assert.match(inspector,/Z review receipt/);
+assert.match(inspector,/Z review rationale/);
 assert.match(readiness,/spatialZReview/);
 assert.match(readiness,/spatial_z_review_decisions/);
 
