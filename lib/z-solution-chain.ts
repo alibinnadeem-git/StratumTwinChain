@@ -64,7 +64,11 @@ function hasAuthenticatedZReviewReceipt(meta:Record<string,unknown>){
     &&UUID_RE.test(String(meta.zReviewDecisionCompilationId||''))
     &&SHA256_RE.test(String(meta.zReviewDecisionSha256||''))
     &&SHA256_RE.test(String(meta.zReviewDecisionGraphSha256||''))
-    &&meta.zReviewDecisionPhysicalTruth===false;
+    &&meta.zReviewDecisionPhysicalTruth===false
+    &&meta.physicalTruth===false
+    &&meta.physicalElevationKnown===false
+    &&meta.elevationKnown===false
+    &&meta.reviewRequired===true;
 }
 
 const WITHOUT_SOURCE_REFERENCE=[
