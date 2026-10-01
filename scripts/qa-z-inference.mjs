@@ -74,6 +74,14 @@ ok('inference uses project-scoped reviewed history only when support is resolved
  assert.ok(!withoutSupport.some(item=>item.method==='HISTORICAL_CLASS_PRIOR'));
 });
 
+ok('aligned proposal paths do not inflate confidence without proven evidence independence',()=>{
+ const proposals=inferEquipmentZ({name:'Safety Switch Disconnect',projectId:'project-a',organizationId:'org-a',meta:{reviewSurfaceZ:20,reviewSurfaceKind:'FINISHED_FLOOR',reviewSurfaceConfidence:.8}});
+ const aligned=proposals.find(item=>item.corroboratingMethods.length>1);
+ assert.ok(aligned,'expected the historical and class-prior paths to align within the 5 cm clustering threshold');
+ assert.ok(aligned.confidence<=.55,`confidence must preserve the strongest input rather than combine correlated evidence: ${aligned.confidence}`);
+ assert.ok(aligned.basis.some(line=>line.includes('confidence was not increased')));
+});
+
 ok('all proposals remain inferred and non-physical',()=>{
  const all=inferEquipmentZ({name:'Pad-Mount Transformer',projectId:'p1',meta:{reviewSurfaceZ:100,reviewSurfaceKind:'GRADE',reviewSurfaceConfidence:.8}});
  assert.ok(all.length>0);
