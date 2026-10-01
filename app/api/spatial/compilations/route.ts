@@ -152,6 +152,9 @@ export async function POST(req:Request){
     const graphSha256=canonicalHash({domain:'STRATUM/SPATIAL/COMPILATION/1',projectId:body.projectId,graph});
     const sourceSha256s=[...new Set(graph.sources.map(source=>source.sha256))].sort();
     const result=await tx(async client=>{
+      await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1,0))`,[
+        `STRATUM/SPATIAL/PROJECT/${session.organizationId}/${body.projectId}`
+      ]);
       const project=await client.query<{id:string}>(`SELECT id::text FROM projects
         WHERE id=$1 AND organization_id=$2 FOR SHARE`,[body.projectId,session.organizationId]);
       if(!project.rows[0])throw Object.assign(new Error('Project not found in this organization'),{status:404});
