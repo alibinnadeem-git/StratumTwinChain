@@ -22,6 +22,10 @@ assert.match(migration,/candidate_id IS NULL OR char_length\(btrim\(candidate_id
 assert.match(migration,/jsonb_typeof\(candidate_snapshot\)='object'/);
 assert.match(migration,/jsonb_typeof\(conflict_snapshot\)='array'/);
 assert.match(migration,/CLEAR_DESIGN_CHAIN' AND candidate_id IS NULL AND candidate_snapshot IS NULL/);
+assert.match(migration,/spatial_z_review_scope_identity_uk UNIQUE \(organization_id,project_id,id\)/);
+assert.match(migration,/spatial_z_review_previous_scope_fk/);
+assert.match(migration,/FOREIGN KEY \(organization_id,project_id,previous_decision_id\)/);
+assert.match(migration,/CHECK \(truth_boundary='HUMAN_REVIEWED_DESIGN_PLACEMENT_NOT_PHYSICAL_TRUTH_NOT_DIR_NOT_POVI'\)/);
 assert.doesNotMatch(migration,/ON DELETE CASCADE/,'review provenance must not cascade-delete with source records');
 
 assert.match(api,/requireSession\(\['SUPER_ADMIN','ORG_ADMIN','PROJECT_MANAGER'\]\)/);
