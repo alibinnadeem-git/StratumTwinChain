@@ -53,6 +53,33 @@ assert.equal(previewOnly.placement.zAuthority,'H2_ACCEPTED_INFERRED_PREVIEW');
 assert.ok(Math.abs(previewOnly.placement.baseZ-4.2)<1e-9);
 assert.equal(previewOnly.placement.physicalTruth,false);
 
+const weakSupportPreview=resolveReconciledAssetPlacement({
+ name:'PAD MOUNT TRANSFORMER T2',floor:'UNRESOLVED',z:0,
+ meta:{
+  localReviewSurfaceZ:10,localReviewSurfaceKind:'GRADE',localReviewSurfaceAuthority:'SOURCE_ELEVATION_TRIANGLE',localReviewSurfaceConfidence:.8,
+  zPreviewBaseMeters:10.42,zPreviewConfidence:.62,zPreviewBasis:'H2 accepted inferred preview',
+  physicalElevationKnown:false,elevationKnown:false,physicalTruth:false,reviewRequired:true
+ }
+});
+assert.equal(weakSupportPreview.solution.status,'RESOLVED_CANDIDATE');
+assert.ok(weakSupportPreview.solution.candidates.some(c=>c.kind==='SUPPORT_SURFACE_BASE'));
+assert.equal(weakSupportPreview.placement.zAuthority,'H2_ACCEPTED_INFERRED_PREVIEW');
+assert.ok(Math.abs(weakSupportPreview.placement.baseZ-10.42)<1e-9,'H2 preview may replace only weak generic support/type-profile placement');
+
+const strongSourceWithPreview=resolveReconciledAssetPlacement({
+ name:'PANEL LP-9',floor:'L1',z:0,
+ meta:{
+  assetDimensionAuthority:'SOURCE_SPEC',assetDimensionsMeters:[.8,1.2,.25],
+  zResolutionStatus:'RESOLVED_DESIGN_CANDIDATE',zCandidateMeters:6.25,zCandidateReferencePoint:'BASE',zResolutionConfidence:.91,zResolutionAuthority:'SOURCE_BASE_ELEVATION',
+  zPreviewBaseMeters:9.9,zPreviewConfidence:.99,zPreviewBasis:'H2 accepted inferred preview',
+  physicalElevationKnown:false,elevationKnown:false,physicalTruth:false,reviewRequired:true
+ }
+});
+assert.equal(strongSourceWithPreview.solution.status,'RESOLVED_CANDIDATE');
+assert.ok(strongSourceWithPreview.solution.candidates.some(c=>c.kind==='SOURCE_REFERENCE'));
+assert.equal(strongSourceWithPreview.placement.zAuthority,'H2_ACCEPTED_INFERRED_PREVIEW','authority remains review-only in the underlying placement object');
+assert.ok(Math.abs(strongSourceWithPreview.placement.baseZ-6.25)<1e-9,'explicit source Z must outrank an H2 inferred preview');
+
 const centerline={
  name:'PANEL LP-2',floor:'L2',z:0,
  meta:{
