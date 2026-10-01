@@ -1090,3 +1090,79 @@ test('human Z review selects one preserved design chain without establishing phy
   receipt:decisionId,decisionSha,reason,physical:false,truth:false,review:true
  });
 });
+
+
+test('server hydration restores authenticated Z review onto an empty browser without claiming physical truth',async({page})=>{
+ const source='Synthetic Z Review Restore.pdf';
+ const projectId='55555555-5555-4555-8555-555555555555';
+ const compilationId='66666666-6666-4666-8666-666666666666';
+ const decisionId='77777777-7777-4777-8777-777777777777';
+ const graphSha='e'.repeat(64);
+ const decisionSha='f'.repeat(64);
+ const graph={
+  version:'z-review-restore-browser-1',createdAt:'2026-10-01T20:00:00.000Z',reviewState:'REVIEW_REQUIRED',
+  sources:[{name:source,ext:'pdf',sha256:'w'.repeat(64),discipline:'Electrical / Civil',floor:'UNRESOLVED',elevation:0}],
+  entities:[
+   {id:'xfmr-z-restore',source,layer:'L2',kind:'text-asset-candidate',name:'PAD MOUNT TRANSFORMER T3',x:0,y:0,z:0,floor:'UNRESOLVED',confidence:.93,
+    meta:{page:1,assetDimensionAuthority:'SOURCE_SPEC',assetDimensionsMeters:[1.7,1.6,1.25],
+      localReviewSurfaceZ:30.48,localReviewSurfaceKind:'GRADE',localReviewSurfaceAuthority:'SOURCE_ELEVATION_TRIANGLE',localReviewSurfaceConfidence:.84,
+      supportBaseOffsetMeters:.1524,supportOffsetKind:'PAD',supportOffsetAuthority:'TAG_LINKED_SOURCE_SUPPORT_NOTE',supportOffsetConfidence:.94,
+      supportOffsetEvidenceLabel:'XFMR T3 6" CONC PAD',
+      zResolutionStatus:'RESOLVED_DESIGN_CANDIDATE',zCandidateMeters:31.1,zCandidateReferencePoint:'BASE',zResolutionConfidence:.9,zResolutionAuthority:'SOURCE_BASE_ELEVATION',
+      physicalElevationKnown:false,elevationKnown:false,physicalTruth:false,reviewRequired:true}}
+  ],
+  links:[],stats:{L0:0,L1:0,L2:1,L3:0,L4:0}
+ };
+ await page.route('**/api/spatial/compilations**',async route=>{
+  const url=new URL(route.request().url());
+  if(url.searchParams.get('projectId')){
+   await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
+    schemaReady:true,projects:[{id:projectId,name:'Synthetic Project'}],
+    latest:{id:compilationId,revision:9,graph_sha256:graphSha,graph_json:graph}
+   })});
+  }else{
+   await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
+    schemaReady:true,projects:[{id:projectId,name:'Synthetic Project'}],restorableProjectId:projectId,latest:null
+   })});
+  }
+ });
+ await page.route('**/api/spatial/z-reviews?*',async route=>{
+  await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
+   schemaReady:true,truthBoundary:'Z_REVIEW_IS_DESIGN_PLACEMENT_REVIEW_NOT_PHYSICAL_TRUTH',
+   decisions:[{
+    id:decisionId,project_id:projectId,compilation_id:compilationId,entity_id:'xfmr-z-restore',
+    action:'ACCEPT_DESIGN_CHAIN',candidate_id:'support-chain',
+    reason:'Use the grade plus explicit transformer pad evidence for review placement.',
+    graph_sha256:graphSha,decision_sha256:decisionSha,occurred_at:'2026-10-01T20:05:00.000Z'
+   }]
+  })});
+ });
+ await page.goto('/spatial');
+ const select=page.getByLabel('Imported object');
+ await expect(select.locator('option').filter({hasText:'PAD MOUNT TRANSFORMER T3'})).toHaveCount(1);
+ await select.selectOption('xfmr-z-restore');
+ await expect(page.getByText(/HUMAN REVIEW PLACEMENT · PHYSICAL Z UNVERIFIED/)).toBeVisible();
+ await page.getByText('Placement & source confidence').click();
+ const details=page.locator('.placement-details');
+ await expect(details.getByText(/30\.632 m/)).toBeVisible();
+ await expect(details.getByText(/HUMAN REVIEWED DESIGN CANDIDATE/)).toBeVisible();
+ await expect(details.getByText(/Unverified/)).toBeVisible();
+ await expect.poll(()=>page.evaluate(()=>{
+  const g=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
+  const entity=(g.entities||[]).find((item:any)=>item.id==='xfmr-z-restore');
+  return entity?.meta?{
+   decision:entity.meta.zReviewDecisionStatus,
+   candidate:entity.meta.zReviewDecisionCandidateId,
+   authority:entity.meta.zReviewDecisionAuthority,
+   receipt:entity.meta.zReviewDecisionId,
+   decisionSha:entity.meta.zReviewDecisionSha256,
+   compilation:entity.meta.zReviewDecisionCompilationId,
+   physical:entity.meta.physicalElevationKnown,
+   truth:entity.meta.physicalTruth,
+   review:entity.meta.reviewRequired
+  }:null;
+ })).toEqual({
+  decision:'ACCEPTED_DESIGN_CHAIN',candidate:'support-chain',authority:'SERVER_AUTHENTICATED_HUMAN_REVIEW',
+  receipt:decisionId,decisionSha,compilation:compilationId,physical:false,truth:false,review:true
+ });
+});
