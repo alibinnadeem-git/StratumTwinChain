@@ -172,9 +172,16 @@ export async function PATCH(req:Request){
     if(!await schemaReady())return NextResponse.json({error:'Spatial compilation persistence schema is not ready'},{status:503});
     const body=ReviewBody.parse(await req.json());
     const result=await tx(async client=>{
+      const lookup=await client.query<{id:string;project_id:string;revision:number}>(`SELECT id::text,project_id::text,revision FROM spatial_compilations
+        WHERE id=$1 AND organization_id=$2`,[body.compilationId,session.organizationId]);
+      if(!lookup.rows[0])throw Object.assign(new Error('Compilation not found in this organization'),{status:404});
+      // Use the same project-first lock order as snapshot saves. The shared
+      // project lock freezes the compilation head while a review decision is
+      // made and avoids a save/review deadlock on the compilation row.
+      await client.query(`SELECT id FROM projects WHERE id=$1 AND organization_id=$2 FOR SHARE`,[lookup.rows[0].project_id,session.organizationId]);
       const compilation=await client.query<{id:string;project_id:string;revision:number}>(`SELECT id::text,project_id::text,revision FROM spatial_compilations
         WHERE id=$1 AND organization_id=$2 FOR UPDATE`,[body.compilationId,session.organizationId]);
-      if(!compilation.rows[0])throw Object.assign(new Error('Compilation not found in this organization'),{status:404});
+      if(!compilation.rows[0])throw Object.assign(new Error('Compilation no longer available in this organization'),{status:404});
       if(body.action==='ACCEPT_REVIEW_BASELINE'){
         const head=await client.query<{id:string;revision:number}>(`SELECT id::text,revision FROM spatial_compilations
           WHERE organization_id=$1 AND project_id=$2 ORDER BY revision DESC LIMIT 1`,[session.organizationId,compilation.rows[0].project_id]);
