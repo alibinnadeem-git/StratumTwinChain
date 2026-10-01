@@ -16,10 +16,10 @@ export type ZHistoryEvent={
   entityId:string;
   componentKey:string;
   supportKind:string;
-  supportZMeters:number;
-  offsetMeters:number;
+  supportZMeters:number|null;
+  offsetMeters:number|null;
   referencePoint:ZHistoryReferencePoint;
-  absoluteReferenceZMeters:number;
+  absoluteReferenceZMeters:number|null;
   inferenceMethod:string;
   sourceInferenceId:string;
   basis:string[];
@@ -27,7 +27,7 @@ export type ZHistoryEvent={
   actorUserId:string;
   organizationId:string;
   actorRole:string;
-  decision:'H2_ACCEPTED_INFERENCE';
+  decision:'H2_ACCEPTED_INFERENCE'|'H2_REJECTED_INFERENCE';
   canonical:false;
   physicalTruth:false;
   occurredAt:string;
@@ -58,7 +58,11 @@ function readAll():ZHistoryEvent[]{
   try{
     const parsed=JSON.parse(localStorage.getItem(KEY)||'[]');
     if(!Array.isArray(parsed))return[];
-    return parsed.filter((event:ZHistoryEvent)=>event&&event.physicalTruth===false&&event.canonical===false&&event.decision==='H2_ACCEPTED_INFERENCE'&&Boolean(event.actorUserId)&&Boolean(event.organizationId)&&Number.isFinite(event.offsetMeters)&&Number.isFinite(event.supportZMeters));
+    return parsed.filter((event:ZHistoryEvent)=>{
+      if(!event||event.physicalTruth!==false||event.canonical!==false||!Boolean(event.actorUserId)||!Boolean(event.organizationId))return false;
+      if(!['H2_ACCEPTED_INFERENCE','H2_REJECTED_INFERENCE'].includes(event.decision))return false;
+      return event.decision==='H2_REJECTED_INFERENCE'||(Number.isFinite(event.offsetMeters)&&Number.isFinite(event.supportZMeters)&&Number.isFinite(event.absoluteReferenceZMeters));
+    });
   }catch{return[]}
 }
 function writeAll(events:ZHistoryEvent[]){
@@ -106,6 +110,45 @@ export function recordConfirmedZ(input:{
   events.push(event);writeAll(events);return event;
 }
 
+export function recordRejectedZ(input:{
+  projectId:string;
+  entityId:string;
+  componentKey:string;
+  supportKind?:string|null;
+  supportZMeters?:number|null;
+  offsetMeters?:number|null;
+  referencePoint?:ZHistoryReferencePoint;
+  absoluteReferenceZMeters?:number|null;
+  inferenceMethod:string;
+  sourceInferenceId:string;
+  basis?:string[];
+  sourceRefs?:unknown[];
+  actorUserId:string;
+  organizationId:string;
+  actorRole:string;
+}):ZHistoryEvent|null{
+  const projectId=clean(input.projectId),entityId=clean(input.entityId),componentKey=clean(input.componentKey).toLowerCase();
+  const supportKind=clean(input.supportKind||'UNRESOLVED').toUpperCase();
+  const actorUserId=clean(input.actorUserId),organizationId=clean(input.organizationId),actorRole=clean(input.actorRole);
+  if(!projectId||!entityId||!componentKey||!actorUserId||!organizationId||!actorRole||!clean(input.sourceInferenceId))return null;
+  const events=readAll(),decisionKey=`${projectId}:${entityId}`;
+  const prior=[...events].reverse().find(event=>event.decisionKey===decisionKey);
+  if(prior?.decision==='H2_REJECTED_INFERENCE'&&prior.sourceInferenceId===input.sourceInferenceId)return prior;
+  const occurredAt=new Date().toISOString();
+  const event:ZHistoryEvent={
+    id:safeId(`${decisionKey}:${occurredAt}:REJECT:${input.sourceInferenceId}`),decisionKey,projectId,entityId,componentKey,supportKind,
+    supportZMeters:Number.isFinite(input.supportZMeters)?Number(input.supportZMeters):null,
+    offsetMeters:Number.isFinite(input.offsetMeters)?Number(input.offsetMeters):null,
+    referencePoint:input.referencePoint||'UNSPECIFIED',
+    absoluteReferenceZMeters:Number.isFinite(input.absoluteReferenceZMeters)?Number(input.absoluteReferenceZMeters):null,
+    inferenceMethod:input.inferenceMethod,sourceInferenceId:input.sourceInferenceId,
+    basis:(input.basis||[]).slice(0,12),sourceRefs:(input.sourceRefs||[]).slice(0,12),actorUserId,organizationId,actorRole,
+    decision:'H2_REJECTED_INFERENCE',canonical:false,physicalTruth:false,occurredAt,
+    ...(prior?{supersedesId:prior.id}:{})
+  };
+  events.push(event);writeAll(events);return event;
+}
+
 export function historicalZPrior(componentKey:string,input:{projectId:string;organizationId:string;supportKind:string;referencePoint?:ZHistoryReferencePoint}):ZHistoryPrior|null{
   const key=clean(componentKey).toLowerCase(),projectId=clean(input.projectId),organizationId=clean(input.organizationId),supportKind=clean(input.supportKind).toUpperCase();
   if(!key||!projectId||!organizationId||!supportKind)return null;
@@ -115,7 +158,7 @@ export function historicalZPrior(componentKey:string,input:{projectId:string;org
     const prior=latestByDecision.get(event.decisionKey);
     if(!prior||Date.parse(event.occurredAt)>=Date.parse(prior.occurredAt))latestByDecision.set(event.decisionKey,event);
   }
-  const latest=[...latestByDecision.values()];
+  const latest=[...latestByDecision.values()].filter(event=>event.decision==='H2_ACCEPTED_INFERENCE'&&Number.isFinite(event.offsetMeters)&&Number.isFinite(event.supportZMeters)&&Number.isFinite(event.absoluteReferenceZMeters));
   const groups=new Map<ZHistoryReferencePoint,ZHistoryEvent[]>();
   for(const event of latest){
     if(input.referencePoint&&event.referencePoint!==input.referencePoint)continue;
@@ -126,7 +169,7 @@ export function historicalZPrior(componentKey:string,input:{projectId:string;org
     :[...groups.values()].sort((a,b)=>b.length-a.length||String(a[0]?.referencePoint||'').localeCompare(String(b[0]?.referencePoint||'')))[0]||[];
   if(selected.length<MIN_SAMPLES)return null;
   const referencePoint=selected[0].referencePoint;
-  const offsets=selected.map(event=>event.offsetMeters),mean=offsets.reduce((sum,value)=>sum+value,0)/offsets.length;
+  const offsets=selected.map(event=>Number(event.offsetMeters)),mean=offsets.reduce((sum,value)=>sum+value,0)/offsets.length;
   const variance=offsets.length>1?offsets.reduce((sum,value)=>sum+(value-mean)**2,0)/(offsets.length-1):0;
   return{n:selected.length,meanOffsetMeters:mean,medianOffsetMeters:median(offsets),stdMeters:Math.sqrt(Math.max(0,variance)),minOffsetMeters:Math.min(...offsets),maxOffsetMeters:Math.max(...offsets),supportKind,referencePoint,eventIds:selected.map(event=>event.id)};
 }
