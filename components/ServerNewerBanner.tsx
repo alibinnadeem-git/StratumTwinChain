@@ -46,7 +46,7 @@ export default function ServerNewerBanner(){
  if(!notice)return null;
  const stored=notice.storedAt?new Date(notice.storedAt).toLocaleString():'unknown time';
  return <div className="notice" role="status" style={{marginTop:12,borderLeft:'3px solid var(--accent,#b98a2f)'}}>
-  <strong>SPATIAL REVISION CONFLICT · SERVER IS NEWER</strong>
+  <strong>SPATIAL REVISION CONFLICT · SAVE BLOCKED</strong>
   <span>Server revision r{notice.revision} (stored {stored}) does not match this browser’s base {notice.localRevision===null?'(unknown)':`r${notice.localRevision}`}. Automatic saving is blocked so this session cannot silently supersede newer work.</span>
   <div className="button-row" style={{marginTop:8}}>
    <button type="button" className={armed?'action':'ghost'} onClick={()=>void load()} disabled={busy}>{armed?'Confirm load — replace working graph':`Load current server revision`}</button>
