@@ -8,6 +8,7 @@
 const KEY='stratum_local_server_revisions_v2';
 export const SERVER_NEWER_EVENT='stratum:server-newer-available';
 export const SERVER_NEWER_RESOLVED_EVENT='stratum:server-newer-resolved';
+export const SERVER_NEWER_STATE_KEY='stratum_server_newer_notice_v1';
 
 export type ServerNewerDetail={
   revision:number;
@@ -44,9 +45,20 @@ export function clearLocalServerRevision(projectId:string):void{
   const id=String(projectId||'').trim();if(!id)return;
   const map=readMap();delete map[id];writeMap(map);
 }
+export function readServerNewerNotice():ServerNewerDetail|null{
+  try{
+    const parsed=JSON.parse(sessionStorage.getItem(SERVER_NEWER_STATE_KEY)||'null') as ServerNewerDetail|null;
+    return parsed&&typeof parsed.projectId==='string'&&Number.isInteger(parsed.revision)?parsed:null;
+  }catch{return null}
+}
 export function publishServerNewer(detail:ServerNewerDetail):void{
+  try{sessionStorage.setItem(SERVER_NEWER_STATE_KEY,JSON.stringify(detail))}catch{}
   try{window.dispatchEvent(new CustomEvent(SERVER_NEWER_EVENT,{detail}))}catch{}
 }
 export function publishServerNewerResolved(projectId:string,revision:number):void{
+  try{
+    const current=readServerNewerNotice();
+    if(!current||current.projectId===projectId)sessionStorage.removeItem(SERVER_NEWER_STATE_KEY);
+  }catch{}
   try{window.dispatchEvent(new CustomEvent(SERVER_NEWER_RESOLVED_EVENT,{detail:{projectId,revision}}))}catch{}
 }
