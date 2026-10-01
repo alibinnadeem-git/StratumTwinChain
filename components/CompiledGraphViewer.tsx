@@ -32,7 +32,7 @@ type Entity={
 };
 type GraphLink={id:string;from:string;to:string;type:string;confidence:number};
 type Graph={
-  version:string;createdAt:string;
+  version:string;createdAt:string;workingProjectId?:string;
   sources:{name:string;ext:string;sha256:string;discipline:string;floor?:string;elevation?:number;unitName?:string;unitToMeters?:number;state?:string;entities?:number;vectors?:number;textItems?:number;sldPages?:number;nonSldPlanPages?:number;planTypes?:string[]}[];
   entities:Entity[];links?:GraphLink[];stats:Record<Layer,number>;
   coordinationIntelligence?:CoordinationSnapshot;
@@ -491,7 +491,9 @@ export default function CompiledGraphViewer({registeredAssets=[],reviewActor=nul
 
   const width=fallbackBounds.maxX-fallbackBounds.minX,height2=fallbackBounds.maxY-fallbackBounds.minY;
   const sx=(x:number)=>((x-fallbackBounds.minX)/width)*92+4,sy=(y:number)=>96-((y-fallbackBounds.minY)/height2)*92;
-  const projectAssets=activeProjectId?registeredAssets.filter(asset=>asset.project_id===activeProjectId&&!/^STR-UAT-/i.test(asset.asset_code)):[];
+  const graphProjectId=graph.workingProjectId||null;
+  const projectBindingMismatch=Boolean(activeProjectId&&graphProjectId&&activeProjectId!==graphProjectId);
+  const projectAssets=activeProjectId&&graphProjectId===activeProjectId?registeredAssets.filter(asset=>asset.project_id===activeProjectId&&!/^STR-UAT-/i.test(asset.asset_code)):[];
   const reviewPins=inventory.filter(item=>item.kind==='sheet-callout-candidate'||item.kind==='annotated-asset-candidate');
   const plural=(count:number,singular:string)=>`${count} ${singular}${count===1?'':'s'}`;
 
@@ -500,6 +502,12 @@ export default function CompiledGraphViewer({registeredAssets=[],reviewActor=nul
       <div><div className="eyebrow">STRATUM Spatial Verified</div><h2 style={{margin:"3px 0"}}>Spatial model</h2><p className="muted" style={{margin:0}}>{plural(graph.sources.length,'source')} · {plural(sheetFrames.length,'drawing frame')} · {plural(nonSldPlanSheets,'non-SLD plan')} · {plural(levels.length,'level')} · {plural(rooms,'room')} · {plural(visibleLines,'drawing line')} · {plural(rasterUnderlays,'drawing underlay')} · {plural(sldObjects,'SLD object')}</p></div>
       <div className="button-row"><Link className="ghost" href="/compiler">Edit sources</Link><Link className="ghost" href="/component-library">3D models</Link></div>
     </div>
+
+    {projectBindingMismatch&&<div className="notice" role="alert" style={{margin:"12px 14px"}}>
+      <strong>PROJECT CONTEXT MISMATCH · ASSET LINKING DISABLED</strong>
+      <span>This browser model is bound to a different project than the current project selection. STRATUM will not expose or link live registry assets until the project contexts match.</span>
+      <Link className="action" href="/compiler">Review project workspace</Link>
+    </div>}
 
     {staleDrawingSources.length>0&&<div className="notice" role="alert" style={{margin:"12px 14px"}}>
       <strong>DRAWING REPROCESS REQUIRED</strong>
