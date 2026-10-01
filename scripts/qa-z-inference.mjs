@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {inferEquipmentZ,inferenceMethodLabel} from '../lib/z-inference.ts';
-import {clearConfirmedZ,historicalZConfidence,historicalZPrior,recordConfirmedZ} from '../lib/z-history.ts';
+import {clearConfirmedZ,historicalZConfidence,historicalZPrior,recordConfirmedZ,recordRejectedZ} from '../lib/z-history.ts';
 
 let passed=0;
 const ok=(name,fn)=>{fn();passed++;console.log('ok -',name)};
@@ -48,6 +48,14 @@ ok('repeat acceptance on one entity is idempotent for historical sample count',(
  recordConfirmedZ({projectId:'project-a',organizationId:'org-a',actorUserId:'user-1',actorRole:'PROJECT_MANAGER',entityId:'d1',componentKey:'disconnect',supportKind:'FINISHED_FLOOR',supportZMeters:10,offsetMeters:1.2,referencePoint:'MOUNTING_POINT',absoluteReferenceZMeters:11.2,inferenceMethod:'CLASS_MOUNTING_PRIOR',sourceInferenceId:'a',basis:['review'],sourceRefs:[]});
  const after=historicalZPrior('disconnect',{projectId:'project-a',organizationId:'org-a',supportKind:'FINISHED_FLOOR'});
  assert.equal(before?.n,3);assert.equal(after?.n,3);
+});
+
+ok('rejection supersedes a prior accepted sample without deleting provenance',()=>{
+ recordRejectedZ({projectId:'project-a',organizationId:'org-a',actorUserId:'user-1',actorRole:'PROJECT_MANAGER',entityId:'d1',componentKey:'disconnect',supportKind:'FINISHED_FLOOR',supportZMeters:10,offsetMeters:1.2,referencePoint:'MOUNTING_POINT',absoluteReferenceZMeters:11.2,inferenceMethod:'CLASS_MOUNTING_PRIOR',sourceInferenceId:'a',basis:['rejected after review'],sourceRefs:[]});
+ assert.equal(historicalZPrior('disconnect',{projectId:'project-a',organizationId:'org-a',supportKind:'FINISHED_FLOOR'}),null,'latest rejection must remove the entity from the accepted-history prior, dropping below the 3-sample threshold');
+ // Restore the sample for later history tests with a new acceptance event.
+ recordConfirmedZ({projectId:'project-a',organizationId:'org-a',actorUserId:'user-1',actorRole:'PROJECT_MANAGER',entityId:'d1',componentKey:'disconnect',supportKind:'FINISHED_FLOOR',supportZMeters:10,offsetMeters:1.2,referencePoint:'MOUNTING_POINT',absoluteReferenceZMeters:11.2,inferenceMethod:'CLASS_MOUNTING_PRIOR',sourceInferenceId:'a-restored',basis:['review restored'],sourceRefs:[]});
+ assert.equal(historicalZPrior('disconnect',{projectId:'project-a',organizationId:'org-a',supportKind:'FINISHED_FLOOR'})?.n,3);
 });
 
 ok('historical priors do not leak across projects',()=>{
@@ -109,6 +117,7 @@ ok('persisted H2 Z decisions require authenticated actor provenance',()=>{
  assert.match(inspector,/projectId!==graphProjectId/);
  assert.match(inspector,/zReviewProjectId:graphProjectId/);
  assert.match(inspector,/zInferenceRejectedProjectId=graphProjectId/);
+ assert.match(inspector,/recordRejectedZ\(/);
  assert.match(inspector,/disabled=\{!reviewActor\}/);
  assert.match(spatialPage,/\['SUPER_ADMIN','ORG_ADMIN','PROJECT_MANAGER'\]/);
  assert.match(spatialPage,/reviewActor=\{zReviewActor\}/);
