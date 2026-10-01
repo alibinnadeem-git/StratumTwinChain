@@ -42,6 +42,7 @@ const checks=[
  ['API requires every saved graph to carry an explicit project binding',api.includes('workingProjectId:z.string().uuid()')&&api.includes('const graphProjectId=graph.workingProjectId')],
  ['API records explicit human review transitions',api.includes("'ACCEPT_REVIEW_BASELINE','REOPEN_REVIEW'")&&api.includes('INSERT INTO spatial_compilation_reviews')],
  ['API blocks acceptance of a stale compilation revision',api.includes('SPATIAL_REVIEW_STALE_COMPILATION')&&api.includes("truthBoundary:'STALE_REVIEW_BASELINE_NOT_ACCEPTED'")&&api.includes("body.action==='ACCEPT_REVIEW_BASELINE'")],
+ ['review decisions lock the project before the compilation to serialize against concurrent saves',api.includes('same project-first lock order as snapshot saves')&&api.includes('FOR SHARE')&&api.indexOf('FOR SHARE')<api.lastIndexOf('FOR UPDATE')],
  ['API performs no asset/lifecycle/chain state mutation',forbiddenMutations.every(pattern=>!pattern.test(api))],
  ['manual review UI still supports explicit save/load and human accept/reopen',ui.includes('Save review snapshot')&&ui.includes('Confirm load')&&ui.includes('Accept as Spatial review baseline')&&ui.includes('Reopen review')],
  ['manual server load still requires second confirmation',ui.includes('loadArmed')&&ui.includes('Confirm load')],
