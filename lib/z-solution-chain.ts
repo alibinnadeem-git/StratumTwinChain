@@ -266,8 +266,13 @@ export function resolveReconciledAssetPlacement(
       }
     };
   }
-  if(primary.zAuthority==='H2_ACCEPTED_INFERRED_PREVIEW'&&solution.status!=='RESOLVED_CANDIDATE'){
-    return{solution,placement:primary};
+  if(primary.zAuthority==='H2_ACCEPTED_INFERRED_PREVIEW'){
+    const chosen=solution.candidates.find(candidate=>candidate.id===solution.chosenCandidateId)||null;
+    const strongSource=Boolean(chosen&&['REVIEWED_OR_MEASURED','SOURCE_REFERENCE','SUPPORT_SURFACE_PLUS_OFFSET'].includes(chosen.kind));
+    // H2 preview may replace a generic support-surface/type-profile display,
+    // but it can never outrank measured/reviewed Z, an explicit source Z
+    // reference, a source support-base offset, or a reconciled conflict.
+    if(solution.status!=='CONFLICT'&&!strongSource)return{solution,placement:primary};
   }
   if(solution.chosenCandidateId&&solution.baseZ!==null){
     return{
