@@ -64,6 +64,8 @@ export default function SpatialAssetInspector({
   try{
    const graph=await readPrimarySpatialGraph();
    if(!graph||!Array.isArray(graph.entities))throw new Error('No compiled graph is available');
+   const graphProjectId=String((graph as {workingProjectId?:unknown}).workingProjectId||'');
+   if(nextAsset&&(!graphProjectId||!nextAsset.project_id||nextAsset.project_id!==graphProjectId))throw new Error('Asset link blocked: the selected registry asset does not belong to this browser working project.');
    let updated:InspectorEntity|null=null;
    graph.entities=(graph.entities as InspectorEntity[]).map((entity:InspectorEntity)=>{
     if(entity.id!==selected.id)return entity;
