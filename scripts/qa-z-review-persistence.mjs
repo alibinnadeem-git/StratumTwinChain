@@ -5,6 +5,7 @@ const migration=fs.readFileSync('migrations/012_spatial_z_review_provenance.sql'
 const api=fs.readFileSync('app/api/spatial/z-reviews/route.ts','utf8');
 const inspector=fs.readFileSync('components/SpatialAssetInspector.tsx','utf8');
 const readiness=fs.readFileSync('lib/server/database-readiness.ts','utf8');
+const zSolution=fs.readFileSync('lib/z-solution-chain.ts','utf8');
 const compilationApi=fs.readFileSync('app/api/spatial/compilations/route.ts','utf8');
 const hydrator=fs.readFileSync('components/SpatialServerHydrator.tsx','utf8');
 
@@ -51,6 +52,15 @@ assert.match(inspector,/Z review receipt/);
 assert.match(inspector,/Z review rationale/);
 assert.match(readiness,/spatialZReview/);
 assert.match(readiness,/spatial_z_review_decisions/);
+
+assert.match(zSolution,/SERVER_AUTHENTICATED_HUMAN_REVIEW/);
+assert.match(zSolution,/hasAuthenticatedZReviewReceipt/);
+assert.match(zSolution,/zReviewDecisionId/);
+assert.match(zSolution,/zReviewDecisionCompilationId/);
+assert.match(zSolution,/zReviewDecisionSha256/);
+assert.match(zSolution,/zReviewDecisionGraphSha256/);
+assert.match(zSolution,/zReviewDecisionPhysicalTruth===false/);
+assert.match(zSolution,/authenticatedReview/);
 
 assert.match(compilationApi,/zReviewClaims/);
 assert.match(compilationApi,/SERVER_AUTHENTICATED_HUMAN_REVIEW/);
