@@ -147,6 +147,13 @@ export async function POST(req:Request){
       const sourceGraphSha256=String(meta.zReviewDecisionGraphSha256||'').toLowerCase();
       if(!z.string().uuid().safeParse(decisionId).success||!z.string().uuid().safeParse(compilationId).success||!candidateId||authority!=='SERVER_AUTHENTICATED_HUMAN_REVIEW'||!/^[a-f0-9]{64}$/.test(sourceGraphSha256))
         throw Object.assign(new Error('Authenticated Z review metadata is incomplete or invalid'),{status:409});
+      if(
+        meta.zReviewDecisionPhysicalTruth!==false
+        ||meta.physicalTruth!==false
+        ||meta.physicalElevationKnown!==false
+        ||meta.elevationKnown!==false
+        ||meta.reviewRequired!==true
+      )throw Object.assign(new Error('Authenticated design Z review cannot be promoted into physical or verified elevation state'),{status:409});
       return[{entityId:entity.id,decisionId,candidateId,compilationId,sourceGraphSha256}];
     });
     const graphSha256=canonicalHash({domain:'STRATUM/SPATIAL/COMPILATION/1',projectId:body.projectId,graph});
