@@ -273,7 +273,7 @@ export function resolveReconciledAssetPlacement(
     // H2 preview may replace a generic support-surface/type-profile display,
     // but it can never outrank measured/reviewed Z, an explicit source Z
     // reference, a source support-base offset, or a reconciled conflict.
-    if(solution.status!=='CONFLICT'&&!strongSource)return{solution,placement:primary};
+    if(!strongSource)return{solution,placement:primary};
     // When stronger source evidence wins, strip preview metadata before
     // constructing the returned placement so its authority/recommendation do
     // not falsely continue to describe the displaced H2 preview.
