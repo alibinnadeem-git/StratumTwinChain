@@ -90,6 +90,12 @@ assert.match(compilationApi,/canonicalHash\(currentSnapshot\.conflicts\)/);
 
 assert.match(hydrator,/\/api\/spatial\/z-reviews\?projectId=/);
 assert.match(hydrator,/overlayZReviewDecisions/);
+assert.match(hydrator,/validServerZReviewDecision/);
+assert.match(hydrator,/reconcileExistingZReviewReceipts/);
+assert.match(hydrator,/staleZReviewReceiptsRemoved/);
+assert.match(hydrator,/stripZReviewDecisionMeta/);
+assert.match(hydrator,/expectedGraphSha/);
+assert.match(hydrator,/decision\.compilation_id===compilationId/);
 assert.match(hydrator,/SERVER_AUTHENTICATED_HUMAN_REVIEW/);
 assert.match(hydrator,/zReviewDecisionCount/);
 
