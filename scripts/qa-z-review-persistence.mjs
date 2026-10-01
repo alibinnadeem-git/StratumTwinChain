@@ -36,6 +36,8 @@ assert.match(api,/previous\.compilation_id===body\.compilationId/);
 assert.match(api,/previous\.action===body\.action/);
 assert.match(api,/previous\.candidate_id===requestedCandidateId/);
 assert.match(api,/previous\.reason===body\.reason/);
+assert.match(api,/previous\.actor_user_id===session\.userId/);
+assert.match(api,/actor_user_id::text/);
 assert.doesNotMatch(api,/const duplicate=await client\.query/,'historical matching decisions must not bypass later state transitions');
 assert.match(api,/Measured\/reviewed Z evidence cannot be overridden by design-chain adjudication/);
 assert.match(api,/body\.action==='ACCEPT_DESIGN_CHAIN'&&solution\.candidates\.some/);
