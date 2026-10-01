@@ -43,6 +43,7 @@
     "qa:z-reference": "node --experimental-strip-types scripts/qa-z-reference-semantics.mjs",
     "qa:z-solution": "node --experimental-strip-types scripts/qa-z-solution-reconciliation.mjs",
     "qa:z-review-persistence": "node --experimental-strip-types scripts/qa-z-review-persistence.mjs",
+    "qa:z-review-persistence": "node --experimental-strip-types scripts/qa-z-review-persistence.mjs",
     "qa:project-datum": "node --experimental-strip-types scripts/qa-project-datum.mjs",
     "qa:elevation-surface": "node --experimental-strip-types scripts/qa-elevation-surface.mjs",
     "qa:cross-sheet-z": "node --experimental-strip-types scripts/qa-cross-sheet-elevation.mjs",
