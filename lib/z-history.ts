@@ -98,7 +98,7 @@ export function recordConfirmedZ(input:{
   if(!projectId||!entityId||!componentKey||!supportKind||!actorUserId||!organizationId||!actorRole||![input.supportZMeters,input.offsetMeters,input.absoluteReferenceZMeters].every(Number.isFinite))return null;
   const events=readAll(),decisionKey=`${projectId}:${entityId}`;
   const prior=[...events].reverse().find(event=>event.decisionKey===decisionKey);
-  if(prior&&prior.sourceInferenceId===input.sourceInferenceId&&Math.abs(prior.offsetMeters-input.offsetMeters)<1e-9)return prior;
+  if(prior?.decision==='H2_ACCEPTED_INFERENCE'&&prior.sourceInferenceId===input.sourceInferenceId&&prior.offsetMeters!==null&&Math.abs(prior.offsetMeters-input.offsetMeters)<1e-9)return prior;
   const occurredAt=new Date().toISOString();
   const event:ZHistoryEvent={
     id:safeId(`${decisionKey}:${occurredAt}:${input.sourceInferenceId}`),decisionKey,projectId,entityId,componentKey,supportKind,
