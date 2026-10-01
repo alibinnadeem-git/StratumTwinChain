@@ -106,7 +106,8 @@ ok('persisted H2 Z decisions require authenticated actor provenance',()=>{
  assert.match(inspector,/zReviewActorUserId:reviewActor\.userId/);
  assert.match(inspector,/actorUserId:reviewActor\.userId/);
  assert.match(inspector,/disabled=\{!reviewActor\}/);
- assert.match(spatialPage,/reviewActor=\{session\?\{userId:session\.userId,organizationId:session\.organizationId,role:session\.role\}:null\}/);
+ assert.match(spatialPage,/\['SUPER_ADMIN','ORG_ADMIN','PROJECT_MANAGER'\]/);
+ assert.match(spatialPage,/reviewActor=\{zReviewActor\}/);
 });
 
 console.log(`\n${passed} Z inference safety checks passed`);
