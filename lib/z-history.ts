@@ -154,11 +154,14 @@ export function historicalZPrior(componentKey:string,input:{projectId:string;org
   if(!key||!projectId||!organizationId||!supportKind)return null;
   const latestByDecision=new Map<string,ZHistoryEvent>();
   for(const event of readAll()){
-    if(event.componentKey!==key||event.projectId!==projectId||event.organizationId!==organizationId||event.supportKind!==supportKind)continue;
+    if(event.componentKey!==key||event.projectId!==projectId||event.organizationId!==organizationId)continue;
     const prior=latestByDecision.get(event.decisionKey);
     if(!prior||Date.parse(event.occurredAt)>=Date.parse(prior.occurredAt))latestByDecision.set(event.decisionKey,event);
   }
-  const latest=[...latestByDecision.values()].filter(event=>event.decision==='H2_ACCEPTED_INFERENCE'&&Number.isFinite(event.offsetMeters)&&Number.isFinite(event.supportZMeters)&&Number.isFinite(event.absoluteReferenceZMeters));
+  // A later decision for an entity supersedes its earlier acceptance even if
+  // the support context changed. Filter support/reference only after selecting
+  // the latest review event per entity so stale accepted evidence cannot revive.
+  const latest=[...latestByDecision.values()].filter(event=>event.decision==='H2_ACCEPTED_INFERENCE'&&event.supportKind===supportKind&&Number.isFinite(event.offsetMeters)&&Number.isFinite(event.supportZMeters)&&Number.isFinite(event.absoluteReferenceZMeters));
   const groups=new Map<ZHistoryReferencePoint,ZHistoryEvent[]>();
   for(const event of latest){
     if(input.referencePoint&&event.referencePoint!==input.referencePoint)continue;
