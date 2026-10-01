@@ -1063,6 +1063,7 @@ test('human Z review selects one preserved design chain without establishing phy
  await choose.click();
  await expect(page.getByText(/Authenticated design Z review recorded/)).toBeVisible();
  await expect(page.getByText(/HUMAN REVIEW PLACEMENT · PHYSICAL Z UNVERIFIED/)).toBeVisible();
+ await expect(page.getByText(/30\.63 m human-reviewed design placement · review required/i)).toBeVisible();
  expect(reviewRequest).toMatchObject({
   projectId,compilationId,entityId:'xfmr-z-review',action:'ACCEPT_DESIGN_CHAIN',candidateId:'support-chain',reason
  });
@@ -1071,6 +1072,8 @@ test('human Z review selects one preserved design chain without establishing phy
  await expect(details.getByText(/30\.632 m/)).toBeVisible();
  await expect(details.getByText(/HUMAN REVIEWED DESIGN CANDIDATE/)).toBeVisible();
  await expect(details.getByText(/Unverified/)).toBeVisible();
+ await expect(details.getByText(/Z review receipt/)).toBeVisible();
+ await expect(details.getByText(decisionId,{exact:true})).toBeVisible();
  await expect.poll(()=>page.evaluate(()=>{
   const g=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
   const entity=(g.entities||[]).find((item:any)=>item.id==='xfmr-z-review');
@@ -1142,11 +1145,14 @@ test('server hydration restores authenticated Z review onto an empty browser wit
  await expect(select.locator('option').filter({hasText:'PAD MOUNT TRANSFORMER T3'})).toHaveCount(1);
  await select.selectOption('xfmr-z-restore');
  await expect(page.getByText(/HUMAN REVIEW PLACEMENT · PHYSICAL Z UNVERIFIED/)).toBeVisible();
+ await expect(page.getByText(/30\.63 m human-reviewed design placement · review required/i)).toBeVisible();
  await page.getByText('Placement & source confidence').click();
  const details=page.locator('.placement-details');
  await expect(details.getByText(/30\.632 m/)).toBeVisible();
  await expect(details.getByText(/HUMAN REVIEWED DESIGN CANDIDATE/)).toBeVisible();
  await expect(details.getByText(/Unverified/)).toBeVisible();
+ await expect(details.getByText(/Z review receipt/)).toBeVisible();
+ await expect(details.getByText(decisionId,{exact:true})).toBeVisible();
  await expect.poll(()=>page.evaluate(()=>{
   const g=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
   const entity=(g.entities||[]).find((item:any)=>item.id==='xfmr-z-restore');
