@@ -105,6 +105,10 @@ ok('persisted H2 Z decisions require authenticated actor provenance',()=>{
  assert.match(inspector,/if\(!reviewActor\).*Sign in is required/);
  assert.match(inspector,/zReviewActorUserId:reviewActor\.userId/);
  assert.match(inspector,/actorUserId:reviewActor\.userId/);
+ assert.match(inspector,/graphProjectId=String/);
+ assert.match(inspector,/projectId!==graphProjectId/);
+ assert.match(inspector,/zReviewProjectId:graphProjectId/);
+ assert.match(inspector,/zInferenceRejectedProjectId=graphProjectId/);
  assert.match(inspector,/disabled=\{!reviewActor\}/);
  assert.match(spatialPage,/\['SUPER_ADMIN','ORG_ADMIN','PROJECT_MANAGER'\]/);
  assert.match(spatialPage,/reviewActor=\{zReviewActor\}/);
