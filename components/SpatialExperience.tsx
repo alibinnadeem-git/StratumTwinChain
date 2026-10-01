@@ -7,6 +7,7 @@ import {type RegisteredSpatialAsset} from "@/lib/spatial-asset-link";
 import {readPrimarySpatialGraph,replaceCurrentSpatialGraph,restoreBestSpatialGraph} from "@/lib/spatial-browser-recovery";
 import {enrichAudiE4SourceReview} from "@/lib/audi-e4-source-review";
 import {SERVER_HYDRATION_EVENT,SERVER_HYDRATION_STATE_KEY} from "@/components/SpatialServerHydrator";
+import {type ZReviewActor} from "@/lib/z-history";
 
 type ExperienceState={
   ready:boolean;
@@ -41,7 +42,7 @@ async function inspectCompiledGraph():Promise<ExperienceState>{
   }
 }
 
-export default function SpatialExperience({assets,authenticated=false}:{assets:RegisteredSpatialAsset[];authenticated?:boolean}){
+export default function SpatialExperience({assets,authenticated=false,reviewActor=null}:{assets:RegisteredSpatialAsset[];authenticated?:boolean;reviewActor?:ZReviewActor|null}){
   const [state,setState]=useState<ExperienceState>({ready:false,hasImportedModel:false,sourceCount:0,sourceSheetOnly:false,lineCount:0});
   const [serverPending,setServerPending]=useState(false);
 
@@ -95,7 +96,7 @@ export default function SpatialExperience({assets,authenticated=false}:{assets:R
       <strong>PROJECT MODEL</strong>
       <span>This view is generated from your compiled engineering sources. Click equipment to inspect its registered asset, activity, QR identity and DIR state.</span>
     </div>}
-    <CompiledGraphViewer registeredAssets={assets}/>
+    <CompiledGraphViewer registeredAssets={assets} reviewActor={reviewActor}/>
   </section>;
 
   return <section className="card" aria-label="Spatial source required" style={{marginBottom:18}}>

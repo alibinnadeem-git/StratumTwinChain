@@ -4,7 +4,7 @@ import type {ZReferencePoint} from './z-resolver.ts';
 
 export type PlacementEntity={name:string;floor?:string;z?:number;meta?:Record<string,unknown>};
 export type DimensionAuthority='SOURCE_SPEC'|'MODEL_REGISTRY'|'WEB_OEM_REFERENCE'|'STRATUM_NOMINAL';
-export type ZAuthority='MEASURED_OR_REVIEWED'|'SOURCE_DESIGN_CANDIDATE'|'SOURCE_SUPPORT_SURFACE_CANDIDATE'|'SUPPORT_SURFACE_PLUS_SOURCE_BASE_OFFSET'|'SUPPORT_SURFACE_PLUS_MOUNTING_GUIDANCE'|'RELATIVE_TO_REVIEW_PLANE'|'FLOOR_STANDING_PROFILE'|'HISTORICAL_RECOMMENDATION'|'FLOOR_LABEL_ONLY'|'UNRESOLVED';
+export type ZAuthority='MEASURED_OR_REVIEWED'|'SOURCE_DESIGN_CANDIDATE'|'SOURCE_SUPPORT_SURFACE_CANDIDATE'|'SUPPORT_SURFACE_PLUS_SOURCE_BASE_OFFSET'|'SUPPORT_SURFACE_PLUS_MOUNTING_GUIDANCE'|'RELATIVE_TO_REVIEW_PLANE'|'FLOOR_STANDING_PROFILE'|'HISTORICAL_RECOMMENDATION'|'H2_ACCEPTED_INFERRED_PREVIEW'|'FLOOR_LABEL_ONLY'|'UNRESOLVED';
 export type PlacementEvidenceClass='SOURCE_SPEC'|'OEM_INSTALLATION_GUIDANCE'|'CODE_CONSTRAINT'|'ACCESSIBILITY_GUIDANCE'|'DESIGN_GUIDE'|'TYPE_PROFILE'|'VISUALIZATION_HEURISTIC';
 export type PlacementRecommendation={kind:string;valueMeters?:number;rangeMeters?:[number,number];constraintMaxMeters?:number;source:string;sourceUrl?:string;evidenceClass:PlacementEvidenceClass;note:string};
 export type AssetPlacement={
@@ -149,6 +149,13 @@ export function resolveAssetPlacement(entity:PlacementEntity,registry?:Electrica
  if(reviewedZ(entity)){
   const base=Number.isFinite(Number(entity.z))?Number(entity.z):floorZ;
   return{dimensions,baseZ:base,topZ:base+dimensions.height,zAuthority:'MEASURED_OR_REVIEWED',zConfidence:.98,physicalTruth:false};
+ }
+ // H2 accepted inference may move only the visualization transform. The
+ // authoritative entity.z remains untouched and the review decision remains
+ // explicitly unverified/physicalTruth:false.
+ const previewBase=finite(entity.meta?.zPreviewBaseMeters);
+ if(previewBase!==null){
+  return{dimensions,baseZ:previewBase,topZ:previewBase+dimensions.height,zAuthority:'H2_ACCEPTED_INFERRED_PREVIEW',zConfidence:Math.max(0,Math.min(1,Number(entity.meta?.zPreviewConfidence||.5))),recommendation:{kind:'H2_ACCEPTED_INFERRED_Z_PREVIEW',valueMeters:previewBase,source:String(entity.meta?.zPreviewBasis||'Human-accepted inferred Z preview'),evidenceClass:'VISUALIZATION_HEURISTIC',note:'A human accepted an inferred placement for coordination preview only. This does not change entity.z, does not establish installed elevation, and remains unverified.'},physicalTruth:false};
  }
  const designCandidate=sourceDesignZCandidate(entity);
  if(designCandidate!==null){

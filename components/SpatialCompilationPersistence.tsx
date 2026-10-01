@@ -3,6 +3,7 @@
 import {useCallback,useEffect,useMemo,useState} from 'react';
 import {readPrimarySpatialGraph,replaceCurrentSpatialGraph} from '@/lib/spatial-browser-recovery';
 import {readSelectedSpatialProjectId,SPATIAL_PROJECT_SELECTION_EVENT,writeSelectedSpatialProjectId} from '@/lib/spatial-project-selection';
+import {publishServerNewer,publishServerNewerResolved,readLocalServerRevision,writeLocalServerRevision} from '@/lib/spatial-server-revision';
 
 type Project={id:string;project_code:string;name:string};
 type LatestCompilation={
@@ -29,7 +30,7 @@ type CompilationResponse={
   error?:string;
 };
 
-type LocalGraph={version:string;createdAt:string;sources:unknown[];entities:unknown[];links:unknown[];stats:Record<string,number>};
+type LocalGraph={version:string;createdAt:string;workingProjectId?:string;sources:unknown[];entities:unknown[];links:unknown[];stats:Record<string,number>};
 
 function shortHash(value:string|undefined){return value?`${value.slice(0,12)}…${value.slice(-8)}`:'—';}
 function timestamp(value:string|undefined|null){return value?new Date(value).toLocaleString():'—';}
@@ -108,15 +109,32 @@ export default function SpatialCompilationPersistence(){
     setBusy(true);setLoadArmed(false);
     try{
       const graph=await readLocalGraph();
+      if(graph.workingProjectId&&graph.workingProjectId!==projectId)throw new Error('Save blocked: this browser working graph is bound to a different project. Load the selected project or switch back before saving.');
+      const graphToSave:LocalGraph=graph.workingProjectId?graph:{...graph,workingProjectId:projectId};
+      const serverRevision=latest?.revision||0;
+      let localRevision=readLocalServerRevision(projectId);
+      if(localRevision===null&&serverRevision===0){writeLocalServerRevision(projectId,0);localRevision=0;}
+      if(localRevision===null||localRevision!==serverRevision){
+        publishServerNewer({revision:serverRevision,localRevision,storedAt:latest?.created_at||null,projectId,reason:localRevision===null?'LOCAL_BASE_UNKNOWN':'REVISION_CONFLICT'});
+        throw new Error(`Save blocked: this browser is based on ${localRevision===null?'an unknown server revision':`r${localRevision}`}, while the server is r${serverRevision}. Load/reconcile the server revision first.`);
+      }
       const response=await fetch('/api/spatial/compilations',{
-        method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({projectId,graph})
+        method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({projectId,expectedRevision:localRevision,graph:graphToSave})
       });
       const body=await response.json().catch(()=>({}));
-      if(!response.ok)throw new Error(body?.error||`Snapshot save failed (${response.status}).`);
+      if(!response.ok){
+        if(response.status===409&&body?.code==='SPATIAL_REVISION_CONFLICT'){
+          const revision=Number(body.serverRevision)||0;
+          publishServerNewer({revision,localRevision,storedAt:null,projectId,reason:'REVISION_CONFLICT'});
+        }
+        throw new Error(body?.error||`Snapshot save failed (${response.status}).`);
+      }
+      if(typeof body.revision==='number'&&body.revision>=0)writeLocalServerRevision(projectId,body.revision);
+      if(!graph.workingProjectId)await replaceCurrentSpatialGraph(graphToSave);
       await refresh(projectId);
       window.dispatchEvent(new Event('stratum:power-snapshot-saved'));
       window.dispatchEvent(new Event('stratum:coordination-snapshot-saved'));
-      setMessage(body.idempotent?'This exact compilation already exists on the server; no duplicate revision was created.':`Saved Spatial review snapshot revision ${body.revision}. Human review is still required.`);
+      setMessage(body.idempotent?'The browser is already based on this exact latest server graph; no duplicate revision was created.':`Saved Spatial review snapshot revision ${body.revision}. Human review is still required.`);
     }catch(error){setMessage(error instanceof Error?error.message:'Unable to save the Spatial review snapshot.');}
     finally{setBusy(false);}
   }
@@ -127,7 +145,9 @@ export default function SpatialCompilationPersistence(){
     try{
       const graph=latest.graph_json as Partial<LocalGraph>;
       if(!graph||!Array.isArray(graph.sources)||!Array.isArray(graph.entities)||!Array.isArray(graph.links))throw new Error('The server snapshot is malformed; browser data was not changed.');
-      await replaceCurrentSpatialGraph(graph as LocalGraph);
+      await replaceCurrentSpatialGraph({...graph as LocalGraph,workingProjectId:projectId});
+      writeLocalServerRevision(projectId,latest.revision);
+      publishServerNewerResolved(projectId,latest.revision);
       setLoadArmed(false);
       setMessage(`Loaded server revision ${latest.revision} into the browser review workspace. This did not create or verify any STRATUM Asset.`);
     }catch(error){setLoadArmed(false);setMessage(error instanceof Error?error.message:'Unable to load the server review snapshot.');}

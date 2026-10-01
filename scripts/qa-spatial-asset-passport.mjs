@@ -49,6 +49,10 @@ assert.match(inspector,/Registered asset/);assert.match(inspector,/DIR FINALIZED
 assert.match(inspector,/AssetActivityPanel/,'asset click must expose server lifecycle activity');
 assert.match(inspector,/Print QR/,'asset click must expose printable registry QR');
 assert.match(inspector,/Link asset/,'unbound project equipment must support explicit tenant asset binding');
+assert.match(inspector,/nextAsset\.project_id!==graphProjectId/,'asset binding must reject registry assets from another project');
+assert.match(viewer,/projectBindingMismatch/,'viewer must detect a browser-model/current-project mismatch');
+assert.match(viewer,/graphProjectId===activeProjectId\?registeredAssets\.filter/,'viewer must expose live registry assets only for the graph-bound project');
+assert.match(viewer,/PROJECT CONTEXT MISMATCH · ASSET LINKING DISABLED/,'viewer must tell the user why cross-project asset linking is unavailable');
 assert.match(inspector,/LINK THIS OBJECT BEFORE USING LIVE ASSET DATA/);
 assert.doesNotMatch(inspector,/DIR.*physical truth established|physical truth.*DIR FINALIZED/i);
 assert.match(activity,/\/api\/approvals/,'asset activity must retain the governed approval handoff');

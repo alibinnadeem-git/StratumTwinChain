@@ -4,6 +4,10 @@ import Link from 'next/link';
 import {useMemo,useState} from 'react';
 import {readPrimarySpatialGraph,replaceCurrentSpatialGraph} from '@/lib/spatial-browser-recovery';
 import {resolveReconciledAssetPlacement} from '@/lib/z-solution-chain';
+import {resolveElectricalComponent,modelSourceRefsFor} from '@/lib/electrical-component-library';
+import {recordConfirmedZ,recordRejectedZ,type ZReviewActor} from '@/lib/z-history';
+import {inferenceMethodLabel,type ZInference} from '@/lib/z-inference';
+import {readSelectedSpatialProjectId} from '@/lib/spatial-project-selection';
 import AssetActivityPanel from '@/components/AssetActivityPanel';
 import AssetQR from '@/components/AssetQR';
 import {
@@ -36,15 +40,19 @@ function verificationUrl(asset:RegisteredSpatialAsset){
 export default function SpatialAssetInspector({
  selected,
  registeredAssets,
+ reviewActor=null,
  onEntityUpdated,
 }:{
  selected:InspectorEntity|null;
  registeredAssets:RegisteredSpatialAsset[];
+ reviewActor?:ZReviewActor|null;
  onEntityUpdated?:(entity:InspectorEntity)=>void;
 }){
  const [linkId,setLinkId]=useState('');
  const [message,setMessage]=useState('');
  const binding=useMemo(()=>resolveRegisteredSpatialAsset(selected,registeredAssets),[selected,registeredAssets]);
+ const component=useMemo(()=>selected?resolveElectricalComponent(selected.name):null,[selected]);
+ const modelRefs=useMemo(()=>component?modelSourceRefsFor(component.key):[],[component]);
  const reconciliation=useMemo(()=>selected?resolveReconciledAssetPlacement({name:selected.name,floor:selected.floor,z:selected.z,meta:selected.meta}):null,[selected]);
  const placement=reconciliation?.placement||null;
  const zSolution=reconciliation?.solution||null;
@@ -56,6 +64,8 @@ export default function SpatialAssetInspector({
   try{
    const graph=await readPrimarySpatialGraph();
    if(!graph||!Array.isArray(graph.entities))throw new Error('No compiled graph is available');
+   const graphProjectId=String((graph as {workingProjectId?:unknown}).workingProjectId||'');
+   if(nextAsset&&(!graphProjectId||!nextAsset.project_id||nextAsset.project_id!==graphProjectId))throw new Error('Asset link blocked: the selected registry asset does not belong to this browser working project.');
    let updated:InspectorEntity|null=null;
    graph.entities=(graph.entities as InspectorEntity[]).map((entity:InspectorEntity)=>{
     if(entity.id!==selected.id)return entity;
@@ -83,6 +93,102 @@ export default function SpatialAssetInspector({
   }
  }
 
+ async function persistZPreview(inference:ZInference|null){
+  if(!selected)return;
+  if(inference&&zSolution?.status==='CONFLICT'){setMessage('Z preview is blocked while source-grounded Z evidence chains conflict. Resolve the conflict before applying an inferred preview.');return;}
+  if(inference&&inference.renderBaseZMeters===null){setMessage('This proposal is relative to an unresolved support/reference point and cannot be placed at an absolute 3D Z yet.');return;}
+  try{
+   const graph=await readPrimarySpatialGraph();
+   if(!graph||!Array.isArray(graph.entities))throw new Error('No compiled graph is available');
+   let updated:InspectorEntity|null=null;
+   graph.entities=(graph.entities as InspectorEntity[]).map((entity:InspectorEntity)=>{
+    if(entity.id!==selected.id)return entity;
+    const meta={...(entity.meta||{})};
+    if(inference){
+     meta.zPreviewBaseMeters=inference.renderBaseZMeters;meta.zPreviewReferenceMeters=inference.absoluteReferenceZMeters;
+     meta.zPreviewReferencePoint=inference.referencePoint;meta.zPreviewConfidence=inference.confidence;
+     meta.zPreviewInferenceId=inference.id;meta.zPreviewMethod=inference.method;meta.zPreviewBasis=inference.basis.join('; ');
+     meta.zPreviewAppliedAt=new Date().toISOString();meta.zPreviewAuthority='HUMAN_APPLIED_INFERRED_PREVIEW';
+    }else{
+     for(const key of ['zPreviewBaseMeters','zPreviewReferenceMeters','zPreviewReferencePoint','zPreviewConfidence','zPreviewInferenceId','zPreviewMethod','zPreviewBasis','zPreviewAppliedAt','zPreviewAuthority'])delete meta[key];
+    }
+    updated={...entity,meta};return updated;
+   });
+   await replaceCurrentSpatialGraph(graph);
+   if(updated)onEntityUpdated?.(updated);
+   setMessage(inference?`3D preview moved to base Z ${inference.renderBaseZMeters!.toFixed(2)} m. Display only — entity.z and physical truth were not changed.`:'3D Z preview cleared.');
+  }catch(error){setMessage(error instanceof Error?error.message:'Unable to update the 3D preview');}
+ }
+
+ async function acceptInferredZ(inference:ZInference){
+  if(!selected)return;
+  if(!reviewActor){setMessage('Sign in is required before STRATUM can persist an H2 inferred-Z review decision.');return;}
+  if(zSolution?.status==='CONFLICT'){setMessage('H2 acceptance is blocked while independent source-grounded Z chains conflict. Resolve or supersede the conflicting evidence first.');return;}
+  try{
+   const graph=await readPrimarySpatialGraph();
+   if(!graph||!Array.isArray(graph.entities))throw new Error('No compiled graph is available');
+   const projectId=readSelectedSpatialProjectId();
+   const graphProjectId=String((graph as {workingProjectId?:unknown}).workingProjectId||'');
+   if(!projectId||!graphProjectId||projectId!==graphProjectId)throw new Error('H2 review blocked: the browser working graph is not bound to the currently selected project.');
+   const acceptedAt=new Date().toISOString();
+   let updated:InspectorEntity|null=null;
+   graph.entities=(graph.entities as InspectorEntity[]).map((entity:InspectorEntity)=>{
+    if(entity.id!==selected.id)return entity;
+    const meta:Record<string,unknown>={...(entity.meta||{}),
+      zReviewDecision:'H2_ACCEPTED_INFERENCE',zReviewDecisionAt:acceptedAt,zReviewInferenceId:inference.id,
+      zReviewMethod:inference.method,zReviewReferencePoint:inference.referencePoint,
+      zReviewOffsetMeters:inference.offsetMeters,zReviewAbsoluteReferenceMeters:inference.absoluteReferenceZMeters,
+      zReviewSupportKind:inference.support?.kind||null,zReviewSupportZMeters:inference.support?.zMeters??null,
+      zReviewProjectId:graphProjectId,zReviewActorUserId:reviewActor.userId,zReviewActorOrganizationId:reviewActor.organizationId,
+      zReviewActorRole:reviewActor.role,zReviewControlLevel:'H2',zReviewCanonical:false,zPlacementAuthority:'H2_ACCEPTED_INFERENCE',
+      verificationState:'UNVERIFIED',physicalTruth:false,physicalElevationKnown:false,elevationKnown:false,reviewRequired:true};
+    if(inference.renderBaseZMeters!==null){
+      meta.zPreviewBaseMeters=inference.renderBaseZMeters;meta.zPreviewReferenceMeters=inference.absoluteReferenceZMeters;
+      meta.zPreviewReferencePoint=inference.referencePoint;meta.zPreviewConfidence=inference.confidence;meta.zPreviewInferenceId=inference.id;
+      meta.zPreviewMethod=inference.method;meta.zPreviewBasis='H2 accepted inference: '+inference.basis.join('; ');meta.zPreviewAppliedAt=acceptedAt;meta.zPreviewAuthority='H2_ACCEPTED_INFERRED_PREVIEW';
+    }
+    updated={...entity,meta};return updated;
+   });
+   await replaceCurrentSpatialGraph(graph);
+   if(updated)onEntityUpdated?.(updated);
+   // Historical learning occurs only after the graph mutation succeeds, and only
+   // for a project-scoped absolute proposal backed by a named support datum.
+   if(component?.key&&inference.support&&inference.offsetMeters!==null&&inference.absoluteReferenceZMeters!==null){
+     recordConfirmedZ({projectId:graphProjectId,entityId:selected.id,componentKey:component.key,supportKind:inference.support.kind,supportZMeters:inference.support.zMeters,offsetMeters:inference.offsetMeters,referencePoint:inference.referencePoint,absoluteReferenceZMeters:inference.absoluteReferenceZMeters,inferenceMethod:inference.method,sourceInferenceId:inference.id,basis:inference.basis,sourceRefs:inference.sourceRefs,actorUserId:reviewActor.userId,organizationId:reviewActor.organizationId,actorRole:reviewActor.role});
+   }
+   setMessage(inference.absoluteReferenceZMeters===null
+    ?`Accepted ${inference.offsetMeters?.toFixed(2)??'unresolved'} m relative mounting evidence for coordination. No absolute project Z was created.`
+    :`Accepted inferred ${inference.referencePoint.replaceAll('_',' ').toLowerCase()} Z ${inference.absoluteReferenceZMeters.toFixed(2)} m for H2 coordination review. It remains AI inferred, unverified and physicalTruth:false.`);
+  }catch(error){setMessage(error instanceof Error?error.message:'Unable to accept inferred Z');}
+ }
+
+ async function rejectInference(inference:ZInference){
+  if(!selected)return;
+  if(!reviewActor){setMessage('Sign in is required before STRATUM can persist an H2 inferred-Z rejection.');return;}
+  try{
+   const graph=await readPrimarySpatialGraph();
+   if(!graph||!Array.isArray(graph.entities))throw new Error('No compiled graph is available');
+   const projectId=readSelectedSpatialProjectId();
+   const graphProjectId=String((graph as {workingProjectId?:unknown}).workingProjectId||'');
+   if(!projectId||!graphProjectId||projectId!==graphProjectId)throw new Error('H2 review blocked: the browser working graph is not bound to the currently selected project.');
+   let updated:InspectorEntity|null=null;
+   graph.entities=(graph.entities as InspectorEntity[]).map((entity:InspectorEntity)=>{
+    if(entity.id!==selected.id)return entity;
+    const meta={...(entity.meta||{})};
+    const rejected=[...new Set([...(Array.isArray(meta.rejectedZInferenceIds)?meta.rejectedZInferenceIds.map(String):[]),inference.id])];
+    meta.rejectedZInferenceIds=rejected;meta.zInferenceRejectedAt=new Date().toISOString();
+    meta.zInferenceRejectedByUserId=reviewActor.userId;meta.zInferenceRejectedByOrganizationId=reviewActor.organizationId;meta.zInferenceRejectedByRole=reviewActor.role;meta.zInferenceRejectedProjectId=graphProjectId;meta.zInferenceRejectControlLevel='H2';meta.zInferenceRejectCanonical=false;
+    if(meta.zPreviewInferenceId===inference.id)for(const key of ['zPreviewBaseMeters','zPreviewReferenceMeters','zPreviewReferencePoint','zPreviewConfidence','zPreviewInferenceId','zPreviewMethod','zPreviewBasis','zPreviewAppliedAt','zPreviewAuthority'])delete meta[key];
+    updated={...entity,meta};return updated;
+   });
+   await replaceCurrentSpatialGraph(graph);if(updated)onEntityUpdated?.(updated);
+   if(component?.key){
+    recordRejectedZ({projectId:graphProjectId,entityId:selected.id,componentKey:component.key,supportKind:inference.support?.kind||null,supportZMeters:inference.support?.zMeters??null,offsetMeters:inference.offsetMeters,referencePoint:inference.referencePoint,absoluteReferenceZMeters:inference.absoluteReferenceZMeters,inferenceMethod:inference.method,sourceInferenceId:inference.id,basis:inference.basis,sourceRefs:inference.sourceRefs,actorUserId:reviewActor.userId,organizationId:reviewActor.organizationId,actorRole:reviewActor.role});
+   }
+   setMessage('Inference rejected for this object. The source geometry and authoritative Z remain unchanged; any prior accepted history for this object is superseded.');
+  }catch(error){setMessage(error instanceof Error?error.message:'Unable to reject inferred Z');}
+ }
+
  if(!selected)return <div className="inspector-empty">
   <div className="eyebrow">Inspect equipment</div>
   <h3>Click an asset in Spatial</h3>
@@ -91,6 +197,11 @@ export default function SpatialAssetInspector({
 
  const z=optionalNumber(selected.z);
  const zCandidate=optionalNumber(selected.meta?.zCandidateMeters);
+ const zInferences=(Array.isArray(selected.meta?.zInferences)?selected.meta.zInferences:[]) as ZInference[];
+ const rejectedInferenceIds=new Set(Array.isArray(selected.meta?.rejectedZInferenceIds)?selected.meta.rejectedZInferenceIds.map(String):[]);
+ const visibleZInferences=zInferences.filter(inference=>!rejectedInferenceIds.has(inference.id));
+ const zPreviewBase=optionalNumber(selected.meta?.zPreviewBaseMeters);
+ const zAccepted=selected.meta?.zReviewDecision==='H2_ACCEPTED_INFERENCE';
  const localReviewSurfaceZ=optionalNumber(selected.meta?.localReviewSurfaceZ);
  const localReviewSurfaceLabel=String(selected.meta?.localReviewSurfaceKind||'LOCAL SURFACE').replaceAll('_',' ');
  const crossSheetReviewSurfaceZ=optionalNumber(selected.meta?.crossSheetReviewSurfaceZ);
@@ -115,9 +226,31 @@ export default function SpatialAssetInspector({
   </div>
 
   <div className={`placement-trust ${zReviewed?'reviewed':'needs-review'}`} role="status">
-    <div><span>Z placement</span><strong>{zReviewed?'Measured / reviewed':zSolution?.status==='CONFLICT'?'Z CONFLICT · review required':zCandidate!==null?`${zCandidateReferencePoint} design Z reference · review required`:placement&& !['UNRESOLVED','RELATIVE_TO_REVIEW_PLANE'].includes(placement.zAuthority)?`${placement.baseZ.toFixed(2)} m placement candidate · review required`:localReviewSurfaceZ!==null?`${localReviewSurfaceLabel} local review surface · object Z unresolved`:crossSheetReviewSurfaceZ!==null?`${crossSheetReviewSurfaceLabel} cross-sheet review surface · object Z unresolved`:reviewSurfaceZ!==null?`${reviewSurfaceLabel} review surface · object Z unresolved`:'Review plane · physical Z unresolved'}</strong></div>
+    <div><span>Z placement</span><strong>{zReviewed?'Measured / reviewed':zSolution?.status==='CONFLICT'?'Z CONFLICT · review required':zAccepted?'H2 accepted AI inference · unverified':zPreviewBase!==null?`Inferred 3D base preview ${zPreviewBase.toFixed(2)} m · display only`:zCandidate!==null?`${zCandidateReferencePoint} design Z reference · review required`:placement&& !['UNRESOLVED','RELATIVE_TO_REVIEW_PLANE'].includes(placement.zAuthority)?`${placement.baseZ.toFixed(2)} m placement candidate · review required`:localReviewSurfaceZ!==null?`${localReviewSurfaceLabel} local review surface · object Z unresolved`:crossSheetReviewSurfaceZ!==null?`${crossSheetReviewSurfaceLabel} cross-sheet review surface · object Z unresolved`:reviewSurfaceZ!==null?`${reviewSurfaceLabel} review surface · object Z unresolved`:'Review plane · physical Z unresolved'}</strong></div>
+   {zPreviewBase!==null&&<div style={{marginTop:6}}><button type="button" onClick={()=>void persistZPreview(null)}>Clear 3D preview</button></div>}
   </div>
   {zSolution?.status==='CONFLICT'&&<div className="notice" role="status"><strong>Z CONFLICT · AUTO-PLACEMENT BLOCKED</strong><span>{zSolution.explanation}</span><ul style={{margin:'8px 0 0',paddingLeft:18}}>{zSolution.conflicts.map((conflict,index)=><li key={index}><small>{conflict.reason} · {conflict.candidateA} vs {conflict.candidateB} · Δ {conflict.deltaMeters.toFixed(3)} m · threshold {conflict.toleranceMeters.toFixed(3)} m</small></li>)}</ul></div>}
+  {modelRefs.length>0&&<div className="notice" style={{marginTop:10}}>
+   <strong>OEM 3D MODEL SOURCES · DISCOVERY ONLY</strong>
+   <span>These are external research leads, not bundled or license-cleared STRATUM models. Procedural geometry remains active until format, license and redistribution review passes.</span>
+   <ul style={{margin:'8px 0 0',paddingLeft:18}}>{modelRefs.map((ref,index)=><li key={index} style={{marginBottom:6}}><a href={ref.url} target="_blank" rel="noreferrer">{ref.label}</a><br/><small className="muted">{ref.access.replaceAll('_',' ')} — {ref.note}</small></li>)}</ul>
+  </div>}
+  {visibleZInferences.length>0&&!zReviewed&&zSolution?.status!=='CONFLICT'&&<div className="notice" role="status" style={{marginTop:10}}>
+   <strong>AI INFERRED Z PROPOSALS · NOT VERIFIED</strong>
+   <span>Each proposal preserves its support datum, reference point and relative/absolute boundary. Accepting one requires an authenticated H2 coordination review actor; the browser decision remains non-canonical, never changes entity.z, and never establishes field truth.</span>
+   <ol style={{margin:'8px 0 0',paddingLeft:18}}>{visibleZInferences.map((inference,index)=><li key={inference.id||index} style={{marginBottom:10}}>
+    <b>{inference.absoluteReferenceZMeters!==null?`${inference.absoluteReferenceZMeters.toFixed(2)} m absolute ${inference.referencePoint.replaceAll('_',' ').toLowerCase()}`:`${inference.offsetMeters?.toFixed(2)??'—'} m relative ${inference.referencePoint.replaceAll('_',' ').toLowerCase()}`}</b>
+    <small> · {Math.round(inference.confidence*100)}% · {inferenceMethodLabel(inference.method)}{inference.corroboratingMethods.length>1?` · aligned across ${inference.corroboratingMethods.length} proposal paths`:''}</small>
+    <br/><small className="muted">{inference.basis.join(' — ')}</small>
+    {inference.support&&<><br/><small className="muted">Support: {inference.support.kind.replaceAll('_',' ')} {inference.support.zMeters.toFixed(2)} m · {Math.round(inference.support.confidence*100)}%</small></>}
+    {inference.sourceRefs.length>0&&<><br/><small className="muted">Evidence: {inference.sourceRefs.map((ref,i)=>ref.url?<span key={i}><a href={ref.url} target="_blank" rel="noreferrer">{ref.label}</a>{i<inference.sourceRefs.length-1?' · ':''}</span>:<span key={i}>{ref.label}{i<inference.sourceRefs.length-1?' · ':''}</span>)}</small></>}
+    <div className="button-row" style={{marginTop:4}}>
+     <button type="button" onClick={()=>void persistZPreview(inference)} disabled={inference.renderBaseZMeters===null} title={inference.renderBaseZMeters===null?'Absolute render base is unresolved until the support/reference relationship is known':'Preview this inferred base in 3D'}>Preview in 3D</button>
+     <button type="button" onClick={()=>void acceptInferredZ(inference)} disabled={!reviewActor} title={reviewActor?'Persist an authenticated H2 coordination review decision':'Sign in required for H2 review'}>Accept for coordination · H2</button>
+     <button type="button" className="ghost" onClick={()=>void rejectInference(inference)} disabled={!reviewActor} title={reviewActor?'Persist an authenticated H2 rejection':'Sign in required for H2 review'}>Reject</button>
+    </div>
+   </li>)}</ol>
+  </div>}
   {zResolutionAuthority==='AFF_REFERENCE_UNSPECIFIED'&&!zReviewed&&<div className="notice" role="status"><strong>AFF HEIGHT FOUND · REFERENCE POINT REQUIRED</strong><span>STRATUM found an object-linked height above finished floor, but the drawing does not state whether that height is to the base, bottom, centerline, top, or mounting point. The height is preserved as evidence but is not converted into absolute equipment Z.</span></div>}
   {crossSheetReviewSurfaceZ!==null&&!zReviewed&&<div className="notice" role="status"><strong>CROSS-SHEET Z REVIEW SURFACE</strong><span>{crossSheetReviewSurfaceLabel} = {crossSheetReviewSurfaceZ.toFixed(3)} m via reviewed sheet alignment · confidence {Math.round(Number(selected.meta?.crossSheetReviewSurfaceConfidence||0)*100)}%. This remains coordination-derived design evidence, not field-verified physical elevation.</span></div>}
   {selected.kind==='imported-3d-model'&&<div className="notice" role="status"><strong>IMPORTED 3D GEOMETRY · REVIEW-SCALE</strong><span>This uploaded reference model is normalized to a component review envelope for Spatial presentation when its model-space units/dimensions are not trusted. Raw GLB bounds remain preserved in source details. Review-scale rendering does not establish OEM dimensions, installed elevation, asset identity or DIR state.</span></div>}

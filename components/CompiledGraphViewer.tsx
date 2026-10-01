@@ -11,6 +11,7 @@ import {readPrimarySpatialGraph} from "@/lib/spatial-browser-recovery";
 import {buildSpatialCoordinationReviewIndex,findingsForEntity} from "@/lib/spatial-coordination-review";
 import {buildCoordinationIntelligence,type CoordinationSnapshot} from "@/lib/coordination-intelligence";
 import {type RegisteredSpatialAsset} from "@/lib/spatial-asset-link";
+import {type ZReviewActor} from "@/lib/z-history";
 import {findDrawingSourcesNeedingReprocess} from "@/lib/spatial-source-reprocess";
 import {
   DEFAULT_ELECTRICAL_MODEL_REGISTRY,
@@ -31,7 +32,7 @@ type Entity={
 };
 type GraphLink={id:string;from:string;to:string;type:string;confidence:number};
 type Graph={
-  version:string;createdAt:string;
+  version:string;createdAt:string;workingProjectId?:string;
   sources:{name:string;ext:string;sha256:string;discipline:string;floor?:string;elevation?:number;unitName?:string;unitToMeters?:number;state?:string;entities?:number;vectors?:number;textItems?:number;sldPages?:number;nonSldPlanPages?:number;planTypes?:string[]}[];
   entities:Entity[];links?:GraphLink[];stats:Record<Layer,number>;
   coordinationIntelligence?:CoordinationSnapshot;
@@ -87,7 +88,7 @@ function bounds2d(entities:Entity[]){
   return{minX,maxX,minY,maxY};
 }
 
-export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAssets?:RegisteredSpatialAsset[]}){
+export default function CompiledGraphViewer({registeredAssets=[],reviewActor=null}:{registeredAssets?:RegisteredSpatialAsset[];reviewActor?:ZReviewActor|null}){
   const mount=useRef<HTMLDivElement|null>(null),runtime=useRef<any>(null);
   const [graph,setGraph]=useState<Graph|null>(null);
   const [registry,setRegistry]=useState<ElectricalModelConfig[]>(DEFAULT_ELECTRICAL_MODEL_REGISTRY);
@@ -490,7 +491,9 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
 
   const width=fallbackBounds.maxX-fallbackBounds.minX,height2=fallbackBounds.maxY-fallbackBounds.minY;
   const sx=(x:number)=>((x-fallbackBounds.minX)/width)*92+4,sy=(y:number)=>96-((y-fallbackBounds.minY)/height2)*92;
-  const projectAssets=activeProjectId?registeredAssets.filter(asset=>asset.project_id===activeProjectId&&!/^STR-UAT-/i.test(asset.asset_code)):[];
+  const graphProjectId=graph.workingProjectId||null;
+  const projectBindingMismatch=Boolean(activeProjectId&&graphProjectId&&activeProjectId!==graphProjectId);
+  const projectAssets=activeProjectId&&graphProjectId===activeProjectId?registeredAssets.filter(asset=>asset.project_id===activeProjectId&&!/^STR-UAT-/i.test(asset.asset_code)):[];
   const reviewPins=inventory.filter(item=>item.kind==='sheet-callout-candidate'||item.kind==='annotated-asset-candidate');
   const plural=(count:number,singular:string)=>`${count} ${singular}${count===1?'':'s'}`;
 
@@ -499,6 +502,12 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       <div><div className="eyebrow">STRATUM Spatial Verified</div><h2 style={{margin:"3px 0"}}>Spatial model</h2><p className="muted" style={{margin:0}}>{plural(graph.sources.length,'source')} · {plural(sheetFrames.length,'drawing frame')} · {plural(nonSldPlanSheets,'non-SLD plan')} · {plural(levels.length,'level')} · {plural(rooms,'room')} · {plural(visibleLines,'drawing line')} · {plural(rasterUnderlays,'drawing underlay')} · {plural(sldObjects,'SLD object')}</p></div>
       <div className="button-row"><Link className="ghost" href="/compiler">Edit sources</Link><Link className="ghost" href="/component-library">3D models</Link></div>
     </div>
+
+    {projectBindingMismatch&&<div className="notice" role="alert" style={{margin:"12px 14px"}}>
+      <strong>PROJECT CONTEXT MISMATCH · ASSET LINKING DISABLED</strong>
+      <span>This browser model is bound to a different project than the current project selection. STRATUM will not expose or link live registry assets until the project contexts match.</span>
+      <Link className="action" href="/compiler">Review project workspace</Link>
+    </div>}
 
     {staleDrawingSources.length>0&&<div className="notice" role="alert" style={{margin:"12px 14px"}}>
       <strong>DRAWING REPROCESS REQUIRED</strong>
@@ -571,7 +580,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
 
       <aside style={{padding:15,borderLeft:"1px solid #17334a",overflow:"auto"}}>
         <label>Imported object<select aria-label="Imported object" value={selected?.id||""} onChange={e=>setSelected(graph.entities.find(x=>x.id===e.target.value)||null)} style={{width:"100%"}}><option value="">{matching.length?'Select an object':'No selectable objects in this view'}</option>{matching.map(e=><option key={e.id} value={e.id}>{e.name} · {e.floor||"UNRESOLVED"}</option>)}</select></label>
-        <SpatialAssetInspector selected={selected} registeredAssets={projectAssets} onEntityUpdated={entity=>setSelected(entity as Entity)}/>
+        <SpatialAssetInspector selected={selected} registeredAssets={projectAssets} reviewActor={reviewActor} onEntityUpdated={entity=>setSelected(entity as Entity)}/>
         {selected&&findingsForEntity(coordinationSnapshot,selected.id).length>0&&<div className="card" style={{marginTop:10,padding:12}} aria-label="Selected asset coordination review">
           <div className="eyebrow">Coordination review</div>
           <strong>{findingsForEntity(coordinationSnapshot,selected.id).length} open source conflict{findingsForEntity(coordinationSnapshot,selected.id).length===1?"":"s"}</strong>

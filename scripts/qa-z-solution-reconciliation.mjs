@@ -35,6 +35,52 @@ assert.equal(reconciled.placement.zAuthority,'UNRESOLVED');
 assert.ok(Math.abs(reconciled.placement.baseZ-30.48)<1e-9);
 assert.equal(reconciled.placement.recommendation?.kind,'Z_CONFLICT_REVIEW_SURFACE');
 
+const conflictWithPreview={
+ ...conflict,
+ meta:{...conflict.meta,zPreviewBaseMeters:99,zPreviewConfidence:.9,zPreviewAuthority:'H2_ACCEPTED_INFERRED_PREVIEW'}
+};
+const previewConflict=resolveReconciledAssetPlacement(conflictWithPreview);
+assert.equal(previewConflict.solution.status,'CONFLICT');
+assert.equal(previewConflict.placement.zAuthority,'UNRESOLVED');
+assert.ok(Math.abs(previewConflict.placement.baseZ-30.48)<1e-9,'inferred preview must not mask or override source-chain conflict');
+
+const previewOnly=resolveReconciledAssetPlacement({
+ name:'UNKNOWN DEVICE',floor:'UNRESOLVED',z:0,
+ meta:{zPreviewBaseMeters:4.2,zPreviewConfidence:.61,zPreviewBasis:'H2 accepted inferred preview',physicalTruth:false,reviewRequired:true}
+});
+assert.equal(previewOnly.solution.status,'UNRESOLVED');
+assert.equal(previewOnly.placement.zAuthority,'H2_ACCEPTED_INFERRED_PREVIEW');
+assert.ok(Math.abs(previewOnly.placement.baseZ-4.2)<1e-9);
+assert.equal(previewOnly.placement.physicalTruth,false);
+
+const weakSupportPreview=resolveReconciledAssetPlacement({
+ name:'PAD MOUNT TRANSFORMER T2',floor:'UNRESOLVED',z:0,
+ meta:{
+  localReviewSurfaceZ:10,localReviewSurfaceKind:'GRADE',localReviewSurfaceAuthority:'SOURCE_ELEVATION_TRIANGLE',localReviewSurfaceConfidence:.8,
+  zPreviewBaseMeters:10.42,zPreviewConfidence:.62,zPreviewBasis:'H2 accepted inferred preview',
+  physicalElevationKnown:false,elevationKnown:false,physicalTruth:false,reviewRequired:true
+ }
+});
+assert.equal(weakSupportPreview.solution.status,'RESOLVED_CANDIDATE');
+assert.ok(weakSupportPreview.solution.candidates.some(c=>c.kind==='SUPPORT_SURFACE_BASE'));
+assert.equal(weakSupportPreview.placement.zAuthority,'H2_ACCEPTED_INFERRED_PREVIEW');
+assert.ok(Math.abs(weakSupportPreview.placement.baseZ-10.42)<1e-9,'H2 preview may replace only weak generic support/type-profile placement');
+
+const strongSourceWithPreview=resolveReconciledAssetPlacement({
+ name:'PANEL LP-9',floor:'L1',z:0,
+ meta:{
+  assetDimensionAuthority:'SOURCE_SPEC',assetDimensionsMeters:[.8,1.2,.25],
+  zResolutionStatus:'RESOLVED_DESIGN_CANDIDATE',zCandidateMeters:6.25,zCandidateReferencePoint:'BASE',zResolutionConfidence:.91,zResolutionAuthority:'SOURCE_BASE_ELEVATION',
+  zPreviewBaseMeters:9.9,zPreviewConfidence:.99,zPreviewBasis:'H2 accepted inferred preview',
+  physicalElevationKnown:false,elevationKnown:false,physicalTruth:false,reviewRequired:true
+ }
+});
+assert.equal(strongSourceWithPreview.solution.status,'RESOLVED_CANDIDATE');
+assert.ok(strongSourceWithPreview.solution.candidates.some(c=>c.kind==='SOURCE_REFERENCE'));
+assert.equal(strongSourceWithPreview.placement.zAuthority,'SOURCE_DESIGN_CANDIDATE','returned authority must describe the stronger source evidence, not the displaced H2 preview');
+assert.ok(Math.abs(strongSourceWithPreview.placement.baseZ-6.25)<1e-9,'explicit source Z must outrank an H2 inferred preview');
+assert.notEqual(strongSourceWithPreview.placement.recommendation?.kind,'H2_ACCEPTED_INFERRED_Z_PREVIEW');
+
 const centerline={
  name:'PANEL LP-2',floor:'L2',z:0,
  meta:{
