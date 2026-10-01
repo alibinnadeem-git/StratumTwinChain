@@ -90,6 +90,12 @@ assert.match(zSolution,/!hasMeasuredOrReviewedAbsolute/);
 
 assert.match(compilationApi,/zReviewClaims/);
 assert.match(compilationApi,/SERVER_AUTHENTICATED_HUMAN_REVIEW/);
+assert.match(compilationApi,/zReviewDecisionPhysicalTruth!==false/);
+assert.match(compilationApi,/meta\.physicalTruth!==false/);
+assert.match(compilationApi,/meta\.physicalElevationKnown!==false/);
+assert.match(compilationApi,/meta\.elevationKnown!==false/);
+assert.match(compilationApi,/meta\.reviewRequired!==true/);
+assert.match(compilationApi,/Authenticated design Z review cannot be promoted into physical or verified elevation state/);
 assert.match(compilationApi,/spatial_z_review_decisions/);
 assert.match(compilationApi,/Spatial Z review receipt does not match the persisted server decision/);
 assert.match(compilationApi,/SELECT DISTINCT ON \(entity_id\)/);
