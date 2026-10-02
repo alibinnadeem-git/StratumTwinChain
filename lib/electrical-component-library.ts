@@ -1,3 +1,4 @@
+import {ACTIVATED_OEM_COMPONENTS} from './oem-activated-models.ts';
 export type ElectricalComponent={
   key:string;
   name:string;
@@ -17,6 +18,7 @@ export const ELECTRICAL_CATEGORIES=[
 ] as const;
 
 export const ELECTRICAL_COMPONENTS:ElectricalComponent[]=[
+ ...ACTIVATED_OEM_COMPONENTS,
  {key:'utility-transformer',name:'Utility Transformer',category:'Power Intake & Utility',aliases:['utility transformer','service transformer'],twinShape:'transformer',trackAsAsset:true},
  {key:'pad-mount-transformer',name:'Pad-Mount Transformer',category:'Power Intake & Utility',aliases:['pad mount transformer','pad-mounted transformer'],twinShape:'transformer',trackAsAsset:true},
  {key:'utility-switchgear',name:'Utility Switchgear',category:'Power Intake & Utility',aliases:['utility switchgear','service switchgear'],twinShape:'cabinet',trackAsAsset:true},

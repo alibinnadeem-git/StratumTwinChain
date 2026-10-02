@@ -1054,3 +1054,19 @@ test('human Z review selects one preserved design chain without establishing phy
   }:null;
  })).toEqual({decision:'ACCEPTED_DESIGN_CHAIN',candidate:'support-chain',physical:false,truth:false,review:true});
 });
+
+
+test('new licensed GLBs are active and publicly loadable from the component registry',async({page})=>{
+ await page.goto('/component-library');
+ const registry=page.getByRole('region',{name:'3D Asset Registry'});
+ for(const [sku,key] of [['1782','adafruit-mcp9808-1782'],['2809','adafruit-lis3dh-2809'],['904','adafruit-ina219-904'],['2230','adafruit-enclosure-2230']]){
+  await registry.getByLabel('Search component models').fill(sku);
+  await registry.getByRole('button',{name:/OEM ACTIVE/}).click();
+  await expect(registry.getByText('EXACT OEM MODEL ACTIVE',{exact:true})).toBeVisible();
+  await expect(registry.getByLabel('Model URL',{exact:true})).toHaveValue(`/models/oem/${key}.glb`);
+  const response=await page.request.get(`/models/oem/${key}.glb`);
+  expect(response.ok()).toBeTruthy();
+  const bytes=await response.body();expect(bytes.subarray(0,4).toString()).toBe('glTF');
+  expect(bytes.readUInt32LE(8)).toBe(bytes.length);
+ }
+});

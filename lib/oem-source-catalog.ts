@@ -1,3 +1,4 @@
+import {ACTIVATED_OEM_SOURCES} from './oem-activated-models.ts';
 import {OEM_RESEARCH_SOURCES} from './oem-research-sources.ts';
 /** Discovery links, not licensed model assets or verified project equipment. */
 export type OemSource={
@@ -9,6 +10,7 @@ export type OemSource={
 };
 export const OEM_SOURCE_RESEARCH_UPDATED_AT='2026-10-02';
 export const OEM_SOURCES:OemSource[]=[
+ ...ACTIVATED_OEM_SOURCES,
  ...OEM_RESEARCH_SOURCES,
  {id:'adafruit-bme280-cad',manufacturer:'Adafruit',families:['BME280 temperature, humidity and pressure sensor breakout'],componentKeys:['adafruit-bme280-2652'],url:'https://www.adafruit.com/product/2652',evidence:'CAD_BIM_PORTAL',formats:['STEP','STL','GLB conversion'],fields:['product ID','board dimensions','sensor functions','file hash','license'],access:'Manufacturer STL for product 2652 imported as a meter-space GLB under the Adafruit CAD repository MIT license. Board geometry only; not a packaged building sensor or as-built installation.'},
  {id:'abb-electrification',manufacturer:'ABB',families:['MV/LV switchgear','distribution boards','dry-type transformers'],componentKeys:['utility-switchgear','lv-switchboard','dry-transformer'],url:'https://new.abb.com/low-voltage/building-information-modeling',evidence:'CAD_BIM_PORTAL',formats:['BIM','product documents'],fields:['rating','voltage','enclosure','dimensions','clearances'],access:'Use ABB Download Center or its listed BIM partners; check model-specific terms.'},
