@@ -252,5 +252,165 @@ export const OEM_RESEARCH_CANDIDATES:OemCadCandidate[]=
     "cadFormat": "3D CAD (form-gated; export format unverified)",
     "status": "CAD_DOWNLOAD_IDENTIFIED",
     "notes": "Official form lists this part number. No form submitted, account created, or download acquired. Request the model through the manufacturer workflow and review its reuse terms."
+  },
+  {
+    "id": "lovato-bf3200d024",
+    "sourceId": "lovato-cad",
+    "componentKey": "contactor",
+    "manufacturer": "LOVATO Electric",
+    "sku": "BF3200D024",
+    "product": "BF contactor",
+    "productUrl": "https://catalogue.lovatoelectric.com/ca_en/Three-pole-contactor-IEC-operating-current-Ie-AC3-32A-DC-coil-24VDC/BF3200D024/snp",
+    "cadUrl": "https://catalogue.lovatoelectric.com/ca_en/Product/GetDocument?doc=CAD%5C3D%20Drawings%5C3d_BF3200D024.stp",
+    "cadFormat": "STEP AP214",
+    "status": "CAD_DOWNLOAD_IDENTIFIED",
+    "notes": "Internal STEP filename: FILE_STP_CAD_DRAWING_3d_BF26_38_D_L_prt.stp. Manufacturer serves a family CAD file; exact coil/contact variant still needs reconciliation. Units, dimensions, conversion and reuse rights are not approved. No project installed-state claim.",
+    "downloadInspection": {
+      "checkedAt": "2026-10-02",
+      "filename": "3d_BF3200D024.stp",
+      "bytes": 12405453,
+      "sha256": "799d5b7c6fcb198d50f4a86869943d4e9c3b52654fb0bf797d47b2f3f10ef5ca",
+      "result": "ISO-10303-21 signature and SHA-256 inspected. Internal filename: FILE_STP_CAD_DRAWING_3d_BF26_38_D_L_prt.stp. Manufacturer serves a family CAD file; exact coil/contact variant still needs reconciliation."
+    }
+  },
+  {
+    "id": "lovato-bf2501d110",
+    "sourceId": "lovato-cad",
+    "componentKey": "contactor",
+    "manufacturer": "LOVATO Electric",
+    "sku": "BF2501D110",
+    "product": "BF contactor",
+    "productUrl": "https://catalogue.lovatoelectric.com/gl_en/BF2501D110/snp",
+    "cadUrl": "https://catalogue.lovatoelectric.com/gl_en/Product/GetDocument?doc=CAD%5C3D%20Drawings%5C3d_BF2501D110.stp",
+    "cadFormat": "STEP AP214",
+    "status": "CAD_DOWNLOAD_IDENTIFIED",
+    "notes": "Internal STEP filename: 3d_BF09_25_D_L.stp. Manufacturer serves a family CAD file; exact coil/contact variant still needs reconciliation. BF2501D110 and BF1801D024 downloads have identical SHA-256; these are two acquisition records, not two unique geometries. Units, dimensions, conversion and reuse rights are not approved. No project installed-state claim.",
+    "downloadInspection": {
+      "checkedAt": "2026-10-02",
+      "filename": "3d_BF2501D110.stp",
+      "bytes": 12745384,
+      "sha256": "122ad0a0c69987b7c0cab16edb0a7626f6a09e870f23ec149baccee821ebecc8",
+      "result": "ISO-10303-21 signature and SHA-256 inspected. Internal filename: 3d_BF09_25_D_L.stp. Manufacturer serves a family CAD file; exact coil/contact variant still needs reconciliation. BF2501D110 and BF1801D024 downloads have identical SHA-256; these are two acquisition records, not two unique geometries."
+    }
+  },
+  {
+    "id": "lovato-bf2501a110",
+    "sourceId": "lovato-cad",
+    "componentKey": "contactor",
+    "manufacturer": "LOVATO Electric",
+    "sku": "BF2501A110",
+    "product": "BF contactor",
+    "productUrl": "https://catalogue.lovatoelectric.com/gl_en/BF2501A110/snp",
+    "cadUrl": "https://catalogue.lovatoelectric.com/gl_en/Product/GetDocument?doc=CAD%5C3D%20Drawings%5C3d_BF2501A110.stp",
+    "cadFormat": "STEP AP214",
+    "status": "CAD_DOWNLOAD_IDENTIFIED",
+    "notes": "Internal STEP filename: 3d_BF09_25_A.stp. Manufacturer serves a family CAD file; exact coil/contact variant still needs reconciliation. Units, dimensions, conversion and reuse rights are not approved. No project installed-state claim.",
+    "downloadInspection": {
+      "checkedAt": "2026-10-02",
+      "filename": "3d_BF2501A110.stp",
+      "bytes": 11367812,
+      "sha256": "c4bbb97d3cc476830c88c52565e161e9d4db1cfc3824ddd3b64fd23f87654f24",
+      "result": "ISO-10303-21 signature and SHA-256 inspected. Internal filename: 3d_BF09_25_A.stp. Manufacturer serves a family CAD file; exact coil/contact variant still needs reconciliation."
+    }
+  },
+  {
+    "id": "lovato-bf1801d024",
+    "sourceId": "lovato-cad",
+    "componentKey": "contactor",
+    "manufacturer": "LOVATO Electric",
+    "sku": "BF1801D024",
+    "product": "BF contactor",
+    "productUrl": "https://catalogue.lovatoelectric.com/it_it/BF1801D024/snp",
+    "cadUrl": "https://catalogue.lovatoelectric.com/it_it/Product/GetDocument?doc=CAD%5C3D%20Drawings%5C3d_BF1801D024.stp",
+    "cadFormat": "STEP AP214",
+    "status": "CAD_DOWNLOAD_IDENTIFIED",
+    "notes": "Internal STEP filename: 3d_BF09_25_D_L.stp. Manufacturer serves a family CAD file; exact coil/contact variant still needs reconciliation. BF2501D110 and BF1801D024 downloads have identical SHA-256; these are two acquisition records, not two unique geometries. Units, dimensions, conversion and reuse rights are not approved. No project installed-state claim.",
+    "downloadInspection": {
+      "checkedAt": "2026-10-02",
+      "filename": "3d_BF1801D024.stp",
+      "bytes": 12745384,
+      "sha256": "122ad0a0c69987b7c0cab16edb0a7626f6a09e870f23ec149baccee821ebecc8",
+      "result": "ISO-10303-21 signature and SHA-256 inspected. Internal filename: 3d_BF09_25_D_L.stp. Manufacturer serves a family CAD file; exact coil/contact variant still needs reconciliation. BF2501D110 and BF1801D024 downloads have identical SHA-256; these are two acquisition records, not two unique geometries."
+    }
+  },
+  {
+    "id": "lovato-ga025ary",
+    "sourceId": "lovato-cad",
+    "componentKey": "disconnect",
+    "manufacturer": "LOVATO Electric",
+    "sku": "GA025ARY",
+    "product": "GA switch disconnector",
+    "productUrl": "https://catalogue.lovatoelectric.com/es_es/GA025ARY/snp",
+    "cadUrl": "https://catalogue.lovatoelectric.com/es_es/Product/GetDocument?doc=CAD%5C3D%20Drawings%5C3d_GA025ARY.stp",
+    "cadFormat": "STEP AP203",
+    "status": "CAD_DOWNLOAD_IDENTIFIED",
+    "notes": "Internal STEP filename: 3d_GA016A.stp. Header names a different model; reconcile manufacturer mapping before exact-identity approval. Units, dimensions, conversion and reuse rights are not approved. No project installed-state claim.",
+    "downloadInspection": {
+      "checkedAt": "2026-10-02",
+      "filename": "3d_GA025ARY.stp",
+      "bytes": 380560,
+      "sha256": "7e0f5b3f715e3f6f3bf983e66de9da76bc0b97e8992215a81eb0a2b535ed7a06",
+      "result": "ISO-10303-21 signature and SHA-256 inspected. Internal filename: 3d_GA016A.stp. Header names a different model; reconcile manufacturer mapping before exact-identity approval."
+    }
+  },
+  {
+    "id": "lovato-dmg110",
+    "sourceId": "lovato-cad",
+    "componentKey": "power-meter",
+    "manufacturer": "LOVATO Electric",
+    "sku": "DMG110",
+    "product": "DMG digital multimeter / power analyzer",
+    "productUrl": "https://catalogue.lovatoelectric.com/gl_en/DMG110/snp",
+    "cadUrl": "https://catalogue.lovatoelectric.com/gl_en/Product/GetDocument?doc=CAD%5C3D%20Drawings%5C3d_DMG110.stp",
+    "cadFormat": "STEP AP203",
+    "status": "CAD_DOWNLOAD_IDENTIFIED",
+    "notes": "Internal STEP filename: 3d_DMG200.stp. Header names a different model; reconcile manufacturer mapping before exact-identity approval. Units, dimensions, conversion and reuse rights are not approved. No project installed-state claim.",
+    "downloadInspection": {
+      "checkedAt": "2026-10-02",
+      "filename": "3d_DMG110.stp",
+      "bytes": 201485,
+      "sha256": "c5e3d337b058751bdafd269d2231502425ba769763184a98d191d5025f7cfe70",
+      "result": "ISO-10303-21 signature and SHA-256 inspected. Internal filename: 3d_DMG200.stp. Header names a different model; reconcile manufacturer mapping before exact-identity approval."
+    }
+  },
+  {
+    "id": "lovato-dmg210l01",
+    "sourceId": "lovato-cad",
+    "componentKey": "power-meter",
+    "manufacturer": "LOVATO Electric",
+    "sku": "DMG210L01",
+    "product": "DMG digital multimeter / power analyzer",
+    "productUrl": "https://catalogue.lovatoelectric.com/gl_en/DMG210L01/snp",
+    "cadUrl": "https://catalogue.lovatoelectric.com/gl_en/Product/GetDocument?doc=CAD%5C3D%20Drawings%5C3d_DMG210L01.stp",
+    "cadFormat": "STEP AP203",
+    "status": "CAD_DOWNLOAD_IDENTIFIED",
+    "notes": "Internal STEP filename: 3d_DMG210L01.stp. Header includes the product code; exact geometry, revision and configuration still require validation. Units, dimensions, conversion and reuse rights are not approved. No project installed-state claim.",
+    "downloadInspection": {
+      "checkedAt": "2026-10-02",
+      "filename": "3d_DMG210L01.stp",
+      "bytes": 201488,
+      "sha256": "e41b1a2caea5afc4f145893ca520f5d161246a75e4620e61bbee352cca62f881",
+      "result": "ISO-10303-21 signature and SHA-256 inspected. Internal filename: 3d_DMG210L01.stp. Header includes the product code; exact geometry, revision and configuration still require validation."
+    }
+  },
+  {
+    "id": "lovato-dmg8000",
+    "sourceId": "lovato-cad",
+    "componentKey": "power-meter",
+    "manufacturer": "LOVATO Electric",
+    "sku": "DMG8000",
+    "product": "DMG digital multimeter / power analyzer",
+    "productUrl": "https://catalogue.lovatoelectric.com/de_de/DMG8000/snp",
+    "cadUrl": "https://catalogue.lovatoelectric.com/de_de/Product/GetDocument?doc=CAD%5C3D%20Drawings%5C3d_DMG8000.stp",
+    "cadFormat": "STEP AP214",
+    "status": "CAD_DOWNLOAD_IDENTIFIED",
+    "notes": "Internal STEP filename: FILE_STP_CAD_DRAWING_3D_DMG8000_prt.stp. Header includes the product code; exact geometry, revision and configuration still require validation. Units, dimensions, conversion and reuse rights are not approved. No project installed-state claim.",
+    "downloadInspection": {
+      "checkedAt": "2026-10-02",
+      "filename": "3d_DMG8000.stp",
+      "bytes": 7981841,
+      "sha256": "dba28fc44806b1dc1700401725df4557f61f591592ae0981db584c7451a3cfbd",
+      "result": "ISO-10303-21 signature and SHA-256 inspected. Internal filename: FILE_STP_CAD_DRAWING_3D_DMG8000_prt.stp. Header includes the product code; exact geometry, revision and configuration still require validation."
+    }
   }
 ];

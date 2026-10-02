@@ -7,7 +7,7 @@ export type OemSource={
  checkedAt?:string;
  downloads?:{label:string;url:string;format:string}[];
 };
-export const OEM_SOURCE_RESEARCH_UPDATED_AT='2026-09-29';
+export const OEM_SOURCE_RESEARCH_UPDATED_AT='2026-10-02';
 export const OEM_SOURCES:OemSource[]=[
  ...OEM_RESEARCH_SOURCES,
  {id:'adafruit-bme280-cad',manufacturer:'Adafruit',families:['BME280 temperature, humidity and pressure sensor breakout'],componentKeys:['adafruit-bme280-2652'],url:'https://www.adafruit.com/product/2652',evidence:'CAD_BIM_PORTAL',formats:['STEP','STL','GLB conversion'],fields:['product ID','board dimensions','sensor functions','file hash','license'],access:'Manufacturer STL for product 2652 imported as a meter-space GLB under the Adafruit CAD repository MIT license. Board geometry only; not a packaged building sensor or as-built installation.'},
