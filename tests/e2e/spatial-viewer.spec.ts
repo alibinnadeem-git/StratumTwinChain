@@ -1104,7 +1104,7 @@ test('library preview reports missing files and recovers without substitute geom
 test('library preview explains unavailable WebGL',async({page})=>{
  await page.addInitScript(()=>{
   const original=HTMLCanvasElement.prototype.getContext;
-  HTMLCanvasElement.prototype.getContext=function(type:string,...args:any[]){
+  HTMLCanvasElement.prototype.getContext=function(this:HTMLCanvasElement,type:string,...args:any[]){
    if(type==='webgl'||type==='webgl2'||type==='experimental-webgl')return null;
    return (original as any).call(this,type,...args);
   } as typeof original;
