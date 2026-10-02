@@ -1,10 +1,13 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import {ChangeEvent,useEffect,useMemo,useState} from 'react';
 import {ELECTRICAL_CATEGORIES,ELECTRICAL_COMPONENTS} from '@/lib/electrical-component-library';
 import {DEFAULT_ELECTRICAL_MODEL_REGISTRY,ELECTRICAL_MODEL_REGISTRY_STORAGE_KEY,ElectricalModelConfig,normalizeElectricalModelRegistry} from '@/lib/electrical-model-registry';
 import {OEM_SOURCES} from '@/lib/oem-source-catalog';
 import {OEM_CAD_CANDIDATES} from '@/lib/oem-cad-candidates';
+
+const ComponentModelPreview=dynamic(()=>import('./ComponentModelPreview'),{ssr:false,loading:()=> <p role="status">Loading 3D preview…</p>});
 
 const box:React.CSSProperties={border:'1px solid #173a4c',background:'#08151f',borderRadius:14,padding:16};
 const field:React.CSSProperties={width:'100%',background:'#061019',border:'1px solid #1d465a',borderRadius:8,color:'#d9eef7',padding:'9px 10px'};
@@ -44,6 +47,7 @@ export default function ModelRegistryManager(){
    </div>
    {current&&component?<div style={box}>
     <div style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}><div><h3 style={{margin:'0 0 4px'}}>{component.name}</h3><small style={{color:'#7896a3'}}>{component.key} · procedural shape: {component.twinShape}</small></div><b style={{color:current.geometryStatus==='OEM_SUPPLIED'?'#38e59c':current.modelUrl?'#6cd6fa':'#e2a857'}}>{current.geometryStatus==='OEM_SUPPLIED'?'EXACT OEM MODEL ACTIVE':current.modelUrl?'REFERENCE MODEL ACTIVE':'PROCEDURAL FALLBACK'}</b></div>
+    <ComponentModelPreview key={current.componentKey} url={current.modelUrl} format={current.format} name={component.name}/>
     <div style={{display:'grid',gridTemplateColumns:'1fr 150px 120px',gap:10,marginTop:16}} className="registry-fields"><label>Model URL<input value={current.modelUrl} onChange={e=>patch({modelUrl:e.target.value})} placeholder="/models/electrical/transformer.glb or https://…" style={field}/></label><label>Format<select value={current.format} onChange={e=>patch({format:e.target.value as any})} style={field}><option>GLB</option><option>GLTF</option><option>USD</option><option>USDZ</option></select></label><label>Model scale<input type="number" step="0.01" min="0.01" value={current.scale} onChange={e=>patch({scale:Number(e.target.value)||1})} style={field}/></label></div>
 
     <fieldset style={{...box,padding:12,marginTop:12}}><legend>Physical dimensions · meters</legend><p style={{color:'#7896a3',margin:'0 0 8px'}}>Use OEM/submittal dimensions when known. These dimensions drive asset height/scale; they do not establish installed Z.</p><div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>{['Width','Height','Depth'].map((name,index)=><label key={name}>{name}<input aria-label={`${name} dimension meters`} type="number" min="0" step="0.001" value={current.dimensionsMeters?.[index]||''} onChange={e=>dimensionPatch(index,e.target.value)} placeholder="m" style={field}/></label>)}</div><div style={{display:'grid',gridTemplateColumns:'1fr 140px',gap:8,marginTop:8}} className="registry-fields"><label>Dimension source<input aria-label="Dimension source" value={current.dimensionsSource||''} onChange={e=>patch({dimensionsSource:e.target.value})} placeholder="OEM submittal, manufacturer datasheet, approved schedule…" style={field}/></label><label>Confidence<input aria-label="Dimension confidence" type="number" min="0" max="1" step="0.05" value={current.dimensionsConfidence??.85} onChange={e=>patch({dimensionsConfidence:Math.max(0,Math.min(1,Number(e.target.value)||0))})} style={field}/></label></div></fieldset>

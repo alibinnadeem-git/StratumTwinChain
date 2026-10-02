@@ -1068,5 +1068,49 @@ test('new licensed GLBs are active and publicly loadable from the component regi
   expect(response.ok()).toBeTruthy();
   const bytes=await response.body();expect(bytes.subarray(0,4).toString()).toBe('glTF');
   expect(bytes.readUInt32LE(8)).toBe(bytes.length);
+  const preview=registry.getByRole('region',{name:'Component 3D preview'});
+  await expect(preview.getByRole('status')).toHaveText('3D model loaded');
+  const canvas=preview.locator('canvas');
+  await expect(canvas).toHaveAttribute('data-model-url',`/models/oem/${key}.glb`);
+  expect(Number(await canvas.getAttribute('data-triangles'))).toBeGreaterThan(100);
+  if(sku==='1782'){
+   const before=await canvas.screenshot();
+   await preview.getByRole('button',{name:'Rotate right',exact:true}).click();
+   expect((await canvas.screenshot()).equals(before)).toBe(false);
+   await preview.getByRole('button',{name:'Zoom in',exact:true}).click();
+   await preview.getByRole('button',{name:'Reset view',exact:true}).click();
+  }
  }
+});
+
+
+test('library preview reports missing files and recovers without substitute geometry',async({page})=>{
+ await page.route('**/models/oem/adafruit-mcp9808-1782.glb',route=>route.abort());
+ await page.goto('/component-library');
+ const registry=page.getByRole('region',{name:'3D Asset Registry'});
+ const preview=registry.getByRole('region',{name:'Component 3D preview'});
+ await expect(preview.getByRole('status')).toContainText('Unable to load this model');
+ await expect(preview.getByRole('button',{name:'Rotate right',exact:true})).toBeDisabled();
+ await expect(preview.locator('canvas[data-model-url]')).toHaveCount(0);
+ await page.unroute('**/models/oem/adafruit-mcp9808-1782.glb');
+ await preview.getByRole('button',{name:'Retry preview'}).click();
+ await expect(preview.getByRole('status')).toHaveText('3D model loaded');
+ await registry.getByLabel('Search component models').fill('Fuse');
+ await registry.getByRole('button',{name:'Fuse FALLBACK Power Distribution Devices',exact:true}).click();
+ await expect(preview.getByRole('status')).toHaveText('No 3D model file is mapped to this component.');
+ await expect(preview.locator('canvas')).toHaveCount(0);
+});
+
+test('library preview explains unavailable WebGL',async({page})=>{
+ await page.addInitScript(()=>{
+  const original=HTMLCanvasElement.prototype.getContext;
+  HTMLCanvasElement.prototype.getContext=function(this:HTMLCanvasElement,type:string,...args:any[]){
+   if(type==='webgl'||type==='webgl2'||type==='experimental-webgl')return null;
+   return (original as any).call(this,type,...args);
+  } as typeof original;
+ });
+ await page.goto('/component-library');
+ const preview=page.getByRole('region',{name:'Component 3D preview'});
+ await expect(preview.getByRole('status')).toContainText('could not start WebGL');
+ await expect(preview.getByRole('button',{name:'Rotate left',exact:true})).toBeDisabled();
 });
