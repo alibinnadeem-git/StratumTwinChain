@@ -1015,6 +1015,15 @@ test('conflicting absolute Z chains block auto-placement and expose both evidenc
 
 test('human Z review selects one preserved design chain without establishing physical truth',async({page})=>{
  const source='Synthetic Z Conflict Review.pdf';
+ const projectId='22222222-2222-4222-8222-222222222222';
+ const compilationId='33333333-3333-4333-8333-333333333333';
+ const decisionId='44444444-4444-4444-8444-444444444444';
+ const clearDecisionId='88888888-8888-4888-8888-888888888888';
+ const graphSha='c'.repeat(64);
+ const decisionSha='d'.repeat(64);
+ const clearDecisionSha='e'.repeat(64);
+ const reason='Use the grade plus explicit transformer pad evidence for review placement.';
+ const clearReason='Clear the design-chain review after updated project evidence.';
  const graph={
   version:'z-conflict-review-browser-1',createdAt:'2026-09-30T08:00:00.000Z',reviewState:'REVIEW_REQUIRED',
   sources:[{name:source,ext:'pdf',sha256:'y'.repeat(64),discipline:'Electrical / Civil',floor:'UNRESOLVED',elevation:0}],
@@ -1029,28 +1038,236 @@ test('human Z review selects one preserved design chain without establishing phy
   ],
   links:[],stats:{L0:0,L1:0,L2:1,L3:0,L4:0}
  };
- await page.addInitScript(value=>localStorage.setItem('stratum_compiled_graph',JSON.stringify(value)),graph);
+ let reviewRequest:any=null;
+ let clearRequest:any=null;
+ await page.route('**/api/spatial/compilations?projectId=*',async route=>{
+  await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({schemaReady:true,latest:{id:compilationId,graph_sha256:graphSha}})});
+ });
+ await page.route('**/api/spatial/z-reviews',async route=>{
+  const request=route.request().postDataJSON();
+  if(request.action==='CLEAR_DESIGN_CHAIN'){
+   clearRequest=request;
+   await route.fulfill({status:201,contentType:'application/json',body:JSON.stringify({
+    id:clearDecisionId,action:'CLEAR_DESIGN_CHAIN',candidate_id:null,reason:clearReason,
+    graph_sha256:graphSha,decision_sha256:clearDecisionSha,candidate_snapshot:null,
+    conflict_snapshot:[{candidateA:'support-chain',candidateB:'source-reference-chain',deltaMeters:.4676,toleranceMeters:.15}],
+    occurred_at:'2026-09-30T08:06:00.000Z',reviewState:'CONFLICT',
+    truthBoundary:'AUTHENTICATED_Z_REVIEW_SELECTS_A_DESIGN_PLACEMENT_CHAIN_ONLY_NOT_PHYSICAL_TRUTH_NOT_DIR_NOT_POVI'
+   })});
+   return;
+  }
+  reviewRequest=request;
+  await route.fulfill({status:201,contentType:'application/json',body:JSON.stringify({
+   id:decisionId,action:'ACCEPT_DESIGN_CHAIN',candidate_id:'support-chain',reason,
+   graph_sha256:graphSha,decision_sha256:decisionSha,
+   candidate_snapshot:{id:'support-chain',kind:'SUPPORT_SURFACE_PLUS_OFFSET',baseZ:30.6324,topZ:32.2324,confidence:.84,authority:'SUPPORT_SURFACE_PLUS_SOURCE_BASE_OFFSET',absolute:true},
+   conflict_snapshot:[{candidateA:'support-chain',candidateB:'source-reference-chain',deltaMeters:.4676,toleranceMeters:.15}],
+   occurred_at:'2026-09-30T08:05:00.000Z',
+   reviewState:'REVIEW_RESOLVED_CANDIDATE',
+   truthBoundary:'AUTHENTICATED_Z_REVIEW_SELECTS_A_DESIGN_PLACEMENT_CHAIN_ONLY_NOT_PHYSICAL_TRUTH_NOT_DIR_NOT_POVI'
+  })});
+ });
+ await page.addInitScript(({graph,projectId})=>{
+  localStorage.setItem('stratum_compiled_graph',JSON.stringify(graph));
+  localStorage.setItem('stratum_spatial_project_id',projectId);
+ },{graph,projectId});
  await page.goto('/spatial');
  await page.getByLabel('Imported object').selectOption('xfmr-z-review');
  await expect(page.getByText(/Z CONFLICT · AUTO-PLACEMENT BLOCKED/)).toBeVisible();
  await page.getByText('Z solution evidence').click();
+ await page.getByLabel('Review rationale').fill(reason);
  const supportCard=page.locator('.binding-panel').filter({hasText:'support-chain'}).first();
- await supportCard.getByRole('button',{name:'Use this design chain for review placement'}).click();
+ const choose=supportCard.getByRole('button',{name:'Use this design chain for review placement'});
+ await expect(choose).toBeEnabled();
+ await choose.click();
+ await expect(page.getByText(/Authenticated design Z review recorded/)).toBeVisible();
  await expect(page.getByText(/HUMAN REVIEW PLACEMENT · PHYSICAL Z UNVERIFIED/)).toBeVisible();
+ await expect(page.getByText(/30\.63 m human-reviewed design placement · review required/i)).toBeVisible();
+ expect(reviewRequest).toMatchObject({
+  projectId,compilationId,entityId:'xfmr-z-review',action:'ACCEPT_DESIGN_CHAIN',candidateId:'support-chain',reason
+ });
  await page.getByText('Placement & source confidence').click();
  const details=page.locator('.placement-details');
  await expect(details.getByText(/30\.632 m/)).toBeVisible();
  await expect(details.getByText(/HUMAN REVIEWED DESIGN CANDIDATE/)).toBeVisible();
  await expect(details.getByText(/Unverified/)).toBeVisible();
+ await expect(details.getByText(/Z review receipt/)).toBeVisible();
+ await expect(details.getByText(decisionId,{exact:true})).toBeVisible();
  await expect.poll(()=>page.evaluate(()=>{
   const g=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
   const entity=(g.entities||[]).find((item:any)=>item.id==='xfmr-z-review');
   return entity?.meta?{
    decision:entity.meta.zReviewDecisionStatus,
    candidate:entity.meta.zReviewDecisionCandidateId,
+   authority:entity.meta.zReviewDecisionAuthority,
+   receipt:entity.meta.zReviewDecisionId,
+   decisionSha:entity.meta.zReviewDecisionSha256,
+   reason:entity.meta.zReviewDecisionReason,
    physical:entity.meta.physicalElevationKnown,
    truth:entity.meta.physicalTruth,
    review:entity.meta.reviewRequired
   }:null;
- })).toEqual({decision:'ACCEPTED_DESIGN_CHAIN',candidate:'support-chain',physical:false,truth:false,review:true});
+ })).toEqual({
+  decision:'ACCEPTED_DESIGN_CHAIN',candidate:'support-chain',authority:'SERVER_AUTHENTICATED_HUMAN_REVIEW',
+  receipt:decisionId,decisionSha,reason,physical:false,truth:false,review:true
+ });
+
+ await page.getByLabel('Review rationale').fill(clearReason);
+ await page.getByRole('button',{name:'Clear Z review decision'}).click();
+ await expect(page.getByText(/Authenticated Z review clear event recorded/)).toBeVisible();
+ await expect(page.getByText(/Z CONFLICT · AUTO-PLACEMENT BLOCKED/)).toBeVisible();
+ expect(clearRequest).toMatchObject({
+  projectId,compilationId,entityId:'xfmr-z-review',action:'CLEAR_DESIGN_CHAIN',reason:clearReason
+ });
+ await expect.poll(()=>page.evaluate(()=>{
+  const g=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
+  const entity=(g.entities||[]).find((item:any)=>item.id==='xfmr-z-review');
+  return entity?.meta?{
+   hasDecision:Object.keys(entity.meta).some(key=>key.startsWith('zReviewDecision')),
+   physical:entity.meta.physicalElevationKnown,
+   truth:entity.meta.physicalTruth,
+   review:entity.meta.reviewRequired
+  }:null;
+ })).toEqual({hasDecision:false,physical:false,truth:false,review:true});
+});
+
+
+test('server hydration restores authenticated Z review onto an empty browser without claiming physical truth',async({page})=>{
+ const source='Synthetic Z Review Restore.pdf';
+ const projectId='55555555-5555-4555-8555-555555555555';
+ const compilationId='66666666-6666-4666-8666-666666666666';
+ const decisionId='77777777-7777-4777-8777-777777777777';
+ const graphSha='e'.repeat(64);
+ const decisionSha='f'.repeat(64);
+ const graph={
+  version:'z-review-restore-browser-1',createdAt:'2026-10-01T20:00:00.000Z',reviewState:'REVIEW_REQUIRED',
+  sources:[{name:source,ext:'pdf',sha256:'w'.repeat(64),discipline:'Electrical / Civil',floor:'UNRESOLVED',elevation:0}],
+  entities:[
+   {id:'xfmr-z-restore',source,layer:'L2',kind:'text-asset-candidate',name:'PAD MOUNT TRANSFORMER T3',x:0,y:0,z:0,floor:'UNRESOLVED',confidence:.93,
+    meta:{page:1,assetDimensionAuthority:'SOURCE_SPEC',assetDimensionsMeters:[1.7,1.6,1.25],
+      localReviewSurfaceZ:30.48,localReviewSurfaceKind:'GRADE',localReviewSurfaceAuthority:'SOURCE_ELEVATION_TRIANGLE',localReviewSurfaceConfidence:.84,
+      supportBaseOffsetMeters:.1524,supportOffsetKind:'PAD',supportOffsetAuthority:'TAG_LINKED_SOURCE_SUPPORT_NOTE',supportOffsetConfidence:.94,
+      supportOffsetEvidenceLabel:'XFMR T3 6" CONC PAD',
+      zResolutionStatus:'RESOLVED_DESIGN_CANDIDATE',zCandidateMeters:31.1,zCandidateReferencePoint:'BASE',zResolutionConfidence:.9,zResolutionAuthority:'SOURCE_BASE_ELEVATION',
+      physicalElevationKnown:false,elevationKnown:false,physicalTruth:false,reviewRequired:true}}
+  ],
+  links:[],stats:{L0:0,L1:0,L2:1,L3:0,L4:0}
+ };
+ await page.route('**/api/spatial/compilations**',async route=>{
+  const url=new URL(route.request().url());
+  if(url.searchParams.get('projectId')){
+   await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
+    schemaReady:true,projects:[{id:projectId,name:'Synthetic Project'}],
+    latest:{id:compilationId,revision:9,graph_sha256:graphSha,graph_json:graph}
+   })});
+  }else{
+   await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
+    schemaReady:true,projects:[{id:projectId,name:'Synthetic Project'}],restorableProjectId:projectId,latest:null
+   })});
+  }
+ });
+ await page.route('**/api/spatial/z-reviews?*',async route=>{
+  await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
+   schemaReady:true,truthBoundary:'Z_REVIEW_IS_DESIGN_PLACEMENT_REVIEW_NOT_PHYSICAL_TRUTH',
+   decisions:[{
+    id:decisionId,project_id:projectId,compilation_id:compilationId,entity_id:'xfmr-z-restore',
+    action:'ACCEPT_DESIGN_CHAIN',candidate_id:'support-chain',
+    reason:'Use the grade plus explicit transformer pad evidence for review placement.',
+    graph_sha256:graphSha,decision_sha256:decisionSha,occurred_at:'2026-10-01T20:05:00.000Z'
+   }]
+  })});
+ });
+ await page.goto('/spatial');
+ const select=page.getByLabel('Imported object');
+ await expect(select.locator('option').filter({hasText:'PAD MOUNT TRANSFORMER T3'})).toHaveCount(1);
+ await select.selectOption('xfmr-z-restore');
+ await expect(page.getByText(/HUMAN REVIEW PLACEMENT · PHYSICAL Z UNVERIFIED/)).toBeVisible();
+ await expect(page.getByText(/30\.63 m human-reviewed design placement · review required/i)).toBeVisible();
+ await page.getByText('Placement & source confidence').click();
+ const details=page.locator('.placement-details');
+ await expect(details.getByText(/30\.632 m/)).toBeVisible();
+ await expect(details.getByText(/HUMAN REVIEWED DESIGN CANDIDATE/)).toBeVisible();
+ await expect(details.getByText(/Unverified/)).toBeVisible();
+ await expect(details.getByText(/Z review receipt/)).toBeVisible();
+ await expect(details.getByText(decisionId,{exact:true})).toBeVisible();
+ await expect.poll(()=>page.evaluate(()=>{
+  const g=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
+  const entity=(g.entities||[]).find((item:any)=>item.id==='xfmr-z-restore');
+  return entity?.meta?{
+   decision:entity.meta.zReviewDecisionStatus,
+   candidate:entity.meta.zReviewDecisionCandidateId,
+   authority:entity.meta.zReviewDecisionAuthority,
+   receipt:entity.meta.zReviewDecisionId,
+   decisionSha:entity.meta.zReviewDecisionSha256,
+   compilation:entity.meta.zReviewDecisionCompilationId,
+   physical:entity.meta.physicalElevationKnown,
+   truth:entity.meta.physicalTruth,
+   review:entity.meta.reviewRequired
+  }:null;
+ })).toEqual({
+  decision:'ACCEPTED_DESIGN_CHAIN',candidate:'support-chain',authority:'SERVER_AUTHENTICATED_HUMAN_REVIEW',
+  receipt:decisionId,decisionSha,compilation:compilationId,physical:false,truth:false,review:true
+ });
+});
+
+
+test('existing browser removes superseded authenticated Z receipt after server clear',async({page})=>{
+ const source='Synthetic Stale Z Review.pdf';
+ const projectId='99999999-9999-4999-8999-999999999999';
+ const compilationId='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+ const acceptedDecisionId='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+ const clearDecisionId='cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+ const graphSha='1'.repeat(64);
+ const acceptedDecisionSha='2'.repeat(64);
+ const clearDecisionSha='3'.repeat(64);
+ const graph={
+  version:'z-review-stale-browser-1',createdAt:'2026-10-01T21:00:00.000Z',reviewState:'REVIEW_REQUIRED',
+  sources:[{name:source,ext:'pdf',sha256:'4'.repeat(64),discipline:'Electrical / Civil',floor:'UNRESOLVED',elevation:0}],
+  entities:[
+   {id:'xfmr-z-stale',source,layer:'L2',kind:'text-asset-candidate',name:'PAD MOUNT TRANSFORMER T4',x:0,y:0,z:0,floor:'UNRESOLVED',confidence:.93,
+    meta:{page:1,assetDimensionAuthority:'SOURCE_SPEC',assetDimensionsMeters:[1.7,1.6,1.25],
+      localReviewSurfaceZ:30.48,localReviewSurfaceKind:'GRADE',localReviewSurfaceAuthority:'SOURCE_ELEVATION_TRIANGLE',localReviewSurfaceConfidence:.84,
+      supportBaseOffsetMeters:.1524,supportOffsetKind:'PAD',supportOffsetAuthority:'TAG_LINKED_SOURCE_SUPPORT_NOTE',supportOffsetConfidence:.94,
+      supportOffsetEvidenceLabel:'XFMR T4 6" CONC PAD',
+      zResolutionStatus:'RESOLVED_DESIGN_CANDIDATE',zCandidateMeters:31.1,zCandidateReferencePoint:'BASE',zResolutionConfidence:.9,zResolutionAuthority:'SOURCE_BASE_ELEVATION',
+      zReviewDecisionStatus:'ACCEPTED_DESIGN_CHAIN',zReviewDecisionCandidateId:'support-chain',
+      zReviewDecisionAuthority:'SERVER_AUTHENTICATED_HUMAN_REVIEW',zReviewDecisionId:acceptedDecisionId,
+      zReviewDecisionCompilationId:compilationId,zReviewDecisionSha256:acceptedDecisionSha,zReviewDecisionGraphSha256:graphSha,
+      zReviewDecisionReason:'Use grade plus pad for design review.',zReviewDecisionPhysicalTruth:false,
+      physicalElevationKnown:false,elevationKnown:false,physicalTruth:false,reviewRequired:true}}
+  ],
+  links:[],stats:{L0:0,L1:0,L2:1,L3:0,L4:0}
+ };
+ await page.route('**/api/spatial/z-reviews?projectId=*',async route=>{
+  await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
+   schemaReady:true,truthBoundary:'Z_REVIEW_IS_DESIGN_PLACEMENT_REVIEW_NOT_PHYSICAL_TRUTH',
+   decisions:[{
+    id:clearDecisionId,project_id:projectId,compilation_id:compilationId,entity_id:'xfmr-z-stale',
+    action:'CLEAR_DESIGN_CHAIN',candidate_id:null,reason:'Clear stale design review.',
+    graph_sha256:graphSha,decision_sha256:clearDecisionSha,occurred_at:'2026-10-01T21:05:00.000Z'
+   }]
+  })});
+ });
+ await page.addInitScript(({graph,projectId})=>{
+  localStorage.setItem('stratum_compiled_graph',JSON.stringify(graph));
+  localStorage.setItem('stratum_spatial_project_id',projectId);
+ },{graph,projectId});
+ await page.goto('/spatial');
+ await expect.poll(()=>page.evaluate(()=>{
+  const g=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
+  const entity=(g.entities||[]).find((item:any)=>item.id==='xfmr-z-stale');
+  return entity?.meta?Object.keys(entity.meta).some((key:string)=>key.startsWith('zReviewDecision')):null;
+ })).toBe(false);
+ await page.getByLabel('Imported object').selectOption('xfmr-z-stale');
+ await expect(page.getByText(/Z CONFLICT · AUTO-PLACEMENT BLOCKED/)).toBeVisible();
+ await expect(page.getByText('Z CONFLICT · review required',{exact:true})).toBeVisible();
+ await expect.poll(()=>page.evaluate(()=>{
+  const g=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
+  const entity=(g.entities||[]).find((item:any)=>item.id==='xfmr-z-stale');
+  return entity?.meta?{
+   physical:entity.meta.physicalElevationKnown,
+   truth:entity.meta.physicalTruth,
+   review:entity.meta.reviewRequired
+  }:null;
+ })).toEqual({physical:false,truth:false,review:true});
 });

@@ -55,6 +55,21 @@ export type ZSolution={
 
 const finite=(value:unknown)=>{const n=Number(value);return Number.isFinite(n)?n:null};
 const confidence=(value:unknown,fallback=0)=>Math.max(0,Math.min(1,Number.isFinite(Number(value))?Number(value):fallback));
+const UUID_RE=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const SHA256_RE=/^[a-f0-9]{64}$/i;
+
+function hasAuthenticatedZReviewReceipt(meta:Record<string,unknown>){
+  return String(meta.zReviewDecisionAuthority||'')==='SERVER_AUTHENTICATED_HUMAN_REVIEW'
+    &&UUID_RE.test(String(meta.zReviewDecisionId||''))
+    &&UUID_RE.test(String(meta.zReviewDecisionCompilationId||''))
+    &&SHA256_RE.test(String(meta.zReviewDecisionSha256||''))
+    &&SHA256_RE.test(String(meta.zReviewDecisionGraphSha256||''))
+    &&meta.zReviewDecisionPhysicalTruth===false
+    &&meta.physicalTruth===false
+    &&meta.physicalElevationKnown===false
+    &&meta.elevationKnown===false
+    &&meta.reviewRequired===true;
+}
 
 const WITHOUT_SOURCE_REFERENCE=[
   'zCandidateMeters','zCandidateReferencePoint','zResolutionStatus','zResolutionConfidence','zResolutionAuthority','zResolutionEvidence',
@@ -191,7 +206,9 @@ export function buildZSolution(entity:PlacementEntity,options?:{toleranceMeters?
   const chosen=ranked.find(c=>c.baseZ!==null&&c.kind!=='UNRESOLVED')||null;
   const reviewDecision=String(meta.zReviewDecisionStatus||'');
   const reviewCandidateId=String(meta.zReviewDecisionCandidateId||'').trim();
-  const reviewedCandidate=reviewDecision==='ACCEPTED_DESIGN_CHAIN'
+  const hasMeasuredOrReviewedAbsolute=all.some(candidate=>candidate.kind==='REVIEWED_OR_MEASURED'&&candidate.absolute&&candidate.baseZ!==null);
+  const authenticatedReview=reviewDecision==='ACCEPTED_DESIGN_CHAIN'&&hasAuthenticatedZReviewReceipt(meta)&&!hasMeasuredOrReviewedAbsolute;
+  const reviewedCandidate=authenticatedReview
     ?all.find(candidate=>candidate.id===reviewCandidateId&&candidate.absolute&&candidate.baseZ!==null)||null
     :null;
 
@@ -199,7 +216,7 @@ export function buildZSolution(entity:PlacementEntity,options?:{toleranceMeters?
     return{
       status:'REVIEW_RESOLVED_CANDIDATE',chosenCandidateId:reviewedCandidate.id,baseZ:reviewedCandidate.baseZ,topZ:reviewedCandidate.topZ,confidence:reviewedCandidate.confidence,
       candidates:all,conflicts,toleranceMeters:tolerance,physicalTruth:false,reviewRequired:true,
-      explanation:`Human review selected ${reviewedCandidate.id.replaceAll('_',' ')} as the design placement chain after STRATUM detected conflicting absolute-Z evidence. The competing chains remain preserved for audit; this does not establish field-verified physical elevation.`
+      explanation:`Authenticated human review selected ${reviewedCandidate.id.replaceAll('_',' ')} as the design placement chain after STRATUM detected conflicting absolute-Z evidence. The competing chains remain preserved for audit; this does not establish field-verified physical elevation.`
     };
   }
 
