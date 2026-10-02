@@ -1,0 +1,94 @@
+[
+  {
+    "sourceSha256": "0b7135c56cdede04e9c641979db21367a8101b99b078d8d0abbc85d9ce146f60",
+    "glbSha256": "59d80fa7193469f5b2cd3f4d919f2d96fcd47c2f72a3773607609dd6d9679c46",
+    "faces": 16420,
+    "boundsMeters": [
+      0.020320000126957893,
+      0.012700000777840614,
+      0.0030700000934302807
+    ],
+    "glbBytes": 1183104,
+    "key": "adafruit-mcp9808-1782",
+    "sourcePath": "1782 MCP9808/1782 MCP9808.stl",
+    "stepBoundsMm": [
+      20.32,
+      12.700000000000001,
+      3.0700000000000003
+    ],
+    "valid": true,
+    "solids": 18,
+    "upstreamCommit": "c128bceb1f96b6ea8b68f250bda986ba85da24ea",
+    "sourceUrl": "https://github.com/adafruit/Adafruit_CAD_Parts/blob/c128bceb1f96b6ea8b68f250bda986ba85da24ea/1782%20MCP9808/1782%20MCP9808.stl",
+    "notes": "Manufacturer CAD is 20.32 \u00d7 12.70 \u00d7 3.07 mm including board components; product page rounds the footprint to 21 \u00d7 13 mm and lists 2 mm thickness. Preserve CAD envelope; do not interpret it as an installed clearance. Neutral material; silkscreen/textures are not reproduced. Reference geometry approval does not verify a physical installation."
+  },
+  {
+    "sourceSha256": "2513407c98328e280cd10c8553efba295e8d2623d1cc6126f5d204426a707acd",
+    "glbSha256": "e3e0bd0577a143e2abd1771fce745d97f102b6eefc8e1cf795de42276adf2365",
+    "faces": 10524,
+    "boundsMeters": [
+      0.01778000220656395,
+      0.02540000155568123,
+      0.004530000500380993
+    ],
+    "glbBytes": 758588,
+    "key": "adafruit-lis3dh-2809",
+    "sourcePath": "2809 LIS3DH/2809 LIS3DH.stl",
+    "stepBoundsMm": [
+      17.780000000000005,
+      25.400000000000002,
+      4.530000000000002
+    ],
+    "valid": true,
+    "solids": 25,
+    "upstreamCommit": "c128bceb1f96b6ea8b68f250bda986ba85da24ea",
+    "sourceUrl": "https://github.com/adafruit/Adafruit_CAD_Parts/blob/c128bceb1f96b6ea8b68f250bda986ba85da24ea/2809%20LIS3DH/2809%20LIS3DH.stl",
+    "notes": "STEMMA QT revision with connectors and four mounting holes. Board geometry only; excludes cable and loose pin headers. Neutral material; silkscreen/textures are not reproduced. Reference geometry approval does not verify a physical installation."
+  },
+  {
+    "sourceSha256": "82add48e5edaad36698205e7aa0dbc9e0675ca9e40fa4479ef5fdfd58effeb52",
+    "glbSha256": "1ba1797ca9a1bf30980c9eb020ee7ee830854fc1f37f38be7220f9dd4f5b4ed8",
+    "faces": 9228,
+    "boundsMeters": [
+      0.02540000155568123,
+      0.020320000126957893,
+      0.004530000500380993
+    ],
+    "glbBytes": 665276,
+    "key": "adafruit-ina219-904",
+    "sourcePath": "904 INA219 Stemma/904 INA219 Stemma.stl",
+    "stepBoundsMm": [
+      25.400000000000002,
+      20.32,
+      4.530000000000002
+    ],
+    "valid": true,
+    "solids": 20,
+    "upstreamCommit": "c128bceb1f96b6ea8b68f250bda986ba85da24ea",
+    "sourceUrl": "https://github.com/adafruit/Adafruit_CAD_Parts/blob/c128bceb1f96b6ea8b68f250bda986ba85da24ea/904%20INA219%20Stemma/904%20INA219%20Stemma.stl",
+    "notes": "Pinned STEMMA QT CAD board revision without the later pre-soldered terminal block. The catalog records a May 2024 terminal-block change; this model is the explicitly named bare-board configuration, not every shipped 904 assembly. Neutral material; silkscreen/textures are not reproduced. Reference geometry approval does not verify a physical installation."
+  },
+  {
+    "sourceSha256": "0fddb71df6f7b0177d918a08dbc9c3b5f71492aac90749d4b5cb454d16aa7a52",
+    "glbSha256": "eb5d2e48afcc9a7268623b399f5b742f12850d0c64537ba6a7a0ed82c504e5bb",
+    "faces": 3432,
+    "boundsMeters": [
+      0.0828000083565712,
+      0.028800001367926598,
+      0.09350000321865082
+    ],
+    "glbBytes": 247956,
+    "key": "adafruit-enclosure-2230",
+    "sourcePath": "2230 Extruded aluminum box 94mm/2230 Extruded aluminum box 94mm.step",
+    "stepBoundsMm": [
+      82.8,
+      28.8,
+      93.5
+    ],
+    "valid": true,
+    "solids": 3,
+    "upstreamCommit": "c128bceb1f96b6ea8b68f250bda986ba85da24ea",
+    "sourceUrl": "https://github.com/adafruit/Adafruit_CAD_Parts/blob/c128bceb1f96b6ea8b68f250bda986ba85da24ea/2230%20Extruded%20aluminum%20box%2094mm/2230%20Extruded%20aluminum%20box%2094mm.step",
+    "notes": "Enclosure body and two end plates. CAD envelope 82.8 \u00d7 28.8 \u00d7 93.5 mm in CAD XYZ axes; catalog nominal dimensions 94 \u00d7 83 \u00d7 30 mm. Screws not modeled. Not an IP/NEMA-rated electrical enclosure claim. Neutral material; silkscreen/textures are not reproduced. Reference geometry approval does not verify a physical installation."
+  }
+]

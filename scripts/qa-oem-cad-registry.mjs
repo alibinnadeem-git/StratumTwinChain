@@ -1,3 +1,10 @@
+import fs from 'node:fs';
+import {createHash} from 'node:crypto';
+import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js';
+import {Box3,Vector3} from 'three';
+import {resolveElectricalComponent} from '../lib/electrical-component-library.ts';
+import {DEFAULT_ELECTRICAL_MODEL_REGISTRY,normalizeElectricalModelRegistry} from '../lib/electrical-model-registry.ts';
+import {ACTIVATED_OEM_COMPONENTS} from '../lib/oem-activated-models.ts';
 import assert from 'node:assert/strict';
 import {OEM_CAD_CANDIDATES} from '../lib/oem-cad-candidates.ts';
 import {OEM_SOURCES} from '../lib/oem-source-catalog.ts';
@@ -64,3 +71,20 @@ assert.ok(abb.componentKeys.includes('mccb'),'ABB Tmax XT source must bind to MC
 assert.equal(OEM_CAD_CANDIDATES.some(item=>item.sourceId==='abb-tmax-xt'),false,'Family-level ABB selector must not create a fictitious exact SKU candidate');
 
 console.log(`OEM CAD registry contract passed: ${approved.length} approved exact model(s), ${pending.length} acquisition/review candidate(s), and no pending CAD lead is active geometry.`);
+
+// Parse the actual shipped assets with the same loader as the Spatial viewer.
+for(const item of approved){
+ const bytes=fs.readFileSync('public'+item.modelUrl);
+ assert.equal(createHash('sha256').update(bytes).digest('hex'),item.modelSha256);
+ const gltf=await new GLTFLoader().parseAsync(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength),'');
+ const size=new Box3().setFromObject(gltf.scene).getSize(new Vector3()).toArray();
+ for(let axis=0;axis<3;axis++)assert.ok(Math.abs(size[axis]-item.dimensionsMeters[axis])<0.00001,`${item.id}: meter-space bounds must match the registry`);
+ let vertices=0;gltf.scene.traverse(mesh=>{if(mesh.isMesh){vertices+=mesh.geometry.attributes.position.count;assert.ok(mesh.material);}});
+ assert.ok(vertices>30,`${item.id}: nonempty renderable geometry required`);
+}
+const restored=normalizeElectricalModelRegistry([]);
+for(const component of ACTIVATED_OEM_COMPONENTS){
+ assert.equal(resolveElectricalComponent(component.name)?.key,component.key,'Exact catalog name must win over generic sensor aliases');
+ assert.equal(restored.find(model=>model.componentKey===component.key)?.modelUrl,DEFAULT_ELECTRICAL_MODEL_REGISTRY.find(model=>model.componentKey===component.key)?.modelUrl,'Old browser registries must receive new model defaults');
+}
+console.log(`Loaded and measured ${approved.length} approved GLBs with Three.js; exact aliases and existing-browser hydration passed.`);
