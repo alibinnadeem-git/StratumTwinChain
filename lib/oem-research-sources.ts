@@ -1,6 +1,6 @@
 import type {OemSource} from './oem-source-catalog.ts';
 
-/** Official discovery sources checked on 2026-09-29; not imported geometry. */
+/** Official discovery sources; each record carries its own check date. Not imported geometry. */
 export const OEM_RESEARCH_SOURCES:OemSource[]=
 [
   {
@@ -768,5 +768,279 @@ export const OEM_RESEARCH_SOURCES:OemSource[]=
     ],
     "access": "Official download landing page names DCNLR100NB12, DCNLR100NB24 and DCNLR100NB48. Form-gated; no contact details submitted and no file acquired.",
     "checkedAt": "2026-09-29"
+  },
+  {
+    "id": "lovato-cad",
+    "manufacturer": "LOVATO Electric",
+    "families": [
+      "BF contactors",
+      "GA switch disconnectors",
+      "DMG power analyzers"
+    ],
+    "componentKeys": [
+      "contactor",
+      "disconnect",
+      "power-meter"
+    ],
+    "url": "https://www.lovatoelectric.com/gb_en/document-hub/library-for-cad-software/",
+    "evidence": "CAD_BIM_PORTAL",
+    "formats": [
+      "STEP",
+      "2D DWG"
+    ],
+    "fields": [
+      "exact product/configuration",
+      "document revision",
+      "dimensions and units",
+      "reuse terms",
+      "source file hash"
+    ],
+    "access": "Official CAD library and SKU-specific STEP links. Eight downloads inspected, seven distinct hashes. Family names and mismatched model headers require identity review; no geometry or redistribution approval.",
+    "checkedAt": "2026-10-02"
+  },
+  {
+    "id": "weidmuller-configurator",
+    "manufacturer": "Weidmüller",
+    "families": [
+      "Klippon terminal assemblies",
+      "control-cabinet connectivity"
+    ],
+    "componentKeys": [
+      "terminal-block"
+    ],
+    "url": "https://www.weidmuller.com/en/service/consulting_and_digital_engineering/weidmueller_configurator/weidmueller_configurator_wmc.jsp",
+    "evidence": "CAD_BIM_PORTAL",
+    "formats": [
+      "STEP",
+      "2D DXF",
+      "2D DWG"
+    ],
+    "fields": [
+      "exact product/configuration",
+      "document revision",
+      "dimensions and units",
+      "reuse terms",
+      "source file hash"
+    ],
+    "access": "Official WMC documentation specifies 3D STEP export. Select exact parts and accessories; software license and exported-model reuse terms must be checked separately.",
+    "checkedAt": "2026-10-02"
+  },
+  {
+    "id": "leviton-wiring-bim",
+    "manufacturer": "Leviton",
+    "families": [
+      "wiring devices",
+      "receptacles"
+    ],
+    "componentKeys": [
+      "duplex-receptacle",
+      "gfci",
+      "industrial-receptacle"
+    ],
+    "url": "https://leviton.com/support/resources/csi-specs---design-support/wiring-devices",
+    "evidence": "CAD_BIM_PORTAL",
+    "formats": [
+      "Revit",
+      "DWG",
+      "DWF"
+    ],
+    "fields": [
+      "exact product/configuration",
+      "document revision",
+      "dimensions and units",
+      "reuse terms",
+      "source file hash"
+    ],
+    "access": "Official design-support page routes to ARCAT BIM objects. Verify selected SKU, region, file contents and model terms; do not treat a 2D DWG as 3D geometry.",
+    "checkedAt": "2026-10-02"
+  },
+  {
+    "id": "puls-power-cad",
+    "manufacturer": "PULS",
+    "families": [
+      "CS5.241 DIN-rail power supply",
+      "QT40.242 DIN-rail power supply",
+      "SP960.481-S power supply"
+    ],
+    "componentKeys": [],
+    "url": "https://products.pulspower.com/chf/cs5-241.html",
+    "evidence": "CAD_BIM_PORTAL",
+    "formats": [
+      "STEP",
+      "3D DWF",
+      "2D DXF",
+      "2D DWG"
+    ],
+    "fields": [
+      "exact product/configuration",
+      "document revision",
+      "dimensions and units",
+      "reuse terms",
+      "source file hash"
+    ],
+    "access": "Manufacturer product pages advertise STEP mechanical models. Direct retrieval was blocked in this research environment; files not acquired. DC power-supply class mapping pending; do not map these to a UPS.",
+    "checkedAt": "2026-10-02",
+    "downloads": [
+      {
+        "label": "CS5.241 CAD downloads on product page",
+        "url": "https://products.pulspower.com/chf/cs5-241.html",
+        "format": "STEP / DWF listing"
+      },
+      {
+        "label": "QT40.242 CAD downloads on product page",
+        "url": "https://products.pulspower.com/chf/qt40-242.html",
+        "format": "STEP / DWF listing"
+      },
+      {
+        "label": "SP960.481-S CAD downloads on product page",
+        "url": "https://products.pulspower.com/fr/sp960-481-s.html",
+        "format": "STEP listing"
+      }
+    ]
+  },
+  {
+    "id": "acopian-power-cad",
+    "manufacturer": "Acopian",
+    "families": [
+      "power-supply case geometry",
+      "power-supply mounting hardware"
+    ],
+    "componentKeys": [],
+    "url": "https://www.acopian.com/autocad.aspx",
+    "evidence": "CAD_BIM_PORTAL",
+    "formats": [
+      "STEP",
+      "DWG"
+    ],
+    "fields": [
+      "exact product/configuration",
+      "document revision",
+      "dimensions and units",
+      "reuse terms",
+      "source file hash"
+    ],
+    "access": "Official library provides case-size STEP files. Case geometry is not an exact electrical SKU: reconcile output rating, options and mounting kit separately. File retrieval blocked in this environment; rights and contents unverified. Power-supply class pending.",
+    "checkedAt": "2026-10-02",
+    "downloads": [
+      {
+        "label": "EB-10 case STEP",
+        "url": "https://www.acopian.com/cad/Acopian-EB-10-Case.stp",
+        "format": "STEP"
+      },
+      {
+        "label": "EL-10 case STEP",
+        "url": "https://www.acopian.com/cad/Acopian-EL-10-Case.stp",
+        "format": "STEP"
+      },
+      {
+        "label": "1U13 case STEP",
+        "url": "https://www.acopian.com/cad/Acopian-1U13-Case.stp",
+        "format": "STEP"
+      }
+    ]
+  },
+  {
+    "id": "finder-cad",
+    "manufacturer": "Finder",
+    "families": [
+      "industrial relays",
+      "timers",
+      "relay interface modules",
+      "switch-mode power supplies"
+    ],
+    "componentKeys": [],
+    "url": "https://www.findernet.com/en/worldwide/news/finder-introduces-its-new-cad-model-catalogue-on-partcommunity/",
+    "evidence": "CAD_BIM_PORTAL",
+    "formats": [
+      "STEP",
+      "2D CAD",
+      "3D CAD"
+    ],
+    "fields": [
+      "exact product/configuration",
+      "document revision",
+      "dimensions and units",
+      "reuse terms",
+      "source file hash"
+    ],
+    "access": "Official announcement links the Finder PARTcommunity catalog and mentions STP files. Configure exact coil/contact variant. Relay and DC power-supply class mapping pending; availability does not establish reuse rights.",
+    "checkedAt": "2026-10-02"
+  },
+  {
+    "id": "hammond-h1-bim",
+    "manufacturer": "Hammond Manufacturing",
+    "families": [
+      "H1 server rack cabinets"
+    ],
+    "componentKeys": [
+      "data-cabinet"
+    ],
+    "url": "https://www.hammfg.com/dci/products/cabinet-systems/h1",
+    "evidence": "CAD_BIM_PORTAL",
+    "formats": [
+      "Revit/BIM ZIP package"
+    ],
+    "fields": [
+      "exact product/configuration",
+      "document revision",
+      "dimensions and units",
+      "reuse terms",
+      "source file hash"
+    ],
+    "access": "Official H1 page links a BIM package and notes a rolling door-design change. Match cabinet dimensions and door revision. ZIP contents and license not inspected; do not assume the family package contains every accessory.",
+    "checkedAt": "2026-10-02",
+    "downloads": [
+      {
+        "label": "H1 manufacturer Revit/BIM package",
+        "url": "https://www.hammfg.com/files/products/h1/h1.zip?v=1697662073",
+        "format": "BIM ZIP package"
+      }
+    ]
+  },
+  {
+    "id": "pfannenberg-cooling-models",
+    "manufacturer": "Pfannenberg",
+    "families": [
+      "DTS enclosure cooling units"
+    ],
+    "componentKeys": [],
+    "url": "https://www.pfannenbergusa.com/thermal-management-downloads/cooling-units-datasheets-and-downloads/",
+    "evidence": "CAD_BIM_PORTAL",
+    "formats": [
+      "manufacturer model/drawing downloads; format pending"
+    ],
+    "fields": [
+      "exact product/configuration",
+      "document revision",
+      "dimensions and units",
+      "reuse terms",
+      "source file hash"
+    ],
+    "access": "Official downloads directory links DTS product records with model/drawing sections. DTS 3021 lists separate 115 V and 230 V order codes; exact file format and coverage remain unverified. Enclosure-cooling class mapping pending.",
+    "checkedAt": "2026-10-02"
+  },
+  {
+    "id": "proface-sp5000-cad",
+    "manufacturer": "Pro-face by Schneider Electric",
+    "families": [
+      "SP5000 PFXZCDADEXR1 multi-display adapter"
+    ],
+    "componentKeys": [],
+    "url": "https://www.proface.com/en-us/node/23575",
+    "evidence": "CAD_BIM_PORTAL",
+    "formats": [
+      "STEP in EXE package",
+      "IGES in EXE package",
+      "2D DXF in EXE package"
+    ],
+    "fields": [
+      "exact product/configuration",
+      "document revision",
+      "dimensions and units",
+      "reuse terms",
+      "source file hash"
+    ],
+    "access": "Official download page identifies PFXZCDADEXR1 and simplified design geometry. Downloads are EXE packages with terms of use; none downloaded or executed. HMI/display-adapter class mapping and redistribution rights pending.",
+    "checkedAt": "2026-10-02"
   }
 ];
