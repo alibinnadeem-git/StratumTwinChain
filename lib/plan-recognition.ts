@@ -205,7 +205,7 @@ export function resolvePlanFrameAtPoint(frames:PlanFrameEvidence[],x:number,y:nu
 export function resolveDrawingPageRecognition(labels:string[],vectorOperatorCount=0):{sld:SldPageEvidence;plan:NonSldPlanEvidence}{
  const plan=detectNonSldPlanPage(labels,vectorOperatorCount),detectedSld=detectSldPage(labels,vectorOperatorCount),explicitSldTitle=detectedSld.reasons.includes('explicit SLD/riser/one-line title');
  const excludedSheet=plan.reasons.some(reason=>reason.includes('excluded from plan-frame recognition'));
- const suppressHeuristicSld=(plan.isPlan||excludedSheet)&&!explicitSldTitle;
+ const suppressHeuristicSld=excludedSheet||(plan.isPlan&&!explicitSldTitle);
  const sld=suppressHeuristicSld?{...detectedSld,isSld:false,reasons:[...detectedSld.reasons,plan.isPlan?'suppressed by explicit non-SLD plan title/content':'suppressed by excluded cover/index sheet classification']}:detectedSld;
  return{sld,plan:sld.isSld?{isPlan:false,planType:null,discipline:null,score:0,titleEvidence:[],reasons:[]}:plan};
 }
