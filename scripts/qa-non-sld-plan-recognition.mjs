@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {detectNonSldPlanPage,resolveDrawingPageRecognition} from '../lib/plan-recognition.ts';
+import {detectNonSldPlanPage,detectPlanFrames,resolveDrawingPageRecognition} from '../lib/plan-recognition.ts';
 
 const cases=[
  ['ELECTRICAL POWER PLAN','ELECTRICAL_POWER_PLAN','Electrical'],
@@ -38,9 +38,15 @@ const electricalFloor=detectNonSldPlanPage(['FIRST FLOOR PLAN','E - 4','ELEC. PA
 assert.equal(electricalFloor.planType,'ELECTRICAL_POWER_PLAN','generic floor title on an E-sheet with multiple electrical cues must resolve as electrical power plan');
 assert.equal(electricalFloor.discipline,'Electrical');
 
-const electricalUnit=detectNonSldPlanPage(['UNIT PLANS','E - 7','ELEC. PANEL','SDCO 12','Plan "A" Unit#106'],220);
+const electricalUnit=detectNonSldPlanPage(['UNIT PLANS','E - 7','ELEC.','PANEL','ELEC.','PANEL','Plan "A"','Unit#106'],220);
 assert.equal(electricalUnit.planType,'UNIT_PLAN');
-assert.equal(electricalUnit.discipline,'Electrical','electrical unit-plan sheets must preserve unit viewport semantics without losing source discipline');
+assert.equal(electricalUnit.discipline,'Electrical','electrical unit-plan sheets must preserve unit viewport semantics when ELEC./PANEL are separate PDF text objects');
+const splitUnitFrames=detectPlanFrames([
+ {text:'Plan "A"',x:1,y:1},{text:'Unit#106',x:1.12,y:1.01},
+ {text:'Plan "B"',x:4,y:4},{text:'Unit#109',x:4.11,y:4.02}
+],electricalUnit);
+assert.deepEqual(new Set(splitUnitFrames.map(frame=>frame.unitId)),new Set(['106','109']),'split plan/unit text objects must reconstruct unit-plan viewports');
+assert.ok(splitUnitFrames.every(frame=>frame.evidence.includes('SPLIT_UNIT_PLAN_LABEL')&&frame.reviewRequired===true&&frame.physicalTruth===false));
 
 const generic=detectNonSldPlanPage(['PLAN VIEW','GRID A','DIMENSIONS'],120);
 assert.equal(generic.isPlan,true);
@@ -52,6 +58,11 @@ const revisionOnly=detectNonSldPlanPage(['REV-H UPDATED ANCHOR PLAN AND XCELERAT
 assert.equal(revisionOnly.isPlan,false,'revision references to an anchor plan must not turn unrelated sheets into floor-anchor plan frames');
 const detailPlanView=detectNonSldPlanPage(['FOUNDATION DETAILS','PLAN VIEW','SECTION 3','TYPICAL FOOTING'],220);
 assert.equal(detailPlanView.isPlan,false,'a plan-view detail inside a details sheet must not be promoted to a whole drawing plan frame');
+const electricalSheetIndexLabels=['ELECTRICAL SHEET INDEX','NOTES & SYMBOLS','ELECTRIC SERVICE & ONE-LINE DIAGRAM','SITE PLAN','1ST FLOOR','2ND & 3RD FLOOR PLANS','4TH FLOOR & ROOF PLANS','UNIT PLANS','E - 1'];
+const electricalSheetIndex=resolveDrawingPageRecognition(electricalSheetIndexLabels,260);
+assert.equal(electricalSheetIndex.plan.isPlan,false,'discipline-prefixed sheet indexes must not become one of the plans they list');
+assert.equal(electricalSheetIndex.sld.isSld,false,'discipline-prefixed electrical sheet indexes must also suppress heuristic SLD promotion');
+
 const drawingIndexLabels=['COVER SHEET','Drawing Title:','Shop Layout','General Layout 1','Pit Layout','Utility Plan','Fire Suppression','Floor Anchor Plan','UTILITY SERVICE','TRANSFORMER T1','MAIN SWITCHBOARD MSB'];
 const drawingIndex=detectNonSldPlanPage(drawingIndexLabels,260);
 assert.equal(drawingIndex.isPlan,false,'a drawing index listing many plan names must remain a cover/index page, not become one of the listed plans');
