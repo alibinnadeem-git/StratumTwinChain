@@ -94,10 +94,8 @@ export function detectNonSldPlanPage(labels:string[],vectorOperatorCount=0):NonS
  if(best){
   const electricalSheet=text.some(value=>/^E\s*[-.]?\s*\d+(?:\.\d+)?\b/i.test(value)||/\bELECTRICAL\b/i.test(value));
   const electricalCuePattern=/\b(?:ELEC\.?\s*PANEL|RECEPTACLE|CIRCUIT|DISCONNECT|MAIN\s+SWITCHBOARD|SWITCHBOARD|HP\d+(?:-\d+)?|MS\d+|SDCO|F\.?A\.?P\.?)\b/i;
-  const electricalContent=[...new Set([
-   ...text.filter(value=>electricalCuePattern.test(value)),
-   ...text.slice(0,-1).map((value,index)=>`${value} ${text[index+1]}`).filter(value=>electricalCuePattern.test(value))
-  ])].length;
+  const electricalContent=text.filter(value=>electricalCuePattern.test(value)).length+
+   text.slice(0,-1).map((value,index)=>`${value} ${text[index+1]}`).filter(value=>electricalCuePattern.test(value)).length;
   const electricalFloorPlan=best.rule.type==='ARCHITECTURAL_FLOOR_PLAN'&&vectorOperatorCount>=20&&electricalSheet&&electricalContent>=2;
   const unitPlanElectrical=best.rule.type==='UNIT_PLAN'&&electricalSheet&&electricalContent>=2;
   const resolvedRule=electricalFloorPlan?{...best.rule,type:'ELECTRICAL_POWER_PLAN' as const,discipline:'Electrical',score:10}:best.rule;
