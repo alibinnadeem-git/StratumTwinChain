@@ -74,7 +74,7 @@ const titleLike=(value:string)=>value.length<=140&&!referenceLead.test(value)&&!
 
 export function detectNonSldPlanPage(labels:string[],vectorOperatorCount=0):NonSldPlanEvidence{
  const text=labels.map(value=>String(value||'').replace(/\s+/g,' ').trim()).filter(Boolean);
- const coverOrIndexPage=text.some(value=>/^(?:COVER\s+SHEET|DRAWING\s+INDEX|SHEET\s+INDEX)$/i.test(value));
+ const coverOrIndexPage=text.some(value=>/^(?:COVER\s+SHEET|(?:[A-Z][A-Z &\/.-]{0,40}\s+)?(?:DRAWING|SHEET)\s+INDEX)$/i.test(value));
  if(coverOrIndexPage)return{isPlan:false,planType:null,discipline:null,score:0,titleEvidence:[],reasons:['cover/index page excluded from plan-frame recognition']};
  let best:{rule:Rule;matches:string[]}|null=null;
  for(const rule of RULES){
@@ -93,7 +93,11 @@ export function detectNonSldPlanPage(labels:string[],vectorOperatorCount=0):NonS
  const reasons:string[]=[];
  if(best){
   const electricalSheet=text.some(value=>/^E\s*[-.]?\s*\d+(?:\.\d+)?\b/i.test(value)||/\bELECTRICAL\b/i.test(value));
-  const electricalContent=text.filter(value=>/\b(?:ELEC\.?\s*PANEL|RECEPTACLE|CIRCUIT|DISCONNECT|MAIN\s+SWITCHBOARD|SWITCHBOARD|HP\d+(?:-\d+)?|MS\d+|SDCO|F\.?A\.?P\.?)\b/i.test(value)).length;
+  const electricalCuePattern=/\b(?:ELEC\.?\s*PANEL|RECEPTACLE|CIRCUIT|DISCONNECT|MAIN\s+SWITCHBOARD|SWITCHBOARD|HP\d+(?:-\d+)?|MS\d+|SDCO|F\.?A\.?P\.?)\b/i;
+  const electricalContent=[...new Set([
+   ...text.filter(value=>electricalCuePattern.test(value)),
+   ...text.slice(0,-1).map((value,index)=>`${value} ${text[index+1]}`).filter(value=>electricalCuePattern.test(value))
+  ])].length;
   const electricalFloorPlan=best.rule.type==='ARCHITECTURAL_FLOOR_PLAN'&&vectorOperatorCount>=20&&electricalSheet&&electricalContent>=2;
   const unitPlanElectrical=best.rule.type==='UNIT_PLAN'&&electricalSheet&&electricalContent>=2;
   const resolvedRule=electricalFloorPlan?{...best.rule,type:'ELECTRICAL_POWER_PLAN' as const,discipline:'Electrical',score:10}:best.rule;
@@ -165,12 +169,25 @@ function explicitPlanFrameCandidate(item:PositionedPlanLabel,pagePlan?:NonSldPla
 /** Detect distinct plan viewports on one physical PDF sheet without inventing geometry extents. */
 export function detectPlanFrames(items:PositionedPlanLabel[],pagePlan?:NonSldPlanEvidence|null):PlanFrameEvidence[]{
  const chosen=new Map<string,PlanFrameEvidence>();
- for(const item of items){
-  const candidate=explicitPlanFrameCandidate(item,pagePlan);
-  if(!candidate)continue;
+ const retain=(candidate:PlanFrameEvidence)=>{
   const key=candidate.unitId?`UNIT:${candidate.unitId}:${candidate.unitPlan||''}`:`${candidate.floor||'UNRESOLVED'}:${candidate.planType}`;
   const existing=chosen.get(key);
   if(!existing||candidate.confidence>existing.confidence)chosen.set(key,candidate);
+ };
+ for(const item of items){
+  const candidate=explicitPlanFrameCandidate(item,pagePlan);
+  if(candidate)retain(candidate);
+ }
+ if(pagePlan?.isPlan&&pagePlan.planType==='UNIT_PLAN'){
+  const planTokens=items.map(item=>({item,match:String(item.text||'').replace(/\s+/g,' ').trim().match(/^PLAN\s*["'“”]?\s*([A-Z](?:\s+ALT)?)\s*["'“”]?$/i)})).filter(entry=>entry.match);
+  const unitTokens=items.map(item=>({item,match:String(item.text||'').replace(/\s+/g,' ').trim().match(/^UNIT\s*#?\s*(\d+)$/i)})).filter(entry=>entry.match);
+  for(const plan of planTokens){
+   const nearest=unitTokens.map(unit=>({unit,distance:Math.hypot(plan.item.x-unit.item.x,plan.item.y-unit.item.y)})).filter(entry=>entry.distance<=.75).sort((a,b)=>a.distance-b.distance)[0];
+   if(!nearest)continue;
+   const unitPlan=String(plan.match?.[1]||'').toUpperCase().replace(/\s+/g,' '),unitId=String(nearest.unit.match?.[1]||'');
+   if(!unitPlan||!unitId)continue;
+   retain({id:`frame-unit-${unitId.toLowerCase()}`,title:`Plan "${unitPlan}" Unit#${unitId}`,planType:'UNIT_PLAN',discipline:pagePlan.discipline||'Multi-discipline / Unit',floor:null,unitId,unitPlan,anchorX:(plan.item.x+nearest.unit.item.x)/2,anchorY:(plan.item.y+nearest.unit.item.y)/2,confidence:.9,evidence:[String(plan.item.text),String(nearest.unit.item.text),'SPLIT_UNIT_PLAN_LABEL'],reviewRequired:true,physicalTruth:false});
+  }
  }
  return [...chosen.values()].sort((a,b)=>a.anchorY-b.anchorY||a.anchorX-b.anchorX);
 }
