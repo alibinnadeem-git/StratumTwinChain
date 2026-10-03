@@ -13,6 +13,18 @@ const keyOf=(item:StoredSheetIdentity)=>`${item.sourceSha256}:${item.page}`;
 function readStored():StoredSheetIdentity[]{
   try{const parsed=JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]');return Array.isArray(parsed)?parsed:[]}catch{return[]}
 }
+
+async function readScopedStored(extraSourceShas:string[]=[]){
+  try{
+    const graph=await readPrimarySpatialGraph();
+    const shas=new Set<string>(extraSourceShas.filter(Boolean));
+    for(const source of Array.isArray(graph?.sources)?graph.sources:[]){
+      if(source&&typeof source==='object'&&'sha256' in source&&typeof source.sha256==='string')shas.add(source.sha256);
+    }
+    if(!shas.size)return[];
+    return readStored().filter(item=>shas.has(item.sourceSha256));
+  }catch{return[]}
+}
 async function writeStored(next:StoredSheetIdentity[]){
   localStorage.setItem(STORAGE_KEY,JSON.stringify(next));
   try{
@@ -58,7 +70,13 @@ export default function TitleBlockIntelligence(){
   const [busy,setBusy]=useState(false);
   const [message,setMessage]=useState('');
 
-  useEffect(()=>{setItems(readStored());},[]);
+  useEffect(()=>{
+    let active=true;
+    const load=async()=>{const scoped=await readScopedStored();if(active)setItems(scoped)};
+    const refresh=()=>{void load()};void load();
+    window.addEventListener('stratum:graph-updated',refresh);
+    return()=>{active=false;window.removeEventListener('stratum:graph-updated',refresh)};
+  },[]);
   const confirmed=useMemo(()=>items.filter(item=>item.reviewState==='CONFIRMED').length,[items]);
 
   async function process(files:File[]){
@@ -66,9 +84,11 @@ export default function TitleBlockIntelligence(){
     if(!pdfs.length||busy)return;
     setBusy(true);
     try{
-      let next=readStored();
+      let next=await readScopedStored();
       for(const file of pdfs){
         const candidates=await inspectPdf(file,setMessage);
+        const candidateShas=[...new Set(candidates.map(item=>item.sourceSha256))];
+        next=await readScopedStored(candidateShas);
         const existing=new Map(next.map(item=>[keyOf(item),item]));
         for(const candidate of candidates){
           const prior=existing.get(keyOf(candidate));
@@ -97,7 +117,7 @@ export default function TitleBlockIntelligence(){
     setMessage(confirmedState?'Sheet identity confirmed for review. Automatic alignment and geometry scale remain disabled until separate validation/calibration steps.':'Sheet identity returned to candidate review state.');
   }
 
-  async function clear(){setItems([]);await writeStored([]);setMessage('Title-block review candidates cleared from this browser workspace. No source files or server records were deleted.');}
+  async function clear(){setItems([]);await writeStored([]);setMessage('Title-block review candidates for the active source set were cleared from this browser workspace. No source files or server records were deleted.');}
 
   return <section className="card" style={{marginTop:16}}>
     <div className="section-head"><div><div className="eyebrow">Title-block intelligence · Human reviewed</div><h2>Resolve sheet identity before multi-sheet alignment</h2><p className="muted">PDF text and position are used to propose sheet number, title, revision, issue date, discipline, floor/level and drawing scale. Every result remains a candidate until explicitly confirmed. Page dimensions are retained only so alignment review can sanity-check normalized coordinate scale. A parsed scale is reference metadata only: confirmation never establishes geometry scale, alignment, Verified state, DIR finality or physical truth.</p></div><span className="pending">{confirmed}/{items.length} CONFIRMED</span></div>
