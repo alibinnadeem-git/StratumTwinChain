@@ -39,7 +39,7 @@ export default async function Shell({children}:{children:ReactNode}){
     <div className="network-pill"><i/>{session?'Tenant session':'Reference mode'}</div>
    </div>
    <nav className="nav" aria-label="Primary navigation">
-    <div className="primary-task-nav"><small>Work</small>{primaryTasks.map(([href,label])=><Link href={href} key={href}>{label}</Link>)}</div>
+    <div className="primary-task-nav"><small>Work</small>{primaryTasks.map(([href,label])=><Link href={href} key={href}>{label}</Link>)}{!session&&<Link href="/login">Sign in</Link>}</div>
     <details className="nav-more">
      <summary>More tools</summary>
      <div className="nav-more-body">{moreGroups.map(group=><div className="nav-group" key={group.label}><small>{group.label}</small>{group.links.map(([href,label])=><Link href={href} key={`${group.label}-${href}`}>{label}</Link>)}</div>)}</div>
