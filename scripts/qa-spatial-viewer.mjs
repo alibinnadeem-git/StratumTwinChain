@@ -159,6 +159,7 @@ const projectionSource=fs.readFileSync('lib/spatial-projection.ts','utf8');
 const placementSource=fs.readFileSync('lib/asset-placement.ts','utf8');
 const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
 const spatialExperience=fs.readFileSync('components/SpatialExperience.tsx','utf8');
+const spatialUiCounts=fs.readFileSync('lib/spatial-ui-counts.ts','utf8');
 const spatialPage=fs.readFileSync('app/spatial/page.tsx','utf8');
 assert.match(viewer,/normalizeObjectToMeters/);assert.match(viewer,/fitProceduralObjectToMeters/);
 assert.doesNotMatch(viewer,/root\.scale\.setScalar\(cfg\.scale\s*\*\s*n\(e\.scale,1\)\)/,'registry GLBs must not use arbitrary display scalar as physical size');
@@ -174,7 +175,8 @@ assert.match(spatialPage,/MODEL · LIVE ASSETS/);assert.match(spatialPage,/MODEL
 assert.doesNotMatch(spatialPage,/<CompiledGraphViewer|<TwinWorkspace/,'the route must not stack two viewers');
 assert.match(spatialExperience,/state\.hasImportedModel/);
 assert.match(spatialExperience,/PROJECT MODEL/);
-assert.match(spatialExperience,/referenceOnly!==true/,'reference-only 3D models must not satisfy the project-component gate');
+assert.match(spatialExperience,/isIdentifiedProjectEquipment/,'Spatial Experience must use the shared project-equipment gate');
+assert.match(spatialUiCounts,/referenceOnly!==true/,'reference-only 3D models must not satisfy the shared project-component gate');
 assert.match(spatialExperience,/sourceSheetOnly/);
 assert.doesNotMatch(spatialExperience,/TwinWorkspace|DEMONSTRATION DATA|Demonstration model/);
 assert.match(spatialExperience,/STRATUM will not show a demonstration building/);
