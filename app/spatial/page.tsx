@@ -7,6 +7,7 @@ import SpatialServerHydrator from '@/components/SpatialServerHydrator';
 import PowerIntelligencePanel from '@/components/PowerIntelligencePanel';
 import CoordinationFindingsPanel from '@/components/CoordinationFindingsPanel';
 import TrustBadge from '@/components/TrustBadge';
+import ZResolutionReview from '@/components/ZResolutionReview';
 import {type RegisteredSpatialAsset} from '@/lib/spatial-asset-link';
 import {liveAssets} from '@/lib/server/live-views';
 import {readSession} from '@/lib/server/auth';
@@ -51,6 +52,7 @@ export default async function SpatialPage(){
   <details className="secondary-details card">
    <summary>Review & trust details</summary>
    <SpatialReviewQueue/>
+   <ZResolutionReview/>
    <div className="section-head" style={{marginTop:14}}><div><div className="eyebrow">Trust boundary</div><h3>Keep model, asset state and DIR finality distinct</h3></div><div className="trust-row"><TrustBadge state={session?(backendOnline?'LIVE':'STALE'):'UNVERIFIED'}/><TrustBadge state={assets.some(a=>a.ledger_block_height)?'POVI_VERIFIED':'UNVERIFIED'}/></div></div>
    <p className="muted">Imported geometry can remain usable while live asset data is unavailable. STRATUM never substitutes reference assets for your project and never treats visualization or cryptographic finality as physical truth.</p>
   </details>
