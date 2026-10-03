@@ -515,11 +515,11 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       <div className="button-row"><Link className="ghost" href="/compiler">Edit sources</Link><Link className="ghost" href="/component-library">3D models</Link></div>
     </div>
 
-    {staleDrawingSources.length>0&&<div className="notice" role="alert" style={{margin:"12px 14px"}}>
-      <strong>DRAWING REPROCESS REQUIRED</strong>
-      <span>{staleDrawingSources.length} drawing source{staleDrawingSources.length===1?' was':'s were'} compiled without the current retained-basemap/non-SLD plan pipeline: {staleDrawingSources.slice(0,3).map(item=>item.source.name).join(' · ')}{staleDrawingSources.length>3?` · +${staleDrawingSources.length-3} more`:''}. Existing extracted objects are preserved, but the original source file must be re-imported to rebuild the missing drawing frame.</span>
-      <Link className="action" href="/compiler">Reprocess drawing source</Link>
-    </div>}
+    {staleDrawingSources.length>0&&<details className="secondary-details" style={{margin:"12px 14px"}}>
+      <summary>Legacy drawing frame · {staleDrawingSources.length} source{staleDrawingSources.length===1?'':'s'} can be refreshed</summary>
+      <p className="muted">This browser model predates the current retained-basemap/non-SLD pipeline. Existing extracted objects remain inspectable; refresh the retained source when available to rebuild the drawing frame with current semantics. This is a migration task, not a failed parse.</p>
+      <div className="button-row"><Link className="ghost" href="/import">Refresh drawing source</Link></div>
+    </details>}
 
     <div className="spatial-mode-tabs" role="group" aria-label="Spatial view mode">
       <button type="button" className={mode==="MODEL"?"action":"ghost"} aria-pressed={mode==="MODEL"} onMouseDown={event=>event.preventDefault()} onClick={()=>setMode("MODEL")}><b>Model</b><small>Rooms and source placement</small></button>
