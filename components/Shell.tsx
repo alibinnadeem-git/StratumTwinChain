@@ -4,9 +4,9 @@ import {readSession} from '@/lib/server/auth';
 
 const primaryTasks=[
  ['/','Home'],
- ['/import','Import'],
+ ['/compiler','Import'],
  ['/spatial','Spatial'],
- ['/field','Field'],
+ ['/scan','Field'],
  ['/dir','DIR']
 ] as const;
 
