@@ -18,6 +18,7 @@ const cases=[
  ['MECHANICAL FLOOR PLAN','MECHANICAL_PLAN','Mechanical'],
  ['PLUMBING PLAN','PLUMBING_PLAN','Plumbing'],
  ['REFLECTED CEILING PLAN','REFLECTED_CEILING_PLAN','Architectural'],
+ ['UNIT PLANS','UNIT_PLAN','Multi-discipline / Unit'],
  ['GENERAL LAYOUT','GENERAL_LAYOUT_PLAN','General / Equipment'],
  ['SHOP LAYOUT','SHOP_LAYOUT_PLAN','Equipment'],
  ['PIT LAYOUT','PIT_LAYOUT_PLAN','Equipment / Structural'],
@@ -32,6 +33,14 @@ for(const [title,type,discipline] of cases){
  assert.equal(result.planType,type,title);
  assert.equal(result.discipline,discipline,title);
 }
+
+const electricalFloor=detectNonSldPlanPage(['FIRST FLOOR PLAN','E - 4','ELEC. PANEL','HP1-12,14'],220);
+assert.equal(electricalFloor.planType,'ELECTRICAL_POWER_PLAN','generic floor title on an E-sheet with multiple electrical cues must resolve as electrical power plan');
+assert.equal(electricalFloor.discipline,'Electrical');
+
+const electricalUnit=detectNonSldPlanPage(['UNIT PLANS','E - 7','ELEC. PANEL','SDCO 12','Plan "A" Unit#106'],220);
+assert.equal(electricalUnit.planType,'UNIT_PLAN');
+assert.equal(electricalUnit.discipline,'Electrical','electrical unit-plan sheets must preserve unit viewport semantics without losing source discipline');
 
 const generic=detectNonSldPlanPage(['PLAN VIEW','GRID A','DIMENSIONS'],120);
 assert.equal(generic.isPlan,true);
@@ -60,7 +69,7 @@ const trueSld=resolveDrawingPageRecognition(['SINGLE LINE DIAGRAM','UTILITY SERV
 assert.equal(trueSld.sld.isSld,true,'explicit single-line title must remain SLD');
 assert.equal(trueSld.plan.isPlan,false,'SLD page must not also enter the non-SLD plan path');
 assert.match(compiler,/nonSldPlan:true/);
-assert.match(compiler,/planRecognition:'CONTENT_PLAN_V1'/);
+assert.match(compiler,/planRecognition:'CONTENT_PLAN_V2_FRAMES'/);
 assert.match(compiler,/PDF_RASTER_UNDERLAY/,'image-only PDF plan pages must retain a review-only raster underlay');
 assert.match(compiler,/pageCount>=4000\|\|sourcePlanSegments>=40000/,'large drawing sets must be bounded per page and globally');
 assert.match(compiler,/pageEvidence\.get\(segment\.page\)\?\.isSld\|\|!planEvidence\.get\(segment\.page\)\?\.isPlan/,'vector retention must be restricted to recognized non-SLD plan pages');
