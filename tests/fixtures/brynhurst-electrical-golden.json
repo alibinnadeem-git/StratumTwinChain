@@ -1,0 +1,381 @@
+{
+  "fixtureId": "SV-GOLDEN-ELECTRICAL-001",
+  "source": {
+    "fileName": "5749 Brynhurst - Electrical - Bid Set 2025.04.17 (1).pdf",
+    "sha256": "9ad7aea4dccfe584dd3837796d4b5ba04588aeea8e2b1a90cc547575d4c323ec",
+    "sizeBytes": 5472602,
+    "pageCount": 9,
+    "project": "4 STORY 53 UNIT APARTMENT BUILDING",
+    "address": "5749-5753 BRYNHURST AVE, LOS ANGELES, CA 90043",
+    "bidSetDate": "04/04/25"
+  },
+  "trustBoundary": {
+    "authoritativeXYZ": false,
+    "frameAnchors": "SOURCE_SHEET_TITLE_ANCHOR_ONLY",
+    "physicalTruth": false,
+    "reviewRequired": true,
+    "note": "This fixture validates source comprehension and source-sheet segmentation. It must not promote inferred floor stacking, mounting heights, or plan-frame anchors into verified physical XYZ."
+  },
+  "pages": [
+    {
+      "page": 1,
+      "vectorOps": 220,
+      "labels": [
+        "ELECTRICAL SHEET INDEX",
+        "NOTES & SYMBOLS",
+        "ELECTRIC SERVICE & ONE-LINE DIAGRAM",
+        "SITE PLAN",
+        "1ST FLOOR",
+        "2ND & 3RD FLOOR PLANS",
+        "4TH FLOOR & ROOF PLANS",
+        "UNIT PLANS",
+        "UNIT PLANS",
+        "UNIT PLANS",
+        "GENERAL NOTES",
+        "GENERAL SYMBOLS",
+        "ELECTRICAL ABBREVIATIONS",
+        "E - 1"
+      ],
+      "expected": {
+        "sld": false,
+        "isPlan": false
+      }
+    },
+    {
+      "page": 2,
+      "vectorOps": 800,
+      "labels": [
+        "MS - ONE LINE DIAGRAM",
+        "800A BUS 120/208V 3ɸ 4W",
+        "MS1",
+        "MS2",
+        "FAULT CURRENT=42,000A",
+        "ELEC SERVICE & ONE-LINE DIAGRAM"
+      ],
+      "expected": {
+        "sld": true,
+        "isPlan": false
+      }
+    },
+    {
+      "page": 3,
+      "vectorOps": 900,
+      "labels": [
+        "SITE PLAN",
+        "SCALE: 1/8\" = 1'-0\"",
+        "E - 3",
+        "52'-0\" to Fire Hydrant",
+        "123'-0\""
+      ],
+      "positioned": [
+        {
+          "text": "SITE PLAN SCALE: 1/8\" = 1'-0\"",
+          "x": -5.3206,
+          "y": -4.4283
+        }
+      ],
+      "expected": {
+        "sld": false,
+        "isPlan": true,
+        "planType": "SITE_PLAN",
+        "frameFloors": [
+          "SITE"
+        ]
+      }
+    },
+    {
+      "page": 4,
+      "vectorOps": 2200,
+      "labels": [
+        "FIRST FLOOR PLAN",
+        "SCALE: 1/8\" = 1'-0\"",
+        "E - 4",
+        "ELEC. PANEL",
+        "HP1-12,14",
+        "HP3-6,8"
+      ],
+      "positioned": [
+        {
+          "text": "FIRST FLOOR PLAN SCALE: 1/8\" = 1'-0\"",
+          "x": -1.5358,
+          "y": -3.8833
+        }
+      ],
+      "expected": {
+        "sld": false,
+        "isPlan": true,
+        "planType": "ELECTRICAL_POWER_PLAN",
+        "frameFloors": [
+          "L1"
+        ]
+      }
+    },
+    {
+      "page": 5,
+      "vectorOps": 2400,
+      "labels": [
+        "SECOND FLOOR PLAN",
+        "THIRD FLOOR PLAN",
+        "SCALE: 1/8\" = 1'-0\"",
+        "E - 5",
+        "ELEC. PANEL",
+        "HP2-10,12",
+        "HP2-23,25"
+      ],
+      "positioned": [
+        {
+          "text": "SECOND FLOOR PLAN SCALE: 1/8\" = 1'-0\"",
+          "x": 3.1185,
+          "y": -6.1888
+        },
+        {
+          "text": "THIRD FLOOR PLAN SCALE: 1/8\" = 1'-0\"",
+          "x": -5.6626,
+          "y": -0.0077
+        },
+        {
+          "text": "SECOND & THIRD FLOOR PLAN",
+          "x": 9.6803,
+          "y": -4.6435
+        }
+      ],
+      "expected": {
+        "sld": false,
+        "isPlan": true,
+        "planType": "ELECTRICAL_POWER_PLAN",
+        "pageFloor": "UNRESOLVED",
+        "frameFloors": [
+          "L2",
+          "L3"
+        ],
+        "pointChecks": [
+          {
+            "x": 3,
+            "y": -5.9,
+            "floor": "L2"
+          },
+          {
+            "x": -5.4,
+            "y": 0.1,
+            "floor": "L3"
+          }
+        ]
+      }
+    },
+    {
+      "page": 6,
+      "vectorOps": 2100,
+      "labels": [
+        "FOURTH FLOOR PLAN",
+        "ROOF PLAN",
+        "SCALE: 1/8\" = 1'-0\"",
+        "E - 6",
+        "ELEC. PANEL",
+        "HWH-9,11",
+        "HP2-26,28"
+      ],
+      "positioned": [
+        {
+          "text": "FOURTH FLOOR PLAN SCALE: 1/8\" = 1'-0\"",
+          "x": 2.9316,
+          "y": -6.1388
+        },
+        {
+          "text": "ROOF PLAN SCALE: 1/8\" = 1'-0\"",
+          "x": -4.9579,
+          "y": -0.4483
+        },
+        {
+          "text": "FOURTH FLOOR & ROOF PLANS",
+          "x": 9.437,
+          "y": -1.5366
+        }
+      ],
+      "expected": {
+        "sld": false,
+        "isPlan": true,
+        "planType": "ELECTRICAL_POWER_PLAN",
+        "pageFloor": "UNRESOLVED",
+        "frameFloors": [
+          "L4",
+          "ROOF"
+        ],
+        "pointChecks": [
+          {
+            "x": 2.8,
+            "y": -5.8,
+            "floor": "L4"
+          },
+          {
+            "x": -4.8,
+            "y": -0.3,
+            "floor": "ROOF"
+          }
+        ]
+      }
+    },
+    {
+      "page": 7,
+      "vectorOps": 1200,
+      "labels": [
+        "UNIT PLANS",
+        "E - 7",
+        "ELEC.",
+        "PANEL",
+        "ELEC.",
+        "PANEL",
+        "Plan \"A\"",
+        "Unit#106",
+        "Plan \"B\"",
+        "Unit#109"
+      ],
+      "positioned": [
+        {
+          "text": "Plan \"A\"",
+          "x": -6.08,
+          "y": 3.32
+        },
+        {
+          "text": "Unit#106",
+          "x": -5.96,
+          "y": 3.32
+        },
+        {
+          "text": "Plan \"B\"",
+          "x": 2.22,
+          "y": 3.51
+        },
+        {
+          "text": "Unit#109",
+          "x": 2.34,
+          "y": 3.51
+        }
+      ],
+      "expected": {
+        "sld": false,
+        "isPlan": true,
+        "planType": "UNIT_PLAN",
+        "discipline": "Electrical",
+        "unitIds": [
+          "106",
+          "109"
+        ]
+      }
+    },
+    {
+      "page": 8,
+      "vectorOps": 1200,
+      "labels": [
+        "UNIT PLANS",
+        "E - 8",
+        "ELEC.",
+        "PANEL",
+        "ELEC.",
+        "PANEL",
+        "Plan \"C alt\"",
+        "Unit#201",
+        "Plan \"C\"",
+        "Unit#313"
+      ],
+      "positioned": [
+        {
+          "text": "Plan \"C alt\"",
+          "x": 3.06,
+          "y": 3.36
+        },
+        {
+          "text": "Unit#201",
+          "x": 3.18,
+          "y": 3.36
+        },
+        {
+          "text": "Plan \"C\"",
+          "x": -5.66,
+          "y": 2.63
+        },
+        {
+          "text": "Unit#313",
+          "x": -5.54,
+          "y": 2.63
+        }
+      ],
+      "expected": {
+        "sld": false,
+        "isPlan": true,
+        "planType": "UNIT_PLAN",
+        "discipline": "Electrical",
+        "unitIds": [
+          "201",
+          "313"
+        ]
+      }
+    },
+    {
+      "page": 9,
+      "vectorOps": 1200,
+      "labels": [
+        "UNIT PLANS",
+        "E - 9",
+        "ELEC.",
+        "PANEL",
+        "ELEC.",
+        "PANEL",
+        "ELEC.",
+        "PANEL",
+        "Plan \"E\"",
+        "Unit#105",
+        "Plan \"F\"",
+        "Unit#202",
+        "Plan \"D\"",
+        "Unit#214"
+      ],
+      "positioned": [
+        {
+          "text": "Plan \"E\"",
+          "x": -1.44,
+          "y": 3.26
+        },
+        {
+          "text": "Unit#105",
+          "x": -1.32,
+          "y": 3.26
+        },
+        {
+          "text": "Plan \"F\"",
+          "x": 4.69,
+          "y": 2.34
+        },
+        {
+          "text": "Unit#202",
+          "x": 4.81,
+          "y": 2.34
+        },
+        {
+          "text": "Plan \"D\"",
+          "x": -0.84,
+          "y": 1.91
+        },
+        {
+          "text": "Unit#214",
+          "x": -0.72,
+          "y": 1.91
+        }
+      ],
+      "expected": {
+        "sld": false,
+        "isPlan": true,
+        "planType": "UNIT_PLAN",
+        "discipline": "Electrical",
+        "unitIds": [
+          "105",
+          "202",
+          "214"
+        ]
+      }
+    }
+  ],
+  "exactFileHardening": {
+    "sourceExtraction": "PyMuPDF text extraction from the exact uploaded PDF matched source SHA-256 and revealed split ELEC./PANEL and Plan/Unit text objects plus an ELECTRICAL SHEET INDEX containing plan titles.",
+    "regressionPurpose": "Prevent index-page promotion, preserve electrical discipline when cues are split across adjacent text objects, and detect unit viewports when plan/unit labels are separate source objects."
+  }
+}

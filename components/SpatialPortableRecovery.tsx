@@ -81,7 +81,7 @@ export default function SpatialPortableRecovery(){
       <div><span>Current sources</span><strong>{summary.sources}</strong></div>
       <div><span>Current entities</span><strong>{summary.entities}</strong></div>
       <div><span>Current links</span><strong>{summary.links}</strong></div>
-      <div><span>Graph created</span><strong>{summary.createdAt?new Date(summary.createdAt).toLocaleString():'—'}</strong></div>
+      <div><span>Current revision saved</span><strong>{summary.createdAt?new Date(summary.createdAt).toLocaleString():'—'}</strong></div>
     </div>
     <div className="button-row" style={{marginTop:12}}>
       <button className="action" type="button" onClick={exportBundle} disabled={busy||!summary.entities}>Export recovery bundle</button>

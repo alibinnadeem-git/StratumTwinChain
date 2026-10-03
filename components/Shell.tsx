@@ -15,7 +15,7 @@ const moreGroups=[
  {label:'Engineering',links:[['/component-library','Component Library'],['/references','Standards & OEM'],['/reality','Reality Capture & Reconciliation'],['/simulation','Simulation']]},
  {label:'Operations',links:[['/workflows','Field Work & Commissioning'],['/maintenance','Maintenance'],['/predictive','Predictive Intelligence'],['/evidence','Evidence']]},
  {label:'Trust & handover',links:[['/handover','Digital Handover'],['/provenance','Provenance Explorer'],['/verify','Verify Record']]},
- {label:'Platform',links:[['/admin','Admin & RBAC'],['/release-readiness','Release readiness'],['/release-uat','Physical-device UAT']]}
+ {label:'Platform',links:[['/docs','Docs & glossary'],['/admin','Admin & RBAC'],['/release-readiness','Release readiness'],['/release-uat','Physical-device UAT']]}
 ] as const;
 
 function initials(email:string){
@@ -39,13 +39,13 @@ export default async function Shell({children}:{children:ReactNode}){
     <div className="network-pill"><i/>{session?'Tenant session':'Reference mode'}</div>
    </div>
    <nav className="nav" aria-label="Primary navigation">
-    <div className="primary-task-nav"><small>Work</small>{primaryTasks.map(([href,label])=><Link href={href} key={href}>{label}</Link>)}</div>
+    <div className="primary-task-nav"><small>Work</small>{primaryTasks.map(([href,label])=><Link href={href} key={href}>{label}</Link>)}{!session&&<Link href="/login">Sign in</Link>}</div>
     <details className="nav-more">
      <summary>More tools</summary>
      <div className="nav-more-body">{moreGroups.map(group=><div className="nav-group" key={group.label}><small>{group.label}</small>{group.links.map(([href,label])=><Link href={href} key={`${group.label}-${href}`}>{label}</Link>)}</div>)}</div>
     </details>
    </nav>
-   <div className="usercard"><div className="avatar" aria-hidden="true">{identity.avatar}</div><div><strong>{identity.primary}</strong><small>{identity.secondary}</small></div></div>
+   {session?<div className="usercard"><div className="avatar" aria-hidden="true">{identity.avatar}</div><div><strong>{identity.primary}</strong><small>{identity.secondary}</small></div></div>:<Link className="usercard" href="/login" aria-label="Sign in to STRATUM"><div className="avatar" aria-hidden="true">{identity.avatar}</div><div><strong>Sign in</strong><small>REFERENCE MODE</small></div></Link>}
   </aside>
   <main id="main-content" className="main" tabIndex={-1}>{children}</main>
  </div>
