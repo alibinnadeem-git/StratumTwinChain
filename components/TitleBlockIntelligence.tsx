@@ -88,7 +88,8 @@ export default function TitleBlockIntelligence(){
       for(const file of pdfs){
         const candidates=await inspectPdf(file,setMessage);
         const candidateShas=[...new Set(candidates.map(item=>item.sourceSha256))];
-        next=await readScopedStored(candidateShas);
+        const retainedShas=[...new Set([...next.map(item=>item.sourceSha256),...candidateShas])];
+        next=await readScopedStored(retainedShas);
         const existing=new Map(next.map(item=>[keyOf(item),item]));
         for(const candidate of candidates){
           const prior=existing.get(keyOf(candidate));
