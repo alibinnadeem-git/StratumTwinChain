@@ -17,12 +17,13 @@ type ExperienceState={
   lineCount:number;
   spatialRecordCount:number;
   equipmentCount:number;
+  handoffVerified:boolean|null;
 };
 
 async function inspectCompiledGraph():Promise<ExperienceState>{
   try{
     const saved=await readPrimarySpatialGraph();
-    if(!saved)return{ready:true,hasImportedModel:false,sourceCount:0,sourceSheetOnly:false,lineCount:0,spatialRecordCount:0,equipmentCount:0};
+    if(!saved)return{ready:true,hasImportedModel:false,sourceCount:0,sourceSheetOnly:false,lineCount:0,spatialRecordCount:0,equipmentCount:0,handoffVerified:null};
     const graph=stripLegacyAudiE4SourceReview(saved);
     if(graph!==saved)await replaceCurrentSpatialGraph(graph);
     const entities=(Array.isArray(graph?.entities)?graph.entities:[]) as {kind?:string;layer?:string;meta?:Record<string,unknown>}[];
@@ -30,16 +31,24 @@ async function inspectCompiledGraph():Promise<ExperienceState>{
     const projectComponents=entities.filter(isIdentifiedProjectEquipment);
     const sourceGeometry=entities.filter(isSourceGeometry);
     const counts=spatialUiCounts(entities);
+    let handoffVerified:boolean|null=null;
+    try{
+      const raw=sessionStorage.getItem('stratum_spatial_render_handoff');
+      if(raw){
+        const handoff=JSON.parse(raw);
+        handoffVerified=String(handoff.createdAt||'')===String(graph.createdAt||'')&&Number(handoff.entities||0)===entities.length&&Number(handoff.sources||0)===sources.length;
+      }
+    }catch{}
     return{ready:true,hasImportedModel:entities.length>0,sourceCount:sources.length,
       sourceSheetOnly:entities.length>0&&(graph.reviewState==='SOURCE_SHEET_ONLY'||(projectComponents.length===0&&sourceGeometry.length>0)),
-      lineCount:counts.drawingLines,spatialRecordCount:counts.spatialRecords,equipmentCount:counts.identifiedEquipment};
+      lineCount:counts.drawingLines,spatialRecordCount:counts.spatialRecords,equipmentCount:counts.identifiedEquipment,handoffVerified};
   }catch{
-    return{ready:true,hasImportedModel:false,sourceCount:0,sourceSheetOnly:false,lineCount:0,spatialRecordCount:0,equipmentCount:0};
+    return{ready:true,hasImportedModel:false,sourceCount:0,sourceSheetOnly:false,lineCount:0,spatialRecordCount:0,equipmentCount:0,handoffVerified:null};
   }
 }
 
 export default function SpatialExperience({assets,authenticated=false}:{assets:RegisteredSpatialAsset[];authenticated?:boolean}){
-  const [state,setState]=useState<ExperienceState>({ready:false,hasImportedModel:false,sourceCount:0,sourceSheetOnly:false,lineCount:0,spatialRecordCount:0,equipmentCount:0});
+  const [state,setState]=useState<ExperienceState>({ready:false,hasImportedModel:false,sourceCount:0,sourceSheetOnly:false,lineCount:0,spatialRecordCount:0,equipmentCount:0,handoffVerified:null});
   const [serverPending,setServerPending]=useState(false);
 
   useEffect(()=>{
@@ -50,7 +59,7 @@ export default function SpatialExperience({assets,authenticated=false}:{assets:R
     const onServerHydration=(event:Event)=>{
       if(!active)return;
       const detail=(event as CustomEvent).detail||{};
-      if(detail.state==='LOADING'){setServerPending(true);setState({ready:false,hasImportedModel:false,sourceCount:0,sourceSheetOnly:false,lineCount:0,spatialRecordCount:0,equipmentCount:0});return}
+      if(detail.state==='LOADING'){setServerPending(true);setState({ready:false,hasImportedModel:false,sourceCount:0,sourceSheetOnly:false,lineCount:0,spatialRecordCount:0,equipmentCount:0,handoffVerified:null});return}
       setServerPending(false);
       void refresh();
     };
@@ -84,6 +93,8 @@ export default function SpatialExperience({assets,authenticated=false}:{assets:R
   </section>;
 
   if(state.hasImportedModel)return <section id="spatial-model" aria-label="Imported project spatial model">
+    {state.handoffVerified===false&&<div className="notice" role="alert" style={{marginBottom:12}}><strong>RENDER HANDOFF MISMATCH</strong><span>The Spatial route did not load the exact revision handed off by Import. STRATUM is refusing to pretend the render succeeded. Return to Import and render the persisted revision again.</span><Link className="action" href="/import">Return to Import</Link></div>}
+    {state.handoffVerified===true&&<div className="notice" role="status" style={{marginBottom:12,borderColor:'#2d7252'}}><strong>RENDER HANDOFF VERIFIED</strong><span>Spatial loaded the same persisted revision that Import handed off: {state.sourceCount} source{state.sourceCount===1?'':'s'} · {state.spatialRecordCount} spatial records.</span></div>}
     {state.sourceSheetOnly?<div className="notice" style={{marginBottom:12}} role="status">
       <strong>SOURCE DRAWING · {state.equipmentCount} IDENTIFIED EQUIPMENT · {state.spatialRecordCount} SPATIAL RECORDS</strong>
       <span>The source drawing is available, but no project equipment has been identified yet. Spatial records include retained drawing geometry and review evidence; they are not the same thing as equipment components. Import or review labeled equipment to create selectable project-equipment candidates.</span>
