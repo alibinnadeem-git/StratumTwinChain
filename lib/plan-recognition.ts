@@ -12,6 +12,7 @@ export type NonSldPlanType=
  |'STRUCTURAL_FRAMING_PLAN'
  |'FOUNDATION_PLAN'
  |'ROOF_PLAN'
+ |'UNIT_PLAN'
  |'MECHANICAL_PLAN'
  |'PLUMBING_PLAN'
  |'FIRE_PROTECTION_PLAN'
@@ -56,6 +57,7 @@ const RULES:Rule[]=[
  {type:'LOW_VOLTAGE_PLAN',discipline:'Telecommunications',score:9,patterns:[/\b(?:LOW\s+VOLTAGE|TELECOM(?:MUNICATIONS)?|DATA)\s+PLAN\b/i]},
  {type:'ARCHITECTURAL_FLOOR_PLAN',discipline:'Architectural',score:9,patterns:[/\b(?:ARCHITECTURAL\s+)?FLOOR\s+PLAN\b/i,/\b(?:FIRST|SECOND|THIRD|FOURTH|FIFTH|SIXTH|GROUND)\s+FLOOR\s+PLAN\b/i]},
  {type:'ROOF_PLAN',discipline:'Architectural / Structural',score:8,patterns:[/\bROOF\s+PLAN\b/i]},
+ {type:'UNIT_PLAN',discipline:'Multi-discipline / Unit',score:9,patterns:[/\bUNIT\s+PLANS?\b/i,/\bPLAN\s*["'“”]?\s*[A-Z](?:\s+ALT)?\s*["'“”]?\s+UNIT\s*#?\s*\d+\b/i]},
  {type:'GENERAL_LAYOUT_PLAN',discipline:'General / Equipment',score:8,patterns:[/\bGENERAL\s+LAYOUT\b/i,/\bGENERAL\s+LAYOUT\s+PLAN\b/i]},
  {type:'SHOP_LAYOUT_PLAN',discipline:'Equipment',score:9,patterns:[/\bSHOP\s+LAYOUT\b/i]},
  {type:'EQUIPMENT_LAYOUT_PLAN',discipline:'Equipment',score:8,patterns:[/\bEQUIPMENT\s+(?:LAYOUT|PLAN)\b/i]},
@@ -90,9 +92,16 @@ export function detectNonSldPlanPage(labels:string[],vectorOperatorCount=0):NonS
  }
  const reasons:string[]=[];
  if(best){
-  reasons.push(`recognized ${best.rule.type.toLowerCase().replaceAll('_',' ')} title/content`);
+  const electricalSheet=text.some(value=>/^E\s*[-.]?\s*\d+(?:\.\d+)?\b/i.test(value)||/\bELECTRICAL\b/i.test(value));
+  const electricalContent=text.filter(value=>/\b(?:ELEC\.?\s*PANEL|RECEPTACLE|CIRCUIT|DISCONNECT|MAIN\s+SWITCHBOARD|SWITCHBOARD|HP\d+(?:-\d+)?|MS\d+|SDCO|F\.?A\.?P\.?)\b/i.test(value)).length;
+  const electricalFloorPlan=best.rule.type==='ARCHITECTURAL_FLOOR_PLAN'&&vectorOperatorCount>=20&&electricalSheet&&electricalContent>=2;
+  const unitPlanElectrical=best.rule.type==='UNIT_PLAN'&&electricalSheet&&electricalContent>=2;
+  const resolvedRule=electricalFloorPlan?{...best.rule,type:'ELECTRICAL_POWER_PLAN' as const,discipline:'Electrical',score:10}:best.rule;
+  reasons.push(`recognized ${resolvedRule.type.toLowerCase().replaceAll('_',' ')} title/content`);
+  if(electricalFloorPlan)reasons.push('electrical sheet marker and electrical device/circuit evidence promote generic floor-plan title to electrical power plan');
+  if(unitPlanElectrical)reasons.push('unit-plan sheet carries electrical sheet/device evidence');
   if(vectorOperatorCount>=20)reasons.push('drawing-vector content present');
-  return{isPlan:true,planType:best.rule.type,discipline:best.rule.discipline,score:best.rule.score+(vectorOperatorCount>=20?1:0),titleEvidence:best.matches.slice(0,5),reasons};
+  return{isPlan:true,planType:resolvedRule.type,discipline:unitPlanElectrical?'Electrical':resolvedRule.discipline,score:resolvedRule.score+(vectorOperatorCount>=20?1:0),titleEvidence:best.matches.slice(0,5),reasons};
  }
  const planView=text.filter(value=>titleLike(value)&&/\bPLAN\s+VIEW\b/i.test(value));
  const genericPlan=text.filter(value=>titleLike(value)&&/\bPLAN\b/i.test(value));
@@ -107,6 +116,74 @@ export function detectNonSldPlanPage(labels:string[],vectorOperatorCount=0):NonS
   return{isPlan:true,planType:'PLAN_VIEW_UNCLASSIFIED',discipline:null,score:5,titleEvidence:genericPlan.slice(0,5),reasons};
  }
  return{isPlan:false,planType:null,discipline:null,score:0,titleEvidence:[],reasons:[]};
+}
+
+
+export type PositionedPlanLabel={text:string;x:number;y:number};
+export type PlanFrameEvidence={
+ id:string;
+ title:string;
+ planType:NonSldPlanType;
+ discipline:string|null;
+ floor:string|null;
+ unitId:string|null;
+ unitPlan:string|null;
+ anchorX:number;
+ anchorY:number;
+ confidence:number;
+ evidence:string[];
+ reviewRequired:true;
+ physicalTruth:false;
+};
+
+const FRAME_ORDINALS:Record<string,number>={FIRST:1,SECOND:2,THIRD:3,FOURTH:4,FIFTH:5,SIXTH:6,SEVENTH:7,EIGHTH:8,NINTH:9,TENTH:10};
+
+function explicitPlanFrameCandidate(item:PositionedPlanLabel,pagePlan?:NonSldPlanEvidence|null):PlanFrameEvidence|null{
+ const text=String(item.text||'').replace(/\s+/g,' ').trim();
+ if(!text)return null;
+ const floorMatch=text.match(/\b(FIRST|SECOND|THIRD|FOURTH|FIFTH|SIXTH|SEVENTH|EIGHTH|NINTH|TENTH)\s+FLOOR\s+PLAN\b/i);
+ if(floorMatch){
+  const floor=`L${FRAME_ORDINALS[floorMatch[1].toUpperCase()]}`;
+  const pageElectrical=pagePlan?.isPlan&&pagePlan.planType==='ELECTRICAL_POWER_PLAN';
+  return{id:`frame-${floor.toLowerCase()}`,title:text,planType:pageElectrical?'ELECTRICAL_POWER_PLAN':'ARCHITECTURAL_FLOOR_PLAN',discipline:pageElectrical?'Electrical':'Architectural',floor,unitId:null,unitPlan:null,anchorX:item.x,anchorY:item.y,confidence:/\bSCALE\b/i.test(text)?.96:.9,evidence:[text,'EXPLICIT_FLOOR_PLAN_TITLE'],reviewRequired:true,physicalTruth:false};
+ }
+ if(/\bROOF\s+PLAN\b/i.test(text)&&!/\bROOF\s+FRAMING\s+PLAN\b/i.test(text)){
+  return{id:'frame-roof',title:text,planType:'ROOF_PLAN',discipline:pagePlan?.discipline||'Architectural / Structural',floor:'ROOF',unitId:null,unitPlan:null,anchorX:item.x,anchorY:item.y,confidence:/\bSCALE\b/i.test(text)?.96:.9,evidence:[text,'EXPLICIT_ROOF_PLAN_TITLE'],reviewRequired:true,physicalTruth:false};
+ }
+ if(/\bSITE\s+PLAN\b/i.test(text)){
+  return{id:'frame-site',title:text,planType:'SITE_PLAN',discipline:pagePlan?.discipline||'Civil / Site',floor:'SITE',unitId:null,unitPlan:null,anchorX:item.x,anchorY:item.y,confidence:/\bSCALE\b/i.test(text)?.96:.9,evidence:[text,'EXPLICIT_SITE_PLAN_TITLE'],reviewRequired:true,physicalTruth:false};
+ }
+ const unit=text.match(/\bPLAN\s*["'“”]?\s*([A-Z](?:\s+ALT)?)\s*["'“”]?\s+UNIT\s*#?\s*(\d+)\b/i);
+ if(unit){
+  const unitPlan=unit[1].toUpperCase().replace(/\s+/g,' ');
+  const unitId=unit[2];
+  return{id:`frame-unit-${unitId.toLowerCase()}`,title:text,planType:'UNIT_PLAN',discipline:pagePlan?.discipline||'Multi-discipline / Unit',floor:null,unitId,unitPlan,anchorX:item.x,anchorY:item.y,confidence:.93,evidence:[text,'EXPLICIT_UNIT_PLAN_TITLE'],reviewRequired:true,physicalTruth:false};
+ }
+ return null;
+}
+
+/** Detect distinct plan viewports on one physical PDF sheet without inventing geometry extents. */
+export function detectPlanFrames(items:PositionedPlanLabel[],pagePlan?:NonSldPlanEvidence|null):PlanFrameEvidence[]{
+ const chosen=new Map<string,PlanFrameEvidence>();
+ for(const item of items){
+  const candidate=explicitPlanFrameCandidate(item,pagePlan);
+  if(!candidate)continue;
+  const key=candidate.unitId?`UNIT:${candidate.unitId}:${candidate.unitPlan||''}`:`${candidate.floor||'UNRESOLVED'}:${candidate.planType}`;
+  const existing=chosen.get(key);
+  if(!existing||candidate.confidence>existing.confidence)chosen.set(key,candidate);
+ }
+ return [...chosen.values()].sort((a,b)=>a.anchorY-b.anchorY||a.anchorX-b.anchorX);
+}
+
+/** Assign source-sheet geometry to the nearest explicit plan-title anchor; this is sheet segmentation, not physical XYZ authority. */
+export function resolvePlanFrameAtPoint(frames:PlanFrameEvidence[],x:number,y:number):PlanFrameEvidence|null{
+ if(!frames.length||!Number.isFinite(x)||!Number.isFinite(y))return null;
+ let best:PlanFrameEvidence|null=null,bestDistance=Infinity;
+ for(const frame of frames){
+  const distance=Math.hypot(x-frame.anchorX,y-frame.anchorY);
+  if(distance<bestDistance){best=frame;bestDistance=distance}
+ }
+ return best;
 }
 
 
