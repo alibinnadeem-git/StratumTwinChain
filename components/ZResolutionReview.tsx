@@ -16,7 +16,9 @@ function physicalZKnown(entity:Entity){
  return entity.meta?.physicalElevationKnown===true||entity.meta?.elevationKnown===true||entity.meta?.zPlacementAuthority==='MEASURED_OR_REVIEWED';
 }
 function semantic(entity:Entity){
- return String(entity.meta?.elevationControlSemantic||entity.meta?.semantic||entity.meta?.controlSemantic||'').replaceAll('_',' ');
+ const nested=entity.meta?.elevationControl;
+ const nestedSemantic=nested&&typeof nested==='object'&&'semantic' in nested?(nested as {semantic?:unknown}).semantic:null;
+ return String(entity.meta?.elevationControlSemantic||entity.meta?.semantic||entity.meta?.controlSemantic||nestedSemantic||'').replaceAll('_',' ');
 }
 
 export default function ZResolutionReview(){
