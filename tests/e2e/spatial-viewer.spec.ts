@@ -95,6 +95,7 @@ test('stale pre-basemap drawing graph exposes a nonfatal refresh path',async({pa
  await expect(migration).toBeVisible();
  await expect(migration).toContainText(/predates the current retained-basemap\/non-SLD pipeline/i);
  await expect(migration).toContainText(/migration task, not a failed parse/i);
+ await migration.locator('summary').click();
  await expect(migration.getByRole('link',{name:'Refresh drawing source'})).toHaveAttribute('href','/import');
 });
 
@@ -201,7 +202,7 @@ test('Audi E4.0 source-only snapshot does not inject legacy demo callouts',async
  await expect(page.getByLabel('Imported object').locator('option')).toHaveText(['No selectable objects in this view']);
  const canvas=page.locator('canvas[aria-label="Interactive Spatial model"]');
  await expect(canvas).toBeVisible();
- await expect.poll(()=>canvas.getAttribute('data-clickable-assets')).toBe('0');
+ await expect.poll(()=>canvas.getAttribute('data-clickable-assets')).toBeNull();
 });
 
 test('source-sheet compilation identifies zero selectable components and exposes model recovery',async({page})=>{
@@ -218,7 +219,7 @@ test('source-sheet compilation identifies zero selectable components and exposes
  await expect(page.getByText(/SOURCE DRAWING · 0 IDENTIFIED EQUIPMENT · 1 SPATIAL RECORDS/i)).toBeVisible();
  await expect(page.getByRole('button',{name:'Recover earlier STRATUM model'})).toBeVisible();
  await expect(page.getByLabel('Imported object').locator('option')).toHaveText(['No selectable objects in this view']);
- await expect(page.getByText(/1 source .* 1 drawing line/i)).toBeVisible();
+ await expect(page.getByRole('region',{name:'Spatial viewer'}).getByText(/1 source .* 1 drawing line/i)).toBeVisible();
 });
 
 test('Tesla GLB import persists real geometry and makes it selectable in Spatial',async({page})=>{
@@ -745,7 +746,7 @@ test('reference-only Tesla geometry cannot disguise a source-sheet-only project'
  })),{source,sha});
  await page.goto('/spatial');
  await expect(page.getByText(/SOURCE DRAWING · 0 IDENTIFIED EQUIPMENT · 2 SPATIAL RECORDS/i)).toBeVisible();
- await expect(page.getByText(/Reference-only models do not count as project equipment/i)).toBeVisible();
+ await expect(page.getByText(/no project equipment has been identified yet/i)).toBeVisible();
 });
 
 
