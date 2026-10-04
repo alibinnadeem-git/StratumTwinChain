@@ -190,7 +190,7 @@ test.describe('authenticated server-backed Spatial golden path',()=>{
   }finally{
    await betaContext.close();
   }
- })
+ });
 
  test('authenticated Z adjudication survives server hydration and rejects tampered receipts',async({page})=>{
   await login(page,gamma.email,gamma.password);
@@ -276,5 +276,5 @@ test.describe('authenticated server-backed Spatial golden path',()=>{
   const rejected=await browserFetch(page,'/api/spatial/compilations','POST',{projectId:gamma.projectId,graph:tampered});
   expect(rejected.status).toBe(409);
   expect(rejected.body.error).toMatch(/Z review receipt does not match the persisted server decision/i);
- });;
+ });
 });
