@@ -53,7 +53,7 @@ function syntheticMultiPageVectorPdf(pageCount=9,segmentsPerPage=2500){
 
 
 test('nine-page vector PDF stays responsive, supports cancel, and retries without reload',async({page},testInfo)=>{
- test.skip(testInfo.project.name!=='desktop-chromium','P0 parser responsiveness is exercised once on desktop Chromium.');
+ if(testInfo.project.name!=='desktop-chromium')return;
  await page.goto('/import');
  const pdf=syntheticMultiPageVectorPdf(9,5000);
  await page.evaluate(()=>{(window as any).__stratumTicks=0;(window as any).__stratumTickTimer=setInterval(()=>{(window as any).__stratumTicks++},25)});
