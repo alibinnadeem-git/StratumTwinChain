@@ -13,13 +13,63 @@ type CompilationResponse={
   schemaReady?:boolean;
   projects?:Project[];
   restorableProjectId?:string|null;
-  latest?:{revision?:number;graph_json?:unknown}|null;
+  latest?:{id?:string;revision?:number;graph_sha256?:string;graph_json?:unknown}|null;
+};
+
+type ZReviewDecision={
+  id:string;
+  compilation_id:string;
+  entity_id:string;
+  action:'ACCEPT_DESIGN_CHAIN'|'CLEAR_DESIGN_CHAIN';
+  candidate_id?:string|null;
+  reason?:string;
+  graph_sha256?:string;
+  decision_sha256?:string;
+  occurred_at?:string;
 };
 
 function validRenderableGraph(value:unknown):value is SpatialGraphLike{
   if(!value||typeof value!=='object')return false;
   const graph=value as Partial<SpatialGraphLike>;
   return Array.isArray(graph.sources)&&Array.isArray(graph.entities)&&graph.entities.length>0;
+}
+
+function overlayZReviewDecisions(graph:SpatialGraphLike,decisions:ZReviewDecision[],currentCompilationId:string){
+  if(!decisions.length)return{graph,applied:0};
+  const byEntity=new Map(decisions.map(decision=>[decision.entity_id,decision]));
+  let applied=0;
+  const restored={
+    ...graph,
+    entities:graph.entities.map((entity:any)=>{
+      const decision=byEntity.get(String(entity.id||''));
+      if(!decision)return entity;
+      const existingDecisionId=String(entity.meta?.zReviewDecisionId||'');
+      const appliesToCurrent=decision.compilation_id===currentCompilationId
+        ||(decision.action==='ACCEPT_DESIGN_CHAIN'&&existingDecisionId===decision.id);
+      if(!appliesToCurrent)return entity;
+      applied++;
+      const meta={...(entity.meta||{})};
+      for(const key of Object.keys(meta))if(key.startsWith('zReviewDecision'))delete meta[key];
+      if(decision.action==='ACCEPT_DESIGN_CHAIN'&&decision.candidate_id){
+        meta.zReviewDecisionStatus='ACCEPTED_DESIGN_CHAIN';
+        meta.zReviewDecisionCandidateId=decision.candidate_id;
+        meta.zReviewDecisionAt=decision.occurred_at||new Date().toISOString();
+        meta.zReviewDecisionAuthority='SERVER_AUTHENTICATED_HUMAN_REVIEW';
+        meta.zReviewDecisionId=decision.id;
+        meta.zReviewDecisionSha256=decision.decision_sha256||'';
+        meta.zReviewDecisionCompilationId=decision.compilation_id;
+        meta.zReviewDecisionGraphSha256=decision.graph_sha256||'';
+        meta.zReviewDecisionReason=decision.reason||'';
+        meta.zReviewDecisionPhysicalTruth=false;
+        meta.physicalElevationKnown=false;
+        meta.elevationKnown=false;
+        meta.physicalTruth=false;
+        meta.reviewRequired=true;
+      }
+      return{...entity,meta};
+    })
+  } as SpatialGraphLike;
+  return{graph:restored,applied};
 }
 
 function publish(detail:Record<string,unknown>){
@@ -64,9 +114,25 @@ export default function SpatialServerHydrator(){
     const graph=body.latest?.graph_json;
     if(!validRenderableGraph(graph)){publish({state:'NO_SERVER_MODEL',projectId});return}
 
-    await replaceCurrentSpatialGraph(graph);
+    let restoredGraph=graph;
+    let zReviewDecisionCount=0;
+    const compilationId=body.latest?.id||'';
+    if(compilationId){
+      try{
+        const reviewResponse=await fetch('/api/spatial/z-reviews?projectId='+encodeURIComponent(projectId),{cache:'no-store',credentials:'same-origin'});
+        if(reviewResponse.ok){
+          const reviewBody=await reviewResponse.json() as {decisions?:ZReviewDecision[]};
+          const decisions=Array.isArray(reviewBody.decisions)?reviewBody.decisions:[];
+          const overlay=overlayZReviewDecisions(graph,decisions,compilationId);
+          restoredGraph=overlay.graph;
+          zReviewDecisionCount=overlay.applied;
+        }
+      }catch{}
+    }
+
+    await replaceCurrentSpatialGraph(restoredGraph);
     if(!active)return;
-    publish({state:'RESTORED',projectId,revision:body.latest?.revision||null,entities:graph.entities.length});
+    publish({state:'RESTORED',projectId,revision:body.latest?.revision||null,entities:restoredGraph.entities.length,zReviewDecisionCount});
    }catch(error){
     if(active)publish({state:'UNAVAILABLE',error:error instanceof Error?error.message:'Server Spatial hydration unavailable'});
    }
