@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import {useMemo,useState} from 'react';
 import {readPrimarySpatialGraph,replaceCurrentSpatialGraph} from '@/lib/spatial-browser-recovery';
+import {readSelectedSpatialProjectId} from '@/lib/spatial-project-selection';
 import {resolveReconciledAssetPlacement} from '@/lib/z-solution-chain';
 import AssetActivityPanel from '@/components/AssetActivityPanel';
 import AssetQR from '@/components/AssetQR';
@@ -44,6 +45,7 @@ export default function SpatialAssetInspector({
 }){
  const [linkId,setLinkId]=useState('');
  const [message,setMessage]=useState('');
+ const [reviewReason,setReviewReason]=useState('');
  const binding=useMemo(()=>resolveRegisteredSpatialAsset(selected,registeredAssets),[selected,registeredAssets]);
  const reconciliation=useMemo(()=>selected?resolveReconciledAssetPlacement({name:selected.name,floor:selected.floor,z:selected.z,meta:selected.meta}):null,[selected]);
  const placement=reconciliation?.placement||null;
@@ -54,18 +56,50 @@ export default function SpatialAssetInspector({
  async function persistZReview(candidateId:string|null){
   if(!selected)return;
   try{
+   const reason=reviewReason.trim();
+   if(reason.length<5)throw new Error('Enter a review rationale of at least 5 characters.');
+   const projectId=readSelectedSpatialProjectId();
+   if(!projectId)throw new Error('Select and sync a project before recording an authenticated Z review.');
+
+   const compilationResponse=await fetch('/api/spatial/compilations?projectId='+encodeURIComponent(projectId),{cache:'no-store',credentials:'same-origin'});
+   const compilationBody=await compilationResponse.json().catch(()=>({}));
+   if(!compilationResponse.ok)throw new Error(compilationBody?.error||'Unable to read the latest server Spatial compilation');
+   const compilationId=String(compilationBody?.latest?.id||'');
+   if(!compilationId)throw new Error('Save or sync the current Spatial project before recording a Z review.');
+
+   const reviewResponse=await fetch('/api/spatial/z-reviews',{
+    method:'POST',
+    headers:{'content-type':'application/json'},
+    credentials:'same-origin',
+    body:JSON.stringify({
+     projectId,
+     compilationId,
+     entityId:selected.id,
+     action:candidateId?'ACCEPT_DESIGN_CHAIN':'CLEAR_DESIGN_CHAIN',
+     ...(candidateId?{candidateId}:{}),
+     reason,
+    })
+   });
+   const receipt=await reviewResponse.json().catch(()=>({}));
+   if(!reviewResponse.ok)throw new Error(receipt?.error||'Unable to persist authenticated Z review');
+
    const graph=await readPrimarySpatialGraph();
    if(!graph||!Array.isArray(graph.entities))throw new Error('No compiled graph is available');
    let updated:InspectorEntity|null=null;
    graph.entities=(graph.entities as InspectorEntity[]).map((entity:InspectorEntity)=>{
     if(entity.id!==selected.id)return entity;
     const meta={...(entity.meta||{})};
-    for(const key of ['zReviewDecisionStatus','zReviewDecisionCandidateId','zReviewDecisionAt','zReviewDecisionAuthority','zReviewDecisionPhysicalTruth'])delete meta[key];
+    for(const key of Object.keys(meta))if(key.startsWith('zReviewDecision'))delete meta[key];
     if(candidateId){
      meta.zReviewDecisionStatus='ACCEPTED_DESIGN_CHAIN';
      meta.zReviewDecisionCandidateId=candidateId;
-     meta.zReviewDecisionAt=new Date().toISOString();
-     meta.zReviewDecisionAuthority='LOCAL_HUMAN_REVIEW';
+     meta.zReviewDecisionAt=String(receipt.occurred_at||new Date().toISOString());
+     meta.zReviewDecisionAuthority='SERVER_AUTHENTICATED_HUMAN_REVIEW';
+     meta.zReviewDecisionId=String(receipt.id||'');
+     meta.zReviewDecisionSha256=String(receipt.decision_sha256||'');
+     meta.zReviewDecisionCompilationId=compilationId;
+     meta.zReviewDecisionGraphSha256=String(receipt.graph_sha256||'');
+     meta.zReviewDecisionReason=reason;
      meta.zReviewDecisionPhysicalTruth=false;
      meta.physicalElevationKnown=false;
      meta.elevationKnown=false;
@@ -77,7 +111,10 @@ export default function SpatialAssetInspector({
    });
    await replaceCurrentSpatialGraph(graph);
    if(updated)onEntityUpdated?.(updated);
-   setMessage(candidateId?'Design Z chain selected for review placement. Physical elevation remains unverified.':'Z review decision cleared; automatic conflict blocking restored.');
+   setReviewReason('');
+   setMessage(candidateId
+    ?'Authenticated design Z review recorded. The selected chain controls review placement only; physical elevation remains unverified.'
+    :'Authenticated Z review clear event recorded; automatic conflict blocking restored.');
   }catch(error){
    setMessage(error instanceof Error?error.message:'Unable to update Z review decision');
   }
@@ -151,6 +188,7 @@ export default function SpatialAssetInspector({
   </div>
   {!zReviewed&&<div className="button-row" style={{margin:'8px 0 10px'}}><a className="action" href="#z-resolution-review">Resolve Z</a><Link className="ghost" href="/docs#z-method">View Z method</Link></div>}
   {zSolution?.status==='CONFLICT'&&<div className="notice" role="status"><strong>Z CONFLICT · AUTO-PLACEMENT BLOCKED</strong><span>{zSolution.explanation}</span><ul style={{margin:'8px 0 0',paddingLeft:18}}>{zSolution.conflicts.map((conflict,index)=><li key={index}><small>{conflict.reason} · {conflict.candidateA} vs {conflict.candidateB} · Δ {conflict.deltaMeters.toFixed(3)} m · threshold {conflict.toleranceMeters.toFixed(3)} m</small></li>)}</ul></div>}
+  {zSolution?.status==='REVIEW_RESOLVED_CANDIDATE'&&<div className="notice" role="status"><strong>HUMAN REVIEW PLACEMENT · PHYSICAL Z UNVERIFIED</strong><span>The authenticated selected chain controls the review model only. Conflicting evidence remains preserved, and this review does not establish field-verified physical elevation.</span></div>}
   {zResolutionAuthority==='AFF_REFERENCE_UNSPECIFIED'&&!zReviewed&&<div className="notice" role="status"><strong>AFF HEIGHT FOUND · REFERENCE POINT REQUIRED</strong><span>STRATUM found an object-linked height above finished floor, but the drawing does not state whether that height is to the base, bottom, centerline, top, or mounting point. The height is preserved as evidence but is not converted into absolute equipment Z.</span></div>}
   {crossSheetReviewSurfaceZ!==null&&!zReviewed&&<div className="notice" role="status"><strong>CROSS-SHEET Z REVIEW SURFACE</strong><span>{crossSheetReviewSurfaceLabel} = {crossSheetReviewSurfaceZ.toFixed(3)} m via reviewed sheet alignment · confidence {Math.round(Number(selected.meta?.crossSheetReviewSurfaceConfidence||0)*100)}%. This remains coordination-derived design evidence, not field-verified physical elevation.</span></div>}
   {selected.kind==='imported-3d-model'&&<div className="notice" role="status"><strong>IMPORTED 3D GEOMETRY · REVIEW-SCALE</strong><span>This uploaded reference model is normalized to a component review envelope for Spatial presentation when its model-space units/dimensions are not trusted. Raw GLB bounds remain preserved in source details. Review-scale rendering does not establish OEM dimensions, installed elevation, asset identity or DIR state.</span></div>}
@@ -266,13 +304,17 @@ export default function SpatialAssetInspector({
   {zSolution&&<details className="secondary-details z-solution-details">
    <summary>Z solution evidence</summary>
    <p className="muted">{zSolution.explanation}</p>
+   {(zSolution.status==='CONFLICT'||zSolution.status==='REVIEW_RESOLVED_CANDIDATE')&&<label style={{display:'block',marginTop:10}}>Review rationale
+    <textarea value={reviewReason} onChange={event=>setReviewReason(event.target.value)} placeholder="Explain why this design/source chain should control the review model." maxLength={1000} style={{width:'100%',marginTop:6}}/>
+    <small style={{display:'block',marginTop:4}}>Authenticated review is stored server-side against the project compilation and graph hash. It does not establish physical elevation.</small>
+   </label>}
    {zSolution.candidates.map(candidate=><div className="binding-panel" key={candidate.id} style={{marginTop:8}}>
     <strong>{candidate.id.replaceAll('_',' ')} · {candidate.kind.replaceAll('_',' ')}</strong>
     <small style={{display:'block',marginTop:4}}>Base {candidate.baseZ===null?'unresolved':candidate.baseZ.toFixed(3)+' m'} · {candidate.authority.replaceAll('_',' ')} · confidence {Math.round(candidate.confidence*100)}%</small>
     <ol style={{margin:'8px 0 0',paddingLeft:18}}>{candidate.steps.map((step,index)=><li key={index}><small>{step.label}{step.valueMeters!==undefined?` · ${step.valueMeters.toFixed(3)} m`:''}{step.authority?` · ${step.authority.replaceAll('_',' ')}`:''}</small></li>)}</ol>
-    {zSolution.status==='CONFLICT'&&candidate.absolute&&candidate.baseZ!==null&&<button className="ghost" type="button" style={{marginTop:8}} onClick={()=>persistZReview(candidate.id)}>Use this design chain for review placement</button>}
+    {zSolution.status==='CONFLICT'&&candidate.absolute&&candidate.baseZ!==null&&<button className="ghost" type="button" style={{marginTop:8}} disabled={reviewReason.trim().length<5} onClick={()=>persistZReview(candidate.id)}>Use this design chain for review placement</button>}
    </div>)}
-   {zSolution.status==='REVIEW_RESOLVED_CANDIDATE'&&<div className="notice" style={{marginTop:10}}><strong>HUMAN REVIEW PLACEMENT · PHYSICAL Z UNVERIFIED</strong><span>The selected chain controls the review model only. Conflicting evidence remains preserved and field/review evidence is still required before physical elevation can be established.</span><button className="ghost" type="button" style={{marginTop:8}} onClick={()=>persistZReview(null)}>Clear Z review decision</button></div>}
+   {zSolution.status==='REVIEW_RESOLVED_CANDIDATE'&&<button className="ghost" type="button" style={{marginTop:10}} disabled={reviewReason.trim().length<5} onClick={()=>persistZReview(null)}>Clear Z review decision</button>}
   </details>}
   {message&&<p role="status" className="muted">{message}</p>}
  </div>;
