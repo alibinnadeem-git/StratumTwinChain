@@ -94,6 +94,8 @@ jobs:
         run: npm run qa:image-ocr
       - name: Scanned PDF OCR fallback conformance
         run: npm run qa:pdf-ocr
+      - name: Responsive native PDF worker conformance
+        run: npm run qa:pdf-worker
       - name: Spatial asset click and DIR Passport conformance
         run: npm run qa:spatial-asset-passport
       - name: PDF title-block intelligence conformance
