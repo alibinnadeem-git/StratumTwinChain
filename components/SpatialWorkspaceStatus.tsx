@@ -13,6 +13,7 @@ import {
   SPATIAL_RECOVERY_EVENT,
 } from '@/lib/spatial-browser-recovery';
 import {writeSelectedSpatialProjectId} from '@/lib/spatial-project-selection';
+import {isIdentifiedProjectEquipment,spatialUiCounts} from '@/lib/spatial-ui-counts';
 
 type Health={
   liveDataReady?:boolean;
@@ -56,9 +57,10 @@ export default function SpatialWorkspaceStatus({compact=false,authenticated=fals
   },[]);
 
   const summary=graphSummary(graph);
-  const drawingLines=graph?.entities.filter(entity=>typeof entity==='object'&&entity!==null&&'kind' in entity&&entity.kind==='line').length||0;
-  const objectCount=summary.entities-drawingLines;
-  const sourceSheetOnly=Boolean(graph&&graph.entities.length>0&&(graph.reviewState==='SOURCE_SHEET_ONLY'||graph.entities.every(entity=>typeof entity==='object'&&entity!==null&&'kind' in entity&&entity.kind==='line')));
+  const countable=(graph?.entities||[]).filter((entity):entity is {id?:string;layer?:string;kind?:string;floor?:string;meta?:Record<string,unknown>}=>Boolean(entity&&typeof entity==='object'));
+  const counts=spatialUiCounts(countable);
+  const sourceSheetOnly=Boolean(graph&&graph.entities.length>0&&(graph.reviewState==='SOURCE_SHEET_ONLY'||(!countable.some(isIdentifiedProjectEquipment)&&counts.drawingLines>0)));
+  const healthResolved=health!==null;
   const infrastructureReady=Boolean(health?.liveDataReady);
   const serverReady=infrastructureReady&&authenticated;
 
@@ -112,12 +114,12 @@ export default function SpatialWorkspaceStatus({compact=false,authenticated=fals
     <div className="workspace-status-main">
       <div>
         <div className="eyebrow">Project workspace</div>
-        <strong>{graph?`${summary.sources} source${summary.sources===1?'':'s'} · ${objectCount} object${objectCount===1?'':'s'} · ${drawingLines} drawing line${drawingLines===1?'':'s'}`:'No Spatial model found on this web address'}</strong>
-        <span>{sourceSheetOnly?'A source sheet is saved, but there are no identified equipment components to select.':graph?'Protected locally. Open Spatial and continue working.':'Recover the model before re-importing anything.'}</span>
+        <strong>{graph?`${summary.sources} source${summary.sources===1?'':'s'} · ${counts.identifiedEquipment} identified equipment · ${counts.spatialRecords} spatial records · ${counts.drawingLines} drawing line${counts.drawingLines===1?'':'s'}`:'No Spatial model found on this web address'}</strong>
+        <span>{sourceSheetOnly?'A source drawing is saved. Spatial-record counts include drawing/review evidence and are not equipment counts.':graph?'Protected locally. Open Spatial and continue working.':'Recover the model before re-importing anything.'}</span>
       </div>
       <div className="workspace-health">
         <span className={sourceSheetOnly?'pending':graph?'proof':'pending'}>{sourceSheetOnly?'SOURCE SHEET ONLY':graph?'MODEL FOUND':'MODEL MISSING'}</span>
-        <span className={serverReady?'proof':'pending'}>{serverReady?'SERVER SYNC READY':infrastructureReady?'SIGN IN FOR SERVER SYNC':'SERVER SYNC OFFLINE'}</span>
+        <span className={serverReady?'proof':'pending'}>{serverReady?'SERVER SYNC READY':infrastructureReady?'SIGN IN FOR SERVER SYNC':healthResolved?'SERVER SYNC OFFLINE':'CHECKING SERVER SYNC'}</span>
       </div>
     </div>
 
@@ -140,7 +142,9 @@ export default function SpatialWorkspaceStatus({compact=false,authenticated=fals
       {!serverReady&&<>
        <p className="muted">{infrastructureReady
         ?<>Production runtime bindings are ready. <Link href="/login">Sign in</Link> to use tenant-scoped server persistence and live asset context; browser recovery remains available while signed out.</>
-        :'Production server sync is currently unavailable because the deployed application does not have all required database/auth/DIR runtime bindings. The browser recovery layer protects the working model on this device until that infrastructure binding is completed.'}</p>
+        :healthResolved
+          ?'Production server sync is currently unavailable because the deployed application does not have all required database/auth/DIR runtime bindings. The browser recovery layer protects the working model on this device until that infrastructure binding is completed.'
+          :'Checking production database, authentication and DIR runtime readiness…'}</p>
        <p className="muted">If the missing model was created on a different STRATUM hostname, browser same-origin security keeps that storage separate. Open that old hostname on the same device, export the model there, then import the JSON backup here.</p>
       </>}
     </details>

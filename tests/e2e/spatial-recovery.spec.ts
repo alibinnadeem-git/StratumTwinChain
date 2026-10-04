@@ -18,7 +18,7 @@ test('same-origin legacy Spatial graph is automatically recovered instead of sho
  await page.goto('/');
  const workspace=page.getByRole('region',{name:'Project workspace status'});
  await expect(workspace).toContainText('MODEL FOUND');
- await expect(workspace).toContainText('1 source · 1 object · 0 drawing lines');
+ await expect(workspace).toContainText('1 source · 1 identified equipment · 1 spatial records · 0 drawing lines');
  const recovered=await page.evaluate(()=>JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}').entities?.[0]?.name);
  expect(recovered).toBe('Recovered panel');
  await expect.poll(()=>page.evaluate(async()=>{

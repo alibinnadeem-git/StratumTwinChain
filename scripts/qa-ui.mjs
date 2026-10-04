@@ -53,6 +53,25 @@ for(const required of ['readSession','Signed out','REFERENCE MODE']){
  if(!shell.includes(required))errors.push(`components/Shell.tsx: session-aware identity invariant missing: ${required}`);
 }
 
+
+for(const route of ['/import','/field','/docs','/login']){
+ if(!routeExists(route))errors.push(`product route ${route} must resolve to a real page.tsx target`);
+}
+if(!/href="\/login"/.test(shell))errors.push('components/Shell.tsx: signed-out shell must expose a visible sign-in route');
+if(!/Docs & glossary/.test(shell))errors.push('components/Shell.tsx: docs/glossary entry must be discoverable from navigation');
+
+const compilerWorkspace=fs.readFileSync(path.join(root,'components','CompilerWorkspace.tsx'),'utf8');
+if(!/async function renderSpatial\(\)/.test(compilerWorkspace)||!/stratum_spatial_render_handoff/.test(compilerWorkspace))errors.push('components/CompilerWorkspace.tsx: Render Spatial must verify the persisted graph before navigation');
+if(/<Link className="action" href="\/spatial">Render Spatial Environment<\/Link>/.test(compilerWorkspace))errors.push('components/CompilerWorkspace.tsx: Render Spatial must not be a navigation-only link');
+
+const reviewQueue=fs.readFileSync(path.join(root,'components','SpatialReviewQueue.tsx'),'utf8');
+if(!/isActionableReviewEntity/.test(reviewQueue)||!/Showing \$\{Math\.min\(shown\.length,items\.length\)\} of \$\{items\.length\}/.test(reviewQueue))errors.push('components/SpatialReviewQueue.tsx: review totals must describe actionable and visible work consistently');
+
+const zReview=fs.readFileSync(path.join(root,'components','ZResolutionReview.tsx'),'utf8');
+for(const required of ['FFE / FF / FG / FS controls','Triangulated review surfaces','Resolve Z without inventing height','X/Y scale can help convert source units consistently']){
+ if(!zReview.includes(required))errors.push(`components/ZResolutionReview.tsx: Z-review UX invariant missing: ${required}`);
+}
+
 console.log(`QA scanned ${sourceFiles.length} source files and ${routePatterns.length} routes.`);
 if(warnings.length){console.warn('\nWarnings:');for(const w of warnings)console.warn(`- ${w}`);}
 if(errors.length){console.error('\nQA failures:');for(const e of errors)console.error(`- ${e}`);process.exit(1);}

@@ -73,7 +73,7 @@ import {readFileSync} from 'node:fs';
 
 const sourceUpload=(page:import('@playwright/test').Page)=>page.locator('input[type=file][accept*=".dxf"]');
 
-test('stale pre-basemap drawing graph warns that the original source must be reprocessed',async({page})=>{
+test('stale pre-basemap drawing graph exposes a nonfatal refresh path',async({page})=>{
  await page.goto('/spatial');
  await page.evaluate(()=>{
   const drawing='G101 Tesla Supercharger Site Plan.pdf',drawingSha='legacy-g101';
@@ -91,11 +91,12 @@ test('stale pre-basemap drawing graph warns that the original source must be rep
   window.dispatchEvent(new Event('stratum:graph-updated'));
  });
  await expect(page.getByRole('heading',{name:'Spatial model'})).toBeVisible();
- const warning=page.getByRole('alert').filter({hasText:'DRAWING REPROCESS REQUIRED'});
- await expect(warning).toBeVisible();
- await expect(warning).toContainText('G101 Tesla Supercharger Site Plan.pdf');
- await expect(warning).toContainText(/original source file must be re-imported/i);
- await expect(warning.getByRole('link',{name:'Reprocess drawing source'})).toHaveAttribute('href','/compiler');
+ const migration=page.locator('details.secondary-details').filter({hasText:'Legacy drawing frame'});
+ await expect(migration).toBeVisible();
+ await expect(migration).toContainText(/predates the current retained-basemap\/non-SLD pipeline/i);
+ await expect(migration).toContainText(/migration task, not a failed parse/i);
+ await migration.locator('summary').click();
+ await expect(migration.getByRole('link',{name:'Refresh drawing source'})).toHaveAttribute('href','/import');
 });
 
 test('raster site plan appears as a review-only drawing underlay instead of disappearing',async({page})=>{
@@ -184,7 +185,7 @@ test('multi-discipline non-SLD plan set isolates sheet frames instead of stackin
  await expect(page.getByText('NON-SLD PLANS',{exact:true})).toBeVisible();
 });
 
-test('Audi E4.0 snapshot restores five source-linked selectable callouts without inventing asset history',async({page})=>{
+test('Audi E4.0 source-only snapshot does not inject legacy demo callouts',async({page})=>{
  await page.goto('/spatial');
  await page.evaluate(()=>{
   const name='Audi E4.0.pdf';
@@ -194,15 +195,14 @@ test('Audi E4.0 snapshot restores five source-linked selectable callouts without
    links:[],stats:{L0:1,L1:1,L2:0,L3:0,L4:0}}));
   window.dispatchEvent(new Event('stratum:graph-updated'));
  });
- await expect(page.getByLabel('Imported object').locator('option').filter({hasText:'(E) L5A'})).toHaveCount(1);
+ await expect(page.getByLabel('Imported object').locator('option').filter({hasText:'(E) L5A'})).toHaveCount(0);
  const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}'));
- expect(saved.stats.L2).toBe(5);
- await page.getByLabel('Imported object').selectOption(saved.entities.find((item:any)=>item.name==='(E) L5A').id);
- await expect(page.getByText('DRAWING CALLOUT · REVIEW REQUIRED')).toBeVisible();
- await expect(page.getByText(/Maintenance can be recorded later for both existing and new registered assets/)).toBeVisible();
+ expect(saved.stats.L2).toBe(0);
+ expect(saved.entities.some((item:any)=>item.name==='(E) L5A')).toBe(false);
+ await expect(page.getByLabel('Imported object').locator('option')).toHaveText(['No selectable objects in this view']);
  const canvas=page.locator('canvas[aria-label="Interactive Spatial model"]');
  await expect(canvas).toBeVisible();
- await expect.poll(()=>canvas.getAttribute('data-clickable-assets')).toBe('5');
+ await expect.poll(()=>canvas.getAttribute('data-clickable-assets')).toBeNull();
 });
 
 test('source-sheet compilation identifies zero selectable components and exposes model recovery',async({page})=>{
@@ -216,10 +216,10 @@ test('source-sheet compilation identifies zero selectable components and exposes
   }));
   window.dispatchEvent(new Event('stratum:graph-updated'));
  });
- await expect(page.getByText('SOURCE SHEET ONLY · 0 COMPONENTS')).toBeVisible();
+ await expect(page.getByText(/SOURCE DRAWING · 0 IDENTIFIED EQUIPMENT · 1 SPATIAL RECORDS/i)).toBeVisible();
  await expect(page.getByRole('button',{name:'Recover earlier STRATUM model'})).toBeVisible();
  await expect(page.getByLabel('Imported object').locator('option')).toHaveText(['No selectable objects in this view']);
- await expect(page.getByText(/1 source · 0 objects · 1 drawing line/)).toBeVisible();
+ await expect(page.getByRole('region',{name:'Spatial viewer'}).getByText(/1 source .* 1 drawing line/i)).toBeVisible();
 });
 
 test('Tesla GLB import persists real geometry and makes it selectable in Spatial',async({page})=>{
@@ -241,7 +241,7 @@ test('Tesla GLB import persists real geometry and makes it selectable in Spatial
  expect(saved.entities).toEqual(expect.arrayContaining([expect.objectContaining({id:'audi-line'}),expect.objectContaining({kind:'imported-3d-model',layer:'L2',name:'Tesla Supercharger V3'})]));
  expect(saved.entities.find((entity:any)=>entity.kind==='imported-3d-model').meta.embeddedGlb.length).toBeGreaterThan(100_000);
  expect(saved.reviewState).toBe('REVIEW_REQUIRED');
- await page.getByRole('link',{name:'Render Spatial Environment'}).click();
+ await page.getByRole('button',{name:'Render Spatial Environment'}).click();
  await expect(page.getByRole('heading',{name:'Spatial model'})).toBeVisible();
  const canvas=page.locator('canvas[aria-label="Interactive Spatial model"]');
  await expect(canvas).toBeVisible();
@@ -349,7 +349,7 @@ ENDSEC
 EOF
 `;
  await sourceUpload(page).setInputFiles({name:'M-201-HVAC-Equipment.dxf',mimeType:'application/dxf',buffer:Buffer.from(dxf)});
- const render=page.getByRole('link',{name:'Render Spatial Environment'});
+ const render=page.getByRole('button',{name:'Render Spatial Environment'});
  await expect(render).toBeVisible();
  await render.click();
  await expect(page).toHaveURL(/\/spatial/);
@@ -374,7 +374,7 @@ test('CSV equipment schedule feeds Expected Power without inventing Spatial XYZ'
   const entity=(graph.entities||[]).find((item:any)=>item.meta?.assetTag==='AHU-7');
   return entity?{kind:entity.kind,nonSpatial:entity.meta?.nonSpatial,authority:entity.meta?.spatialPlacementAuthority,voltage:entity.meta?.voltage,phase:entity.meta?.phase}:null;
  }),{timeout:20000}).toEqual({kind:'schedule-powered-equipment-candidate',nonSpatial:true,authority:'NON_SPATIAL_SCHEDULE',voltage:480,phase:3});
- const render=page.getByRole('link',{name:'Render Spatial Environment'});
+ const render=page.getByRole('button',{name:'Render Spatial Environment'});
  await expect(render).toBeVisible();await render.click();
  await expect(page.getByRole('heading',{name:'Expected power review'})).toBeVisible();
  await expect(page.getByText(/AHU-7 has no reconciled electrical feed/i)).toBeVisible();
@@ -428,7 +428,7 @@ EOF
   const db=await new Promise<IDBDatabase>((resolve,reject)=>{const request=indexedDB.open('stratum-spatial-recovery-v1',1);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});
   return new Promise<boolean>(resolve=>{const request=db.transaction('graphs','readonly').objectStore('graphs').get('current');request.onsuccess=()=>resolve(Boolean(request.result?.coordinationIntelligence?.findings?.some((item:any)=>/AHU-7 has conflicting equipment ratings across sources/i.test(item.title||''))));request.onerror=()=>resolve(false)});
  }),{timeout:30000,intervals:[250,500,1000,2000]}).toBe(true);
- await page.getByRole('link',{name:'Render Spatial Environment'}).click();
+ await page.getByRole('button',{name:'Render Spatial Environment'}).click();
  await expect(page.getByRole('heading',{name:'Coordination findings'})).toBeVisible();
  await expect(page.getByText(/AHU-7 has conflicting equipment ratings across sources/i)).toBeVisible();
  await expect(page.getByText(/geometric clash proof/i)).toBeVisible();
@@ -454,7 +454,7 @@ test('XLSX equipment matrix becomes non-spatial Expected Power evidence',async({
   const entity=(graph.entities||[]).find((item:any)=>item.meta?.assetTag==='AHU-12');
   return entity?{nonSpatial:entity.meta?.nonSpatial,officeFormat:entity.meta?.officeFormat,sheet:entity.meta?.workbookSheet,voltage:entity.meta?.voltage}:null;
  })).toEqual({nonSpatial:true,officeFormat:'XLSX',sheet:'Mechanical Equipment',voltage:480});
- await page.getByRole('link',{name:'Render Spatial Environment'}).click();
+ await page.getByRole('button',{name:'Render Spatial Environment'}).click();
  await expect(page.getByRole('heading',{name:'Expected power review'})).toBeVisible();
  await expect(page.getByText(/AHU-12 has no reconciled electrical feed/i)).toBeVisible();
  await expect(page.getByLabel('Imported object').locator('option').filter({hasText:'AHU-12'})).toHaveCount(0);
@@ -471,7 +471,7 @@ test('DOCX specification text becomes non-spatial powered-equipment evidence',as
   const entity=(graph.entities||[]).find((item:any)=>item.name.includes('RTU-4'));
   return entity?{nonSpatial:entity.meta?.nonSpatial,officeFormat:entity.meta?.officeFormat,section:entity.meta?.documentSection}:null;
  })).toEqual({nonSpatial:true,officeFormat:'DOCX',section:'PARAGRAPH_TEXT'});
- await page.getByRole('link',{name:'Render Spatial Environment'}).click();
+ await page.getByRole('button',{name:'Render Spatial Environment'}).click();
  await expect(page.getByRole('heading',{name:'Expected power review'})).toBeVisible();
  await expect(page.getByText(/RTU-4 has no reconciled electrical feed/i)).toBeVisible();
  await expect(page.getByLabel('Imported object').locator('option').filter({hasText:'RTU-4'})).toHaveCount(0);
@@ -502,7 +502,7 @@ test('IFC BIM source preserves source-design placement and feeds Expected Power'
   const entity=(graph.entities||[]).find((item:any)=>item.meta?.assetTag==='P-1'&&item.meta?.ifcType==='IFCPUMP');
   return entity?{x:entity.x,y:entity.y,z:entity.z,floor:entity.floor,physicalTruth:entity.meta?.physicalTruth,authority:entity.meta?.zPlacementAuthority,geometry:entity.meta?.geometryAuthority,unit:entity.meta?.ifcUnitToMeters}:null;
  })).toEqual({x:4,y:6,z:1,floor:'Level 1',physicalTruth:false,authority:'SOURCE_IFC_DESIGN_PLACEMENT',geometry:'IFC_PLACEMENT_ONLY_NO_SHAPE_MESH',unit:.001});
- await page.getByRole('link',{name:'Render Spatial Environment'}).click();
+ await page.getByRole('button',{name:'Render Spatial Environment'}).click();
  await expect(page.getByRole('heading',{name:'Expected power review'})).toBeVisible();
  await expect(page.getByText(/P-1 has no reconciled electrical feed/i)).toBeVisible();
  await expect(page.getByLabel('Imported object').locator('option').filter({hasText:'P-1'})).toHaveCount(1);
@@ -513,7 +513,7 @@ test('uploaded drawing renders a clickable WebGL asset and opens its inspector f
  const dxf=['0','SECTION','2','HEADER','9','$INSUNITS','70','2','0','ENDSEC','0','SECTION','2','ENTITIES','0','INSERT','8','E-EQUIP','2','DRY TYPE TRANSFORMER T1','10','100','20','100','30','0','0','ENDSEC','0','EOF',''].join('\n');
  await sourceUpload(page).setInputFiles({name:'E2-Level-1-Transformer.dxf',mimeType:'application/dxf',buffer:Buffer.from(dxf)});
  await expect(page.getByText(/Source compilation updated/i)).toBeVisible();
- await page.getByRole('link',{name:'Render Spatial Environment'}).click();
+ await page.getByRole('button',{name:'Render Spatial Environment'}).click();
  await expect(page).toHaveURL(/\/spatial/);
  await expect(page.getByRole('heading',{name:'Spatial model'})).toBeVisible();
 
@@ -745,8 +745,8 @@ test('reference-only Tesla geometry cannot disguise a source-sheet-only project'
   links:[],stats:{L0:2,L1:1,L2:1,L3:0,L4:0}
  })),{source,sha});
  await page.goto('/spatial');
- await expect(page.getByText(/SOURCE SHEET ONLY · 0 COMPONENTS/i)).toBeVisible();
- await expect(page.getByText(/Reference-only models do not count as project equipment/i)).toBeVisible();
+ await expect(page.getByText(/SOURCE DRAWING · 0 IDENTIFIED EQUIPMENT · 2 SPATIAL RECORDS/i)).toBeVisible();
+ await expect(page.getByText(/no project equipment has been identified yet/i)).toBeVisible();
 });
 
 

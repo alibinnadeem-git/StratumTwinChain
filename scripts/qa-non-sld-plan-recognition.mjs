@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {detectNonSldPlanPage,resolveDrawingPageRecognition} from '../lib/plan-recognition.ts';
+import {detectNonSldPlanPage,detectPlanFrames,resolveDrawingPageRecognition} from '../lib/plan-recognition.ts';
 
 const cases=[
  ['ELECTRICAL POWER PLAN','ELECTRICAL_POWER_PLAN','Electrical'],
@@ -18,6 +18,7 @@ const cases=[
  ['MECHANICAL FLOOR PLAN','MECHANICAL_PLAN','Mechanical'],
  ['PLUMBING PLAN','PLUMBING_PLAN','Plumbing'],
  ['REFLECTED CEILING PLAN','REFLECTED_CEILING_PLAN','Architectural'],
+ ['UNIT PLANS','UNIT_PLAN','Multi-discipline / Unit'],
  ['GENERAL LAYOUT','GENERAL_LAYOUT_PLAN','General / Equipment'],
  ['SHOP LAYOUT','SHOP_LAYOUT_PLAN','Equipment'],
  ['PIT LAYOUT','PIT_LAYOUT_PLAN','Equipment / Structural'],
@@ -33,6 +34,20 @@ for(const [title,type,discipline] of cases){
  assert.equal(result.discipline,discipline,title);
 }
 
+const electricalFloor=detectNonSldPlanPage(['FIRST FLOOR PLAN','E - 4','ELEC. PANEL','HP1-12,14'],220);
+assert.equal(electricalFloor.planType,'ELECTRICAL_POWER_PLAN','generic floor title on an E-sheet with multiple electrical cues must resolve as electrical power plan');
+assert.equal(electricalFloor.discipline,'Electrical');
+
+const electricalUnit=detectNonSldPlanPage(['UNIT PLANS','E - 7','ELEC.','PANEL','ELEC.','PANEL','Plan "A"','Unit#106'],220);
+assert.equal(electricalUnit.planType,'UNIT_PLAN');
+assert.equal(electricalUnit.discipline,'Electrical','electrical unit-plan sheets must preserve unit viewport semantics when ELEC./PANEL are separate PDF text objects');
+const splitUnitFrames=detectPlanFrames([
+ {text:'Plan "A"',x:1,y:1},{text:'Unit#106',x:1.12,y:1.01},
+ {text:'Plan "B"',x:4,y:4},{text:'Unit#109',x:4.11,y:4.02}
+],electricalUnit);
+assert.deepEqual(new Set(splitUnitFrames.map(frame=>frame.unitId)),new Set(['106','109']),'split plan/unit text objects must reconstruct unit-plan viewports');
+assert.ok(splitUnitFrames.every(frame=>frame.evidence.includes('SPLIT_UNIT_PLAN_LABEL')&&frame.reviewRequired===true&&frame.physicalTruth===false));
+
 const generic=detectNonSldPlanPage(['PLAN VIEW','GRID A','DIMENSIONS'],120);
 assert.equal(generic.isPlan,true);
 assert.equal(generic.planType,'PLAN_VIEW_UNCLASSIFIED');
@@ -43,6 +58,11 @@ const revisionOnly=detectNonSldPlanPage(['REV-H UPDATED ANCHOR PLAN AND XCELERAT
 assert.equal(revisionOnly.isPlan,false,'revision references to an anchor plan must not turn unrelated sheets into floor-anchor plan frames');
 const detailPlanView=detectNonSldPlanPage(['FOUNDATION DETAILS','PLAN VIEW','SECTION 3','TYPICAL FOOTING'],220);
 assert.equal(detailPlanView.isPlan,false,'a plan-view detail inside a details sheet must not be promoted to a whole drawing plan frame');
+const electricalSheetIndexLabels=['ELECTRICAL SHEET INDEX','NOTES & SYMBOLS','ELECTRIC SERVICE & ONE-LINE DIAGRAM','SITE PLAN','1ST FLOOR','2ND & 3RD FLOOR PLANS','4TH FLOOR & ROOF PLANS','UNIT PLANS','E - 1'];
+const electricalSheetIndex=resolveDrawingPageRecognition(electricalSheetIndexLabels,260);
+assert.equal(electricalSheetIndex.plan.isPlan,false,'discipline-prefixed sheet indexes must not become one of the plans they list');
+assert.equal(electricalSheetIndex.sld.isSld,false,'discipline-prefixed electrical sheet indexes must also suppress heuristic SLD promotion');
+
 const drawingIndexLabels=['COVER SHEET','Drawing Title:','Shop Layout','General Layout 1','Pit Layout','Utility Plan','Fire Suppression','Floor Anchor Plan','UTILITY SERVICE','TRANSFORMER T1','MAIN SWITCHBOARD MSB'];
 const drawingIndex=detectNonSldPlanPage(drawingIndexLabels,260);
 assert.equal(drawingIndex.isPlan,false,'a drawing index listing many plan names must remain a cover/index page, not become one of the listed plans');
@@ -60,7 +80,7 @@ const trueSld=resolveDrawingPageRecognition(['SINGLE LINE DIAGRAM','UTILITY SERV
 assert.equal(trueSld.sld.isSld,true,'explicit single-line title must remain SLD');
 assert.equal(trueSld.plan.isPlan,false,'SLD page must not also enter the non-SLD plan path');
 assert.match(compiler,/nonSldPlan:true/);
-assert.match(compiler,/planRecognition:'CONTENT_PLAN_V1'/);
+assert.match(compiler,/planRecognition:'CONTENT_PLAN_V2_FRAMES'/);
 assert.match(compiler,/PDF_RASTER_UNDERLAY/,'image-only PDF plan pages must retain a review-only raster underlay');
 assert.match(compiler,/pageCount>=4000\|\|sourcePlanSegments>=40000/,'large drawing sets must be bounded per page and globally');
 assert.match(compiler,/pageEvidence\.get\(segment\.page\)\?\.isSld\|\|!planEvidence\.get\(segment\.page\)\?\.isPlan/,'vector retention must be restricted to recognized non-SLD plan pages');

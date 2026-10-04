@@ -41,6 +41,38 @@ test('content-only electrical SLD upload populates the Spatial model',async({pag
  await expect(page.getByText(/SLD objects?/)).toContainText(/[1-9]\d* SLD objects?/);
 });
 
+
+test('Render Spatial Environment verifies persistence before opening the parsed plan',async({page})=>{
+ await page.goto('/import');
+ const pdf=syntheticElectricalPdf(['FIRST FLOOR PLAN','E - 4','ELEC.','PANEL','HP1-12,14','SCALE: 1/8" = 1\'-0"']);
+ await page.locator('section.import-primary input[type=file][accept*=".pdf"]').setInputFiles({name:'render-handoff-plan.pdf',mimeType:'application/pdf',buffer:pdf});
+ await expect(page.getByText('render-handoff-plan.pdf',{exact:true})).toBeVisible();
+ const render=page.getByRole('button',{name:'Render Spatial Environment'});
+ await expect(render).toBeEnabled();
+ await render.click();
+ await expect(page).toHaveURL(/\/spatial$/);
+ await expect(page.getByRole('heading',{name:'Spatial model'})).toBeVisible();
+ await expect.poll(()=>page.evaluate(()=>{
+  const handoff=JSON.parse(sessionStorage.getItem('stratum_spatial_render_handoff')||'{}');
+  const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
+  return{handoffEntities:handoff.entities||0,graphEntities:graph.entities?.length||0,sources:graph.sources?.map((source:any)=>source.name)||[]};
+ })).toMatchObject({handoffEntities:expect.any(Number),graphEntities:expect.any(Number),sources:expect.arrayContaining(['render-handoff-plan.pdf'])});
+ const state=await page.evaluate(()=>JSON.parse(sessionStorage.getItem('stratum_spatial_render_handoff')||'{}'));
+ expect(state.handoffEntities||state.entities).toBeGreaterThan(0);
+});
+
+test('public product routes expose import, field, docs and sign-in instead of moved-workspace dead ends',async({page})=>{
+ await page.goto('/import');
+ await expect(page.getByRole('heading',{name:'Add project sources.'})).toBeVisible();
+ await page.goto('/field');
+ await expect(page.locator('main')).not.toContainText('That workspace moved.');
+ await page.goto('/docs');
+ await expect(page.getByRole('heading',{name:'How STRATUM reasons about trust.'})).toBeVisible();
+ await expect(page.getByText('PoVI · Proof of Verified Infrastructure')).toBeVisible();
+ await page.goto('/');
+ await expect(page.getByRole('navigation',{name:'Primary navigation'}).getByRole('link',{name:'Sign in',exact:true})).toBeVisible();
+});
+
 test('portable Spatial recovery exports protected history and restores the working graph',async({page})=>{
  await page.goto('/compiler');
  const seeded=await page.evaluate(()=>{

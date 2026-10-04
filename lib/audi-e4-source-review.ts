@@ -27,6 +27,20 @@ export function enrichAudiE4SourceReview<T extends SpatialGraphLike>(graph:T):T{
  }));
  if(!added.length)return graph;
  const entities=[...graph.entities,...added];
- return{...graph,entities,createdAt:new Date().toISOString(),reviewState:'REVIEW_REQUIRED',
+ return{...graph,entities,reviewState:'REVIEW_REQUIRED',
   stats:{...graph.stats,L2:entities.filter(item=>(item as {layer?:string}).layer==='L2').length}} as T;
+}
+
+
+/**
+ * Removes the five historical hard-coded Audi E4 review markers that older
+ * browser workspaces could receive automatically. These IDs were created by
+ * STRATUM itself, not by a user's manual review, so removing them is a safe
+ * UI/data hygiene migration and does not touch source geometry or evidence.
+ */
+export function stripLegacyAudiE4SourceReview<T extends SpatialGraphLike>(graph:T):T{
+ const legacyIds=new Set(CALLOUTS.map(item=>`${AUDI_E4_SHA256}:callout:${item.tag}`));
+ const entities=graph.entities.filter(item=>!legacyIds.has(String((item as {id?:string})?.id||'')));
+ if(entities.length===graph.entities.length)return graph;
+ return{...graph,entities,stats:{...graph.stats,L2:entities.filter(item=>(item as {layer?:string}).layer==='L2').length}} as T;
 }
