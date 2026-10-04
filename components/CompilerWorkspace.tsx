@@ -134,7 +134,33 @@ async function parsePdf(file:File,level:{floor:string;elevation:number},discipli
     ocrEntities.push(...normalized.entities.map((entity,index)=>({...entity,id:`pdf-ocr-${p}-${index}-${entity.id}`,meta:{...entity.meta,page:p,sourceType:'PDF_RASTER_OCR_TEXT',ocrAuthority:'REVIEW_ONLY',geometryAuthority:'NONE',coordinateUnits:'NONE',nonSpatial:true,physicalTruth:false,reviewRequired:true,spatialPlacementAuthority:'OCR_NON_SPATIAL'}})) as GraphEntity[]);
    }
   }catch{}}
- try{const ops=await page.getOperatorList();const pageOps=ops.fnArray?.length||0;vectors+=pageOps;pageVectorOps.set(p,pageOps);const active:XY[]=[];let matrix=[1,0,0,1,0,0];const stack:number[][]=[];const transform=(b:number[])=>{const a=matrix;matrix=[a[0]*b[0]+a[2]*b[1],a[1]*b[0]+a[3]*b[1],a[0]*b[2]+a[2]*b[3],a[1]*b[2]+a[3]*b[3],a[0]*b[4]+a[2]*b[5]+a[4],a[1]*b[4]+a[3]*b[5]+a[5]]};const add=(x:number,y:number,connect=true)=>{const point=viewport.convertToViewportPoint(matrix[0]*x+matrix[2]*y+matrix[4],matrix[1]*x+matrix[3]*y+matrix[5]),next={x:(point[0]-viewport.width/2)*20/Math.max(viewport.width,viewport.height,1),y:(viewport.height/2-point[1])*20/Math.max(viewport.width,viewport.height,1)};if(connect&&active.length){const prev=active[active.length-1];if(Math.hypot(next.x-prev.x,next.y-prev.y)>.015)segments.push({x:prev.x,y:prev.y,x2:next.x,y2:next.y,page:p})}active.push(next)};const finish=()=>{if(active.length>=3){const first=active[0],last=active[active.length-1];if(Math.hypot(first.x-last.x,first.y-last.y)<.08)polygons.push({vertices:[...active],page:p,confidence:.74});}active.length=0};const close=()=>{if(active.length>=2){const first=active[0],last=active[active.length-1];if(Math.hypot(first.x-last.x,first.y-last.y)>.015)segments.push({x:last.x,y:last.y,x2:first.x,y2:first.y,page:p});active.push(first)}finish()};for(let k=0;k<(ops.fnArray||[]).length;k++){const fn=ops.fnArray[k],a=ops.argsArray?.[k]||[];if(fn===pdfjs.OPS.save){stack.push([...matrix])}else if(fn===pdfjs.OPS.restore){matrix=stack.pop()||[1,0,0,1,0,0]}else if(fn===pdfjs.OPS.transform){transform(a.map(Number))}else if(fn===pdfjs.OPS.paintFormXObjectBegin){stack.push([...matrix]);if(a[0])transform(Array.from(a[0] as ArrayLike<number>))}else if(fn===pdfjs.OPS.paintFormXObjectEnd){matrix=stack.pop()||[1,0,0,1,0,0]}else if(fn===pdfjs.OPS.constructPath){for(const command of (a[1]||[])){const c=Array.from(command as ArrayLike<number>).map(Number);for(let j=0;j<c.length;){const code=c[j++];if(code===0){finish();add(c[j++],c[j++],false)}else if(code===1){add(c[j++],c[j++])}else if(code===2){j+=6;active.length=0}else if(code===3){j+=4;active.length=0}else if(code===4){close()}else{active.length=0;break}}}finish()}else if(fn===pdfjs.OPS.moveTo){finish();add(Number(a[0]),Number(a[1]),false)}else if(fn===pdfjs.OPS.lineTo){add(Number(a[0]),Number(a[1]))}else if(fn===pdfjs.OPS.rectangle){finish();const [x,y,w,h]=a.map(Number);add(x,y,false);add(x+w,y);add(x+w,y+h);add(x,y+h);close()}else if(fn===pdfjs.OPS.closePath){close()}}}catch{}finally{page.cleanup()}}
+ try{
+   onProgress?.(p,doc.numPages,'vectors');
+   const ops=await withParseBudget(page.getOperatorList(),PDF_PAGE_ASYNC_BUDGET_MS,`Extracting drawing operators from page ${p}`,signal);
+   const normalized=await normalizePdfVectorOpsInWorker({
+    fnArray:Array.from(ops.fnArray||[]),
+    argsArray:Array.from(ops.argsArray||[]) as unknown[][],
+    viewport:{width:viewport.width,height:viewport.height,transform:Array.from(viewport.transform||[1,0,0,1,0,0]).map(Number)},
+    ops:{
+     save:pdfjs.OPS.save,restore:pdfjs.OPS.restore,transform:pdfjs.OPS.transform,
+     paintFormXObjectBegin:pdfjs.OPS.paintFormXObjectBegin,paintFormXObjectEnd:pdfjs.OPS.paintFormXObjectEnd,
+     constructPath:pdfjs.OPS.constructPath,moveTo:pdfjs.OPS.moveTo,lineTo:pdfjs.OPS.lineTo,
+     rectangle:pdfjs.OPS.rectangle,closePath:pdfjs.OPS.closePath
+    },
+    maxOps:PDF_MAX_VECTOR_OPS_PER_PAGE,
+    maxSegments:PDF_MAX_VECTOR_SEGMENTS_PER_PAGE,
+    timeoutMs:PDF_VECTOR_BUDGET_MS,
+    signal
+   });
+   vectors+=normalized.pageOps;
+   pageVectorOps.set(p,normalized.pageOps);
+   segments.push(...normalized.segments.map(segment=>({...segment,page:p})));
+   polygons.push(...normalized.polygons.map(polygon=>({...polygon,page:p})));
+  }catch(error){
+   if(signal?.aborted||(error instanceof DOMException&&error.name==='AbortError')||error instanceof PdfVectorWorkerError||/budget|exceeded|safety/i.test(error instanceof Error?error.message:String(error)))throw error;
+   pageVectorOps.set(p,0);
+  }finally{page.cleanup()}
+ }
  const pageEvidence=new Map<number,ReturnType<typeof detectSldPage>>(),planEvidence=new Map<number,ReturnType<typeof detectNonSldPlanPage>>();
  for(let page=1;page<=doc.numPages;page++){
   const labels=[...raw.filter(item=>item.page===page).map(item=>item.str),...(ocrTextByPage.get(page)||[])],vectorCount=pageVectorOps.get(page)||0,{sld,plan}=resolveDrawingPageRecognition(labels,vectorCount);
