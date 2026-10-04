@@ -163,4 +163,60 @@ test.describe('authenticated server-backed Spatial golden path',()=>{
    await betaContext.close();
   }
  });
+
+ test('project workspace creates a real tenant project, selects it for Spatial and remains tenant-isolated',async({page,browser})=>{
+  await login(page,alpha.email,alpha.password);
+  await page.goto('/projects');
+  await expect(page.getByRole('heading',{name:'Projects'})).toBeVisible();
+  await expect(page.getByText('E2E-ALPHA',{exact:true})).toBeVisible();
+
+  await page.getByRole('button',{name:'New project'}).click();
+  await page.getByLabel('Project code').fill('E2E-CREATED');
+  await page.getByLabel('Project name').fill('Created through Projects UI');
+  await page.getByLabel('Client').fill('STRATUM E2E Client');
+  await page.getByLabel('Location').fill('Disposable CI Site');
+  await page.getByLabel('Project status').selectOption('PLANNING');
+  await page.getByRole('button',{name:'Create & use for Spatial'}).click();
+  await expect(page.getByRole('status')).toContainText('Created E2E-CREATED and selected it for Spatial.');
+
+  const alphaProjects=await browserFetch(page,'/api/projects');
+  expect(alphaProjects.status).toBe(200);
+  const created=alphaProjects.body.projects.find((project:any)=>project.project_code==='E2E-CREATED');
+  expect(created).toMatchObject({
+   name:'Created through Projects UI',
+   client_name:'STRATUM E2E Client',
+   location_label:'Disposable CI Site',
+   status:'PLANNING',
+   progress_percent:0,
+   asset_count:0,
+   latest_spatial_revision:null,
+  });
+  expect(await page.evaluate(()=>localStorage.getItem('stratum_spatial_project_id'))).toBe(created.id);
+
+  const card=page.locator('article').filter({hasText:'E2E-CREATED'});
+  await card.getByRole('button',{name:'Archive'}).click();
+  await expect(page.getByRole('status')).toContainText('Archived E2E-CREATED.');
+  await expect(card).toContainText('ARCHIVED');
+
+  await card.getByRole('button',{name:'Restore'}).click();
+  await expect(page.getByRole('status')).toContainText('Restored E2E-CREATED to Active.');
+  await expect(card).toContainText('ACTIVE');
+
+  const origin=new URL(page.url()).origin;
+  const betaContext=await browser.newContext({baseURL:origin});
+  const betaPage=await betaContext.newPage();
+  try{
+   await login(betaPage,beta.email,beta.password);
+   const betaProjects=await browserFetch(betaPage,'/api/projects');
+   expect(betaProjects.status).toBe(200);
+   expect(betaProjects.body.projects.map((project:any)=>project.project_code)).toEqual(['E2E-BETA']);
+
+   const foreignPatch=await browserFetch(betaPage,'/api/projects','PATCH',{projectId:created.id,status:'ARCHIVED'});
+   expect(foreignPatch.status).toBe(404);
+   expect(foreignPatch.body.error).toBe('Project not found in this organization');
+  }finally{
+   await betaContext.close();
+  }
+ });
+
 });
