@@ -880,9 +880,10 @@ test('reviewed civil-to-electrical alignment transfers grade Z across sheets wit
  await expect(review.getByText(/C-2 → E-101|E-101 → C-2/)).toBeVisible();
  await expect(review.getByText(/COORDINATION REVIEW/)).toBeVisible();
  await expect(review.getByText(/disciplines differ/i)).toBeVisible();
- await expect(review.getByText('Drawing footprint overlap',{exact:true})).toBeVisible();
- await expect(review.getByText('CONSISTENT',{exact:true})).toBeVisible();
- await expect(review.getByText(/100% of smaller footprint · IoU 100%/i)).toBeVisible();
+ const footprintReview=review.locator('.label').filter({hasText:'Drawing footprint overlap'}).locator('..');
+ await expect(footprintReview.getByText('Drawing footprint overlap',{exact:true})).toBeVisible();
+ await expect(footprintReview.getByText('CONSISTENT',{exact:true})).toBeVisible();
+ await expect(footprintReview.getByText(/100% of smaller footprint · IoU 100%/i)).toBeVisible();
  await review.getByRole('button',{name:'Apply reviewed proposal'}).click();
  await expect(review.getByRole('status')).toContainText(/cross-sheet elevation surfaces were sampled for review/i);
 
