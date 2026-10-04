@@ -27,7 +27,7 @@ test('Spatial review truth and layout at device width',async({page},testInfo)=>{
   await page.addInitScript(value=>localStorage.setItem('stratum_compiled_graph',JSON.stringify(value)),graph);
   await page.goto('/spatial');
   await expect(page.getByRole('heading',{name:'Spatial model'})).toBeVisible();
-  await expect(page.getByText('5 objects · 15 drawing lines')).toBeVisible();
+  await expect(page.getByText(/1 source .* 15 drawing lines/i)).toBeVisible();
   const canvas=page.locator('canvas[aria-label="Interactive Spatial model"]');
   await expect(canvas).toBeVisible();
   await expect.poll(()=>canvas.getAttribute('data-clickable-assets')).toBe('5');
@@ -48,7 +48,7 @@ test('Spatial review truth and layout at device width',async({page},testInfo)=>{
   const pinBox=await lastPin.boundingBox();
   const listBox=await page.getByLabel('Review pin labels').boundingBox();
   expect(pinBox&&listBox&&pinBox.y+pinBox.height<=listBox.y+listBox.height).toBeTruthy();
-  await expect(page.getByText('5 objects · 15 drawing lines')).toBeVisible();
+  await expect(page.getByText(/1 source .* 15 drawing lines/i)).toBeVisible();
   const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth);
   expect(overflow).toBe(false);
   expect(errors).toEqual([]);
