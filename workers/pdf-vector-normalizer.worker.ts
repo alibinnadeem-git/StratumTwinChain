@@ -7,7 +7,7 @@ type Ops={
  save:number;restore:number;transform:number;paintFormXObjectBegin:number;paintFormXObjectEnd:number;
  constructPath:number;moveTo:number;lineTo:number;rectangle:number;closePath:number;
 };
-type Request={
+type VectorWorkerRequest={
  type:'NORMALIZE';
  fnArray:number[];
  argsArray:unknown[][];
@@ -16,17 +16,18 @@ type Request={
  maxOps:number;
  maxSegments:number;
 };
-type Response=
+type VectorWorkerResponse=
  |{type:'DONE';pageOps:number;segments:Segment[];polygons:Polygon[]}
  |{type:'ERROR';code:'OP_BUDGET'|'SEGMENT_BUDGET'|'INVALID_INPUT'|'WORKER_ERROR';message:string};
 
 const ctx=self as unknown as DedicatedWorkerGlobalScope;
 
-function postError(code:Response extends infer _?any:never,message:string){
- ctx.postMessage({type:'ERROR',code,message} satisfies Extract<Response,{type:'ERROR'}>);
+function postError(code:'OP_BUDGET'|'SEGMENT_BUDGET'|'INVALID_INPUT'|'WORKER_ERROR',message:string){
+ const payload:Extract<VectorWorkerResponse,{type:'ERROR'}>={type:'ERROR',code,message};
+ ctx.postMessage(payload);
 }
 
-ctx.onmessage=(event:MessageEvent<Request>)=>{
+ctx.onmessage=(event:MessageEvent<VectorWorkerRequest>)=>{
  try{
   const data=event.data;
   if(!data||data.type!=='NORMALIZE'||!Array.isArray(data.fnArray)||!Array.isArray(data.argsArray)){
@@ -128,7 +129,8 @@ ctx.onmessage=(event:MessageEvent<Request>)=>{
    else if(fn===data.ops.closePath){close()}
   }
 
-  ctx.postMessage({type:'DONE',pageOps,segments,polygons} satisfies Extract<Response,{type:'DONE'}>);
+  const payload:Extract<VectorWorkerResponse,{type:'DONE'}>={type:'DONE',pageOps,segments,polygons};
+  ctx.postMessage(payload);
  }catch(error){
   const code=(error as {code?:string})?.code==='SEGMENT_BUDGET'?'SEGMENT_BUDGET':'WORKER_ERROR';
   postError(code,error instanceof Error?error.message:'PDF vector normalization failed.');
