@@ -1,0 +1,121 @@
+import {NextResponse} from 'next/server';
+import {z} from 'zod';
+import {requireSession} from '@/lib/server/auth';
+import {query,tx} from '@/lib/server/db';
+
+const Status=z.enum(['ACTIVE','PLANNING','COMMISSIONING','OPERATIONS','ARCHIVED']);
+const Create=z.object({
+  projectCode:z.string().trim().min(1).max(80),
+  name:z.string().trim().min(1).max(200),
+  clientName:z.string().trim().max(200).optional().default(''),
+  locationLabel:z.string().trim().max(300).optional().default(''),
+  status:z.enum(['ACTIVE','PLANNING','COMMISSIONING','OPERATIONS']).optional().default('ACTIVE'),
+});
+const Update=z.object({
+  projectId:z.string().uuid(),
+  name:z.string().trim().min(1).max(200).optional(),
+  clientName:z.string().trim().max(200).optional(),
+  locationLabel:z.string().trim().max(300).optional(),
+  progressPercent:z.number().int().min(0).max(100).optional(),
+  status:Status.optional(),
+}).refine(body=>Object.keys(body).some(key=>key!=='projectId'),{message:'At least one project field must be updated'});
+
+function status(error:unknown,otherwise=400){
+  return typeof error==='object'&&error&&'status' in error?Number((error as {status?:number}).status)||otherwise:otherwise;
+}
+
+async function readProjects(organizationId:string){
+  const sql='SELECT p.id::text,p.project_code,p.name,p.client_name,p.location_label,p.status,p.progress_percent,p.archived_at,p.updated_at,p.created_at,'+
+    ' COUNT(DISTINCT a.id)::int asset_count,MAX(sc.revision)::int latest_spatial_revision'+
+    ' FROM projects p'+
+    ' LEFT JOIN assets a ON a.organization_id=p.organization_id AND a.project_id=p.id'+
+    ' LEFT JOIN spatial_compilations sc ON sc.organization_id=p.organization_id AND sc.project_id=p.id'+
+    ' WHERE p.organization_id=$1'+
+    ' GROUP BY p.id'+
+    " ORDER BY CASE WHEN p.status='ARCHIVED' THEN 1 ELSE 0 END,p.name,p.project_code";
+  const result=await query<any>(sql,[organizationId]);
+  return result.rows;
+}
+
+export async function GET(){
+  try{
+    const session=await requireSession();
+    return NextResponse.json({
+      projects:await readProjects(session.organizationId),
+      truthBoundary:'PROJECT_PROGRESS_IS_MANAGEMENT_STATE_NOT_VERIFIED_INFRASTRUCTURE_STATE',
+    },{headers:{'cache-control':'private, no-store'}});
+  }catch(error:any){
+    return NextResponse.json({error:error.message},{status:status(error,500),headers:{'cache-control':'private, no-store'}});
+  }
+}
+
+export async function POST(req:Request){
+  try{
+    const session=await requireSession(['SUPER_ADMIN','ORG_ADMIN','PROJECT_MANAGER']);
+    const body=Create.parse(await req.json());
+    const project=await tx(async client=>{
+      const duplicate=await client.query<{id:string}>(
+        'SELECT id::text FROM projects WHERE organization_id=$1 AND lower(project_code)=lower($2) LIMIT 1',
+        [session.organizationId,body.projectCode]
+      );
+      if(duplicate.rows[0])throw Object.assign(new Error('Project code already exists in this organization'),{status:409});
+      const inserted=await client.query<any>(
+        'INSERT INTO projects(organization_id,project_code,name,client_name,location_label,status,progress_percent,updated_at) '+
+        'VALUES($1,$2,$3,$4,$5,$6,0,now()) '+
+        'RETURNING id::text,project_code,name,client_name,location_label,status,progress_percent,archived_at,updated_at,created_at',
+        [session.organizationId,body.projectCode,body.name,body.clientName||null,body.locationLabel||null,body.status]
+      );
+      return inserted.rows[0];
+    });
+    return NextResponse.json({
+      project:{...project,asset_count:0,latest_spatial_revision:null},
+      truthBoundary:'PROJECT_CREATION_DOES_NOT_CREATE_OR_VERIFY_ASSETS',
+    },{status:201});
+  }catch(error:any){
+    if(error instanceof z.ZodError)return NextResponse.json({error:'Invalid project payload',issues:error.issues},{status:400});
+    return NextResponse.json({error:error.message},{status:status(error)});
+  }
+}
+
+export async function PATCH(req:Request){
+  try{
+    const session=await requireSession(['SUPER_ADMIN','ORG_ADMIN','PROJECT_MANAGER']);
+    const body=Update.parse(await req.json());
+    const project=await tx(async client=>{
+      const current=await client.query<any>(
+        'SELECT id::text,project_code,name,client_name,location_label,status,progress_percent FROM projects WHERE id=$1 AND organization_id=$2 FOR UPDATE',
+        [body.projectId,session.organizationId]
+      );
+      if(!current.rows[0])throw Object.assign(new Error('Project not found in this organization'),{status:404});
+      const nextStatus=body.status??current.rows[0].status;
+      const result=await client.query<any>(
+        "UPDATE projects SET "+
+        "name=COALESCE($3,name),"+
+        "client_name=CASE WHEN $4::text IS NULL THEN client_name ELSE NULLIF($4,'') END,"+
+        "location_label=CASE WHEN $5::text IS NULL THEN location_label ELSE NULLIF($5,'') END,"+
+        "progress_percent=COALESCE($6,progress_percent),"+
+        "status=$7,"+
+        "archived_at=CASE WHEN $7='ARCHIVED' AND status<>'ARCHIVED' THEN now() WHEN $7<>'ARCHIVED' THEN NULL ELSE archived_at END,"+
+        "updated_at=now() "+
+        "WHERE id=$1 AND organization_id=$2 "+
+        "RETURNING id::text,project_code,name,client_name,location_label,status,progress_percent,archived_at,updated_at,created_at",
+        [
+          body.projectId,session.organizationId,
+          body.name??null,
+          body.clientName===undefined?null:body.clientName,
+          body.locationLabel===undefined?null:body.locationLabel,
+          body.progressPercent??null,
+          nextStatus
+        ]
+      );
+      return result.rows[0];
+    });
+    return NextResponse.json({
+      project,
+      truthBoundary:'PROJECT_PROGRESS_AND_STATUS_ARE_MANAGEMENT_STATE_NOT_VERIFIED_INFRASTRUCTURE_STATE',
+    });
+  }catch(error:any){
+    if(error instanceof z.ZodError)return NextResponse.json({error:'Invalid project update',issues:error.issues},{status:400});
+    return NextResponse.json({error:error.message},{status:status(error)});
+  }
+}
