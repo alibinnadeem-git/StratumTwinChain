@@ -12,6 +12,12 @@ const beta={
  projectId:'30000000-0000-4000-8000-000000000002',
  entity:'E2E BETA PANEL',
 };
+const gamma={
+ email:'gamma.pm@stratum-e2e.test',
+ password:'StratumE2E!Gamma2026',
+ projectId:'30000000-0000-4000-8000-000000000003',
+ entity:'E2E GAMMA TRANSFORMER',
+};
 
 function graph(name:string,seed:string){
  return{
@@ -19,6 +25,28 @@ function graph(name:string,seed:string){
   createdAt:seed==='a'?'2026-10-04T00:00:01.000Z':'2026-10-04T00:00:02.000Z',
   sources:[{name:`E2E-${seed}.dxf`,ext:'dxf',sha256:seed.repeat(64),discipline:'Electrical',floor:'L1',elevation:0}],
   entities:[{id:`panel-${seed}`,source:`E2E-${seed}.dxf`,layer:'L2',kind:'text-asset-candidate',name,x:1,y:2,z:0,floor:'L1',confidence:.99,meta:{elevationKnown:false,physicalTruth:false,reviewRequired:true}}],
+  links:[],
+  stats:{L0:1,L1:0,L2:1,L3:0,L4:0},
+ };
+}
+
+function zConflictGraph(){
+ const source='E2E-gamma-z-conflict.pdf';
+ return{
+  version:'server-z-review-1',
+  createdAt:'2026-10-04T00:00:03.000Z',
+  sources:[{name:source,ext:'pdf',sha256:'e'.repeat(64),discipline:'Electrical / Civil',floor:'UNRESOLVED',elevation:0}],
+  entities:[{
+   id:'gamma-xfmr-z',source,layer:'L2',kind:'text-asset-candidate',name:gamma.entity,x:0,y:0,z:0,floor:'UNRESOLVED',confidence:.93,
+   meta:{
+    assetDimensionAuthority:'SOURCE_SPEC',assetDimensionsMeters:[1.7,1.6,1.25],
+    localReviewSurfaceZ:30.48,localReviewSurfaceKind:'GRADE',localReviewSurfaceAuthority:'SOURCE_ELEVATION_TRIANGLE',localReviewSurfaceConfidence:.84,
+    supportBaseOffsetMeters:.1524,supportOffsetKind:'PAD',supportOffsetAuthority:'TAG_LINKED_SOURCE_SUPPORT_NOTE',supportOffsetConfidence:.94,
+    supportOffsetEvidenceLabel:'XFMR 6" CONC PAD',
+    zResolutionStatus:'RESOLVED_DESIGN_CANDIDATE',zCandidateMeters:31.1,zCandidateReferencePoint:'BASE',zResolutionConfidence:.9,zResolutionAuthority:'SOURCE_BASE_ELEVATION',
+    physicalElevationKnown:false,elevationKnown:false,physicalTruth:false,reviewRequired:true
+   }
+  }],
   links:[],
   stats:{L0:1,L1:0,L2:1,L3:0,L4:0},
  };
@@ -94,7 +122,7 @@ async function browserFetch(page:Page,url:string,method='GET',body?:unknown){
  },{url,method,body});
 }
 
-async function saveGraph(page:Page,projectId:string,value:ReturnType<typeof graph>){
+async function saveGraph(page:Page,projectId:string,value:any){
  const response=await browserFetch(page,'/api/spatial/compilations','POST',{projectId,graph:value});
  expect(response.status).toBe(201);
  return response.body;
@@ -162,5 +190,91 @@ test.describe('authenticated server-backed Spatial golden path',()=>{
   }finally{
    await betaContext.close();
   }
- });
+ })
+
+ test('authenticated Z adjudication survives server hydration and rejects tampered receipts',async({page})=>{
+  await login(page,gamma.email,gamma.password);
+  const original=zConflictGraph();
+  const saved=await saveGraph(page,gamma.projectId,original);
+  expect(saved).toMatchObject({revision:1,idempotent:false,reviewState:'REVIEW_REQUIRED'});
+  const compilationId=String(saved.id||'');
+  expect(compilationId).toMatch(/^[0-9a-f-]{36}$/i);
+
+  const reason='Use grade plus the explicit transformer pad for the coordination review model.';
+  const review=await browserFetch(page,'/api/spatial/z-reviews','POST',{
+   projectId:gamma.projectId,
+   compilationId,
+   entityId:'gamma-xfmr-z',
+   action:'ACCEPT_DESIGN_CHAIN',
+   candidateId:'support-chain',
+   reason,
+  });
+  expect(review.status).toBe(201);
+  expect(review.body).toMatchObject({
+   action:'ACCEPT_DESIGN_CHAIN',
+   candidate_id:'support-chain',
+   reviewState:'REVIEW_RESOLVED_CANDIDATE',
+   truthBoundary:'AUTHENTICATED_Z_REVIEW_SELECTS_A_DESIGN_PLACEMENT_CHAIN_ONLY_NOT_PHYSICAL_TRUTH_NOT_DIR_NOT_POVI',
+  });
+  const decisionId=String(review.body.id||'');
+  expect(decisionId).toMatch(/^[0-9a-f-]{36}$/i);
+
+  const listed=await browserFetch(page,`/api/spatial/z-reviews?projectId=${gamma.projectId}&compilationId=${compilationId}&entityId=gamma-xfmr-z`);
+  expect(listed.status).toBe(200);
+  expect(listed.body.decisions).toHaveLength(1);
+  expect(listed.body.decisions[0]).toMatchObject({
+   id:decisionId,
+   entity_id:'gamma-xfmr-z',
+   action:'ACCEPT_DESIGN_CHAIN',
+   candidate_id:'support-chain',
+   graph_sha256:saved.graph_sha256,
+  });
+
+  await clearBrowserGraphs(page);
+  await page.goto('/spatial');
+  await expect(page.getByText('PROJECT MODEL',{exact:true})).toBeVisible({timeout:20_000});
+  await expect(page.getByLabel('Imported object')).toContainText(gamma.entity);
+  await page.getByLabel('Imported object').selectOption('gamma-xfmr-z');
+  await expect(page.getByText(/HUMAN REVIEW PLACEMENT · PHYSICAL Z UNVERIFIED/)).toBeVisible();
+
+  await expect.poll(async()=>page.evaluate(()=>{
+   try{
+    const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
+    const entity=(graph.entities||[]).find((item:any)=>item.id==='gamma-xfmr-z');
+    const hydration=JSON.parse(sessionStorage.getItem('stratum_spatial_server_hydration_v1')||'{}');
+    return entity?.meta?{
+     authority:entity.meta.zReviewDecisionAuthority,
+     decisionId:entity.meta.zReviewDecisionId,
+     candidate:entity.meta.zReviewDecisionCandidateId,
+     reason:entity.meta.zReviewDecisionReason,
+     physicalElevationKnown:entity.meta.physicalElevationKnown,
+     physicalTruth:entity.meta.physicalTruth,
+     reviewRequired:entity.meta.reviewRequired,
+     hydrationState:hydration.state,
+     hydrationDecisionCount:hydration.zReviewDecisionCount,
+    }:null;
+   }catch{return null}
+  }),{timeout:20_000,intervals:[250,500,1000,2000]}).toMatchObject({
+   authority:'SERVER_AUTHENTICATED_HUMAN_REVIEW',
+   decisionId,
+   candidate:'support-chain',
+   reason,
+   physicalElevationKnown:false,
+   physicalTruth:false,
+   reviewRequired:true,
+   hydrationState:'RESTORED',
+   hydrationDecisionCount:1,
+  });
+
+  const hydratedGraph=await page.evaluate(()=>JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}'));
+  const resaved=await browserFetch(page,'/api/spatial/compilations','POST',{projectId:gamma.projectId,graph:hydratedGraph});
+  expect(resaved.status).toBe(201);
+  expect(resaved.body.revision).toBe(2);
+
+  const tampered=structuredClone(hydratedGraph);
+  tampered.entities[0].meta.zReviewDecisionId='40000000-0000-4000-8000-000000000099';
+  const rejected=await browserFetch(page,'/api/spatial/compilations','POST',{projectId:gamma.projectId,graph:tampered});
+  expect(rejected.status).toBe(409);
+  expect(rejected.body.error).toMatch(/Z review receipt does not match the persisted server decision/i);
+ });;
 });
