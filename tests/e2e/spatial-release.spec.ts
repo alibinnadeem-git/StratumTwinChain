@@ -70,7 +70,7 @@ test('public product routes expose import, field, docs and sign-in instead of mo
  await expect(page.getByRole('heading',{name:'How STRATUM reasons about trust.'})).toBeVisible();
  await expect(page.getByText('PoVI · Proof of Verified Infrastructure')).toBeVisible();
  await page.goto('/');
- await expect(page.getByRole('link',{name:'Sign in to STRATUM'})).toBeVisible();
+ await expect(page.getByRole('navigation',{name:'Primary navigation'}).getByRole('link',{name:'Sign in',exact:true})).toBeVisible();
 });
 
 test('portable Spatial recovery exports protected history and restores the working graph',async({page})=>{
