@@ -28,7 +28,7 @@ assert.match(compiler,/replacementSource=\{sha256:digest,name:existing\.name\}/,
 assert.match(compiler,/replacementBackup=\{source:existing,entities:/,'reprocess must retain an in-memory backup of the previous source compilation');
 assert.match(compiler,/nextEntities=nextEntities\.filter\(entity=>String\(entity\.meta\?\.sourceSha256\|\|''\)!==digest&&entity\.source!==existing\.name\)/,'stale source entities must be removed before reparse');
 assert.match(compiler,/saveGraph\(nextFiles,nextEntities,replacementSource\?\[replacementSource\]:\[\]\)/,'replacement intent must reach graph persistence');
-assert.match(compiler,/reprocess failed; the previous saved compilation was preserved/i,'failed reprocessing must restore the previous compiled source rather than delete it');
+assert.match(compiler,/previous saved compilation was preserved/i,'failed or cancelled reprocessing must restore the previous compiled source rather than delete it');
 assert.match(compiler,/replaceShas=new Set\(replaceSources\.map/,'saved graph must exclude replaced source entities and metadata');
 assert.match(compiler,/version:'1\.2'/,'fresh compilation must advance graph schema marker');
 assert.match(compiler,/coordinationIntelligence:undefined/,'authoritative source saves must discard stale derived coordination before recomputation');
