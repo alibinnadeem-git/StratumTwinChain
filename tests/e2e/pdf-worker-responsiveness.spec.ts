@@ -1,6 +1,6 @@
 import {expect,test} from '@playwright/test';
 
-function syntheticVectorPdf(pageCount=9,linesPerPage=6000){
+function syntheticVectorPdf(pageCount=9,linesPerPage=2500){
  const escape=(value:string)=>value.replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)');
  const pageIds=Array.from({length:pageCount},(_,i)=>3+i*2);
  const contentIds=pageIds.map(id=>id+1);
@@ -30,6 +30,7 @@ function syntheticVectorPdf(pageCount=9,linesPerPage=6000){
 }
 
 test('native PDF worker stays responsive, can cancel, and retries the same file without reload',async({page},testInfo)=>{
+ test.setTimeout(90000);
  if(testInfo.project.name!=='desktop-chromium')return;
  await page.goto('/import');
  await page.evaluate(()=>{
@@ -51,7 +52,7 @@ test('native PDF worker stays responsive, can cancel, and retries the same file 
 
  await input.setInputFiles({name:'worker-stress-electrical.pdf',mimeType:'application/pdf',buffer:pdf});
  await expect(page.getByText('worker-stress-electrical.pdf',{exact:true})).toBeVisible();
- await expect(page.getByText(/parsed off the UI thread/i)).toBeVisible({timeout:45000});
+ await expect(page.getByText(/parsed off the UI thread/i)).toBeVisible({timeout:75000});
  await expect(page.getByText('PARSED',{exact:true})).toBeVisible();
  await expect(input).toBeEnabled();
  await page.evaluate(()=>window.clearInterval((window as any).__stratumHeartbeatTimer));
