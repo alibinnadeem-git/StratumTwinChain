@@ -837,7 +837,7 @@ test('pedestal EVSE composes local grade surface into a placement candidate',asy
 test('reviewed civil-to-electrical alignment transfers grade Z across sheets without claiming physical elevation',async({page})=>{
  const electricalSha='a'.repeat(64),civilSha='b'.repeat(64);
  const sourceElectrical='E-101 Electrical Site Plan.pdf',sourceCivil='C-2 Grading Plan.pdf';
- const meta=(sha:string,pageNumber:number,discipline:string)=>({sourceSha256:sha,page:pageNumber,nonSldPlan:true,planType:discipline==='Electrical'?'ELECTRICAL_POWER_PLAN':'CIVIL_GRADING_PLAN',planDiscipline:discipline,physicalElevationKnown:false,elevationKnown:false,physicalTruth:false,reviewRequired:true});
+ const meta=(sha:string,pageNumber:number,discipline:string)=>({sourceSha256:sha,page:pageNumber,planFrameId:'frame-l1',nonSldPlan:true,planType:discipline==='Electrical'?'ELECTRICAL_POWER_PLAN':'CIVIL_GRADING_PLAN',planDiscipline:discipline,physicalElevationKnown:false,elevationKnown:false,physicalTruth:false,reviewRequired:true});
  const graph={
   version:'cross-sheet-z-browser-1',createdAt:'2026-09-29T00:00:00.000Z',reviewState:'REVIEW_REQUIRED',
   sources:[
@@ -856,6 +856,14 @@ test('reviewed civil-to-electrical alignment transfers grade Z across sheets wit
    {id:'c-a1',source:sourceCivil,layer:'L2',kind:'logical-tag',name:'PANEL LP1',x:0,y:0,z:0,floor:'L1',confidence:.95,meta:meta(civilSha,2,'Civil')},
    {id:'c-a2',source:sourceCivil,layer:'L2',kind:'logical-tag',name:'TRANSFORMER T1',x:2,y:0,z:0,floor:'L1',confidence:.95,meta:meta(civilSha,2,'Civil')},
    {id:'c-a3',source:sourceCivil,layer:'L2',kind:'logical-tag',name:'ATS 1',x:0,y:2,z:0,floor:'L1',confidence:.95,meta:meta(civilSha,2,'Civil')},
+   {id:'e-boundary-1',source:sourceElectrical,layer:'L1',kind:'line',name:'Electrical source boundary',x:-1,y:-1,x2:3,y2:-1,z:0,floor:'L1',confidence:1,meta:{...meta(electricalSha,1,'Electrical'),drawingBasemap:true}},
+   {id:'e-boundary-2',source:sourceElectrical,layer:'L1',kind:'line',name:'Electrical source boundary',x:3,y:-1,x2:3,y2:3,z:0,floor:'L1',confidence:1,meta:{...meta(electricalSha,1,'Electrical'),drawingBasemap:true}},
+   {id:'e-boundary-3',source:sourceElectrical,layer:'L1',kind:'line',name:'Electrical source boundary',x:3,y:3,x2:-1,y2:3,z:0,floor:'L1',confidence:1,meta:{...meta(electricalSha,1,'Electrical'),drawingBasemap:true}},
+   {id:'e-boundary-4',source:sourceElectrical,layer:'L1',kind:'line',name:'Electrical source boundary',x:-1,y:3,x2:-1,y2:-1,z:0,floor:'L1',confidence:1,meta:{...meta(electricalSha,1,'Electrical'),drawingBasemap:true}},
+   {id:'c-boundary-1',source:sourceCivil,layer:'L1',kind:'line',name:'Civil source boundary',x:-1,y:-1,x2:3,y2:-1,z:0,floor:'L1',confidence:1,meta:{...meta(civilSha,2,'Civil'),drawingBasemap:true}},
+   {id:'c-boundary-2',source:sourceCivil,layer:'L1',kind:'line',name:'Civil source boundary',x:3,y:-1,x2:3,y2:3,z:0,floor:'L1',confidence:1,meta:{...meta(civilSha,2,'Civil'),drawingBasemap:true}},
+   {id:'c-boundary-3',source:sourceCivil,layer:'L1',kind:'line',name:'Civil source boundary',x:3,y:3,x2:-1,y2:3,z:0,floor:'L1',confidence:1,meta:{...meta(civilSha,2,'Civil'),drawingBasemap:true}},
+   {id:'c-boundary-4',source:sourceCivil,layer:'L1',kind:'line',name:'Civil source boundary',x:-1,y:3,x2:-1,y2:-1,z:0,floor:'L1',confidence:1,meta:{...meta(civilSha,2,'Civil'),drawingBasemap:true}},
    {id:'civil-grade-triangle',source:sourceCivil,layer:'L1',kind:'elevation-review-surface-triangle',name:'GRADE review surface',x:.5,y:.2,z:30.6,floor:'UNRESOLVED',confidence:.82,
     vertices:[{x:-1,y:-1},{x:2,y:-1},{x:.5,y:2}],
     meta:{...meta(civilSha,2,'Civil'),elevationTriangle:{id:'tri-browser-1',kind:'GRADE',pointIds:['p1','p2','p3'],zMeters:[30,31,32]}}}
@@ -872,6 +880,9 @@ test('reviewed civil-to-electrical alignment transfers grade Z across sheets wit
  await expect(review.getByText(/C-2 → E-101|E-101 → C-2/)).toBeVisible();
  await expect(review.getByText(/COORDINATION REVIEW/)).toBeVisible();
  await expect(review.getByText(/disciplines differ/i)).toBeVisible();
+ await expect(review.getByText('Drawing footprint overlap',{exact:true})).toBeVisible();
+ await expect(review.getByText('CONSISTENT',{exact:true})).toBeVisible();
+ await expect(review.getByText(/100% of smaller footprint · IoU 100%/i)).toBeVisible();
  await review.getByRole('button',{name:'Apply reviewed proposal'}).click();
  await expect(review.getByRole('status')).toContainText(/cross-sheet elevation surfaces were sampled for review/i);
 
