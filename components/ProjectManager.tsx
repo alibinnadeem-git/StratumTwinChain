@@ -8,10 +8,7 @@ type Project={
  id:string;
  project_code:string;
  name:string;
- client_name:string|null;
- location_label:string|null;
- status:'ACTIVE'|'PLANNING'|'COMMISSIONING'|'OPERATIONS'|'ARCHIVED';
- progress_percent:number;
+ status:'ACTIVE'|'PLANNING'|'COMMISSIONING'|'OPERATIONS'|'ARCHIVED'|string;
  asset_count:number;
  latest_spatial_revision:number|null;
 };
@@ -19,8 +16,6 @@ type Project={
 type Form={
  projectCode:string;
  name:string;
- clientName:string;
- locationLabel:string;
  status:'ACTIVE'|'PLANNING'|'COMMISSIONING'|'OPERATIONS';
 };
 
@@ -30,7 +25,7 @@ export default function ProjectManager({canManage}:{canManage:boolean}){
  const [busy,setBusy]=useState(false);
  const [message,setMessage]=useState('Loading tenant projects…');
  const [selected,setSelected]=useState('');
- const [form,setForm]=useState<Form>({projectCode:'',name:'',clientName:'',locationLabel:'',status:'ACTIVE'});
+ const [form,setForm]=useState<Form>({projectCode:'',name:'',status:'ACTIVE'});
 
  async function refresh(){
   const response=await fetch('/api/projects',{cache:'no-store',credentials:'same-origin'});
@@ -61,7 +56,7 @@ export default function ProjectManager({canManage}:{canManage:boolean}){
    });
    const body=await response.json().catch(()=>({}));
    if(!response.ok)throw new Error(body?.error||('Project creation failed ('+response.status+').'));
-   setForm({projectCode:'',name:'',clientName:'',locationLabel:'',status:'ACTIVE'});
+   setForm({projectCode:'',name:'',status:'ACTIVE'});
    setOpen(false);
    setSelected(body.project.id);
    writeSelectedSpatialProjectId(body.project.id);
@@ -116,8 +111,6 @@ export default function ProjectManager({canManage}:{canManage:boolean}){
    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:10,marginTop:10}}>
     <label><span>Project code</span><input aria-label="Project code" value={form.projectCode} onChange={event=>setForm(value=>({...value,projectCode:event.target.value}))} placeholder="e.g. SFO-DC-01"/></label>
     <label><span>Project name</span><input aria-label="Project name" value={form.name} onChange={event=>setForm(value=>({...value,name:event.target.value}))} placeholder="Project name"/></label>
-    <label><span>Client</span><input aria-label="Client" value={form.clientName} onChange={event=>setForm(value=>({...value,clientName:event.target.value}))} placeholder="Optional"/></label>
-    <label><span>Location</span><input aria-label="Location" value={form.locationLabel} onChange={event=>setForm(value=>({...value,locationLabel:event.target.value}))} placeholder="Optional"/></label>
     <label><span>Status</span><select aria-label="Project status" value={form.status} onChange={event=>setForm(value=>({...value,status:event.target.value as Form['status']}))}><option value="ACTIVE">Active</option><option value="PLANNING">Planning</option><option value="COMMISSIONING">Commissioning</option><option value="OPERATIONS">Operations</option></select></label>
    </div>
    <div className="button-row" style={{marginTop:12}}>
@@ -139,30 +132,10 @@ export default function ProjectManager({canManage}:{canManage:boolean}){
     <div className="project-status">{project.status}</div>
     <div className="eyebrow">{project.project_code}</div>
     <h2>{project.name}</h2>
-    <p className="muted">{project.client_name||'No client recorded'}<br/>{project.location_label||'No location recorded'}</p>
-    <div className="progress"><i style={{width:project.progress_percent+'%'}}/></div>
-    {canManage&&project.status!=='ARCHIVED'?
-     <label className="muted" style={{display:'grid',gap:5,marginTop:10}}>
-      Management progress
-      <input
-       aria-label={'Progress for '+project.project_code}
-       type="range"
-       min="0"
-       max="100"
-       value={project.progress_percent}
-       disabled={busy}
-       onChange={event=>void update(project.id,{progressPercent:Number(event.target.value)},'Updated '+project.project_code+' management progress.')}
-      />
-     </label>
-     :
-     <p className="muted">Management progress: {project.progress_percent}%</p>}
-
     <div className="project-kpis">
-     <div><strong>{project.progress_percent}%</strong><span>Progress</span></div>
      <div><strong>{project.asset_count}</strong><span>Assets</span></div>
      <div><strong>{project.latest_spatial_revision?'r'+project.latest_spatial_revision:'—'}</strong><span>Spatial</span></div>
     </div>
-
     <div className="button-row" style={{marginTop:12}}>
      {project.status!=='ARCHIVED'&&<>
       <button type="button" className={selected===project.id?'action':'ghost'} onClick={()=>useForSpatial(project)}>{selected===project.id?'Selected for Spatial':'Use for Spatial'}</button>
@@ -174,6 +147,6 @@ export default function ProjectManager({canManage}:{canManage:boolean}){
    </article>)}</div>
   }
 
-  <p className="muted" style={{marginTop:16}}>Project status and progress are management state only. They do not establish asset verification, DIR finality, PoVI finality or physical truth. Archived tenant projects are retained rather than destructively deleted.</p>
+  <p className="muted" style={{marginTop:16}}>Project status is management state only. It does not establish asset verification, DIR finality, PoVI finality or physical truth. Archived tenant projects are retained rather than destructively deleted.</p>
  </>;
 }
