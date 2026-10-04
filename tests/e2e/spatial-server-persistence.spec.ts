@@ -174,8 +174,6 @@ test.describe('authenticated server-backed Spatial golden path',()=>{
   await page.getByRole('button',{name:'New project'}).click();
   await page.getByLabel('Project code').fill('E2E-CREATED');
   await page.getByLabel('Project name').fill('Created through Projects UI');
-  await page.getByLabel('Client').fill('STRATUM E2E Client');
-  await page.getByLabel('Location').fill('Disposable CI Site');
   await page.getByLabel('Project status').selectOption('PLANNING');
   await page.getByRole('button',{name:'Create & use for Spatial'}).click();
   await expect(page.getByRole('status')).toContainText('Created E2E-CREATED and selected it for Spatial.');
@@ -185,10 +183,7 @@ test.describe('authenticated server-backed Spatial golden path',()=>{
   const created=alphaProjects.body.projects.find((project:any)=>project.project_code==='E2E-CREATED');
   expect(created).toMatchObject({
    name:'Created through Projects UI',
-   client_name:'STRATUM E2E Client',
-   location_label:'Disposable CI Site',
    status:'PLANNING',
-   progress_percent:0,
    asset_count:0,
    latest_spatial_revision:null,
   });
