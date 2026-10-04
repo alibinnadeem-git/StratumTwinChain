@@ -19,7 +19,7 @@ test('password setup rejects malformed credentials before persistence',async({re
 test('signed-out administration fails closed without demo administrator identity',async({page})=>{
  await page.goto('/admin');
  await expect(page.getByRole('heading',{name:'Sign in required'})).toBeVisible();
- await expect(page.getByRole('link',{name:'Sign in'})).toBeVisible();
+ await expect(page.locator('#main-content').getByRole('link',{name:'Sign in',exact:true})).toBeVisible();
  await expect(page.getByText('No reference or demo administrator identity is substituted.')).toBeVisible();
  await expect(page.getByText('SUPER ADMIN',{exact:true})).toHaveCount(0);
  await expect(page.getByRole('button',{name:'Provision member'})).toHaveCount(0);
