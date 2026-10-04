@@ -34,14 +34,20 @@ function validRenderableGraph(value:unknown):value is SpatialGraphLike{
   return Array.isArray(graph.sources)&&Array.isArray(graph.entities)&&graph.entities.length>0;
 }
 
-function overlayZReviewDecisions(graph:SpatialGraphLike,decisions:ZReviewDecision[]){
-  if(!decisions.length)return graph;
+function overlayZReviewDecisions(graph:SpatialGraphLike,decisions:ZReviewDecision[],currentCompilationId:string){
+  if(!decisions.length)return{graph,applied:0};
   const byEntity=new Map(decisions.map(decision=>[decision.entity_id,decision]));
-  return{
+  let applied=0;
+  const restored={
     ...graph,
     entities:graph.entities.map((entity:any)=>{
       const decision=byEntity.get(String(entity.id||''));
       if(!decision)return entity;
+      const existingDecisionId=String(entity.meta?.zReviewDecisionId||'');
+      const appliesToCurrent=decision.compilation_id===currentCompilationId
+        ||(decision.action==='ACCEPT_DESIGN_CHAIN'&&existingDecisionId===decision.id);
+      if(!appliesToCurrent)return entity;
+      applied++;
       const meta={...(entity.meta||{})};
       for(const key of Object.keys(meta))if(key.startsWith('zReviewDecision'))delete meta[key];
       if(decision.action==='ACCEPT_DESIGN_CHAIN'&&decision.candidate_id){
@@ -63,6 +69,7 @@ function overlayZReviewDecisions(graph:SpatialGraphLike,decisions:ZReviewDecisio
       return{...entity,meta};
     })
   } as SpatialGraphLike;
+  return{graph:restored,applied};
 }
 
 function publish(detail:Record<string,unknown>){
@@ -112,12 +119,13 @@ export default function SpatialServerHydrator(){
     const compilationId=body.latest?.id||'';
     if(compilationId){
       try{
-        const reviewResponse=await fetch('/api/spatial/z-reviews?projectId='+encodeURIComponent(projectId)+'&compilationId='+encodeURIComponent(compilationId),{cache:'no-store',credentials:'same-origin'});
+        const reviewResponse=await fetch('/api/spatial/z-reviews?projectId='+encodeURIComponent(projectId),{cache:'no-store',credentials:'same-origin'});
         if(reviewResponse.ok){
           const reviewBody=await reviewResponse.json() as {decisions?:ZReviewDecision[]};
           const decisions=Array.isArray(reviewBody.decisions)?reviewBody.decisions:[];
-          restoredGraph=overlayZReviewDecisions(graph,decisions);
-          zReviewDecisionCount=decisions.length;
+          const overlay=overlayZReviewDecisions(graph,decisions,compilationId);
+          restoredGraph=overlay.graph;
+          zReviewDecisionCount=overlay.applied;
         }
       }catch{}
     }
