@@ -18,7 +18,7 @@ const beta={
 function graph(name:string,seed:string){
  return{
   version:'server-golden-1',
-  createdAt:`2026-10-04T00:00:0${seed}.000Z`,
+  createdAt:seed==='a'?'2026-10-04T00:00:01.000Z':'2026-10-04T00:00:02.000Z',
   sources:[{name:`E2E-${seed}.dxf`,ext:'dxf',sha256:seed.repeat(64),discipline:'Electrical',floor:'L1',elevation:0}],
   entities:[{id:`panel-${seed}`,source:`E2E-${seed}.dxf`,layer:'L2',kind:'text-asset-candidate',name,x:1,y:2,z:0,floor:'L1',confidence:.99,meta:{elevationKnown:false,physicalTruth:false,reviewRequired:true}}],
   links:[],
