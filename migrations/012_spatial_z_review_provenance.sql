@@ -32,11 +32,11 @@ CREATE INDEX IF NOT EXISTS spatial_z_review_decisions_compilation_idx
   ON spatial_z_review_decisions (organization_id, compilation_id, occurred_at DESC, id DESC);
 
 CREATE OR REPLACE FUNCTION stratum_prevent_spatial_z_review_decision_mutation()
-RETURNS trigger AS $$
-BEGIN
-  RAISE EXCEPTION 'spatial_z_review_decisions are append-only';
-END;
-$$ LANGUAGE plpgsql;
+RETURNS trigger
+LANGUAGE plpgsql
+AS 'BEGIN
+  RAISE EXCEPTION ''spatial_z_review_decisions are append-only'';
+END';
 
 DROP TRIGGER IF EXISTS spatial_z_review_decisions_append_only ON spatial_z_review_decisions;
 CREATE TRIGGER spatial_z_review_decisions_append_only
