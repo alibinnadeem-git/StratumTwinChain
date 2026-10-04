@@ -1,7 +1,8 @@
 import {fitSheetSimilarity,type SheetSimilarity} from './sheet-similarity.ts';
 import {drawingScaleDenominator} from './title-block.ts';
+import {buildSourceBoundary,measureBoundaryOverlap} from './sheet-boundary-overlap.ts';
 
-export type AlignmentEntity={id:string;name:string;x:number;y:number;kind:string;confidence:number;meta?:Record<string,unknown>};
+export type AlignmentEntity={id:string;name:string;x:number;y:number;x2?:number;y2?:number;vertices?:{x:number;y:number}[];kind:string;confidence:number;meta?:Record<string,unknown>};
 export type AlignmentSheet={
  sourceSha256:string;
  page:number;
@@ -19,6 +20,13 @@ export type AlignmentCrossChecks={
  scale:'CONSISTENT'|'REVIEW'|'MISMATCH'|'UNAVAILABLE';
  expectedScale:number|null;
  scaleDeviationFactor:number|null;
+ boundary:'CONSISTENT'|'REVIEW'|'MISMATCH'|'UNAVAILABLE';
+ boundaryOverlapRatio:number|null;
+ boundaryIou:number|null;
+ referenceBoundaryVertices:number;
+ movingBoundaryVertices:number;
+ referencePlanFrameId:string|null;
+ movingPlanFrameId:string|null;
 };
 export type AlignmentProposal={id:string;referenceKey:string;movingKey:string;referenceSheet:string;movingSheet:string;anchors:{name:string;referenceEntityId:string;movingEntityId:string}[];transform:SheetSimilarity;confidence:number;eligible:boolean;reasons:string[];warnings:string[];crossChecks:AlignmentCrossChecks;reviewRequired:true;autoApply:false;verified:false};
 
@@ -36,6 +44,15 @@ function anchorsFor(entities:AlignmentEntity[],key:string){
  }
  return byName;
 }
+function dominantPlanFrameId(entities:AlignmentEntity[]){
+ const counts=new Map<string,number>();
+ for(const entity of entities){
+  const id=String(entity.meta?.planFrameId||'').trim();if(!id)continue;
+  counts.set(id,(counts.get(id)||0)+1);
+ }
+ const ranked=[...counts.entries()].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]));
+ return ranked.length&&ranked[0][1]>=2?ranked[0][0]:null;
+}
 function positive(value:unknown){const n=Number(value);return Number.isFinite(n)&&n>0?n:null}
 function scaleExpectation(reference:AlignmentSheet,moving:AlignmentSheet){
  const referenceDenominator=drawingScaleDenominator(reference.drawingScale?.value),movingDenominator=drawingScaleDenominator(moving.drawingScale?.value);
@@ -52,7 +69,8 @@ export function proposeSheetAlignments(entities:AlignmentEntity[],sheets:Alignme
   const reference=confirmed[i],moving=confirmed[j],referenceKey=sheetKey(reference),movingKey=sheetKey(moving);
   const referenceAnchors=anchorsFor(entities,referenceKey),movingAnchors=anchorsFor(entities,movingKey);
   const names=[...referenceAnchors.keys()].filter(name=>movingAnchors.has(name)).sort();if(names.length<2)continue;
-  const transform=fitSheetSimilarity(names.map(name=>({x:movingAnchors.get(name)!.x,y:movingAnchors.get(name)!.y})),names.map(name=>({x:referenceAnchors.get(name)!.x,y:referenceAnchors.get(name)!.y})));if(!transform)continue;
+  const referenceMatched=names.map(name=>referenceAnchors.get(name)!),movingMatched=names.map(name=>movingAnchors.get(name)!);
+  const transform=fitSheetSimilarity(movingMatched.map(entity=>({x:entity.x,y:entity.y})),referenceMatched.map(entity=>({x:entity.x,y:entity.y})));if(!transform)continue;
   const reasons:string[]=[],warnings:string[]=[];
   if(names.length<3)reasons.push('At least three shared source-grounded anchors are required.');
   if(transform.scale<.25||transform.scale>4)reasons.push('Estimated scale is outside the bounded review range.');
@@ -72,8 +90,34 @@ export function proposeSheetAlignments(entities:AlignmentEntity[],sheets:Alignme
   const scale=scaleDeviationFactor===null?'UNAVAILABLE':scaleDeviationFactor>1.6?'MISMATCH':scaleDeviationFactor>1.25?'REVIEW':'CONSISTENT';
   if(scale==='MISMATCH')reasons.push(`Anchor-derived scale ${transform.scale.toFixed(4)}× strongly disagrees with the title-block/page-geometry expectation ${expectedScale!.toFixed(4)}× (factor ${scaleDeviationFactor!.toFixed(2)}).`);
 
-  const confidence=Math.max(0,Math.min(1,(.48+Math.min(names.length,8)*.055+(discipline==='MATCH'?.08:0))*Math.exp(-transform.rmsResidual/.7)));
-  proposals.push({id:`${referenceKey}->${movingKey}`,referenceKey,movingKey,referenceSheet:reference.sheetNumber.value!,movingSheet:moving.sheetNumber.value!,anchors:names.map(name=>({name,referenceEntityId:referenceAnchors.get(name)!.id,movingEntityId:movingAnchors.get(name)!.id})),transform,confidence:Number(confidence.toFixed(3)),eligible:reasons.length===0,reasons,warnings,crossChecks:{discipline,floor,scale,expectedScale:expectedScale===null?null:Number(expectedScale.toFixed(6)),scaleDeviationFactor:scaleDeviationFactor===null?null:Number(scaleDeviationFactor.toFixed(4))},reviewRequired:true,autoApply:false,verified:false});
+  const referencePlanFrameId=dominantPlanFrameId(referenceMatched),movingPlanFrameId=dominantPlanFrameId(movingMatched);
+  const referenceBoundary=buildSourceBoundary(entities,referenceKey,referencePlanFrameId);
+  const movingBoundary=buildSourceBoundary(entities,movingKey,movingPlanFrameId);
+  const boundaryResult=referenceBoundary&&movingBoundary?measureBoundaryOverlap(referenceBoundary,movingBoundary,transform):null;
+  const boundaryOverlapRatio=boundaryResult?.overlapOfSmaller??null,boundaryIou=boundaryResult?.iou??null;
+  const boundary=boundaryOverlapRatio===null?'UNAVAILABLE':boundaryOverlapRatio<.2?'MISMATCH':boundaryOverlapRatio<.55?'REVIEW':'CONSISTENT';
+  if(boundary==='MISMATCH')reasons.push(`Aligned source-grounded drawing footprints overlap only ${Math.round(boundaryOverlapRatio!*100)}% of the smaller footprint. Review viewport/frame identity before coordinating these sheets.`);
+  if(boundary==='REVIEW')warnings.push(`Aligned drawing footprints overlap ${Math.round(boundaryOverlapRatio!*100)}% of the smaller footprint. Coordination is plausible but cropping, plan-frame selection or partial-area coverage needs review.`);
+  if(boundary==='UNAVAILABLE')warnings.push('Source-grounded drawing footprint overlap is unavailable; the proposal remains anchor-derived and requires visual review before use.');
+
+  const confidence=Math.max(0,Math.min(1,(.48+Math.min(names.length,8)*.055+(discipline==='MATCH'?.08:0)+(boundary==='CONSISTENT'?.08:boundary==='REVIEW'?.02:0))*Math.exp(-transform.rmsResidual/.7)));
+  proposals.push({
+   id:`${referenceKey}->${movingKey}`,referenceKey,movingKey,referenceSheet:reference.sheetNumber.value!,movingSheet:moving.sheetNumber.value!,
+   anchors:names.map(name=>({name,referenceEntityId:referenceAnchors.get(name)!.id,movingEntityId:movingAnchors.get(name)!.id})),
+   transform,confidence:Number(confidence.toFixed(3)),eligible:reasons.length===0,reasons,warnings,
+   crossChecks:{
+    discipline,floor,scale,
+    expectedScale:expectedScale===null?null:Number(expectedScale.toFixed(6)),
+    scaleDeviationFactor:scaleDeviationFactor===null?null:Number(scaleDeviationFactor.toFixed(4)),
+    boundary,
+    boundaryOverlapRatio:boundaryOverlapRatio===null?null:Number(boundaryOverlapRatio.toFixed(4)),
+    boundaryIou:boundaryIou===null?null:Number(boundaryIou.toFixed(4)),
+    referenceBoundaryVertices:boundaryResult?.referenceVertexCount||0,
+    movingBoundaryVertices:boundaryResult?.movingVertexCount||0,
+    referencePlanFrameId,movingPlanFrameId
+   },
+   reviewRequired:true,autoApply:false,verified:false
+  });
  }
  return proposals.sort((a,b)=>Number(b.eligible)-Number(a.eligible)||b.confidence-a.confidence||a.id.localeCompare(b.id));
 }
