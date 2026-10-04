@@ -161,14 +161,12 @@ test('electrical component library exposes canonical equipment classes and Spati
  await expect(page.getByText('REFERENCE MODEL ACTIVE',{exact:true})).toBeVisible();
 });
 
-test('project CRUD entry point opens a usable editor',async({page})=>{
+test('signed-out Projects requires a real tenant identity instead of browser CRUD',async({page})=>{
  await page.goto('/projects');
- const create=page.getByRole('button',{name:/New project/i});
- await create.click();
- await expect(page.getByPlaceholder('Project name')).toBeVisible();
- await expect(page.getByPlaceholder('Client')).toBeVisible();
- await expect(page.getByPlaceholder('Location')).toBeVisible();
- await expect(page.getByRole('button',{name:'Create project'})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Sign in required'})).toBeVisible();
+ await expect(page.getByText(/organization-scoped server records/i)).toBeVisible();
+ await expect(page.getByRole('button',{name:/New project/i})).toHaveCount(0);
+ await expect(page.getByRole('link',{name:'Sign in'})).toBeVisible();
 });
 
 test('login form submits through an explicit functional control',async({page})=>{
