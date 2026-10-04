@@ -20,6 +20,60 @@ function syntheticElectricalPdf(lines:string[]){
  return Buffer.from(pdf);
 }
 
+function syntheticMultiPageVectorPdf(pageCount=9,segmentsPerPage=2500){
+ const escape=(value:string)=>value.replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)');
+ const pageObjects:number[]=[],contentObjects:number[]=[];
+ for(let i=0;i<pageCount;i++){pageObjects.push(3+i)}
+ for(let i=0;i<pageCount;i++){contentObjects.push(3+pageCount+i)}
+ const fontObject=3+pageCount*2;
+ const bodies:string[]=[
+  '<< /Type /Catalog /Pages 2 0 R >>',
+  `<< /Type /Pages /Kids [${pageObjects.map(id=>id+' 0 R').join(' ')}] /Count ${pageCount} >>`
+ ];
+ for(let p=0;p<pageCount;p++)bodies.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 792 612] /Resources << /Font << /F1 ${fontObject} 0 R >> >> /Contents ${contentObjects[p]} 0 R >>`);
+ for(let p=0;p<pageCount;p++){
+  const labels=[`E-${p+1}`,p===1?'MS - ONE LINE DIAGRAM':p===4?'SECOND FLOOR PLAN':p===5?'FOURTH FLOOR PLAN':'ELECTRICAL PLAN','PANEL LP-'+(p+1),'SCALE: 1/8" = 1\'-0"'];
+  let stream=labels.map((line,index)=>`BT /F1 10 Tf 40 ${575-index*18} Td (${escape(line)}) Tj ET`).join('\n')+'\n';
+  for(let i=0;i<segmentsPerPage;i++){
+   const x=30+(i%120)*6,y=40+(Math.floor(i/120)%80)*6;
+   stream+=`${x} ${y} m ${x+4} ${y+((i%3)-1)} l S\n`;
+  }
+  bodies.push(`<< /Length ${Buffer.byteLength(stream)} >>\nstream\n${stream}endstream`);
+ }
+ bodies.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
+ let pdf='%PDF-1.4\n',offset=Buffer.byteLength(pdf),offsets=[0];
+ bodies.forEach((body,index)=>{offsets.push(offset);const object=`${index+1} 0 obj\n${body}\nendobj\n`;pdf+=object;offset+=Buffer.byteLength(object)});
+ const size=bodies.length+1,xref=offset;
+ pdf+=`xref\n0 ${size}\n0000000000 65535 f \n`;
+ for(let i=1;i<size;i++)pdf+=String(offsets[i]).padStart(10,'0')+' 00000 n \n';
+ pdf+=`trailer\n<< /Size ${size} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+ return Buffer.from(pdf);
+}
+
+
+
+test('nine-page vector PDF stays responsive, supports cancel, and retries without reload',async({page},testInfo)=>{
+ test.skip(testInfo.project.name!=='desktop-chromium','P0 parser responsiveness is exercised once on desktop Chromium.');
+ await page.goto('/import');
+ const pdf=syntheticMultiPageVectorPdf(9,5000);
+ await page.evaluate(()=>{(window as any).__stratumTicks=0;(window as any).__stratumTickTimer=setInterval(()=>{(window as any).__stratumTicks++},25)});
+ const input=page.locator('section.import-primary input[type=file][accept*=".pdf"]');
+ await input.setInputFiles({name:'5749_Brynhurst_Electrical_9pp_synthetic.pdf',mimeType:'application/pdf',buffer:pdf});
+ const cancel=page.getByRole('button',{name:'Cancel parsing'});
+ await expect(cancel).toBeVisible({timeout:10000});
+ await page.waitForTimeout(250);
+ expect(await page.evaluate(()=>(window as any).__stratumTicks)).toBeGreaterThan(2);
+ await cancel.click();
+ await expect(page.getByRole('status')).toContainText(/cancelled|cancelling/i,{timeout:10000});
+ await expect(input).toBeEnabled({timeout:10000});
+
+ await input.setInputFiles({name:'5749_Brynhurst_Electrical_9pp_synthetic.pdf',mimeType:'application/pdf',buffer:pdf});
+ await expect(page.getByText('5749_Brynhurst_Electrical_9pp_synthetic.pdf',{exact:true})).toBeVisible({timeout:30000});
+ await expect.poll(async()=>await page.getByText('5749_Brynhurst_Electrical_9pp_synthetic.pdf',{exact:true}).locator('xpath=ancestor::div[contains(@class,"file-row")]').innerText(),{timeout:90000}).toMatch(/PARSED|REVIEW/);
+ const ticks=await page.evaluate(()=>{clearInterval((window as any).__stratumTickTimer);return (window as any).__stratumTicks});
+ expect(ticks).toBeGreaterThan(5);
+});
+
 test('content-only electrical SLD upload populates the Spatial model',async({page})=>{
  await page.goto('/compiler');
  const pdf=syntheticElectricalPdf(['UTILITY SERVICE 12KV','XFMR-1','SWBD-1','MDP-1','CB-12','480V FEEDER']);
