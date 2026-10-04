@@ -9,6 +9,9 @@ assert.equal(names[0],'000_core_platform.sql','Core platform schema must run bef
 
 const core=fs.readFileSync(path.join(migrationsDir,'000_core_platform.sql'),'utf8');
 const combined=names.map(name=>fs.readFileSync(path.join(migrationsDir,name),'utf8')).join('\n');
+const zReviewMigration=fs.readFileSync(path.join(migrationsDir,'012_spatial_z_review_provenance.sql'),'utf8');
+assert.match(zReviewMigration,/RETURNS trigger AS \\$\\$/,'Z review append-only function must use valid PostgreSQL dollar quoting');
+assert.match(zReviewMigration,/\\$\\$ LANGUAGE plpgsql/,'Z review append-only function must close its dollar-quoted body');
 
 function creates(table){
   return new RegExp(`CREATE\\s+TABLE\\s+IF\\s+NOT\\s+EXISTS\\s+${table}\\b`,'i').test(combined);
