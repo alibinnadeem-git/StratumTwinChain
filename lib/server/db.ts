@@ -9,9 +9,19 @@ export function db(){
  if(!runtime)throw new Error('No supported database connection secret is configured');
  if(!pool||poolUrl!==runtime.url){
   if(pool)void pool.end().catch(()=>{});
+  const sslMode=(()=>{try{return new URL(runtime.url).searchParams.get('sslmode')?.toLowerCase()||''}catch{return''}})();
+  const ssl=sslMode==='disable'
+   ?undefined
+   :sslMode==='verify-ca'||sslMode==='verify-full'
+     ?{rejectUnauthorized:true}
+     :sslMode==='require'
+       ?{rejectUnauthorized:false}
+       :process.env.NODE_ENV==='production'
+         ?{rejectUnauthorized:false}
+         :undefined;
   pool=new Pool({
    connectionString:runtime.url,
-   ssl:process.env.NODE_ENV==='production'?{rejectUnauthorized:false}:undefined,
+   ssl,
    max:process.env.NODE_ENV==='production'?2:10,
   });
   poolUrl=runtime.url;
