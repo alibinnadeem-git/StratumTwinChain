@@ -78,7 +78,8 @@
     "qa:agent-security": "node scripts/agent-security-gate.mjs",
     "qa:agent-quality": "node scripts/agent-qa-gate.mjs",
     "qa:agents": "npm run qa:agent-product && npm run qa:agent-design && npm run qa:agent-uiux && npm run qa:agent-security && npm run qa:agent-quality",
-    "qa:brynhurst-golden": "node --experimental-strip-types scripts/qa-brynhurst-golden.mjs"
+    "qa:brynhurst-golden": "node --experimental-strip-types scripts/qa-brynhurst-golden.mjs",
+    "qa:brynhurst-exact": "node --experimental-strip-types scripts/qa-brynhurst-exact-file.mjs"
   },
   "dependencies": {
     "@zxing/browser": "^0.2.1",
