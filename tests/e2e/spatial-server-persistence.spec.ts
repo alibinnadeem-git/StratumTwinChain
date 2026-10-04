@@ -1,7 +1,5 @@
 import {expect,test,type BrowserContext,type Page} from '@playwright/test';
 
-const enabled=process.env.STRATUM_E2E_SERVER_PERSISTENCE==='1';
-
 const alpha={
  email:'alpha.pm@stratum-e2e.test',
  password:'StratumE2E!Alpha2026',
@@ -91,8 +89,6 @@ async function saveGraph(context:BrowserContext,projectId:string,value:ReturnTyp
 }
 
 test.describe('authenticated server-backed Spatial golden path',()=>{
- test.skip(!enabled,'requires disposable PostgreSQL authenticated-persistence fixture');
-
  test('tenant graph saves, survives browser wipe, hydrates from server and cannot cross tenant boundary',async({page,browser})=>{
   const alphaGraph=graph(alpha.entity,'a');
   await login(page,alpha.email,alpha.password);
