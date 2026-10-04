@@ -1,0 +1,260 @@
+{
+  "fixtureId": "SV-GOLDEN-ARCHITECTURAL-001",
+  "source": {
+    "fileName": "5749 Brynhurst - Architectural - 2025-04-04.pdf",
+    "sha256": "7efe374aa46261ef1a97149360b1ab8ee6e913d6ac87d86767bdf45c28b2bb24",
+    "sizeBytes": 85715172,
+    "pageCount": 79,
+    "project": "Brynhurst 53",
+    "address": "5749-5753 S Brynhurst Ave, Los Angeles, CA 90043",
+    "setDate": "04/04/25",
+    "sourceNote": "Exact customer PDF is not committed. This fixture locks the uploaded file by SHA-256, size and page count."
+  },
+  "trustBoundary": {
+    "authoritativeXYZ": false,
+    "physicalTruth": false,
+    "reviewRequired": true,
+    "zDoctrine": "Z starts UNRESOLVED. Source elevations, grade controls, floor datums and derived surfaces remain evidence/review inputs until explicitly reviewed.",
+    "crossSheetRule": "Preserve distinct source claims even when numerically close; do not silently reconcile grade-plane or level-datum discrepancies."
+  },
+  "acceptanceTargets": {
+    "importResponsiveness": "79-page / 85.7 MB set must not freeze the UI. Parsing must be cancellable and retryable without reload.",
+    "pageInventory": "Recognize source sheet identity and drawing role across cover, site, grade, floor plans, roof, elevations, sections, unit plans, interiors, fire notes and schedules.",
+    "spatial": "Floor-plan geometry, rooms, unit identities and source dimensions remain source-grounded and reviewable.",
+    "z": "Extract eligible grade/floor/elevation controls and show rejected/unresolved evidence with provenance; no inferred Z becomes physical truth."
+  },
+  "keyPages": [
+    {
+      "page": 1,
+      "sheet": "A000",
+      "title": "Cover Sheet",
+      "role": "COVER_INDEX",
+      "expected": {
+        "isPlan": false
+      }
+    },
+    {
+      "page": 2,
+      "sheet": "A100",
+      "title": "Proposed Site Plan",
+      "role": "SITE_PLAN",
+      "scale": "1/8\" = 1'-0\"",
+      "expected": {
+        "planType": "SITE_PLAN"
+      }
+    },
+    {
+      "page": 11,
+      "sheet": "A106",
+      "title": "Grade Plane Exhibit",
+      "role": "GRADE_PLANE",
+      "scale": "1/8\" = 1'-0\"",
+      "expected": {
+        "gradeControlsFeet": [
+          197.96,
+          194.9,
+          194.76,
+          197.7
+        ],
+        "calculatedGradePlaneFeet": 196.33,
+        "lowestAdjacentGradeFeet": 194.76,
+        "topOfRoofFeet": 239.08,
+        "reviewRequired": true
+      }
+    },
+    {
+      "page": 13,
+      "sheet": "A201",
+      "title": "1st Story Floor Plan",
+      "role": "ARCHITECTURAL_FLOOR_PLAN",
+      "scale": "3/16\" = 1'-0\"",
+      "expected": {
+        "floor": "L1",
+        "planType": "ARCHITECTURAL_FLOOR_PLAN"
+      }
+    },
+    {
+      "page": 15,
+      "sheet": "A202",
+      "title": "2nd Story Floor Plan",
+      "role": "ARCHITECTURAL_FLOOR_PLAN",
+      "scale": "3/16\" = 1'-0\"",
+      "expected": {
+        "floor": "L2",
+        "planType": "ARCHITECTURAL_FLOOR_PLAN"
+      }
+    },
+    {
+      "page": 17,
+      "sheet": "A203",
+      "title": "3rd Story Floor Plan",
+      "role": "ARCHITECTURAL_FLOOR_PLAN",
+      "scale": "3/16\" = 1'-0\"",
+      "expected": {
+        "floor": "L3",
+        "planType": "ARCHITECTURAL_FLOOR_PLAN"
+      }
+    },
+    {
+      "page": 19,
+      "sheet": "A204",
+      "title": "4th Story Floor Plan",
+      "role": "ARCHITECTURAL_FLOOR_PLAN",
+      "scale": "3/16\" = 1'-0\"",
+      "expected": {
+        "floor": "L4",
+        "planType": "ARCHITECTURAL_FLOOR_PLAN"
+      }
+    },
+    {
+      "page": 22,
+      "sheet": "A206",
+      "title": "Roof Plan",
+      "role": "ROOF_PLAN",
+      "expected": {
+        "floor": "ROOF",
+        "planType": "ROOF_PLAN"
+      }
+    },
+    {
+      "page": 23,
+      "sheet": "A300",
+      "title": "Exterior Elevations",
+      "role": "EXTERIOR_ELEVATION",
+      "scale": "1/8\" = 1'-0\"",
+      "expected": {
+        "sourceLevelDatums": [
+          {
+            "label": "1st Story",
+            "feetInches": "195'-1\""
+          },
+          {
+            "label": "2nd Story",
+            "feetInches": "205'-1\""
+          },
+          {
+            "label": "3rd Story",
+            "feetInches": "215'-1\""
+          },
+          {
+            "label": "4th Story",
+            "feetInches": "225'-1\""
+          },
+          {
+            "label": "Stairs @ Roof",
+            "feetInches": "235'-1\""
+          },
+          {
+            "label": "Roof",
+            "feetInches": "244'-10 1/2\""
+          },
+          {
+            "label": "Grade Plane",
+            "feetInches": "196'-3\""
+          },
+          {
+            "label": "Top of Parapet",
+            "feetInches": "239'-1\""
+          }
+        ],
+        "reviewRequired": true
+      }
+    },
+    {
+      "page": 26,
+      "sheet": "A400",
+      "title": "Building Sections",
+      "role": "BUILDING_SECTION",
+      "scale": "3/16\" = 1'-0\"",
+      "expected": {
+        "verticalDatumEvidence": true,
+        "reviewRequired": true
+      }
+    },
+    {
+      "page": 27,
+      "sheet": "A401",
+      "title": "Building Sections",
+      "role": "BUILDING_SECTION",
+      "scale": "3/16\" = 1'-0\"",
+      "expected": {
+        "verticalDatumEvidence": true,
+        "reviewRequired": true
+      }
+    },
+    {
+      "page": 28,
+      "sheet": "A402",
+      "title": "Building Sections",
+      "role": "BUILDING_SECTION",
+      "scale": "3/16\" = 1'-0\"",
+      "expected": {
+        "verticalDatumEvidence": true,
+        "reviewRequired": true
+      }
+    },
+    {
+      "page": 29,
+      "sheet": "A403",
+      "title": "Building Sections",
+      "role": "BUILDING_SECTION",
+      "scale": "3/16\" = 1'-0\"",
+      "expected": {
+        "verticalDatumEvidence": true,
+        "reviewRequired": true
+      }
+    },
+    {
+      "page": 30,
+      "sheet": "A500",
+      "title": "Unit Plans",
+      "role": "UNIT_PLAN",
+      "scale": "1/4\" = 1'-0\"",
+      "expected": {
+        "planType": "UNIT_PLAN",
+        "unitPlanTypes": [
+          "A",
+          "B",
+          "C",
+          "C ALT",
+          "D",
+          "E"
+        ]
+      }
+    },
+    {
+      "page": 31,
+      "sheet": "A501",
+      "title": "Unit Plans",
+      "role": "UNIT_PLAN",
+      "scale": "1/4\" = 1'-0\"",
+      "expected": {
+        "planType": "UNIT_PLAN",
+        "unitPlanTypes": [
+          "F"
+        ]
+      }
+    }
+  ],
+  "zReconciliationCases": [
+    {
+      "id": "grade-plane-rounded-display",
+      "sourceA": {
+        "sheet": "A106",
+        "value": "196.33'"
+      },
+      "sourceB": {
+        "sheet": "A300",
+        "value": "196'-3\""
+      },
+      "deltaInches": 0.96,
+      "expected": "PRESERVE_BOTH_SOURCE_CLAIMS_AND_SURFACE_REVIEW",
+      "note": "Do not silently normalize the decimal-foot calculation into the rounded feet-inch elevation label."
+    }
+  ],
+  "crossDisciplineTargets": [
+    "Correlate A201-A204 unit identities and room geometry with E-4/E-6 electrical floor-plan candidates without treating either discipline as authority over the other.",
+    "Use A300/A400-A403 source level datums as review evidence for architectural floor stacking while preserving electrical Z as unresolved until the cross-sheet relationship is reviewed.",
+    "Use A500/A501 unit plans as reusable architectural templates and correlate only by explicit Plan/Unit identifiers."
+  ]
+}
