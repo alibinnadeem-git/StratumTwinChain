@@ -25,6 +25,16 @@ const fixtures={
   projectCode:'E2E-BETA',
   projectName:'Authenticated Spatial Beta',
  },
+ gamma:{
+  organizationId:'10000000-0000-4000-8000-000000000003',
+  organizationName:'STRATUM E2E Gamma',
+  userId:'20000000-0000-4000-8000-000000000003',
+  email:'gamma.pm@stratum-e2e.test',
+  password:'StratumE2E!Gamma2026',
+  projectId:'30000000-0000-4000-8000-000000000003',
+  projectCode:'E2E-GAMMA',
+  projectName:'Authenticated Spatial Z Review',
+ },
 };
 
 const client=new Client({connectionString:databaseUrl,ssl:/sslmode=(require|verify-ca|verify-full)/i.test(databaseUrl)?{rejectUnauthorized:false}:undefined});
@@ -67,7 +77,7 @@ try{
   );
  }
  await client.query('COMMIT');
- console.log('✓ seeded two disposable authenticated tenants and projects for Spatial persistence UAT');
+ console.log('✓ seeded three disposable authenticated tenants and projects for Spatial persistence and Z provenance UAT');
  console.log('✓ no asset, evidence, DIR, verification or PoVI record was created');
 }catch(error){
  await client.query('ROLLBACK').catch(()=>{});
