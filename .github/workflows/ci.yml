@@ -173,3 +173,57 @@ jobs:
             test-results
           if-no-files-found: ignore
           retention-days: 7
+
+
+  authenticated-spatial-persistence:
+    name: Authenticated Spatial persistence golden path
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: stratum
+          POSTGRES_PASSWORD: stratum-e2e
+          POSTGRES_DB: stratum_spatial_verified
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U stratum -d stratum_spatial_verified"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://stratum:stratum-e2e@127.0.0.1:5432/stratum_spatial_verified?sslmode=disable
+      AUTH_SECRET: stratum-e2e-auth-secret-2026-is-disposable-and-ci-only
+      STRATUM_E2E_SERVER_PERSISTENCE: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package.json
+      - run: npm install --no-audit --no-fund
+      - name: Apply schema to disposable PostgreSQL
+        run: npm run db:migrate -- --apply
+      - name: Seed isolated tenant fixtures
+        run: node scripts/seed-e2e-spatial-persistence.mjs
+      - name: Typecheck authenticated persistence additions
+        run: npm run typecheck
+      - name: Build production application against disposable runtime
+        run: npm run build
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Prove authenticated save reload and tenant isolation
+        run: npm run qa:e2e-server-persistence
+      - name: Upload authenticated persistence report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: authenticated-spatial-persistence-report
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7
