@@ -1,4 +1,4 @@
-import {expect,test,type BrowserContext,type Page} from '@playwright/test';
+import {expect,test,type Page} from '@playwright/test';
 
 const alpha={
  email:'alpha.pm@stratum-e2e.test',
@@ -82,10 +82,22 @@ async function clearBrowserGraphs(page:Page){
  });
 }
 
-async function saveGraph(context:BrowserContext,projectId:string,value:ReturnType<typeof graph>){
- const response=await context.request.post('/api/spatial/compilations',{data:{projectId,graph:value}});
- expect(response.status()).toBe(201);
- return response.json();
+async function browserFetch(page:Page,url:string,method='GET',body?:unknown){
+ return page.evaluate(async({url,method,body})=>{
+  const response=await fetch(url,{
+   method,
+   credentials:'same-origin',
+   headers:body===undefined?undefined:{'content-type':'application/json'},
+   body:body===undefined?undefined:JSON.stringify(body),
+  });
+  return{status:response.status,ok:response.ok,body:await response.json().catch(()=>({}))};
+ },{url,method,body});
+}
+
+async function saveGraph(page:Page,projectId:string,value:ReturnType<typeof graph>){
+ const response=await browserFetch(page,'/api/spatial/compilations','POST',{projectId,graph:value});
+ expect(response.status).toBe(201);
+ return response.body;
 }
 
 test.describe('authenticated server-backed Spatial golden path',()=>{
@@ -95,9 +107,9 @@ test.describe('authenticated server-backed Spatial golden path',()=>{
   await writeBrowserGraph(page,alpha.projectId,alphaGraph);
 
   await expect.poll(async()=>{
-   const response=await page.context().request.get('/api/spatial/compilations?projectId='+alpha.projectId);
-   if(!response.ok())return null;
-   const body=await response.json();
+   const response=await browserFetch(page,'/api/spatial/compilations?projectId='+alpha.projectId);
+   if(!response.ok)return null;
+   const body=response.body;
    return body.latest?{revision:body.latest.revision,name:body.latest.graph_json?.entities?.[0]?.name,projects:body.projects?.map((p:any)=>p.id)}:null;
   },{timeout:20_000,intervals:[250,500,1000,2000]}).toEqual({
    revision:1,
@@ -108,9 +120,9 @@ test.describe('authenticated server-backed Spatial golden path',()=>{
   // Re-emitting the same graph must not create another append-only revision.
   await page.evaluate(()=>window.dispatchEvent(new Event('stratum:graph-updated')));
   await page.waitForTimeout(2500);
-  const idempotentRead=await page.context().request.get('/api/spatial/compilations?projectId='+alpha.projectId);
-  expect(idempotentRead.ok()).toBe(true);
-  expect((await idempotentRead.json()).latest.revision).toBe(1);
+  const idempotentRead=await browserFetch(page,'/api/spatial/compilations?projectId='+alpha.projectId);
+  expect(idempotentRead.ok).toBe(true);
+  expect(idempotentRead.body.latest.revision).toBe(1);
 
   await clearBrowserGraphs(page);
   await page.goto('/spatial');
@@ -129,22 +141,22 @@ test.describe('authenticated server-backed Spatial golden path',()=>{
   const betaPage=await betaContext.newPage();
   try{
    await login(betaPage,beta.email,beta.password);
-   const betaSaved=await saveGraph(betaContext,beta.projectId,graph(beta.entity,'b'));
+   const betaSaved=await saveGraph(betaPage,beta.projectId,graph(beta.entity,'b'));
    expect(betaSaved).toMatchObject({revision:1,idempotent:false,reviewState:'REVIEW_REQUIRED'});
 
-   const alphaReadingBeta=await page.context().request.get('/api/spatial/compilations?projectId='+beta.projectId);
-   expect(alphaReadingBeta.status()).toBe(200);
-   const alphaReadingBetaBody=await alphaReadingBeta.json();
+   const alphaReadingBeta=await browserFetch(page,'/api/spatial/compilations?projectId='+beta.projectId);
+   expect(alphaReadingBeta.status).toBe(200);
+   const alphaReadingBetaBody=alphaReadingBeta.body;
    expect(alphaReadingBetaBody.projects.map((project:any)=>project.id)).toEqual([alpha.projectId]);
    expect(alphaReadingBetaBody.latest).toBeNull();
 
-   const alphaWritingBeta=await page.context().request.post('/api/spatial/compilations',{data:{projectId:beta.projectId,graph:alphaGraph}});
-   expect(alphaWritingBeta.status()).toBe(404);
-   expect((await alphaWritingBeta.json()).error).toBe('Project not found in this organization');
+   const alphaWritingBeta=await browserFetch(page,'/api/spatial/compilations','POST',{projectId:beta.projectId,graph:alphaGraph});
+   expect(alphaWritingBeta.status).toBe(404);
+   expect(alphaWritingBeta.body.error).toBe('Project not found in this organization');
 
-   const betaReadingAlpha=await betaContext.request.get('/api/spatial/compilations?projectId='+alpha.projectId);
-   expect(betaReadingAlpha.status()).toBe(200);
-   const betaReadingAlphaBody=await betaReadingAlpha.json();
+   const betaReadingAlpha=await browserFetch(betaPage,'/api/spatial/compilations?projectId='+alpha.projectId);
+   expect(betaReadingAlpha.status).toBe(200);
+   const betaReadingAlphaBody=betaReadingAlpha.body;
    expect(betaReadingAlphaBody.projects.map((project:any)=>project.id)).toEqual([beta.projectId]);
    expect(betaReadingAlphaBody.latest).toBeNull();
   }finally{
