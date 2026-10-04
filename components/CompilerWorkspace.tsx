@@ -24,7 +24,8 @@ import {buildZResolutionIndex,extractZEvidenceFromText,type ZEvidence} from '../
 import {buildProjectDatumSurfaces,datumSurfaceMetadata,projectDatumSurfaceForEntity} from '../lib/project-datum';
 import {buildElevationTriangles,extractPositionedElevationControls,resolveLocalElevationSurface,type ElevationControlPoint,type ElevationTriangle} from '../lib/elevation-surface';
 import {enrichSupportBaseOffsets,extractSupportOffsetEvidence,type SupportOffsetEvidence} from '../lib/support-base-evidence';
-import {ChangeEvent,DragEvent,useEffect,useMemo,useState} from 'react';
+import {normalizePdfVectorOpsInWorker,PdfVectorWorkerError} from '../lib/pdf-vector-worker-client';
+import {ChangeEvent,DragEvent,useEffect,useMemo,useRef,useState} from 'react';
 
 type Layer='L0'|'L1'|'L2'|'L3'|'L4';
 type ParseState='parsed'|'adapter'|'review'|'failed';
@@ -36,6 +37,25 @@ type CompiledGraph={version:string;createdAt:string;reviewState?:string;sources:
 
 const NATIVE_ADAPTER=['dwg','rvt'];
 const ACCEPTED=new Set(['pdf','dwg','dxf','ifc','rvt','glb','gltf','png','jpg','jpeg','csv','xlsx','xls','docx','txt']);
+const PDF_FILE_BUDGET_MS=90_000;
+const PDF_PAGE_ASYNC_BUDGET_MS=20_000;
+const PDF_VECTOR_BUDGET_MS=18_000;
+const PDF_MAX_VECTOR_OPS_PER_PAGE=300_000;
+const PDF_MAX_VECTOR_SEGMENTS_PER_PAGE=120_000;
+const PDF_MAX_FILE_BYTES=40*1024*1024;
+const yieldToBrowser=()=>new Promise<void>(resolve=>setTimeout(resolve,0));
+function abortError(){return new DOMException('PDF parsing cancelled by the user.','AbortError')}
+async function withParseBudget<T>(promise:Promise<T>,ms:number,label:string,signal?:AbortSignal):Promise<T>{
+ if(signal?.aborted)throw abortError();
+ return await new Promise<T>((resolve,reject)=>{
+  let settled=false;
+  const finish=(fn:()=>void)=>{if(settled)return;settled=true;clearTimeout(timer);signal?.removeEventListener('abort',onAbort);fn()};
+  const onAbort=()=>finish(()=>reject(abortError()));
+  const timer=setTimeout(()=>finish(()=>reject(new Error(`${label} exceeded the ${Math.round(ms/1000)} second safety budget. Try the file again, or split/optimize that sheet if the issue repeats.`))),ms);
+  signal?.addEventListener('abort',onAbort,{once:true});
+  promise.then(value=>finish(()=>resolve(value)),error=>finish(()=>reject(error)));
+ });
+}
 const classify=(name:string)=>{const n=name.toLowerCase();if(/(^|[^a-z])e\d|elect|power|lighting|one.?line|panel/.test(n))return'Electrical';if(/fire|sprinkler|life.?safety/.test(n))return'Fire Protection';if(/controls|\bbms\b|\bbas\b|\bddc\b/.test(n))return'Controls';if(/struct|framing|foundation/.test(n))return'Structural';if(/civil|grading|drainage|site plan/.test(n))return'Civil';if(/arch|floor|plan/.test(n))return'Architectural';if(/mech|hvac/.test(n))return'Mechanical';if(/plumb/.test(n))return'Plumbing';return'Unclassified'};
 const inferLevel=(name:string)=>{const n=name.toLowerCase();if(/roof/.test(n))return{floor:'ROOF',elevation:0,elevationKnown:false};if(/penthouse/.test(n))return{floor:'PENTHOUSE',elevation:0,elevationKnown:false};if(/basement|\bb1\b/.test(n))return{floor:'B1',elevation:0,elevationKnown:false};const m=n.match(/(?:level|floor|lvl|fl)[-_ ]?(\d+)/);if(m)return{floor:`L${Number(m[1])}`,elevation:0,elevationKnown:false};if(/ground|\bl1\b|first floor/.test(n))return{floor:'L1',elevation:0,elevationKnown:false};return{floor:'UNRESOLVED',elevation:0,elevationKnown:false}};
 const layerFor=(s:string):Layer=>{const n=s.toLowerCase();if(/wall|door|room|floor|ceiling|stair|column|architect|partition|a-wall|a-room/.test(n))return'L1';if(/feeder|circuit|conduit|wire|cable|tray|busway/.test(n)||isElectricalCircuitLabel(s))return'L3';if(isElectricalAssetLabel(s))return'L2';return'L1'};
