@@ -30,7 +30,7 @@ function syntheticVectorPdf(pageCount=9,linesPerPage=6000){
 }
 
 test('native PDF worker stays responsive, can cancel, and retries the same file without reload',async({page},testInfo)=>{
- test.skip(testInfo.project.name!=='desktop-chromium','P0 parser stress test runs once on desktop Chromium.');
+ if(testInfo.project.name!=='desktop-chromium')return;
  await page.goto('/import');
  await page.evaluate(()=>{
   (window as any).__stratumHeartbeat=0;
