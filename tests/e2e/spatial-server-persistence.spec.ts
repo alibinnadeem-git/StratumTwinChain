@@ -101,6 +101,7 @@ async function saveGraph(page:Page,projectId:string,value:ReturnType<typeof grap
 }
 
 test.describe('authenticated server-backed Spatial golden path',()=>{
+ test.describe.configure({mode:'serial'});
  test('tenant graph saves, survives browser wipe, hydrates from server and cannot cross tenant boundary',async({page,browser})=>{
   const alphaGraph=graph(alpha.entity,'a');
   await login(page,alpha.email,alpha.password);
