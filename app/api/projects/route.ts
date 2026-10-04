@@ -54,6 +54,9 @@ export async function POST(req:Request){
     const session=await requireSession(['SUPER_ADMIN','ORG_ADMIN','PROJECT_MANAGER']);
     const body=Create.parse(await req.json());
     const project=await tx(async client=>{
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[
+        'project-create:'+session.organizationId+':'+body.projectCode.toLowerCase()
+      ]);
       const duplicate=await client.query<{id:string}>(
         'SELECT id::text FROM projects WHERE organization_id=$1 AND lower(project_code)=lower($2) LIMIT 1',
         [session.organizationId,body.projectCode]
