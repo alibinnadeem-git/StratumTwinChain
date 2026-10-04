@@ -64,6 +64,8 @@ jobs:
         run: npm run qa:non-sld-plans
       - name: Brynhurst golden electrical comprehension conformance
         run: npm run qa:brynhurst-golden
+      - name: Responsive PDF worker conformance
+        run: npm run qa:pdf-worker
       - name: Stale drawing reprocess and replacement conformance
         run: npm run qa:stale-drawing-reprocess
       - name: Browser-local source archive conformance
