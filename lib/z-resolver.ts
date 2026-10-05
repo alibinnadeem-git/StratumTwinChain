@@ -8,6 +8,9 @@ export type ZEvidenceType=
   |'MOUNTING_HEIGHT_AFF'
   |'SECTION_ELEVATION'
   |'GRADE_ELEVATION'
+  |'EXISTING_GRADE_ELEVATION'
+  |'CODE_GRADE_PLANE'
+  |'LOWEST_ADJACENT_GRADE'
   |'TOP_OF_CURB_ELEVATION'
   |'FLOWLINE_ELEVATION'
   |'UNRESOLVED';
@@ -49,7 +52,10 @@ const FT=.3048,IN=.0254;
 const clean=(s:string)=>s.replace(/\s+/g,' ').trim();
 const floorToken=(s:string)=>{
   const t=s.toUpperCase();
-  if(/\b(?:GROUND|GROUND FLOOR|LEVEL 1|L1|FIRST FLOOR)\b/.test(t))return'L1';
+  if(/\b(?:GROUND|GROUND FLOOR|LEVEL 1|L1|FIRST FLOOR|1ST STORY|FIRST STORY)\b/.test(t))return'L1';
+  const story=t.match(/\b(\d{1,2})(?:ST|ND|RD|TH)\s+STORY\b/);if(story)return'L'+Number(story[1]);
+  const wordStory=t.match(/\b(SECOND|THIRD|FOURTH|FIFTH|SIXTH|SEVENTH|EIGHTH|NINTH|TENTH)\s+STORY\b/);
+  if(wordStory){const n:{[key:string]:number}={SECOND:2,THIRD:3,FOURTH:4,FIFTH:5,SIXTH:6,SEVENTH:7,EIGHTH:8,NINTH:9,TENTH:10};return'L'+n[wordStory[1]]}
   const m=t.match(/\b(?:LEVEL|LVL|FLOOR|L)\s*[-#:]?\s*(\d{1,2})\b/);if(m)return'L'+Number(m[1]);
   const b=t.match(/\b(?:BASEMENT|B)\s*[-#:]?\s*(\d{1,2})?\b/);if(b)return'B'+Number(b[1]||1);
   if(/\bROOF\b/.test(t))return'ROOF';
@@ -81,11 +87,24 @@ function parseStandaloneArchitecturalValue(text:string){
   const m=t.match(/^([+-]?\d{1,4})\s*'\s*(?:-\s*((?:\d+\s+)?(?:\d+\/\d+|\d+(?:\.\d+)?))\s*")?$/);
   return m?feetInchesToMeters(m[1],m[2]):null;
 }
+function parseTrailingArchitecturalValue(text:string){
+  const t=clean(text).replace(/[’]/g,"'").replace(/[”]/g,'"').replace(/[.,;:]+$/,'');
+  const m=t.match(/([+-]?\d{1,4}(?:\.\d+)?)\s*'\s*(?:-\s*((?:\d+\s+)?(?:\d+\/\d+|\d+(?:\.\d+)?))\s*")?\s*$/);
+  return m?feetInchesToMeters(m[1],m[2]):null;
+}
+function architecturalDatumLabel(text:string):{type:ZEvidenceType;floor:string|null;relativeTo:'PROJECT_DATUM'|'GRADE'}|null{
+  const t=clean(text).toUpperCase(),floor=floorToken(t);
+  if(/\bGRADE\s+PLANE\b/.test(t))return{type:'CODE_GRADE_PLANE',floor:null,relativeTo:'PROJECT_DATUM'};
+  if(/\bLOWEST\s+ADJACENT\s+GRADE\b|^LAG\b/.test(t))return{type:'LOWEST_ADJACENT_GRADE',floor:null,relativeTo:'PROJECT_DATUM'};
+  if(/\b(?:\d{1,2}(?:ST|ND|RD|TH)|FIRST|SECOND|THIRD|FOURTH|FIFTH|SIXTH|SEVENTH|EIGHTH|NINTH|TENTH)\s+STORY\b/.test(t))return{type:'FLOOR_DATUM',floor,relativeTo:'PROJECT_DATUM'};
+  if(/\bTOP\s+OF\s+(?:ROOF|PARAPET)\b|^ROOF\b/.test(t))return{type:'SECTION_ELEVATION',floor:floor||(/ROOF/.test(t)?'ROOF':null),relativeTo:'PROJECT_DATUM'};
+  return null;
+}
 function structuralDatumLabel(text:string):{type:'FLOOR_DATUM'|'SECTION_ELEVATION';floor:string|null}|null{
   const t=clean(text).toUpperCase();
   const floor=floorToken(t);
   if(/\bLEVEL\s*\d+\s+SLAB\s+ELEV\.?\b|\bFINISH(?:ED)?\s+FLOOR\s+ELEV\.?\b|\bFFE?\b/.test(t))return{type:'FLOOR_DATUM',floor};
-  if(/\bB\.O\.D\.?\b|\bBOD\b|\bTOP\s+OF\s+(?:SLAB|STEEL|DECK)\b|\bBOTTOM\s+OF\s+(?:SLAB|STEEL|DECK)\b|\b(?:HIGH|LOW)\s+PARAPET\s+ELEV\.?\b|\bROOF\s+ELEV\.?\b/.test(t))return{type:'SECTION_ELEVATION',floor};
+  if(/\bB\.O\.D\.?\b|\bBOD\b|\bTOP\s+OF\s+(?:SLAB|STEEL|DECK|ROOF|PARAPET)\b|\bBOTTOM\s+OF\s+(?:SLAB|STEEL|DECK)\b|\b(?:HIGH|LOW)\s+PARAPET\s+ELEV\.?\b|\bROOF\s+ELEV\.?\b/.test(t))return{type:'SECTION_ELEVATION',floor};
   return null;
 }
 function parseSuffixStructuralElevation(text:string){
@@ -98,7 +117,7 @@ function parseSuffixStructuralElevation(text:string){
 }
 function parseDecimalElevation(text:string){
   const t=clean(text);
-  const m=t.match(/(?:EL(?:EV(?:ATION)?)?\.?|ELEV\.?|FF(?:E)?\.?|FINISH(?:ED)?\s+FLOOR|T\.O\.?\s*(?:SLAB|CURB|STEEL|DECK)?|B\.O\.?\s*(?:SLAB|STEEL|DECK)?|TOP\s+OF\s+(?:SLAB|STEEL|DECK|CURB)(?:\s+ELEV(?:ATION)?)?|BOTTOM\s+OF\s+(?:SLAB|STEEL|DECK)(?:\s+ELEV(?:ATION)?)?|TOS|BOS|TOD|BOD|B\.O\.D\.|GRADE|FG|FS|FINISH(?:ED)?\s+SURFACE|TC|TOP\s+OF\s+CURB|FL|FLOW\s*LINE)\s*[:=@-]?\s*([+-]?\d{1,4}(?:\.\d+)?)(?:\s*(FT|FEET|M|METERS?|MM))?/i);
+  const m=t.match(/(?:EL(?:EV(?:ATION)?)?\.?|ELEV\.?|FF(?:E)?\.?|FINISH(?:ED)?\s+FLOOR|T\.O\.?\s*(?:SLAB|CURB|STEEL|DECK)?|B\.O\.?\s*(?:SLAB|STEEL|DECK)?|TOP\s+OF\s+(?:SLAB|STEEL|DECK|CURB)(?:\s+ELEV(?:ATION)?)?|BOTTOM\s+OF\s+(?:SLAB|STEEL|DECK)(?:\s+ELEV(?:ATION)?)?|TOS|BOS|TOD|BOD|B\.O\.D\.|GRADE|FG|FS|FINISH(?:ED)?\s+SURFACE|EG|EXISTING\s+GRADE|TC|TOP\s+OF\s+CURB|FL|FLOW\s*LINE)\s*[:=@-]?\s*([+-]?\d{1,4}(?:\.\d+)?)(?:\s*(FT|FEET|M|METERS?|MM))?/i);
   if(!m)return null;
   const n=Number(m[1]);if(!Number.isFinite(n))return null;
   const unit=(m[2]||'').toUpperCase();
@@ -109,10 +128,16 @@ function parseDecimalElevation(text:string){
 }
 function civilElevationType(text:string,unitless=false):ZEvidenceType|null{
   const t=clean(text).toUpperCase();
+  if(/\bGRADE\s+PLANE\b/.test(t))return'CODE_GRADE_PLANE';
+  if(/\bLOWEST\s+ADJACENT\s+GRADE\b|^LAG\b/.test(t))return'LOWEST_ADJACENT_GRADE';
+  if(/\bEG\b|\bEXISTING\s+GRADE\b/.test(t))return'EXISTING_GRADE_ELEVATION';
   if(/\bTC\b|\bTOP\s+OF\s+CURB\b/.test(t))return'TOP_OF_CURB_ELEVATION';
   if(/\bFL\b|\bFLOW\s*LINE\b/.test(t))return'FLOWLINE_ELEVATION';
-  if(/\bFG\b|\bGRADE\b|\bFS\b|\bFINISH(?:ED)?\s+SURFACE\b/.test(t))return unitless?'SPOT_ELEVATION':'GRADE_ELEVATION';
+  if(/\bFG\b|\bFS\b|\bFINISH(?:ED)?\s+(?:GRADE|SURFACE)\b|(?:^|\s)GRADE(?:\s|$)/.test(t))return unitless?'SPOT_ELEVATION':'GRADE_ELEVATION';
   return null;
+}
+function civilRelativeTo(type:ZEvidenceType|null){
+  return type&&['GRADE_ELEVATION','SPOT_ELEVATION','EXISTING_GRADE_ELEVATION','TOP_OF_CURB_ELEVATION','FLOWLINE_ELEVATION'].includes(type)?'GRADE' as const:'PROJECT_DATUM' as const;
 }
 function parseAff(text:string){
   const t=clean(text).replace(/[’]/g,"'").replace(/[”]/g,'"');
@@ -152,12 +177,25 @@ export function extractZEvidenceFromText(text:string,context?:{source?:string;fl
   const out:ZEvidence[]=[];const lines=text.split(/\r?\n/).map(clean).filter(Boolean);let i=0;
   for(let lineIndex=0;lineIndex<lines.length;lineIndex++){
     const line=lines[lineIndex],floor=context?.floor||floorToken(line);
-    const suffix=parseSuffixStructuralElevation(line);
+    const special=architecturalDatumLabel(line);
+    const specialInline=special?parseTrailingArchitecturalValue(line):null;
+    let specialHandled=false;
+    if(special&&specialInline!==null){
+      out.push({id:`${context?.idPrefix||'z'}-${i++}`,type:special.type,valueMeters:specialInline,relativeTo:special.relativeTo,referencePoint:'PROJECT_DATUM',floor:context?.floor||special.floor,source:context?.source||null,confidence:.9,evidence:[line,'ARCHITECTURAL_DATUM'],physicalTruth:false,reviewRequired:true});
+      specialHandled=true;
+    }else if(special){
+      const next=lines[lineIndex+1],nextValue=next?parseStandaloneArchitecturalValue(next):null;
+      if(nextValue!==null){
+        out.push({id:`${context?.idPrefix||'z'}-${i++}`,type:special.type,valueMeters:nextValue,relativeTo:special.relativeTo,referencePoint:'PROJECT_DATUM',floor:context?.floor||special.floor,source:context?.source||null,confidence:.86,evidence:[line,next,'SPLIT_LINE_ARCHITECTURAL_DATUM'],physicalTruth:false,reviewRequired:true});
+        specialHandled=true;
+      }
+    }
+    const suffix=specialHandled?null:parseSuffixStructuralElevation(line);
     if(suffix){
       out.push({id:`${context?.idPrefix||'z'}-${i++}`,type:suffix.type,valueMeters:suffix.valueMeters,relativeTo:'PROJECT_DATUM',referencePoint:'PROJECT_DATUM',floor:context?.floor||suffix.floor,source:context?.source||null,confidence:.88,evidence:[line,'SUFFIX_STRUCTURAL_DATUM'],physicalTruth:false,reviewRequired:true});
     }
-    const labelOnly=structuralDatumLabel(line);
-    const inlineValue=parseArchitecturalElevation(line);
+    const labelOnly=specialHandled?null:structuralDatumLabel(line);
+    const inlineValue=specialHandled?null:parseArchitecturalElevation(line);
     if(labelOnly&&inlineValue===null&&!/\d+\s*'/.test(line)){
       const next=lines[lineIndex+1],nextValue=next?parseStandaloneArchitecturalValue(next):null;
       if(nextValue!==null){
@@ -166,9 +204,9 @@ export function extractZEvidenceFromText(text:string,context?:{source?:string;fl
     }
     const arch=suffix?null:inlineValue;
     if(arch!==null){const civilType=civilElevationType(line);out.push({id:`${context?.idPrefix||'z'}-${i++}`,type:civilType||(/SECTION|ELEVATION|T\.O\.|B\.O\.|TOP OF|BOTTOM OF|\bTOS\b|\bBOS\b|\bTOD\b|\bBOD\b|B\.O\.D\./i.test(line)?'SECTION_ELEVATION':'FLOOR_DATUM'),valueMeters:arch,relativeTo:civilType?'GRADE':'PROJECT_DATUM',referencePoint:'PROJECT_DATUM',floor,source:context?.source||null,confidence:.9,evidence:[line],physicalTruth:false,reviewRequired:true});}
-    const dec=arch===null?parseDecimalElevation(line):null;
-    if(typeof dec==='number'){const civilType=civilElevationType(line);out.push({id:`${context?.idPrefix||'z'}-${i++}`,type:civilType||'FLOOR_DATUM',valueMeters:dec,relativeTo:civilType?'GRADE':'PROJECT_DATUM',referencePoint:'PROJECT_DATUM',floor,source:context?.source||null,confidence:.88,evidence:[line],physicalTruth:false,reviewRequired:true});}
-    else if(dec&&dec.unit==='DRAWING_DATUM'){const civilType=civilElevationType(line,true);out.push({id:`${context?.idPrefix||'z'}-${i++}`,type:civilType||'FLOOR_DATUM',valueMeters:dec.raw,relativeTo:civilType?'GRADE':'PROJECT_DATUM',referencePoint:'PROJECT_DATUM',floor,source:context?.source||null,confidence:.72,evidence:[line,'UNITS_REQUIRE_SOURCE_DATUM_REVIEW'],physicalTruth:false,reviewRequired:true});}
+    const dec=!specialHandled&&arch===null?parseDecimalElevation(line):null;
+    if(typeof dec==='number'){const civilType=civilElevationType(line);out.push({id:`${context?.idPrefix||'z'}-${i++}`,type:civilType||'FLOOR_DATUM',valueMeters:dec,relativeTo:civilRelativeTo(civilType),referencePoint:'PROJECT_DATUM',floor,source:context?.source||null,confidence:.88,evidence:[line],physicalTruth:false,reviewRequired:true});}
+    else if(dec&&dec.unit==='DRAWING_DATUM'){const civilType=civilElevationType(line,true);out.push({id:`${context?.idPrefix||'z'}-${i++}`,type:civilType||'FLOOR_DATUM',valueMeters:dec.raw,relativeTo:civilRelativeTo(civilType),referencePoint:'PROJECT_DATUM',floor,source:context?.source||null,confidence:.72,evidence:[line,'UNITS_REQUIRE_SOURCE_DATUM_REVIEW'],physicalTruth:false,reviewRequired:true});}
     const aff=parseAff(line);
     if(aff!==null){const tag=equipmentTagFromLine(line),referencePoint=affReferencePoint(line);out.push({id:`${context?.idPrefix||'z'}-${i++}`,type:'MOUNTING_HEIGHT_AFF',valueMeters:aff,relativeTo:'FLOOR_DATUM',referencePoint,floor,tag,source:context?.source||null,confidence:tag?(referencePoint==='UNSPECIFIED'?.7:.88):.58,evidence:[line,...(tag?[`OBJECT_LINK:${tag}`]:['OBJECT_LINK_UNRESOLVED']),`REFERENCE_POINT:${referencePoint}`],physicalTruth:false,reviewRequired:true});}
   }
