@@ -248,6 +248,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       renderer.domElement.dataset.renderOriginX=String(renderOrigin.x);
       renderer.domElement.dataset.renderOriginY=String(renderOrigin.y);
       renderer.domElement.dataset.renderOriginAuthority=renderOrigin.authority;
+      renderer.domElement.dataset.renderOriginSourcePoints=String(renderOrigin.sourcePointCount);
       scene.add(new THREE.HemisphereLight(0xccecff,0x071018,environment==="NIGHT"?.8:1.7));
       const sun=new THREE.DirectionalLight(environment==="EMERGENCY"?0xff9378:0xffffff,environment==="NIGHT"?1.2:3.2);sun.position.set(16,25,12);sun.castShadow=true;scene.add(sun);
       scene.add(new THREE.AmbientLight(0x7796a8,.45));
@@ -460,6 +461,10 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       }
       const visiblePoints=visible.flatMap(e=>[{x:rx(e.x),y:height(e),z:rz(e.y)},...(Number.isFinite(e.x2)&&Number.isFinite(e.y2)?[{x:rx(e.x2!),y:n(e.z2,e.z)+extra(e),z:rz(e.y2!)}]:[])]);
       const bounds=new THREE.Box3();visiblePoints.forEach(p=>bounds.expandByPoint(new THREE.Vector3(p.x,p.y,p.z)));
+      if(!bounds.isEmpty()){
+        renderer.domElement.dataset.renderLocalSpanX=String(bounds.max.x-bounds.min.x);
+        renderer.domElement.dataset.renderLocalSpanY=String(bounds.max.z-bounds.min.z);
+      }
       if(bounds.isEmpty())bounds.expandByPoint(new THREE.Vector3(-5,0,-5)).expandByPoint(new THREE.Vector3(5,5,5));
       const center=bounds.getCenter(new THREE.Vector3()),size=bounds.getSize(new THREE.Vector3()),span=Math.max(size.x,size.y,size.z,8);
       const minX=bounds.min.x-2,minZ=bounds.min.z-2,minY=Math.min(bounds.min.y,0),maxY=Math.max(bounds.max.y+3,4);
