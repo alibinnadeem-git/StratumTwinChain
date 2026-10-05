@@ -425,17 +425,17 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
             const verts=e.vertices;
             const geometry=new THREE.BufferGeometry();
             geometry.setAttribute('position',new THREE.Float32BufferAttribute([
-              verts[0].x,Number(zs[0])+extra(e),verts[0].y,
-              verts[1].x,Number(zs[1])+extra(e),verts[1].y,
-              verts[2].x,Number(zs[2])+extra(e),verts[2].y
+              rx(verts[0].x),Number(zs[0])+extra(e),rz(verts[0].y),
+              rx(verts[1].x),Number(zs[1])+extra(e),rz(verts[1].y),
+              rx(verts[2].x),Number(zs[2])+extra(e),rz(verts[2].y)
             ],3));
             geometry.setIndex([0,1,2]);geometry.computeVertexNormals();
             const mesh=new THREE.Mesh(geometry,new THREE.MeshStandardMaterial({color:0x3e9db8,transparent:true,opacity:.16,side:THREE.DoubleSide,depthWrite:false,roughness:.85,metalness:0}));
             mesh.userData.reviewSurface=true;groups.L1.add(mesh);
             const edge=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints([
-              new THREE.Vector3(verts[0].x,Number(zs[0])+.025+extra(e),verts[0].y),
-              new THREE.Vector3(verts[1].x,Number(zs[1])+.025+extra(e),verts[1].y),
-              new THREE.Vector3(verts[2].x,Number(zs[2])+.025+extra(e),verts[2].y)
+              new THREE.Vector3(rx(verts[0].x),Number(zs[0])+.025+extra(e),rz(verts[0].y)),
+              new THREE.Vector3(rx(verts[1].x),Number(zs[1])+.025+extra(e),rz(verts[1].y)),
+              new THREE.Vector3(rx(verts[2].x),Number(zs[2])+.025+extra(e),rz(verts[2].y))
             ]),new THREE.LineBasicMaterial({color:0x62c7df,transparent:true,opacity:.42}));
             groups.L1.add(edge);
           }
@@ -444,7 +444,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
         if(e.kind==="room-boundary"||e.kind==="floor-boundary"){room(e);continue}
         if(e.kind==="wall-segment"&&Number.isFinite(e.x2)&&Number.isFinite(e.y2)){wall({x:e.x,y:e.y},{x:e.x2!,y:e.y2!},e);continue}
         if((e.kind==="line"||e.kind==="sld-feeder-candidate")&&Number.isFinite(e.x2)&&Number.isFinite(e.y2)){
-          const pts=[new THREE.Vector3(e.x,height(e)+.08,e.y),new THREE.Vector3(e.x2!,n(e.z2,e.z)+extra(e)+.08,e.y2!)];groups[e.layer].add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:colors[e.layer],transparent:true,opacity:.82})));continue;
+          const pts=[new THREE.Vector3(rx(e.x),height(e)+.08,rz(e.y)),new THREE.Vector3(rx(e.x2!),n(e.z2,e.z)+extra(e)+.08,rz(e.y2!))];groups[e.layer].add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:colors[e.layer],transparent:true,opacity:.82})));continue;
         }
         if(e.layer==="L2"){equipment(e);continue}
         if(e.layer==="L4"){
@@ -456,9 +456,9 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       }
       for(const link of graph.links||[]){
         if(!["SAME_TAG","SLD_FEEDS","SOURCE_RELATION"].includes(link.type))continue;const a=entityById.get(link.from),b=entityById.get(link.to);if(!a||!b||!isVisible(a)||!isVisible(b))continue;
-        const pts=[new THREE.Vector3(a.x,height(a)+.65,a.y),new THREE.Vector3(b.x,height(b)+.65,b.y)];const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineDashedMaterial({color:link.type==="SLD_FEEDS"?0x56b9ff:0xa57cff,dashSize:.28,gapSize:.14,transparent:true,opacity:.78}));line.computeLineDistances();groups.L3.add(line);
+        const pts=[new THREE.Vector3(rx(a.x),height(a)+.65,rz(a.y)),new THREE.Vector3(rx(b.x),height(b)+.65,rz(b.y))];const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineDashedMaterial({color:link.type==="SLD_FEEDS"?0x56b9ff:0xa57cff,dashSize:.28,gapSize:.14,transparent:true,opacity:.78}));line.computeLineDistances();groups.L3.add(line);
       }
-      const visiblePoints=visible.flatMap(e=>[{x:e.x,y:height(e),z:e.y},...(Number.isFinite(e.x2)&&Number.isFinite(e.y2)?[{x:e.x2!,y:n(e.z2,e.z)+extra(e),z:e.y2!}]:[])]);
+      const visiblePoints=visible.flatMap(e=>[{x:rx(e.x),y:height(e),z:rz(e.y)},...(Number.isFinite(e.x2)&&Number.isFinite(e.y2)?[{x:rx(e.x2!),y:n(e.z2,e.z)+extra(e),z:rz(e.y2!)}]:[])]);
       const bounds=new THREE.Box3();visiblePoints.forEach(p=>bounds.expandByPoint(new THREE.Vector3(p.x,p.y,p.z)));
       if(bounds.isEmpty())bounds.expandByPoint(new THREE.Vector3(-5,0,-5)).expandByPoint(new THREE.Vector3(5,5,5));
       const center=bounds.getCenter(new THREE.Vector3()),size=bounds.getSize(new THREE.Vector3()),span=Math.max(size.x,size.y,size.z,8);
@@ -528,7 +528,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
 
   useEffect(()=>{runtime.current?.fit?.()},[fitRevision]);
   useEffect(()=>{
-    const r=runtime.current;if(!r||!selected)return;const y=displayElevation(selected,mode),target=new r.THREE.Vector3(selected.x,y+1,selected.y),span=5;r.controls.target.copy(target);r.camera.position.copy(target).add(new r.THREE.Vector3(span,span*.75,span));r.controls.update();
+    const r=runtime.current;if(!r||!selected)return;const y=displayElevation(selected,mode),origin=r.renderOrigin||{x:0,y:0},target=new r.THREE.Vector3(selected.x-origin.x,y+1,selected.y-origin.y),span=5;r.controls.target.copy(target);r.camera.position.copy(target).add(new r.THREE.Vector3(span,span*.75,span));r.controls.update();
   },[selected?.id,mode]);
 
   if(!graph||!Array.isArray(graph.entities)||graph.entities.length===0)return <section className="card" style={{marginBottom:18}}><div className="eyebrow">Spatial viewer</div><h2>No compiled spatial objects yet</h2><p className="subtitle">Import and successfully extract a drawing, SLD or DXF first. A source fingerprint by itself does not unlock the project viewer.</p><Link className="action" href="/compiler">Review engineering sources</Link></section>;
