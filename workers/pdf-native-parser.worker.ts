@@ -1,7 +1,7 @@
 import {inferPdfPageFloor} from '../lib/compiler-source';
 import {classifyElectricalLabel,isElectricalAssetLabel,isElectricalCircuitLabel} from '../lib/sld-recognition';
 import {detectPlanFrames,resolveDrawingPageRecognition,resolvePlanFrameAtPoint} from '../lib/plan-recognition';
-import {extractSheetGeometryEvidence,type PositionedSheetText} from '../lib/title-block';
+import {extractSheetGeometryEvidence,extractSheetIdentity,type PositionedSheetText} from '../lib/title-block';
 import {validateIndependentScale} from '../lib/scale-validation';
 import {buildSldVectorTopology} from '../lib/sld-vector-topology';
 import {poweredEquipmentClass} from '../lib/power-intelligence';
@@ -151,7 +151,8 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
    const pageGeometry=pageGeometryByPage.get(page);
    const items=raw.filter(item=>item.page===page).map(item=>({text:item.str,x:item.x/20+.5,y:.5-item.y/20})) as PositionedSheetText[];
    const geometryEvidence=extractSheetGeometryEvidence({items,pageWidthPoints:pageGeometry?.width,pageHeightPoints:pageGeometry?.height});
-   sheetNumbersByPage.set(page,geometryEvidence.sheetNumber.value||null);
+   const sheetIdentity=extractSheetIdentity({page,sourceName:fileName,sourceSha256:'',items,pageWidthPoints:pageGeometry?.width,pageHeightPoints:pageGeometry?.height});
+   sheetNumbersByPage.set(page,sheetIdentity.sheetNumber.value||null);
    const pageSegments=segments.filter(segment=>segment.page===page).map(segment=>({x:segment.x/20+.5,y:.5-segment.y/20,x2:segment.x2/20+.5,y2:.5-segment.y2/20}));
    const validation=validateIndependentScale({items,segments:pageSegments,declaredScale:geometryEvidence.drawingScale.value,pageMaxDimensionPoints:pageGeometry?.max,normalizedSheetSpan:20,coordinateSpan:1});
    scaleValidationByPage.set(page,validation);
