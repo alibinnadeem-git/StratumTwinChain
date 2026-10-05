@@ -164,6 +164,8 @@ async function parsePdfMainThreadFallback(file:File,level:{floor:string;elevatio
  const scaleValidationByPage=new Map<number,ReturnType<typeof validateIndependentScale>>();
  const elevationControlsByPage=new Map<number,ElevationControlPoint[]>();
  const elevationTrianglesByPage=new Map<number,ElevationTriangle[]>();
+ const terrainBreaklinesByPage=new Map<number,TerrainBreakline[]>();
+ const terrainSlopeEvidenceByPage=new Map<number,TerrainSlopeEvidence[]>();
  const supportOffsetsByPage=new Map<number,SupportOffsetEvidence[]>();
  const sheetNumbersByPage=new Map<number,string|null>();
  for(let page=1;page<=doc.numPages;page++){
@@ -185,20 +187,31 @@ async function parsePdfMainThreadFallback(file:File,level:{floor:string;elevatio
    planeWidth:sourcePlaneWidth,
    planeHeight:sourcePlaneHeight
   });
+  const pageSourceSegments=segments.filter(segment=>segment.page===page).map(segment=>({x:segment.x,y:segment.y,x2:segment.x2,y2:segment.y2}));
+  const breaklines=associateTerrainBreaklines({controls,segments:pageSourceSegments,source:file.name,page});
+  const slopeEvidence=extractPositionedTerrainSlopeEvidence({items,source:file.name,page,planeWidth:sourcePlaneWidth,planeHeight:sourcePlaneHeight});
+  terrainBreaklinesByPage.set(page,breaklines);
+  terrainSlopeEvidenceByPage.set(page,slopeEvidence);
   const supportOffsets=extractSupportOffsetEvidence({items,source:file.name,page,planeWidth:sourcePlaneWidth,planeHeight:sourcePlaneHeight});
   supportOffsetsByPage.set(page,supportOffsets);
   for(const support of supportOffsets){
    ocrEntities.push({id:`pdf-support-offset-${page}-${support.id}`,source:file.name,layer:'L0',kind:'support-offset-evidence',name:support.label,x:support.x,y:support.y,z:0,floor:pageFloors.get(page)||'UNRESOLVED',confidence:support.confidence,meta:{page,nonSpatial:true,supportOffsetEvidence:support,sourceType:'PDF_SUPPORT_OFFSET_EVIDENCE',physicalTruth:false,physicalElevationKnown:false,elevationKnown:false,reviewRequired:true}});
   }
   elevationControlsByPage.set(page,controls);
-  const triangles=[...buildElevationTriangles(controls,'GRADE'),...buildElevationTriangles(controls,'FINISHED_FLOOR')];
+  const triangles=[...buildConstrainedElevationTriangles(controls,'GRADE',breaklines),...buildElevationTriangles(controls,'FINISHED_FLOOR')];
   elevationTrianglesByPage.set(page,triangles);
+  for(const slope of slopeEvidence){
+   ocrEntities.push({id:`pdf-terrain-slope-${page}-${slope.id}`,source:file.name,layer:'L0',kind:'terrain-slope-evidence',name:slope.label,x:slope.x,y:slope.y,z:0,floor:pageFloors.get(page)||'UNRESOLVED',confidence:.72,meta:{page,nonSpatial:true,terrainSlopeEvidence:slope,sourceType:'PDF_TERRAIN_SLOPE_EVIDENCE',coordinateUnits:'sheet',zPlacementAuthority:'RELATIVE_SLOPE_ONLY',physicalElevationKnown:false,elevationKnown:false,physicalTruth:false,reviewRequired:true}});
+  }
+  for(const breakline of breaklines){
+   ocrEntities.push({id:`pdf-terrain-breakline-${page}-${breakline.id}`,source:file.name,layer:'L1',kind:'terrain-breakline-candidate',name:`${breakline.semantic.replaceAll('_',' ')} breakline`,x:breakline.x,y:breakline.y,z:breakline.zMeters,x2:breakline.x2,y2:breakline.y2,z2:breakline.z2Meters,floor:pageFloors.get(page)||'UNRESOLVED',confidence:breakline.confidence,meta:{page,terrainBreakline:breakline,sourceType:'PDF_TERRAIN_BREAKLINE',coordinateUnits:'sheet',zPlacementAuthority:'SOURCE_TYPED_BREAKLINE_ELEVATIONS',spatialPlacementAuthority:'SOURCE_VECTOR_BETWEEN_TYPED_ELEVATION_CONTROLS',physicalElevationKnown:false,elevationKnown:false,physicalTruth:false,reviewRequired:true}});
+  }
   for(const control of controls){
    ocrEntities.push({id:`pdf-elevation-control-${page}-${control.id}`,source:file.name,layer:'L0',kind:'elevation-control-point',name:control.label,x:control.x,y:control.y,z:control.zMeters,floor:pageFloors.get(page)||'UNRESOLVED',confidence:control.confidence,meta:{page,elevationControl:control,sourceType:'PDF_ELEVATION_CONTROL',coordinateUnits:'sheet',zPlacementAuthority:'SOURCE_ELEVATION_CONTROL',elevationKnown:false,physicalElevationKnown:false,physicalTruth:false,reviewRequired:true}});
   }
   for(const triangle of triangles){
    const [a,b,c]=triangle.points;
-   ocrEntities.push({id:`pdf-elevation-triangle-${page}-${triangle.id}`,source:file.name,layer:'L1',kind:'elevation-review-surface-triangle',name:`${triangle.kind} review surface`,x:(a.x+b.x+c.x)/3,y:(a.y+b.y+c.y)/3,z:(a.zMeters+b.zMeters+c.zMeters)/3,floor:pageFloors.get(page)||'UNRESOLVED',confidence:triangle.confidence,vertices:[{x:a.x,y:a.y},{x:b.x,y:b.y},{x:c.x,y:c.y}],meta:{page,elevationTriangle:{id:triangle.id,kind:triangle.kind,pointIds:triangle.pointIds,zMeters:[a.zMeters,b.zMeters,c.zMeters]},sourceType:'PDF_ELEVATION_TRIANGLE',coordinateUnits:'sheet',zPlacementAuthority:'SOURCE_ELEVATION_TRIANGLE',elevationKnown:false,physicalElevationKnown:false,physicalTruth:false,reviewRequired:true}});
+   ocrEntities.push({id:`pdf-elevation-triangle-${page}-${triangle.id}`,source:file.name,layer:'L1',kind:'elevation-review-surface-triangle',name:`${triangle.kind} review surface`,x:(a.x+b.x+c.x)/3,y:(a.y+b.y+c.y)/3,z:(a.zMeters+b.zMeters+c.zMeters)/3,floor:pageFloors.get(page)||'UNRESOLVED',confidence:triangle.confidence,vertices:[{x:a.x,y:a.y},{x:b.x,y:b.y},{x:c.x,y:c.y}],meta:{page,elevationTriangle:{id:triangle.id,kind:triangle.kind,pointIds:triangle.pointIds,zMeters:[a.zMeters,b.zMeters,c.zMeters]},terrainConstraintBreaklineIds:(terrainBreaklinesByPage.get(page)||[]).map(line=>line.id),sourceType:'PDF_ELEVATION_TRIANGLE',coordinateUnits:'sheet',zPlacementAuthority:'SOURCE_ELEVATION_TRIANGLE',elevationKnown:false,physicalElevationKnown:false,physicalTruth:false,reviewRequired:true}});
   }
  }
  const sldPages=[...pageEvidence.values()].filter(item=>item.isSld).length,nonSldPlanPages=[...planEvidence.values()].filter(item=>item.isPlan).length;
