@@ -63,7 +63,7 @@ function slopeFromLabel(label:string):{slopeFraction:number;format:TerrainSlopeF
     if(Number.isFinite(raw)&&raw!==0&&Math.abs(raw)<=100)return{slopeFraction:Math.abs(raw)/100,format:'PERCENT'};
   }
 
-  const ratio=t.match(/\b1\s*[:/]\s*(\d+(?:\.\d+)?)\b/);
+  const ratio=t.match(/\b1\s*[:/]\s*(\d+(?:\.\d+)?)\b(?!\s*")/);
   if(ratio){
     const run=Number(ratio[1]);
     if(Number.isFinite(run)&&run>0)return{slopeFraction:1/run,format:'RATIO'};
