@@ -88,6 +88,18 @@ const nonMetric=applyReviewedProjectXYFrameRegistration([nonMetricReference,movi
 assert.equal(nonMetric.registration.metric,false);
 assert.equal(nonMetric.entities.find(entity=>entity.id==='mov').meta.coordinateUnits,'sheet');
 
+const autoSync=fs.readFileSync('components/SpatialAutoSync.tsx','utf8');
+const spatialPage=fs.readFileSync('app/spatial/page.tsx','utf8');
+const compilationApi=fs.readFileSync('app/api/spatial/compilations/route.ts','utf8');
+const hydrator=fs.readFileSync('components/SpatialServerHydrator.tsx','utf8');
+assert.match(autoSync,/addEventListener\('stratum:graph-updated',schedule\)/,'every reviewed graph update must schedule authenticated server sync');
+assert.match(autoSync,/fetch\('\/api\/spatial\/compilations',[\s\S]*method:'POST'/,'auto-sync must submit the complete working graph to the compilation API');
+assert.match(spatialPage,/\{session&&<SpatialAutoSync\/>\}/,'authenticated Spatial must mount auto-sync');
+assert.match(compilationApi,/const Graph=z\.object\([\s\S]*\)\.passthrough\(\)/,'server compilation schema must preserve projectFrameRegistrations and other top-level graph review metadata');
+assert.match(compilationApi,/JSON\.stringify\(graph\)/,'server snapshot must persist the complete graph JSON');
+assert.match(hydrator,/body\.latest\?\.graph_json/);
+assert.match(hydrator,/replaceCurrentSpatialGraph\(restoredGraph\)/,'server hydration must restore the persisted full graph into the browser workspace');
+
 const component=fs.readFileSync('components/AutoSheetAlignmentReview.tsx','utf8');
 assert.match(component,/applyReviewedProjectXYFrameRegistration/);
 assert.match(component,/restoreReviewedProjectXYFrameRegistration/);
@@ -96,4 +108,4 @@ assert.match(component,/projectXYFrameId/);
 assert.match(component,/explicitly inherit/);
 assert.doesNotMatch(component,/transformSheetPoint/,'component-local coordinate mutation must be replaced by the durable registration library');
 
-console.log('Project XY frame registration passed: reviewed Architectural/Civil/Electrical transforms share one explicit frame, moving geometry inherits reference units, exact source coordinates/units restore, multiple registrations coexist safely, and compounded/manual frame semantics fail closed.');
+console.log('Project XY frame registration passed: reviewed Architectural/Civil/Electrical transforms share one explicit frame, moving geometry inherits reference units, exact source coordinates/units restore, multiple registrations coexist safely, compounded/manual frame semantics fail closed, and authenticated auto-sync/server hydration preserve the full registration graph.');
