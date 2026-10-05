@@ -93,7 +93,11 @@ assert.equal(reverseEnriched.find(entity=>entity.id==='moving-panel')?.meta?.cro
 assert.equal(reverseEnriched.find(entity=>entity.id==='moving-panel')?.meta?.crossSheetReviewSurfaceKind,'FINISHED_FLOOR');
 
 const review=fs.readFileSync('components/AutoSheetAlignmentReview.tsx','utf8');
-assert.match(review,/vertices\.map\(vertex=>transformSheetPoint/);
+const registration=fs.readFileSync('lib/project-xy-frame-registration.ts','utf8');
+assert.match(review,/applyReviewedProjectXYFrameRegistration/,'reviewed alignment must delegate coordinate mutation to the durable project-frame layer');
+assert.match(registration,/original\.vertices\?\.map\(vertex=>transformSheetPoint/,'durable registration must transform polygon vertices');
+assert.match(registration,/x2:end\.x,y2:end\.y/,'durable registration must transform segment endpoints');
+assert.match(registration,/projectXYRegistrationOriginal/,'source coordinates must remain reversible');
 assert.match(review,/enrichCrossSheetElevationSurfaces/);
 assert.match(review,/clearCrossSheetElevationForAlignment/);
 assert.match(review,/COORDINATION REVIEW/);
