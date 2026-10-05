@@ -244,7 +244,7 @@ export function buildZSolution(entity:PlacementEntity,options?:{toleranceMeters?
     if(delta>tolerance){
       conflicts.push({
         candidateA:a.id,candidateB:b.id,deltaMeters:delta,toleranceMeters:tolerance,
-        reason:`Independent absolute-Z chains in ${a.coordinateFrame} disagree by ${delta.toFixed(3)} m (> ${tolerance.toFixed(3)} m review threshold).`
+        reason:`Independent absolute-Z chains disagree by ${delta.toFixed(3)} m (> ${tolerance.toFixed(3)} m review threshold) in vertical frame ${a.coordinateFrame}.`
       });
     }
   }
