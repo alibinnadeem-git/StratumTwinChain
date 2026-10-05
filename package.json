@@ -67,7 +67,7 @@
     "qa:vrf": "node scripts/vrf-proposer-conformance.mjs",
     "qa:e2e": "playwright test",
     "qa:e2e-server-persistence": "playwright test tests/e2e/spatial-server-persistence.spec.ts --project=desktop-chromium --workers=1",
-    "prebuild": "npm run qa:brynhurst-golden && npm run qa:dxf-z && npm run qa:z-generalization && npm run qa:z-resolver && npm run qa:z-reference && npm run qa:z-solution && npm run qa:z-review-persistence && npm run qa:project-datum && npm run qa:elevation-surface && npm run qa:cross-sheet-z && npm run qa:metric-frame && npm run qa:spatial-model-resolution && npm run qa:local-surface-placement && npm run qa:support-base-offset && node scripts/prepare-pdf-assets.mjs",
+    "prebuild": "npm run qa:brynhurst-golden && npm run qa:dxf-z && npm run qa:z-generalization && npm run qa:z-resolver && npm run qa:z-reference && npm run qa:z-solution && npm run qa:z-review-persistence && npm run qa:project-datum && npm run qa:elevation-surface && npm run qa:cross-sheet-z && npm run qa:metric-frame && npm run qa:spatial-model-resolution && npm run qa:spatial-equipment-identity && npm run qa:local-surface-placement && npm run qa:support-base-offset && node scripts/prepare-pdf-assets.mjs",
     "predev": "node scripts/prepare-pdf-assets.mjs",
     "db:migrate": "node scripts/apply-database-migrations.mjs",
     "db:bootstrap-organization": "node scripts/bootstrap-production-organization.mjs",
@@ -84,7 +84,8 @@
     "qa:metric-frame": "node --experimental-strip-types scripts/qa-pdf-metric-frame.mjs",
     "qa:dxf-z": "node --experimental-strip-types scripts/qa-dxf-z-semantics.mjs",
     "qa:z-generalization": "node scripts/qa-z-generalization.mjs",
-    "qa:spatial-model-resolution": "node --experimental-strip-types scripts/qa-spatial-model-resolution.mjs"
+    "qa:spatial-model-resolution": "node --experimental-strip-types scripts/qa-spatial-model-resolution.mjs",
+    "qa:spatial-equipment-identity": "node --experimental-strip-types scripts/qa-spatial-equipment-identity.mjs"
   },
   "dependencies": {
     "@zxing/browser": "^0.2.1",
