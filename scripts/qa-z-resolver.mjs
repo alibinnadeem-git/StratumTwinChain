@@ -125,10 +125,20 @@ assert.ok(lagValues.some(item=>Math.abs(Number(item.valueMeters)-194.76*.3048)<1
 assert.ok(brynhurstArchitectural.some(item=>item.type==='SECTION_ELEVATION'&&/TOP OF ROOF/.test(item.evidence[0])));
 assert.ok(brynhurstArchitectural.some(item=>item.type==='SECTION_ELEVATION'&&/Top of Parapet/i.test(item.evidence[0])));
 
-const brynhurstGradePoints=extractZEvidenceFromText('EG 197.70 FT\nFG 197.96 FT\n197.65 FT EG',{source:'A106 Grade Plane Exhibit'});
+const brynhurstGradePoints=extractZEvidenceFromText(
+  'EG 197.70 FT\nFG 197.96 FT\n197.65 FT EG\n197.96 FT FG\n194.61 FT TC\n193.78 FT FL',
+  {source:'A106 Grade Plane Exhibit'}
+);
 assert.equal(brynhurstGradePoints.find(item=>item.evidence[0]==='EG 197.70 FT')?.type,'EXISTING_GRADE_ELEVATION');
 assert.equal(brynhurstGradePoints.find(item=>item.evidence[0]==='FG 197.96 FT')?.type,'GRADE_ELEVATION');
 assert.equal(brynhurstGradePoints.find(item=>item.evidence[0]==='197.65 FT EG')?.type,'EXISTING_GRADE_ELEVATION');
+assert.equal(brynhurstGradePoints.find(item=>item.evidence[0]==='197.96 FT FG')?.type,'GRADE_ELEVATION');
+assert.equal(brynhurstGradePoints.find(item=>item.evidence[0]==='194.61 FT TC')?.type,'TOP_OF_CURB_ELEVATION');
+assert.equal(brynhurstGradePoints.find(item=>item.evidence[0]==='193.78 FT FL')?.type,'FLOWLINE_ELEVATION');
+for(const label of ['197.65 FT EG','197.96 FT FG','194.61 FT TC','193.78 FT FL']){
+  const item=brynhurstGradePoints.find(entry=>entry.evidence[0]===label);
+  assert.ok(item&&Math.abs(Number(item.valueMeters)-Number(label.split(' ')[0])*.3048)<1e-6,`suffix civil elevation value failed for ${label}`);
+}
 
 const compiler=fs.readFileSync('components/CompilerWorkspace.tsx','utf8');
 assert.doesNotMatch(compiler,/elevation:\s*12/);
