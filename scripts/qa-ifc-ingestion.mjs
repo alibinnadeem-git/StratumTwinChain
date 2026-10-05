@@ -76,6 +76,10 @@ assert.equal(geoPump.x,4,'render/local engineering X remains near-origin meters'
 assert.equal(geoPump.y,6,'render/local engineering Y remains near-origin meters');
 assert.equal(geoPump.z,1,'render/local engineering Z remains local design meters');
 assert.equal(geoPump.meta.ifcCoordinateFrame,'LOCAL_ENGINEERING');
+assert.equal(geoPump.meta.zResolutionStatus,'RESOLVED_DESIGN_CANDIDATE');
+assert.equal(geoPump.meta.zCandidateMeters,1);
+assert.equal(geoPump.meta.zCandidateReferencePoint,'SOURCE_ORIGIN');
+assert.equal(geoPump.meta.zResolutionCoordinateFrame,'IFC_LOCAL_ENGINEERING:Geo Mechanical.ifc');
 assert.equal(geoPump.meta.ifcMapCrsName,'EPSG:26910');
 assert.equal(geoPump.meta.ifcMapVerticalDatum,'NAVD88');
 assert.equal(geoPump.meta.ifcMapConversionAuthority,'IFC_MAP_CONVERSION');
