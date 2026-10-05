@@ -63,6 +63,21 @@ assert.deepEqual(datumSurfaceMetadata({
  evidence:['TOP OF SLAB ELEVATION = 15\'-0"'],physicalTruth:false,reviewRequired:true,conflict:false
 }),{},'legacy SECTION_DATUM values must fail closed instead of emitting floor/support metadata');
 
+const brynhurstCodeDatums=extractZEvidenceFromText(
+ "GRADE PLANE= 196.33'\nLOWEST ADJACENT GRADE= 194.76'\nEG 197.70 FT",
+ {source:'5749 Brynhurst A106 Grade Plane Exhibit'}
+);
+assert.ok(brynhurstCodeDatums.some(item=>item.type==='CODE_GRADE_PLANE'));
+assert.ok(brynhurstCodeDatums.some(item=>item.type==='LOWEST_ADJACENT_GRADE'));
+assert.ok(brynhurstCodeDatums.some(item=>item.type==='EXISTING_GRADE_ELEVATION'));
+assert.equal(buildProjectDatumSurfaces(brynhurstCodeDatums).length,0,'Brynhurst grade plane, LAG and existing-grade evidence must not become generic project support surfaces');
+
+const brynhurstStory=extractZEvidenceFromText("2nd Story\n205' - 1\"",{source:'5749 Brynhurst Architectural'});
+const brynhurstStorySurfaces=buildProjectDatumSurfaces(brynhurstStory);
+assert.equal(brynhurstStorySurfaces.length,1);
+assert.equal(brynhurstStorySurfaces[0].kind,'FINISHED_FLOOR');
+assert.equal(brynhurstStorySurfaces[0].floor,'L2');
+
 const projection=fs.readFileSync('lib/spatial-projection.ts','utf8');
 assert.doesNotMatch(projection,/return-4\*Number/);
 assert.doesNotMatch(projection,/\)\-1\)\*4/);
@@ -85,4 +100,4 @@ const inspector=fs.readFileSync('components/SpatialAssetInspector.tsx','utf8');
 assert.match(inspector,/Datum authority/);
 assert.match(inspector,/XYZ unit guide/);
 
-console.log('Project datum boundary passed: finished-floor/finished-grade support surfaces remain source-grounded, structural section datums and TC/FL stay typed evidence only, explicit-reference AFF composes safely, ambiguous unitless datums fail closed, and shared XYZ source units guide Z conversion without invented floor heights.');
+console.log('Project datum boundary passed: finished-floor/finished-grade support surfaces remain source-grounded while Brynhurst Grade Plane/LAG/EG stay non-support evidence, structural section datums and TC/FL stay typed evidence only, explicit-reference AFF composes safely, ambiguous unitless datums fail closed, and shared XYZ source units guide Z conversion without invented floor heights.');

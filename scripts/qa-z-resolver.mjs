@@ -93,6 +93,53 @@ assert.equal(unitlessCivil.find(item=>item.evidence[0]==='TC 195.08')?.type,'TOP
 assert.equal(unitlessCivil.find(item=>item.evidence[0]==='FL 194.10')?.type,'FLOWLINE_ELEVATION');
 assert.ok(unitlessCivil.every(item=>item.evidence.includes('UNITS_REQUIRE_SOURCE_DATUM_REVIEW')));
 
+const brynhurstArchitectural=extractZEvidenceFromText(
+  [
+    '1st Story',"195' - 1\"",
+    '2nd Story',"205' - 1\"",
+    '3rd Story',"215' - 1\"",
+    '4th Story',"225' - 1\"",
+    'Grade Plane',"196' - 3\"",
+    'LAG',"194' - 9 1/8\"",
+    "LOWEST ADJACENT GRADE= 194.76'",
+    "GRADE PLANE= 196.33'",
+    "TOP OF ROOF= 239.08'",
+    'Top of Parapet',"239' - 1\""
+  ].join('\n'),
+  {source:'5749 Brynhurst - Architectural - 2025-04-04.pdf'}
+);
+for(const [floorName,feet,inches] of [['L1',195,1],['L2',205,1],['L3',215,1],['L4',225,1]]){
+  const datum=brynhurstArchitectural.find(item=>item.type==='FLOOR_DATUM'&&item.floor===floorName);
+  assert.ok(datum,`expected Brynhurst ${floorName} story datum`);
+  assert.ok(Math.abs(Number(datum.valueMeters)-(Number(feet)+Number(inches)/12)*.3048)<1e-6);
+}
+const gradePlaneValues=brynhurstArchitectural.filter(item=>item.type==='CODE_GRADE_PLANE');
+assert.ok(gradePlaneValues.length>=2);
+assert.ok(gradePlaneValues.some(item=>Math.abs(Number(item.valueMeters)-196.25*.3048)<1e-6));
+assert.ok(gradePlaneValues.some(item=>Math.abs(Number(item.valueMeters)-196.33*.3048)<1e-6));
+assert.ok(!gradePlaneValues.some(item=>item.type==='GRADE_ELEVATION'||item.type==='SPOT_ELEVATION'));
+const lagValues=brynhurstArchitectural.filter(item=>item.type==='LOWEST_ADJACENT_GRADE');
+assert.ok(lagValues.length>=2);
+assert.ok(lagValues.some(item=>Math.abs(Number(item.valueMeters)-(194+9.125/12)*.3048)<1e-6));
+assert.ok(lagValues.some(item=>Math.abs(Number(item.valueMeters)-194.76*.3048)<1e-6));
+assert.ok(brynhurstArchitectural.some(item=>item.type==='SECTION_ELEVATION'&&/TOP OF ROOF/.test(item.evidence[0])));
+assert.ok(brynhurstArchitectural.some(item=>item.type==='SECTION_ELEVATION'&&/Top of Parapet/i.test(item.evidence[0])));
+
+const brynhurstGradePoints=extractZEvidenceFromText(
+  'EG 197.70 FT\nFG 197.96 FT\n197.65 FT EG\n197.96 FT FG\n194.61 FT TC\n193.78 FT FL',
+  {source:'A106 Grade Plane Exhibit'}
+);
+assert.equal(brynhurstGradePoints.find(item=>item.evidence[0]==='EG 197.70 FT')?.type,'EXISTING_GRADE_ELEVATION');
+assert.equal(brynhurstGradePoints.find(item=>item.evidence[0]==='FG 197.96 FT')?.type,'GRADE_ELEVATION');
+assert.equal(brynhurstGradePoints.find(item=>item.evidence[0]==='197.65 FT EG')?.type,'EXISTING_GRADE_ELEVATION');
+assert.equal(brynhurstGradePoints.find(item=>item.evidence[0]==='197.96 FT FG')?.type,'GRADE_ELEVATION');
+assert.equal(brynhurstGradePoints.find(item=>item.evidence[0]==='194.61 FT TC')?.type,'TOP_OF_CURB_ELEVATION');
+assert.equal(brynhurstGradePoints.find(item=>item.evidence[0]==='193.78 FT FL')?.type,'FLOWLINE_ELEVATION');
+for(const label of ['197.65 FT EG','197.96 FT FG','194.61 FT TC','193.78 FT FL']){
+  const item=brynhurstGradePoints.find(entry=>entry.evidence[0]===label);
+  assert.ok(item&&Math.abs(Number(item.valueMeters)-Number(label.split(' ')[0])*.3048)<1e-6,`suffix civil elevation value failed for ${label}`);
+}
+
 const compiler=fs.readFileSync('components/CompilerWorkspace.tsx','utf8');
 assert.doesNotMatch(compiler,/elevation:\s*12/);
 assert.doesNotMatch(compiler,/elevation:\s*-4/);
@@ -107,4 +154,4 @@ const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
 assert.match(viewer,/Z REFERENCE CANDIDATE · REVIEW REQUIRED/);
 assert.match(viewer,/source reference Z|Source evidence places the/);
 
-console.log('Evidence-based Z resolver passed: source-origin Z, explicit AFF reference semantics, ambiguous AFF fail-closed behavior, structural datum parsing, typed finished-grade/curb/flowline evidence, conflict handling, and no guessed floor heights.');
+console.log('Evidence-based Z resolver passed: source-origin Z, explicit AFF reference semantics, ambiguous AFF fail-closed behavior, structural datum parsing, typed finished/existing-grade, curb/flowline and Brynhurst story/code-datum evidence, conflict handling, and no guessed floor heights.');

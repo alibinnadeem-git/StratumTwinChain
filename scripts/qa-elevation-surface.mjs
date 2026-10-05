@@ -119,6 +119,27 @@ const ambiguous=extractPositionedElevationControls({
 });
 assert.equal(ambiguous.length,0);
 
+const brynhurstGradeControls=extractPositionedElevationControls({
+ items:[
+  {text:'FG 197.96',x:.10,y:.20},
+  {text:'FG 194.90',x:.80,y:.20},
+  {text:'FG 194.76',x:.45,y:.75},
+  {text:'EG 197.70',x:.18,y:.30},
+  {text:'197.65 EG',x:.72,y:.32},
+  {text:'GRADE PLANE 196.33',x:.50,y:.48},
+  {text:'LOWEST ADJACENT GRADE 194.76',x:.52,y:.55},
+  {text:'LAG 194.76',x:.58,y:.60}
+ ],
+ source:'5749 Brynhurst A106 Grade Plane Exhibit.pdf',page:1,declaredScale:'1/8" = 1\'-0"',scaleValidation:null,planeWidth:20,planeHeight:14
+});
+assert.equal(brynhurstGradeControls.filter(point=>point.semantic==='FINISHED_GRADE').length,3);
+assert.equal(brynhurstGradeControls.filter(point=>point.semantic==='EXISTING_GRADE').length,2);
+assert.ok(brynhurstGradeControls.filter(point=>point.semantic==='EXISTING_GRADE').every(point=>point.triangulationEligible===false));
+assert.ok(!brynhurstGradeControls.some(point=>/GRADE PLANE|LOWEST ADJACENT GRADE|^LAG/.test(point.label)),'code grade-plane/LAG annotations must never become local terrain controls');
+const brynhurstTriangles=buildElevationTriangles(brynhurstGradeControls,'GRADE');
+assert.equal(brynhurstTriangles.length,1);
+assert.ok(brynhurstTriangles[0].points.every(point=>point.semantic==='FINISHED_GRADE'),'proposed finished-grade surface must not mix existing grade or code-grade datums');
+
 const compiler=fs.readFileSync('components/CompilerWorkspace.tsx','utf8');
 assert.match(compiler,/extractPositionedElevationControls/);
 assert.match(compiler,/buildElevationTriangles/);
@@ -134,4 +155,4 @@ const inspector=fs.readFileSync('components/SpatialAssetInspector.tsx','utf8');
 assert.match(inspector,/Local surface authority/);
 assert.match(inspector,/localReviewSurfaceConfidence/);
 
-console.log('Local elevation surface passed: imperial scale-guided spot elevations, civil semantic control classes, split-OCR proximity pairing, ambiguous-pair fail-closed behavior, discontinuity-safe triangulation, explicit metric controls, bounded interpolation, outside-envelope fail-closed behavior, and review-only Spatial presentation.');
+console.log('Local elevation surface passed: imperial scale-guided spot elevations, civil semantic control classes, Brynhurst EG/FG separation and grade-plane/LAG rejection, split-OCR proximity pairing, ambiguous-pair fail-closed behavior, discontinuity-safe triangulation, explicit metric controls, bounded interpolation, outside-envelope fail-closed behavior, and review-only Spatial presentation.');
