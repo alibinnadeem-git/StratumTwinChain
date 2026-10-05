@@ -316,6 +316,21 @@ export default function SpatialAssetInspector({
    </div>
    <details className="proof-details"><summary>Raw source details</summary><dl>{Object.entries(selected.meta||{}).filter(([key])=>key!=='embeddedGlb'&&(zReviewed||!/(?:^z$|^inferredZCandidate$)/i.test(key))).map(([key,value])=><div key={key}><dt>{key}</dt><dd style={{overflowWrap:'anywhere'}}>{typeof value==='object'?JSON.stringify(value):String(value)}</dd></div>)}</dl></details>
   </details>
+  {zConstraintGraph&&<details className="secondary-details z-constraint-graph-details">
+   <summary>Z constraint graph</summary>
+   <p className="muted">{zConstraintGraph.explanation}</p>
+   {zConstraintGraph.conflicts.length>0&&<div className="notice"><strong>CONSTRAINT CONFLICT · REVIEW REQUIRED</strong><span>{zConstraintGraph.conflicts.map(item=>item.reason).join(' · ')}</span></div>}
+   {zConstraintGraph.frameGaps.length>0&&<div className="notice"><strong>VERTICAL FRAME REGISTRATION REQUIRED</strong><span>{zConstraintGraph.frameGaps.map(item=>item.fromFrame+' → '+item.toFrame).join(' · ')}</span></div>}
+   <div style={{display:'grid',gap:8,marginTop:10}}>
+    {zConstraintGraph.nodes.map(node=><div className="binding-panel" key={node.id}>
+     <strong>{node.label}</strong>
+     <small style={{display:'block',marginTop:4}}>{node.kind.replaceAll('_',' ')} · {node.valueMeters===null?'unresolved':node.valueMeters.toFixed(3)+' m'} · frame {node.coordinateFrame.replaceAll('_',' ')}</small>
+     <small style={{display:'block',marginTop:3}}>Authority · {node.authority.replaceAll('_',' ')}</small>
+    </div>)}
+   </div>
+   {zConstraintGraph.relations.length>0&&<ol style={{margin:'10px 0 0',paddingLeft:18}}>{zConstraintGraph.relations.map(relation=><li key={relation.id}><small>{relation.kind.replaceAll('_',' ')} · {relation.from} → {relation.to} · Δ {relation.deltaMeters.toFixed(3)} m · {relation.authority.replaceAll('_',' ')}</small></li>)}</ol>}
+   <small className="spatial-review-boundary">The constraint graph explains design/review relationships only. A solved graph does not establish measured/as-built physical elevation, engineering approval, DIR finality, or PoVI finality.</small>
+  </details>}
   {zSolution&&<details className="secondary-details z-solution-details">
    <summary>Z solution evidence</summary>
    <p className="muted">{zSolution.explanation}</p>
