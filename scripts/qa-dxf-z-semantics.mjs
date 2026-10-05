@@ -26,6 +26,11 @@ assert.equal(unitless.sourceDesignElevationKnown,false);assert.equal(unitless.zM
 const usSurvey=dxfUnitInfo([{code:9,value:'$INSUNITS'},{code:70,value:'21'}]);assert.equal(usSurvey.unitName,'us-survey-ft');assert.ok(Math.abs(usSurvey.unitToMeters-(1200/3937))<1e-15);
 const usSurveyMile=dxfUnitInfo([{code:9,value:'$INSUNITS'},{code:70,value:'24'}]);assert.equal(usSurveyMile.unitName,'us-survey-mi');assert.ok(Math.abs(usSurveyMile.unitToMeters-((1200/3937)*5280))<1e-10);
 
+const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
+assert.doesNotMatch(viewer,/sourceType==={0,1}"DXF"/,'DXF source type alone must never make physical Z known');
+assert.doesNotMatch(viewer,/coordinateUnits==={0,1}"m"&&e\.floor/,'metric coordinate units alone must never make physical Z known');
+assert.match(viewer,/return e\.meta\?\.elevationKnown===true\|\|e\.meta\?\.physicalElevationKnown===true/);
+
 const compiler=fs.readFileSync('components/CompilerWorkspace.tsx','utf8');
 assert.match(compiler,/dxfRawXYToMeters/);assert.match(compiler,/dxfRecordZ/);assert.match(compiler,/dxfUnitInfo/);
 assert.match(compiler,/coordinateUnits:'m_dxf_design'/);
