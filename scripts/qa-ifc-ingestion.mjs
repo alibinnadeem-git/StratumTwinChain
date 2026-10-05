@@ -51,6 +51,57 @@ assert.equal(projectedPump.meta?.physicalTruth,false);
 const power=buildPowerIntelligence({version:'fixture',createdAt:new Date().toISOString(),sources:[{name:'M-201 Mechanical.ifc',discipline:'Mechanical'}],entities:result.entities,links:[]});
 const req=power.requirements.find(r=>r.tag==='P-1');assert.ok(req);assert.equal(req.voltage,480);assert.equal(req.phase,3);assert.equal(req.fla,12);assert.equal(req.status,'MISSING');
 
+const geoIfc=[
+"ISO-10303-21;","HEADER;","FILE_DESCRIPTION(('ViewDefinition [CoordinationView]'),'2;1');","ENDSEC;","DATA;",
+"#1=IFCSIUNIT(*,.LENGTHUNIT.,.MILLI.,.METRE.);",
+"#60=IFCSIUNIT(*,.LENGTHUNIT.,$,.METRE.);",
+"#70=IFCPROJECTEDCRS('EPSG:26910',$,'NAD83','NAVD88','UTM','10N',#60);",
+"#71=IFCMAPCONVERSION(#999,#70,500000.,4100000.,100.,0.,1.,.001);",
+"#10=IFCCARTESIANPOINT((1000.,2000.,0.));",
+"#11=IFCAXIS2PLACEMENT3D(#10,$,$);",
+"#12=IFCLOCALPLACEMENT($,#11);",
+"#20=IFCBUILDINGSTOREY('STOREY',$,'Level 1',$,$,#12,$,'L1',.ELEMENT.,0.);",
+"#21=IFCCARTESIANPOINT((3000.,4000.,1000.));",
+"#22=IFCAXIS2PLACEMENT3D(#21,$,$);",
+"#23=IFCLOCALPLACEMENT(#12,#22);",
+"#30=IFCPUMP('PUMP-GEO',$,'Geo Pump',$,$,#23,$,'P-GEO',.CIRCULATOR.);",
+"#40=IFCRELCONTAINEDINSPATIALSTRUCTURE('REL',$,$,$,(#30),#20);",
+"ENDSEC;","END-ISO-10303-21;"
+].join('\n');
+
+const geo=parseIfcText(geoIfc,'Geo Mechanical.ifc','Mechanical');
+const geoPump=geo.entities.find(e=>e.meta.assetTag==='P-GEO');
+assert.ok(geoPump);
+assert.equal(geoPump.x,4,'render/local engineering X remains near-origin meters');
+assert.equal(geoPump.y,6,'render/local engineering Y remains near-origin meters');
+assert.equal(geoPump.z,1,'render/local engineering Z remains local design meters');
+assert.equal(geoPump.meta.ifcCoordinateFrame,'LOCAL_ENGINEERING');
+assert.equal(geoPump.meta.ifcMapCrsName,'EPSG:26910');
+assert.equal(geoPump.meta.ifcMapVerticalDatum,'NAVD88');
+assert.equal(geoPump.meta.ifcMapConversionAuthority,'IFC_MAP_CONVERSION');
+assert.equal(geoPump.meta.ifcMapUnitName,'m');
+assert.equal(geoPump.meta.ifcMapCoordinateKnown,true);
+assert.ok(Math.abs(Number(geoPump.meta.ifcMapEastingMeters)-499994)<1e-9);
+assert.ok(Math.abs(Number(geoPump.meta.ifcMapNorthingMeters)-4100004)<1e-9);
+assert.ok(Math.abs(Number(geoPump.meta.ifcMapZCandidateMeters)-101)<1e-9);
+assert.equal(geoPump.meta.ifcMapZAuthority,'SOURCE_IFC_MAP_CONVERSION');
+assert.equal(geoPump.meta.ifcMapPhysicalTruth,false);
+assert.ok(Math.abs(Number(geoPump.meta.ifcMapOriginOrthogonalHeightMeters)-100)<1e-12);
+assert.ok(Math.abs(Number(geoPump.meta.zScaleGuideMetersPerSourceUnit)-.001)<1e-12);
+assert.match(geo.summary,/map CRS EPSG:26910/);
+assert.match(geo.summary,/vertical datum NAVD88/);
+
+const scaledGeoIfc=geoIfc.replace(
+ "#71=IFCMAPCONVERSION(#999,#70,500000.,4100000.,100.,0.,1.,.001);",
+ "#71=IFCMAPCONVERSIONSCALED(#999,#70,500000.,4100000.,100.,0.,1.,.001,1.,1.,1.1);"
+);
+const scaledGeo=parseIfcText(scaledGeoIfc,'Geo Scaled.ifc','Mechanical');
+const scaledPump=scaledGeo.entities.find(e=>e.meta.assetTag==='P-GEO');
+assert.ok(scaledPump);
+assert.equal(scaledPump.meta.ifcMapConversionAuthority,'IFC_MAP_CONVERSION_SCALED');
+assert.ok(Math.abs(Number(scaledPump.meta.ifcMapZCandidateMeters)-101.1)<1e-9,'IfcMapConversionScaled FactorZ must apply after common scale and before orthogonal-height translation');
+assert.ok(Math.abs(Number(scaledPump.meta.zScaleGuideMetersPerSourceUnit)-.0011)<1e-12);
+
 const compiler=fs.readFileSync('components/CompilerWorkspace.tsx','utf8');
 assert.match(compiler,/parseIfcText/);assert.doesNotMatch(compiler,/NATIVE_ADAPTER=\['dwg','ifc','rvt'\]/);
-console.log('IFC units, nested placements, storey containment, equipment properties and source-design truth boundaries passed');
+console.log('IFC units, nested placements, storey containment, equipment properties, map CRS/orthogonal-height evidence, scaled XYZ conversion and source-design truth boundaries passed');

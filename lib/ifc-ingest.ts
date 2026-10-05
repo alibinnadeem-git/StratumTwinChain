@@ -123,6 +123,80 @@ function siUnit(records:Map<number,StepRecord>){
  }
  return{unitName:'unresolved',unitToMeters:null as number|null};
 }
+type IfcMapFrame={
+ crsName:string|null;
+ verticalDatum:string|null;
+ mapUnitName:string;
+ mapUnitToMeters:number;
+ eastings:number;
+ northings:number;
+ orthogonalHeight:number;
+ xAxisAbscissa:number;
+ xAxisOrdinate:number;
+ scale:number;
+ factorX:number;
+ factorY:number;
+ factorZ:number;
+ authority:'IFC_MAP_CONVERSION'|'IFC_MAP_CONVERSION_SCALED';
+};
+
+function namedLengthUnit(id:number|null,records:Map<number,StepRecord>,visiting=new Set<number>()):{unitName:string;unitToMeters:number}|null{
+ if(!id||visiting.has(id))return null;
+ const record=records.get(id);if(!record)return null;
+ const prefixScale:Record<string,number>={EXA:1e18,PETA:1e15,TERA:1e12,GIGA:1e9,MEGA:1e6,KILO:1e3,HECTO:1e2,DECA:1e1,DECI:1e-1,CENTI:1e-2,MILLI:1e-3,MICRO:1e-6,NANO:1e-9,PICO:1e-12,FEMTO:1e-15,ATTO:1e-18};
+ if(record.type==='IFCSIUNIT'&&str(record.args[1]).toUpperCase()==='LENGTHUNIT'){
+  const prefix=str(record.args[2]).toUpperCase(),name=str(record.args[3]).toUpperCase();
+  if(name==='METRE')return{unitName:prefix?prefix.toLowerCase()+'metre':'m',unitToMeters:prefix?prefixScale[prefix]??1:1};
+ }
+ if(record.type==='IFCCONVERSIONBASEDUNIT'&&str(record.args[1]).toUpperCase()==='LENGTHUNIT'){
+  const measure=records.get(ref(record.args[3])||-1);if(!measure||measure.type!=='IFCMEASUREWITHUNIT')return null;
+  const factor=num(measure.args[0]);if(factor===null)return null;
+  visiting.add(id);
+  const base=namedLengthUnit(ref(measure.args[1]),records,visiting);
+  visiting.delete(id);
+  return{unitName:str(record.args[2])||'conversion-based',unitToMeters:factor*(base?.unitToMeters??1)};
+ }
+ return null;
+}
+
+function ifcMapFrame(records:Map<number,StepRecord>,projectUnits:{unitName:string;unitToMeters:number|null}):IfcMapFrame|null{
+ for(const record of records.values()){
+  if(record.type!=='IFCMAPCONVERSION'&&record.type!=='IFCMAPCONVERSIONSCALED')continue;
+  const target=records.get(ref(record.args[1])||-1);if(!target||target.type!=='IFCPROJECTEDCRS')continue;
+  const eastings=num(record.args[2]),northings=num(record.args[3]),orthogonalHeight=num(record.args[4]);
+  if(eastings===null||northings===null||orthogonalHeight===null)continue;
+  const xAxisAbscissa=num(record.args[5])??1,xAxisOrdinate=num(record.args[6])??0,norm=Math.hypot(xAxisAbscissa,xAxisOrdinate);
+  if(norm<1e-12)continue;
+  const mapUnit=namedLengthUnit(ref(target.args[6]),records);
+  const mapUnitToMeters=mapUnit?.unitToMeters??projectUnits.unitToMeters;
+  if(mapUnitToMeters===null||!Number.isFinite(mapUnitToMeters)||mapUnitToMeters<=0)continue;
+  const scale=num(record.args[7])??1;
+  const factorX=record.type==='IFCMAPCONVERSIONSCALED'?(num(record.args[8])??1):1;
+  const factorY=record.type==='IFCMAPCONVERSIONSCALED'?(num(record.args[9])??1):1;
+  const factorZ=record.type==='IFCMAPCONVERSIONSCALED'?(num(record.args[10])??1):1;
+  if(![scale,factorX,factorY,factorZ].every(value=>Number.isFinite(value)&&value!==0))continue;
+  return{
+   crsName:str(target.args[0])||null,
+   verticalDatum:str(target.args[3])||null,
+   mapUnitName:mapUnit?.unitName||projectUnits.unitName,
+   mapUnitToMeters,
+   eastings,northings,orthogonalHeight,
+   xAxisAbscissa:xAxisAbscissa/norm,xAxisOrdinate:xAxisOrdinate/norm,
+   scale,factorX,factorY,factorZ,
+   authority:record.type==='IFCMAPCONVERSIONSCALED'?'IFC_MAP_CONVERSION_SCALED':'IFC_MAP_CONVERSION'
+  };
+ }
+ return null;
+}
+
+function applyIfcMapFrame(point:[number,number,number],frame:IfcMapFrame){
+ const sx=point[0]*frame.scale*frame.factorX,sy=point[1]*frame.scale*frame.factorY,sz=point[2]*frame.scale*frame.factorZ;
+ const x=frame.eastings+frame.xAxisAbscissa*sx-frame.xAxisOrdinate*sy;
+ const y=frame.northings+frame.xAxisOrdinate*sx+frame.xAxisAbscissa*sy;
+ const z=frame.orthogonalHeight+sz;
+ return{x:x*frame.mapUnitToMeters,y:y*frame.mapUnitToMeters,z:z*frame.mapUnitToMeters};
+}
+
 function nominal(value:string|undefined){
  const v=String(value||'').trim();if(!v||v==='$')return null;
  const typed=v.match(/^[A-Z0-9_]+\(([\s\S]*)\)$/i);if(typed){
@@ -183,7 +257,7 @@ function storeyMap(records:Map<number,StepRecord>){
 }
 
 export function parseIfcText(text:string,source:string,fallbackDiscipline='Unclassified'):IfcIngestResult{
- const records=parseStep(text),units=siUnit(records),props=propertyData(records),spatial=storeyMap(records),cache=new Map<number,Transform>(),entities:IfcEntity[]=[];
+ const records=parseStep(text),units=siUnit(records),mapFrame=ifcMapFrame(records,units),props=propertyData(records),spatial=storeyMap(records),cache=new Map<number,Transform>(),entities:IfcEntity[]=[];
  let placed=0,nonSpatial=0;
  for(const rec of records.values()){
   if(!product(rec.type))continue;
@@ -194,6 +268,7 @@ export function parseIfcText(text:string,source:string,fallbackDiscipline='Uncla
   const canPlace=hasUnit&&hasPlacement;
   const factor=units.unitToMeters||1;
   const x=(transform?.t[0]||0)*factor,y=(transform?.t[1]||0)*factor,z=(transform?.t[2]||0)*factor;
+  const mapCoordinate=canPlace&&mapFrame&&transform?applyIfcMapFrame(transform.t,mapFrame):null;
   const sid=spatial.objectStorey.get(rec.id),storey=sid?spatial.storeys.get(sid):null;
   const d=discipline(rec.type,fallbackDiscipline),powered=poweredEquipmentClass(label);
   if(canPlace)placed++;else nonSpatial++;
@@ -204,6 +279,9 @@ export function parseIfcText(text:string,source:string,fallbackDiscipline='Uncla
     sourceType:'IFC_STEP_PRODUCT',ifcExpressId:rec.id,ifcType:rec.type,ifcGlobalId:globalId||null,ifcObjectType:objectType||null,
     ...(assetTag?{assetTag}:{}),...(powered?{poweredEquipmentClass:powered}:{}),...data,
     discipline:d,ifcUnitName:units.unitName,ifcUnitToMeters:units.unitToMeters,
+    ifcCoordinateFrame:'LOCAL_ENGINEERING',
+    ...(mapFrame?{ifcMapCrsName:mapFrame.crsName,ifcMapVerticalDatum:mapFrame.verticalDatum,ifcMapUnitName:mapFrame.mapUnitName,ifcMapUnitToMeters:mapFrame.mapUnitToMeters,ifcMapScale:mapFrame.scale,ifcMapFactorX:mapFrame.factorX,ifcMapFactorY:mapFrame.factorY,ifcMapFactorZ:mapFrame.factorZ,ifcMapConversionAuthority:mapFrame.authority,ifcMapOriginEastingsMeters:mapFrame.eastings*mapFrame.mapUnitToMeters,ifcMapOriginNorthingsMeters:mapFrame.northings*mapFrame.mapUnitToMeters,ifcMapOriginOrthogonalHeightMeters:mapFrame.orthogonalHeight*mapFrame.mapUnitToMeters}:{}),
+    ...(mapCoordinate?{ifcMapCoordinateKnown:true,ifcMapEastingMeters:mapCoordinate.x,ifcMapNorthingMeters:mapCoordinate.y,ifcMapZCandidateMeters:mapCoordinate.z,ifcMapZAuthority:'SOURCE_IFC_MAP_CONVERSION',ifcMapPhysicalTruth:false,zScaleGuideAuthority:'IFC_MAP_CONVERSION_SHARED_XYZ',zScaleGuideMetersPerSourceUnit:mapFrame!.scale*mapFrame!.factorZ*mapFrame!.mapUnitToMeters}:{}),
     ifcPlacementRef:placementRef,ifcPlacementResolved:canPlace,
     coordinateUnits:canPlace?'m_ifc_design':'ifc_project_unit_unresolved',
     sourceDesignCoordinate:true,sourceDesignElevationKnown:canPlace,physicalTruth:false,reviewRequired:true,
@@ -218,7 +296,7 @@ export function parseIfcText(text:string,source:string,fallbackDiscipline='Uncla
  }
  return{
   entities,
-  summary:String(records.size)+' IFC STEP records · '+String(entities.length)+' supported products · '+String(placed)+' placement(s) resolved · '+String(nonSpatial)+' non-spatial/review · '+String(spatial.storeys.size)+' storey(s) · units '+units.unitName+' · shape meshes not yet triangulated',
+  summary:String(records.size)+' IFC STEP records · '+String(entities.length)+' supported products · '+String(placed)+' placement(s) resolved · '+String(nonSpatial)+' non-spatial/review · '+String(spatial.storeys.size)+' storey(s) · units '+units.unitName+(mapFrame?' · map CRS '+String(mapFrame.crsName||'identified')+' · vertical datum '+String(mapFrame.verticalDatum||'unresolved'):'')+' · shape meshes not yet triangulated',
   unitName:units.unitName,unitToMeters:units.unitToMeters,
   details:{stepEntities:records.size,products:entities.length,placed,nonSpatial,storeys:spatial.storeys.size,propertySets:props.propertySetCount}
  };
