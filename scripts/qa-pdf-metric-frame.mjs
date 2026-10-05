@@ -43,7 +43,7 @@ assert.deepEqual(scaled.meta?.pdfMetricFrameOriginal,{x:2,y:-3,x2:4,y2:-1,coordi
 const surface=applyReviewedPdfMetricFrame(entities[1],candidates[0]);
 assert.deepEqual(surface.vertices,[{x:0,y:0},{x:1,y:0},{x:0,y:1}]);
 assert.equal(surface.z,30.48);
-assert.deepEqual((surface.meta?.elevationTriangle as any).zMeters,[30.48,30.6,30.72],'terrain Z controls remain in meters and are not rescaled');
+assert.deepEqual(surface.meta?.elevationTriangle?.zMeters,[30.48,30.6,30.72],'terrain Z controls remain in meters and are not rescaled');
 
 const idempotent=applyReviewedPdfMetricFrame(scaled,candidates[0]);
 assert.equal(idempotent,scaled,'reapplying the identical reviewed metric candidate is idempotent');
