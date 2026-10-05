@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {useEffect,useMemo,useRef,useState} from "react";
 import {resolveElectricalComponent} from "@/lib/electrical-component-library";
+import {resolveSpatialModel} from "@/lib/spatial-model-resolution";
 import {resolveReconciledAssetPlacement} from "@/lib/z-solution-chain";
 import {fitProceduralObjectToMeters,normalizeObjectToMeters} from "@/lib/three-model-normalization";
 import {decodeGlbBase64,inspectStandaloneGlb} from "@/lib/spatial-glb-import";
@@ -201,7 +202,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
   const modelMapped=useMemo(()=>graph?.entities.filter(e=>{
     if(e.layer!=="L2"||e.kind==="line")return false;
     if(e.kind==="imported-3d-model")return typeof e.meta?.embeddedGlb==='string';
-    const def=resolveElectricalComponent(e.name);return!!def&&!!registry.find(r=>r.componentKey===def.key)?.modelUrl.trim();
+    return Boolean(resolveSpatialModel(e,registry).model?.modelUrl.trim());
   }).length||0,[graph,registry]);
   const matching=useMemo(()=>inventory,[inventory]);
   const fallbackBounds=useMemo(()=>bounds2d(visible),[visible]);
@@ -251,7 +252,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       const extra=(e:Entity)=>exploded?(floorIndex.get(e.floor||"UNRESOLVED")||0)*2.6:0;
       const height=(e:Entity)=>{
         if(e.layer==="L2"||e.layer==="L4"){
-          const def=resolveElectricalComponent(e.name),cfg=def?registry.find(r=>r.componentKey===def.key):null;
+          const cfg=resolveSpatialModel(e,registry).model;
           return resolveReconciledAssetPlacement({name:e.name,floor:e.floor,z:e.z,meta:e.meta},{registry:cfg}).placement.baseZ+extra(e);
         }
         return displayElevation(e,mode)+extra(e);
@@ -311,7 +312,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
           groups.L2.add(root);
           return;
         }
-        const def=resolveElectricalComponent(e.name),shape=def?.twinShape||"cabinet",cfg=def?registry.find(r=>r.componentKey===def.key):null;
+        const modelResolution=resolveSpatialModel(e,registry),def=modelResolution.component||resolveElectricalComponent(e.name),shape=def?.twinShape||"cabinet",cfg=modelResolution.model;
         const reconciled=resolveReconciledAssetPlacement({name:e.name,floor:e.floor,z:e.z,meta:e.meta},{registry:cfg}),placement=reconciled.placement;
         const target:[number,number,number]=[placement.dimensions.width,placement.dimensions.height,placement.dimensions.depth];
         const root=new THREE.Group(),op=1;
@@ -320,6 +321,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
         try{fitProceduralObjectToMeters(root,target)}catch{}
         root.position.set(e.x,placement.baseZ,e.y);root.rotation.y=THREE.MathUtils.degToRad(-(e.rotation||0));
         root.userData.dimensionAuthority=placement.dimensions.authority;root.userData.targetDimensionsMeters=target;root.userData.zPlacementAuthority=placement.zAuthority;root.userData.zPlacementConfidence=placement.zConfidence;root.userData.zSolutionStatus=reconciled.solution.status;root.userData.zSolutionConflicts=reconciled.solution.conflicts.length;
+        root.userData.modelResolutionTier=modelResolution.tier;root.userData.modelGeometryAuthority=modelResolution.geometryAuthority;root.userData.modelIdentityAuthority=modelResolution.identityAuthority;root.userData.exactProductIdentity=modelResolution.exactProductIdentity;root.userData.modelComponentKey=modelResolution.componentKey;root.userData.physicalIdentityVerified=false;
         interactionProxy(root,target);tag(root,e);groups[e.layer==="L4"?"L4":"L2"].add(root);label(e.name,e.x,placement.baseZ,e.y,isSld(e)?"#8fcfff":"#ffd08a",e);
       };
       const loader=new GLTFLoader();
@@ -358,7 +360,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
           return;
         }
         if(e.kind==='sheet-callout-candidate'||e.kind==='annotated-asset-candidate'){fallbackShape(e);return}
-        const def=resolveElectricalComponent(e.name),cfg=def?registry.find(r=>r.componentKey===def.key):null;
+        const modelResolution=resolveSpatialModel(e,registry),cfg=modelResolution.model;
         if(!cfg?.modelUrl.trim()||!["GLB","GLTF"].includes(cfg.format)){fallbackShape(e);return}
         const reconciled=resolveReconciledAssetPlacement({name:e.name,floor:e.floor,z:e.z,meta:e.meta},{registry:cfg}),placement=reconciled.placement;
         const target:[number,number,number]=[placement.dimensions.width,placement.dimensions.height,placement.dimensions.depth];
@@ -374,6 +376,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
             root.rotation.y=THREE.MathUtils.degToRad(-(e.rotation||0));
             root.userData.dimensionAuthority=placement.dimensions.authority;
             root.userData.targetDimensionsMeters=target;root.userData.zPlacementAuthority=placement.zAuthority;root.userData.zPlacementConfidence=placement.zConfidence;root.userData.zSolutionStatus=reconciled.solution.status;root.userData.zSolutionConflicts=reconciled.solution.conflicts.length;
+            root.userData.modelResolutionTier=modelResolution.tier;root.userData.modelGeometryAuthority=modelResolution.geometryAuthority;root.userData.modelIdentityAuthority=modelResolution.identityAuthority;root.userData.exactProductIdentity=modelResolution.exactProductIdentity;root.userData.modelComponentKey=modelResolution.componentKey;root.userData.modelResolutionConfidence=modelResolution.confidence;root.userData.physicalIdentityVerified=false;
             root.userData.normalization={scalar:normalized.scalar,ratioSpread:normalized.ratioSpread,reviewRequired:normalized.reviewRequired};
             if(normalized.reviewRequired)console.warn("STRATUM model dimension mismatch requires review",{component:e.name,target,intrinsic:normalized.intrinsic,ratios:normalized.ratios,ratioSpread:normalized.ratioSpread});
             root.add(model);interactionProxy(root,target);tag(root,e);groups[e.layer==="L4"?"L4":"L2"].add(root);label(e.name,e.x,placement.baseZ,e.y,"#cfefff",e);
