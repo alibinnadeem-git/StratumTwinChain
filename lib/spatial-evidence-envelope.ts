@@ -85,6 +85,8 @@ function sourceKey(entity:SpatialEvidenceEntity){
 
 function horizontalFrame(entity:SpatialEvidenceEntity){
   const meta=entity.meta||{};
+  const project=text(meta.projectXYFrameId);
+  if(project)return project;
   const explicit=text(meta.xyCoordinateFrame);
   if(explicit)return explicit;
   const units=text(meta.coordinateUnits).toLowerCase();
@@ -98,6 +100,7 @@ function horizontalFrame(entity:SpatialEvidenceEntity){
 
 function metricHorizontalKnown(entity:SpatialEvidenceEntity){
   const meta=entity.meta||{},units=text(meta.coordinateUnits).toLowerCase();
+  if(meta.projectXYFrameMetric===true)return true;
   if(units==='m_reviewed_pdf'||units==='m_dxf_design'||units==='m'||units.startsWith('m_'))return true;
   if(text(meta.ifcCoordinateFrame)==='LOCAL_ENGINEERING'&&finite(meta.unitToMeters)!==null)return true;
   return false;
@@ -125,6 +128,8 @@ function horizontalEnvelope(entity:SpatialEvidenceEntity):HorizontalEvidenceEnve
   const frame=horizontalFrame(entity);
   const anchor=text(meta.symbolAnchorStatus)||'UNSPECIFIED';
   const placement=text(meta.spatialPlacementAuthority)||text(meta.xyPlacementAuthority)||'UNRESOLVED';
+  const projectFrame=text(meta.projectXYFrameId);
+  const registrationIds=Array.isArray(meta.projectXYRegistrationIds)?meta.projectXYRegistrationIds.map(value=>String(value)).filter(Boolean):[];
   const notes:string[]=[];
   let state:EvidenceState='UNRESOLVED';
 
@@ -135,6 +140,7 @@ function horizontalEnvelope(entity:SpatialEvidenceEntity):HorizontalEvidenceEnve
     const authoredNative=placement==='SOURCE_DXF_INSUNITS'||text(meta.sourceType).toUpperCase().startsWith('IFC');
     const anchored=anchor==='RESOLVED_REVIEW_CANDIDATE'||placement==='SOURCE_VECTOR_SYMBOL_ANCHOR';
     state=authoredNative||anchored?'RESOLVED_CANDIDATE':'PARTIAL';
+    if(projectFrame)notes.push('The entity is registered in shared project frame '+projectFrame+'; project-frame registration does not by itself prove the equipment symbol anchor.');
     if(state==='PARTIAL')notes.push('Metric coordinates exist, but the equipment position is not independently anchored to native/source symbol geometry.');
   }else{
     if(placement&&placement!=='UNRESOLVED')notes.push('Source position is retained, but no reviewed metric X/Y frame is established.');
@@ -155,7 +161,7 @@ function horizontalEnvelope(entity:SpatialEvidenceEntity):HorizontalEvidenceEnve
     coordinateFrame:frame,
     placementAuthority:placement,
     symbolAnchorStatus:anchor,
-    sourceLineages:[sourceKey(entity)],
+    sourceLineages:[sourceKey(entity),...registrationIds.map(id=>'ALIGNMENT:'+id)],
     scaleWitnessCount:scale.witnessCount,
     scaleRelativeDeviationMax:scale.maxDeviation,
     scaleContributionMeters:scale.contribution,
