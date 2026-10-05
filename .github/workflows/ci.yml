@@ -90,6 +90,8 @@ jobs:
         run: npm run qa:office-ingestion
       - name: IFC BIM semantic and placement ingestion conformance
         run: npm run qa:ifc-ingestion
+      - name: Native DXF vertical coordinate conformance
+        run: npm run qa:dxf-z
       - name: Scanned-image OCR review-evidence conformance
         run: npm run qa:image-ocr
       - name: Scanned PDF OCR fallback conformance
