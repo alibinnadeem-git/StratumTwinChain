@@ -288,6 +288,14 @@ export function parseIfcText(text:string,source:string,fallbackDiscipline='Uncla
     cadMetricXY:canPlace,geometryAuthority:'IFC_PLACEMENT_ONLY_NO_SHAPE_MESH',
     nonSpatial:!canPlace,
     zPlacementAuthority:canPlace?'SOURCE_IFC_DESIGN_PLACEMENT':'UNRESOLVED',
+    zResolutionStatus:canPlace?'RESOLVED_DESIGN_CANDIDATE':'UNRESOLVED',
+    ...(canPlace?{
+      zCandidateMeters:z,
+      zCandidateReferencePoint:'SOURCE_ORIGIN',
+      zResolutionConfidence:.96,
+      zResolutionAuthority:'SOURCE_IFC_DESIGN_PLACEMENT',
+      zResolutionCoordinateFrame:`IFC_LOCAL_ENGINEERING:${source}`
+    }:{}),
     spatialPlacementAuthority:canPlace?'IFC_LOCAL_PLACEMENT':'IFC_PLACEMENT_OR_UNIT_UNRESOLVED',
     ...(storey?{ifcStorey:storey.name,ifcStoreyElevation:storey.elevation}:{}),
     registrationState:'CANDIDATE'
