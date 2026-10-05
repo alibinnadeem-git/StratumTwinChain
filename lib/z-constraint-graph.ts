@@ -180,11 +180,12 @@ export function solveZConstraintGraph(input:{
   }
 
   const base=byId.get(input.baseNodeId)||null;
-  const status:ZConstraintGraph['status']=conflicts.length?'CONFLICT':base?.valueMeters!==null?'RESOLVED_BASE_CANDIDATE':nodes.some(node=>node.valueMeters!==null)||input.relations.length?'PARTIAL':'UNRESOLVED';
+  const baseResolved=base!==null&&base.valueMeters!==null;
+  const status:ZConstraintGraph['status']=conflicts.length?'CONFLICT':baseResolved?'RESOLVED_BASE_CANDIDATE':nodes.some(node=>node.valueMeters!==null)||input.relations.length?'PARTIAL':'UNRESOLVED';
   const explanation=conflicts.length
     ?'One or more source/review constraint paths disagree beyond the review tolerance; no single base-Z candidate is authoritative.'
-    :base?.valueMeters!==null
-      ?`Asset base Z is derivable as a review candidate from explicit constraints in ${base.coordinateFrame}.`
+    :baseResolved
+      ?`Asset base Z is derivable as a review candidate from explicit constraints in ${base!.coordinateFrame}.`
       :frameGaps.length
         ?'Z evidence exists, but at least one required relationship crosses an unregistered vertical coordinate frame.'
         :'Z evidence/relationships are preserved, but they do not yet establish an absolute asset base.';
