@@ -4,6 +4,7 @@ import Link from "next/link";
 import {useEffect,useMemo,useRef,useState} from "react";
 import {resolveElectricalComponent} from "@/lib/electrical-component-library";
 import {resolveSpatialModel} from "@/lib/spatial-model-resolution";
+import {deriveSpatialEvidenceEnvelope} from "@/lib/spatial-evidence-envelope";
 import {resolveReconciledAssetPlacement} from "@/lib/z-solution-chain";
 import {fitProceduralObjectToMeters,normalizeObjectToMeters} from "@/lib/three-model-normalization";
 import {decodeGlbBase64,inspectStandaloneGlb} from "@/lib/spatial-glb-import";
@@ -295,6 +296,19 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
           mesh.rotation.x=-Math.PI/2;mesh.position.set((e.x+e.x2!)/2,height(e)+.015,(e.y+e.y2!)/2);mesh.renderOrder=-10;groups.L1.add(mesh);
         });
       };
+      const attachSpatialEvidence=(root:any,e:Entity,modelResolution:ReturnType<typeof resolveSpatialModel>|null)=>{
+        const envelope=deriveSpatialEvidenceEnvelope(e,modelResolution);
+        root.userData.coordinationReadiness=envelope.readiness;
+        root.userData.horizontalEvidenceState=envelope.horizontal.state;
+        root.userData.horizontalCoordinateFrame=envelope.horizontal.coordinateFrame;
+        root.userData.verticalEvidenceState=envelope.vertical.state;
+        root.userData.verticalCoordinateFrame=envelope.vertical.coordinateFrame;
+        root.userData.spatialEvidenceLineages=envelope.distinctEvidenceLineages;
+        root.userData.horizontalUncertaintyBoundMeters=envelope.horizontal.totalUncertaintyBoundMeters;
+        root.userData.verticalUncertaintyBoundMeters=envelope.vertical.totalUncertaintyBoundMeters;
+        root.userData.physicalClashAuthority=false;
+        root.userData.asBuiltAuthority=false;
+      };
       const fallbackShape=(e:Entity)=>{
         if(e.kind==='sheet-callout-candidate'||e.kind==='annotated-asset-candidate'){
           const root=new THREE.Group();
@@ -322,6 +336,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
         root.position.set(e.x,placement.baseZ,e.y);root.rotation.y=THREE.MathUtils.degToRad(-(e.rotation||0));
         root.userData.dimensionAuthority=placement.dimensions.authority;root.userData.targetDimensionsMeters=target;root.userData.zPlacementAuthority=placement.zAuthority;root.userData.zPlacementConfidence=placement.zConfidence;root.userData.zSolutionStatus=reconciled.solution.status;root.userData.zSolutionConflicts=reconciled.solution.conflicts.length;
         root.userData.modelResolutionTier=modelResolution.tier;root.userData.modelGeometryAuthority=modelResolution.geometryAuthority;root.userData.modelIdentityAuthority=modelResolution.identityAuthority;root.userData.exactProductIdentity=modelResolution.exactProductIdentity;root.userData.modelComponentKey=modelResolution.componentKey;root.userData.physicalIdentityVerified=false;
+        attachSpatialEvidence(root,e,modelResolution);
         interactionProxy(root,target);tag(root,e);groups[e.layer==="L4"?"L4":"L2"].add(root);label(e.name,e.x,placement.baseZ,e.y,isSld(e)?"#8fcfff":"#ffd08a",e);
       };
       const loader=new GLTFLoader();
@@ -350,6 +365,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
                 root.userData.targetDimensionsMeters=target;
                 root.userData.normalization={scalar:normalized.scalar,ratioSpread:normalized.ratioSpread,reviewRequired:true};
                 root.userData.zDisplayAuthority=placement.zAuthority;root.userData.zPlacementConfidence=placement.zConfidence;root.userData.zSolutionStatus=reconciled.solution.status;root.userData.zSolutionConflicts=reconciled.solution.conflicts.length;
+                attachSpatialEvidence(root,e,null);
                 root.add(model);interactionProxy(root,target);tag(root,e);
                 groups.L2.add(root);label(e.name,e.x,placement.baseZ,e.y,'#ffd08a',e);
                 const renderedBox=new THREE.Box3().setFromObject(root);if(!renderedBox.isEmpty())bounds.union(renderedBox);
@@ -377,6 +393,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
             root.userData.dimensionAuthority=placement.dimensions.authority;
             root.userData.targetDimensionsMeters=target;root.userData.zPlacementAuthority=placement.zAuthority;root.userData.zPlacementConfidence=placement.zConfidence;root.userData.zSolutionStatus=reconciled.solution.status;root.userData.zSolutionConflicts=reconciled.solution.conflicts.length;
             root.userData.modelResolutionTier=modelResolution.tier;root.userData.modelGeometryAuthority=modelResolution.geometryAuthority;root.userData.modelIdentityAuthority=modelResolution.identityAuthority;root.userData.exactProductIdentity=modelResolution.exactProductIdentity;root.userData.modelComponentKey=modelResolution.componentKey;root.userData.modelResolutionConfidence=modelResolution.confidence;root.userData.physicalIdentityVerified=false;
+            attachSpatialEvidence(root,e,modelResolution);
             root.userData.normalization={scalar:normalized.scalar,ratioSpread:normalized.ratioSpread,reviewRequired:normalized.reviewRequired};
             if(normalized.reviewRequired)console.warn("STRATUM model dimension mismatch requires review",{component:e.name,target,intrinsic:normalized.intrinsic,ratios:normalized.ratios,ratioSpread:normalized.ratioSpread});
             root.add(model);interactionProxy(root,target);tag(root,e);groups[e.layer==="L4"?"L4":"L2"].add(root);label(e.name,e.x,placement.baseZ,e.y,"#cfefff",e);
