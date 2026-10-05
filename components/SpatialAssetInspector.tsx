@@ -5,6 +5,8 @@ import {useMemo,useState} from 'react';
 import {readPrimarySpatialGraph,replaceCurrentSpatialGraph} from '@/lib/spatial-browser-recovery';
 import {readSelectedSpatialProjectId} from '@/lib/spatial-project-selection';
 import {resolveReconciledAssetPlacement} from '@/lib/z-solution-chain';
+import {resolveSpatialModel} from '@/lib/spatial-model-resolution';
+import type {ElectricalModelConfig} from '@/lib/electrical-model-registry';
 import AssetActivityPanel from '@/components/AssetActivityPanel';
 import AssetQR from '@/components/AssetQR';
 import {
@@ -37,10 +39,12 @@ function verificationUrl(asset:RegisteredSpatialAsset){
 export default function SpatialAssetInspector({
  selected,
  registeredAssets,
+ modelRegistry,
  onEntityUpdated,
 }:{
  selected:InspectorEntity|null;
  registeredAssets:RegisteredSpatialAsset[];
+ modelRegistry:ElectricalModelConfig[];
  onEntityUpdated?:(entity:InspectorEntity)=>void;
 }){
  const [linkId,setLinkId]=useState('');
@@ -48,6 +52,7 @@ export default function SpatialAssetInspector({
  const [reviewReason,setReviewReason]=useState('');
  const binding=useMemo(()=>resolveRegisteredSpatialAsset(selected,registeredAssets),[selected,registeredAssets]);
  const reconciliation=useMemo(()=>selected?resolveReconciledAssetPlacement({name:selected.name,floor:selected.floor,z:selected.z,meta:selected.meta}):null,[selected]);
+ const modelResolution=useMemo(()=>selected?resolveSpatialModel(selected,modelRegistry):null,[selected,modelRegistry]);
  const placement=reconciliation?.placement||null;
  const zSolution=reconciliation?.solution||null;
  const dir=useMemo(()=>spatialAssetDirState(binding),[binding]);
@@ -186,6 +191,7 @@ export default function SpatialAssetInspector({
   <div className={`placement-trust ${zReviewed?'reviewed':'needs-review'}`} role="status">
     <div><span>Z placement</span><strong>{zReviewed?'Measured / reviewed':zSolution?.status==='CONFLICT'?'Z CONFLICT · review required':zCandidate!==null?`${zCandidateReferencePoint} design Z reference · review required`:placement&& !['UNRESOLVED','RELATIVE_TO_REVIEW_PLANE'].includes(placement.zAuthority)?`${placement.baseZ.toFixed(2)} m placement candidate · review required`:localReviewSurfaceZ!==null?`${localReviewSurfaceLabel} local review surface · object Z unresolved`:crossSheetReviewSurfaceZ!==null?`${crossSheetReviewSurfaceLabel} cross-sheet review surface · object Z unresolved`:reviewSurfaceZ!==null?`${reviewSurfaceLabel} review surface · object Z unresolved`:'Review plane · physical Z unresolved'}</strong></div>
   </div>
+  {modelResolution&&<div className="notice" role="status"><strong>3D MODEL · {modelResolution.tier.replaceAll('_',' ')}</strong><span>{modelResolution.component?.name||'Component unresolved'} · {modelResolution.geometryAuthority.replaceAll('_',' ')} · confidence {Math.round(modelResolution.confidence*100)}%. {modelResolution.fallbackReason||'The model matches the source product identity available in the drawing/library evidence.'} Physical installed identity remains unverified until explicitly bound to the registered asset.</span></div>}
   {!zReviewed&&<div className="button-row" style={{margin:'8px 0 10px'}}><a className="action" href="#z-resolution-review">Resolve Z</a><Link className="ghost" href="/docs#z-method">View Z method</Link></div>}
   {zSolution?.status==='CONFLICT'&&<div className="notice" role="status"><strong>Z CONFLICT · AUTO-PLACEMENT BLOCKED</strong><span>{zSolution.explanation}</span><ul style={{margin:'8px 0 0',paddingLeft:18}}>{zSolution.conflicts.map((conflict,index)=><li key={index}><small>{conflict.reason} · {conflict.candidateA} vs {conflict.candidateB} · Δ {conflict.deltaMeters.toFixed(3)} m · threshold {conflict.toleranceMeters.toFixed(3)} m</small></li>)}</ul></div>}
   {zSolution?.status==='REVIEW_RESOLVED_CANDIDATE'&&<div className="notice" role="status"><strong>HUMAN REVIEW PLACEMENT · PHYSICAL Z UNVERIFIED</strong><span>The authenticated selected chain controls the review model only. Conflicting evidence remains preserved, and this review does not establish field-verified physical elevation.</span></div>}
@@ -297,6 +303,7 @@ export default function SpatialAssetInspector({
     {supportBaseOffset!==null&&<><div><span>Support base offset</span><strong>{supportBaseOffset.toFixed(3)} m · {String(selected.meta?.supportOffsetKind||'SUPPORT').replaceAll('_',' ')}</strong></div><div><span>Support offset authority</span><strong>{String(selected.meta?.supportOffsetAuthority||'SOURCE_SUPPORT_NOTE').replaceAll('_',' ')}</strong></div><div><span>Support offset confidence</span><strong>{Math.round(Number(selected.meta?.supportOffsetConfidence||0)*100)}%</strong></div></>}
     {Number.isFinite(Number(selected.meta?.zScaleGuideMetersPerSourceUnit))&&<div><span>XYZ unit guide</span><strong>{Number(selected.meta?.zScaleGuideMetersPerSourceUnit).toFixed(6)} m/source unit</strong></div>}
     {zSolution&&<><div><span>Z solution</span><strong>{zSolution.status.replaceAll('_',' ')}</strong></div><div><span>Z chains compared</span><strong>{zSolution.candidates.length}</strong></div>{zSolution.uncomparedFramePairs.length>0&&<div><span>Unregistered Z frames</span><strong>{zSolution.uncomparedFramePairs.length} pair{zSolution.uncomparedFramePairs.length===1?'':'s'} preserved · not numerically compared</strong></div>}{zSolution.chosenCandidateId&&<div><span>Chosen Z chain</span><strong>{zSolution.chosenCandidateId.replaceAll('_',' ')}</strong></div>}</>}
+    {modelResolution&&<><div><span>3D model tier</span><strong>{modelResolution.tier.replaceAll('_',' ')}</strong></div><div><span>Model component</span><strong>{modelResolution.component?.name||'Unresolved'}</strong></div><div><span>Geometry authority</span><strong>{modelResolution.geometryAuthority.replaceAll('_',' ')}</strong></div><div><span>Product identity</span><strong>{modelResolution.exactProductIdentity?'Exact source product match':'Family / unresolved product'}</strong></div></>}
     {placement?.recommendation&&<div><span>Placement basis</span><strong>{placement.recommendation.kind.replaceAll('_',' ')}</strong></div>}
    </div>
    <details className="proof-details"><summary>Raw source details</summary><dl>{Object.entries(selected.meta||{}).filter(([key])=>key!=='embeddedGlb'&&(zReviewed||!/(?:^z$|^inferredZCandidate$)/i.test(key))).map(([key,value])=><div key={key}><dt>{key}</dt><dd style={{overflowWrap:'anywhere'}}>{typeof value==='object'?JSON.stringify(value):String(value)}</dd></div>)}</dl></details>
