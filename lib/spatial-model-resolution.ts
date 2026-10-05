@@ -51,7 +51,7 @@ function manufacturerEvidence(entity:SpatialModelEntity){
 function modelEvidence(entity:SpatialModelEntity){
   const meta=entity.meta||{};
   return norm([
-    entity.name,meta.model,meta.modelNumber,meta.productName,meta.partNumber,
+    entity.name,meta.manufacturer,meta.oem,meta.brand,meta.model,meta.modelNumber,meta.productName,meta.partNumber,
     meta.manufacturerPartNumber,meta.sku,meta.catalogNumber,meta.catalogNo
   ].filter(Boolean).join(' '));
 }
@@ -70,8 +70,7 @@ function exactIdentitySupported(entity:SpatialModelEntity,component:ElectricalCo
     (componentName&&has(model,componentName))||
     component.aliases.some(alias=>{
       const a=norm(alias);if(!a)return false;
-      if(/\d/.test(a)&&has(model,a))return true;
-      return Boolean(familyExpected&&a.length>=Math.max(8,Math.floor(familyExpected.length*.6))&&has(model,a));
+      return /\d/.test(a)&&has(model,a);
     })
   );
   return manufacturerMatches&&familyMatches;
