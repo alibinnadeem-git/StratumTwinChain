@@ -13,13 +13,15 @@ export default function RoomReconstructionReview(){
   const base=(graph.entities||[]).filter(entity=>entity.meta?.reconstruction!=='wall-segment-loop');
   const stitched=reconstructWallLoopCandidates(base);
   const combined=[...base,...stitched];
-  const next=proposeRooms(combined);setProposals(next);
+  const next=proposeRooms(combined);
   const proposalMap=new Map(next.map(item=>[item.candidateId,item]));
   const entities=combined.map(entity=>entity.kind==='vector-boundary-candidate'?{...entity,meta:{...(entity.meta||{}),automaticRoomProposal:proposalMap.get(entity.id)||null}}:entity);
-  if(JSON.stringify(graph.roomReconstructionProposals||[])!==JSON.stringify(next)||JSON.stringify(graph.entities||[])!==JSON.stringify(entities)){
+  const changed=JSON.stringify(graph.roomReconstructionProposals||[])!==JSON.stringify(next)||JSON.stringify(graph.entities||[])!==JSON.stringify(entities);
+  if(changed){
    await writePrimarySpatialGraph({...graph,entities,roomReconstructionProposals:next} as any);
-   window.dispatchEvent(new Event('stratum:graph-updated'));
   }
+  setProposals(next);
+  if(changed)window.dispatchEvent(new Event('stratum:graph-updated'));
  }
  useEffect(()=>{const run=()=>{void refresh()};run();window.addEventListener('stratum:graph-updated',run);return()=>window.removeEventListener('stratum:graph-updated',run)},[]);
  const eligible=proposals.filter(item=>item.eligible);
