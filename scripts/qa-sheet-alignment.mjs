@@ -35,6 +35,13 @@ try{
  assert.equal(restoredOriginal.meta.zResolutionStatus,undefined);
  assert.equal(restoredOriginal.meta.zPlacementAuthority,undefined);
  assert.equal(restoredOriginal.meta.sheetElevationReviewRequired,undefined);
+ const priorEvidence={id:'prior',source:'plan',kind:'line',name:'prior',x:2,y:3,z:1.5,x2:6,y2:3,z2:1.5,vertices:source,meta:{coordinateUnits:'sheet',elevationKnown:false,physicalElevationKnown:false,physicalTruth:false,reviewRequired:true,zCandidateMeters:1.5,zCandidateReferencePoint:'BASE',zResolutionStatus:'CONFLICT',zResolutionAuthority:'PRIOR_SOURCE_EVIDENCE',zResolutionCoordinateFrame:'SOURCE_FRAME',zPlacementAuthority:'PRIOR_SOURCE_PLACEMENT'}};
+ const priorAligned=applySheetTransform(priorEvidence,t);
+ assert.equal(priorAligned.meta.zResolutionAuthority,'HUMAN_REVIEWED_SHEET_ELEVATION');
+ const priorRestored=restoreSheetCoordinates(priorAligned);
+ for(const key of ['coordinateUnits','elevationKnown','physicalElevationKnown','physicalTruth','reviewRequired','zCandidateMeters','zCandidateReferencePoint','zResolutionStatus','zResolutionAuthority','zResolutionCoordinateFrame','zPlacementAuthority']){
+  assert.deepEqual(priorRestored.meta[key],priorEvidence.meta[key],`restore must recover prior metadata key ${key}`);
+ }
  assert.throws(()=>solveSheetTransform([source[0],source[0]],target,'L1',0));
  assert.throws(()=>solveSheetTransform(source,target,'UNRESOLVED',0));
  assert.throws(()=>solveSheetTransform(source,target,'L1',NaN));
