@@ -118,6 +118,8 @@ jobs:
         run: npm run qa:cross-sheet-z
       - name: Independent scale validation conformance
         run: npm run qa:scale-validation
+      - name: Reviewed PDF metric frame conformance
+        run: npm run qa:metric-frame
       - name: Demo-safe unresolved placement conformance
         run: npm run qa:demo-safe-placement
       - name: Local support-surface equipment placement conformance
