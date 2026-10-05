@@ -40,6 +40,9 @@ export function sheetXYValidationResidual(source:Point,target:Point,t:SheetXYTra
  return Math.hypot(actual.x-target.x,actual.y-target.y);
 }
 export function applySheetXYTransform<T extends DrawingEntity>(entity:T,t:SheetXYTransform,validation?:{residualMeters:number;toleranceMeters:number}):T{
+ if(entity.meta?.projectXYFrameId)throw new Error('Restore the project XY frame registration before applying a manual sheet XY calibration.');
+ if(entity.meta?.autoSheetAlignmentCandidateId)throw new Error('Restore the automatic/project-frame alignment before applying a manual sheet XY calibration.');
+ if(entity.meta?.sheetTransform)throw new Error('Restore the full sheet alignment before applying a manual sheet XY calibration.');
  const original=(entity.meta?.sheetXYOriginal as Partial<DrawingEntity>|undefined)||{x:entity.x,y:entity.y,x2:entity.x2,y2:entity.y2,vertices:entity.vertices};
  const point=(p:Point)=>transformSheetXY(p,t);
  const end=original.x2!==undefined&&original.y2!==undefined?point({x:original.x2,y:original.y2}):undefined;
@@ -59,6 +62,9 @@ export function solveSheetTransform(source:[Point,Point],target:[Point,Point],fl
  return {...xy,floor:floor.trim(),elevation};
 }
 export function applySheetTransform<T extends DrawingEntity>(entity:T,t:SheetTransform):T{
+ if(entity.meta?.projectXYFrameId)throw new Error('Restore the project XY frame registration before applying a full sheet alignment.');
+ if(entity.meta?.autoSheetAlignmentCandidateId)throw new Error('Restore the automatic/project-frame alignment before applying a full sheet alignment.');
+ if(entity.meta?.sheetXYCalibrationId)throw new Error('Restore the manual XY calibration before applying a full sheet alignment.');
  const currentMeta={...(entity.meta||{})};
  const base=(currentMeta.sheetOriginal as DrawingEntity|undefined)||{x:entity.x,y:entity.y,z:entity.z,x2:entity.x2,y2:entity.y2,z2:entity.z2,vertices:entity.vertices,floor:entity.floor};
  const originalMeta=(currentMeta.sheetZReviewOriginalMeta as MetaSnapshot|undefined)||captureMeta(currentMeta,SHEET_Z_REVIEW_META_KEYS);
