@@ -78,23 +78,42 @@ ok('footprint mismatch explains why coordination is blocked',footprintMismatch[0
 const noBoundary=proposeSheetAlignments(entities.filter(entity=>!String(entity.id).match(/^[rm]b/)),sheets);
 ok('missing footprint evidence stays explicitly unavailable rather than invented',noBoundary.length===1&&noBoundary[0].crossChecks.boundary==='UNAVAILABLE'&&noBoundary[0].warnings.some(warning=>warning.includes('footprint overlap is unavailable')));
 
+const sharedFrame='PROJECT_XY:'+refSha+':1';
+const alreadyRegistered=entities.map(entity=>{
+ const key=String(entity.meta?.sourceSha256||'')+':'+Number(entity.meta?.page||0);
+ return key===refSha+':1'||key===movingSha+':2'
+  ?{...entity,meta:{...entity.meta,projectXYFrameId:sharedFrame}}
+  :entity;
+});
+ok('sheets already registered in the same project XY frame do not receive another transform proposal',proposeSheetAlignments(alreadyRegistered,sheets).length===0);
+
+const movingOtherFrame=entities.map(entity=>String(entity.meta?.sourceSha256||'')===movingSha
+ ?{...entity,meta:{...entity.meta,projectXYFrameId:'PROJECT_XY:other'}}
+ :entity);
+const otherFrameProposal=proposeSheetAlignments(movingOtherFrame,sheets);
+ok('moving sheet already registered to a different project frame is blocked',otherFrameProposal.length===1&&!otherFrameProposal[0].eligible&&otherFrameProposal[0].reasons.some(reason=>reason.includes('different project XY frame')));
+
 const component=read('components/AutoSheetAlignmentReview.tsx');
+const registration=read('lib/project-xy-frame-registration.ts');
 const overlap=read('lib/sheet-boundary-overlap.ts');
 const page=read('app/compiler/page.tsx');
 ok('compiler mounts auto-alignment after title-block review and before persistence',page.indexOf('<TitleBlockIntelligence/>')<page.indexOf('<AutoSheetAlignmentReview/>')&&page.indexOf('<AutoSheetAlignmentReview/>')<page.indexOf('<SpatialCompilationPersistence/>'));
 ok('alignment UI requires explicit apply action',component.includes('Apply reviewed proposal'));
 ok('alignment UI states repeated anchors create the transform',component.includes('Repeated anchors create the transform'));
 ok('alignment UI explains independent source-grounded footprint verification',component.includes('Source-grounded drawing geometry independently checks')&&component.includes('Drawing footprint overlap'));
+ok('alignment UI explains one durable project XY frame and reference-unit inheritance',component.includes('one durable project XY frame')&&component.includes("inherits the reference frame's coordinate units"));
 ok('title-block floor and scale are safety cross-checks only',component.includes('can only reject or flag a suspicious proposal')&&component.includes('never create or modify the transform'));
-ok('alignment UI preserves original coordinates before transforming',component.includes('autoSheetAlignmentOriginal'));
-ok('alignment applies the similarity transform to endpoints and polygon vertices',component.includes('x2:end.x')&&component.includes('vertices=Array.isArray(original.vertices)')&&component.includes('vertices.map(vertex=>transformSheetPoint'));
+ok('alignment UI delegates coordinate mutation to the durable registration library',component.includes('applyReviewedProjectXYFrameRegistration')&&component.includes('restoreReviewedProjectXYFrameRegistration'));
+ok('registration library preserves original coordinates and units before transforming',registration.includes('projectXYRegistrationOriginal')&&registration.includes('coordinateUnits:meta.coordinateUnits'));
+ok('registration transforms endpoints and polygon vertices centrally',registration.includes('x2:end.x')&&registration.includes('original.vertices?.map')&&registration.includes('transformSheetPoint'));
+ok('registration assigns one explicit frame id and reference coordinate units',registration.includes("frameId='PROJECT_XY:'")&&registration.includes('coordinateUnits:referenceUnits'));
 ok('alignment can derive review-only cross-sheet Z and clears it on restore',component.includes('enrichCrossSheetElevationSurfaces')&&component.includes('clearCrossSheetElevationForAlignment'));
 ok('alignment UI provides explicit coordinate restoration',component.includes('Restore original coordinates'));
-ok('alignment UI records alignmentVerified false',component.includes('alignmentVerified:false'));
+ok('registration records alignmentVerified false',registration.includes('alignmentVerified:false'));
 ok('alignment review ledger stores cross-check evidence',component.includes('crossChecks:proposal.crossChecks'));
 ok('cross-discipline coordination warnings are surfaced to the reviewer',component.includes('proposal.warnings')&&component.includes('COORDINATION REVIEW'));
 ok('boundary engine uses convex source geometry and geometric clipping rather than title text as geometry authority',overlap.includes('convexHull')&&overlap.includes('clipConvex')&&overlap.includes("entity.meta?.drawingBasemap===true"));
 ok('alignment UI states no asset DIR PoVI or physical-truth promotion',component.includes('do not create STRATUM Assets')&&component.includes('PoVI finality')&&component.includes('physical truth'));
 ok('alignment UI cannot call asset lifecycle chain or approval APIs',!/["'\x60]\/api\/(?:assets|lifecycle|chain|approvals)/.test(component));
 
-console.log('\nAutomatic multi-sheet alignment now requires anchor-derived transforms plus independent source-footprint coordination evidence while preserving HITL and truth boundaries.');
+console.log('\nAutomatic multi-sheet alignment now requires anchor-derived transforms plus independent source-footprint evidence, refuses double registration, and delegates reviewed application to the durable shared project-frame layer.');
