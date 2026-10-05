@@ -78,9 +78,13 @@ function exactIdentitySupported(entity:SpatialModelEntity,component:ElectricalCo
 
 function resolveGenericFamily(name:string,exactCandidate:ElectricalComponent){
   const normalized=norm(name);
-  return ELECTRICAL_COMPONENTS.find(component=>
+  const aliasMatch=ELECTRICAL_COMPONENTS.find(component=>
     !component.manufacturer&&component.twinShape===exactCandidate.twinShape&&
     component.aliases.some(alias=>has(normalized,norm(alias)))
+  );
+  if(aliasMatch)return aliasMatch;
+  return ELECTRICAL_COMPONENTS.find(component=>
+    !component.manufacturer&&component.twinShape===exactCandidate.twinShape&&component.key===exactCandidate.twinShape
   )||null;
 }
 
