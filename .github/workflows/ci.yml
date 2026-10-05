@@ -128,6 +128,8 @@ jobs:
         run: npm run qa:spatial-model-resolution
       - name: Schedule to positioned equipment identity reconciliation
         run: npm run qa:spatial-equipment-identity
+      - name: PDF equipment source-symbol anchoring conformance
+        run: npm run qa:pdf-equipment-anchor
       - name: Demo-safe unresolved placement conformance
         run: npm run qa:demo-safe-placement
       - name: Local support-surface equipment placement conformance
