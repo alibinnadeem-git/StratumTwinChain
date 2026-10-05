@@ -69,6 +69,7 @@ export function reconcileSpatialEquipmentIdentity<T extends EquipmentIdentityEnt
         ...entity,
         meta:{
           ...(entity.meta||{}),
+          assetTag:clean(entity.meta?.assetTag)||tag,
           productIdentityStatus:'CONFLICT',
           productIdentityAuthority:'SAME_TAG_SCHEDULE_RECONCILIATION',
           productIdentityTag:tag,
@@ -91,6 +92,7 @@ export function reconcileSpatialEquipmentIdentity<T extends EquipmentIdentityEnt
         ...entity,
         meta:{
           ...(entity.meta||{}),
+          assetTag:clean(entity.meta?.assetTag)||tag,
           productIdentityStatus:'TAG_LINKED_NO_PRODUCT_IDENTITY',
           productIdentityAuthority:'SAME_TAG_SCHEDULE_RECONCILIATION',
           productIdentityTag:tag,
@@ -110,6 +112,7 @@ export function reconcileSpatialEquipmentIdentity<T extends EquipmentIdentityEnt
         ...(entity.meta||{}),
         ...(manufacturer?{manufacturer}:{}),
         ...(model?{model}:{}),
+        assetTag:clean(entity.meta?.assetTag)||tag,
         productIdentityStatus:'SOURCE_RECONCILED_CANDIDATE',
         productIdentityAuthority:'SAME_TAG_SCHEDULE_RECONCILIATION',
         productIdentityTag:tag,
