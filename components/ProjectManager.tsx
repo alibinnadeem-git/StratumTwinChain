@@ -1,14 +1,152 @@
 'use client';
 
+import Link from 'next/link';
 import {useEffect,useState} from 'react';
+import {writeSelectedSpatialProjectId} from '@/lib/spatial-project-selection';
 
-type Project={id:string;name:string;client:string;location:string;status:string;progress:number;assets:number;verified:number};
-export default function ProjectManager({initial}:{initial:Project[]}){const [items,setItems]=useState<Project[]>(initial);const [open,setOpen]=useState(false);const [form,setForm]=useState({name:'',client:'',location:'',status:'Active'});const [message,setMessage]=useState('');
- useEffect(()=>{try{const raw=localStorage.getItem('stratum-project-workspace');if(raw)setItems(JSON.parse(raw));}catch{}},[]);
- function save(next:Project[]){setItems(next);localStorage.setItem('stratum-project-workspace',JSON.stringify(next));}
- function create(){if(!form.name.trim()||!form.client.trim()||!form.location.trim()){setMessage('Project name, client and location are required.');return;}const id=`STR-PRJ-${String(Date.now()).slice(-4)}`;save([{id,name:form.name.trim(),client:form.client.trim(),location:form.location.trim(),status:form.status,progress:0,assets:0,verified:0},...items]);setForm({name:'',client:'',location:'',status:'Active'});setOpen(false);setMessage(`Created ${id} in this browser project workspace.`);}
- function progress(id:string,value:number){save(items.map(p=>p.id===id?{...p,progress:Math.max(0,Math.min(100,value))}:p));}
- function archive(id:string){save(items.map(p=>p.id===id?{...p,status:'Archived'}:p));}
- function remove(id:string){const project=items.find(p=>p.id===id);if(!project||project.status!=='Archived')return;if(!window.confirm(`Permanently delete ${project.name} from this browser project workspace? This cannot be undone.`))return;save(items.filter(p=>p.id!==id));setMessage(`Deleted ${id} from this browser project workspace.`);}
- function restore(){save(initial);setMessage('Reference project set restored.');}
- return <><div className="page-head"><div><div className="eyebrow">Portfolio</div><h1 className="title">Projects</h1><p className="subtitle">Roll asset verification up from equipment to systems, sites and complete project turnover.</p></div><button type="button" className="action" onClick={()=>setOpen(v=>!v)}>{open?'Close':' + New project'}</button></div>{open&&<div className="card" style={{marginBottom:16}}><div className="eyebrow">Create project</div><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:10,marginTop:10}}><input value={form.name} onChange={e=>setForm(v=>({...v,name:e.target.value}))} placeholder="Project name"/><input value={form.client} onChange={e=>setForm(v=>({...v,client:e.target.value}))} placeholder="Client"/><input value={form.location} onChange={e=>setForm(v=>({...v,location:e.target.value}))} placeholder="Location"/><select value={form.status} onChange={e=>setForm(v=>({...v,status:e.target.value}))}><option>Active</option><option>Planning</option><option>Commissioning</option><option>Operations</option></select></div><div className="button-row" style={{marginTop:10}}><button type="button" onClick={create}>Create project</button><button type="button" onClick={()=>setOpen(false)}>Cancel</button></div></div>}{message&&<div className="notice" style={{marginBottom:16}}><strong>STATUS</strong><span>{message}</span></div>}<div className="project-grid">{items.map(p=><div className="card project-card" key={p.id}><div className="project-status">{p.status}</div><div className="eyebrow">{p.id}</div><h2>{p.name}</h2><p className="muted">{p.client}<br/>{p.location}</p><div className="progress"><i style={{width:`${p.progress}%`}}/></div><label className="muted" style={{display:'grid',gap:5,marginTop:10}}>Progress<input type="range" min="0" max="100" value={p.progress} onChange={e=>progress(p.id,Number(e.target.value))}/></label><div className="project-kpis"><div><strong>{p.progress}%</strong><span>Project</span></div><div><strong>{p.assets}</strong><span>Assets</span></div><div><strong>{p.verified}</strong><span>Verified</span></div></div><div className="button-row" style={{marginTop:12}}>{p.status!=='Archived'?<button type="button" onClick={()=>archive(p.id)}>Archive</button>:<button type="button" onClick={()=>remove(p.id)}>Delete permanently</button>}</div></div>)}</div><div className="button-row" style={{marginTop:16}}><button type="button" onClick={restore}>Restore reference projects</button></div><p className="muted" style={{marginTop:8}}>This project CRUD surface persists in the browser until the tenant project API/database is connected. Archived browser projects can be permanently deleted here; this does not claim to delete tenant/server records that are not connected to this surface.</p></>}
+type Project={
+ id:string;
+ project_code:string;
+ name:string;
+ status:'ACTIVE'|'PLANNING'|'COMMISSIONING'|'OPERATIONS'|'ARCHIVED'|string;
+ asset_count:number;
+ latest_spatial_revision:number|null;
+};
+
+type Form={
+ projectCode:string;
+ name:string;
+ status:'ACTIVE'|'PLANNING'|'COMMISSIONING'|'OPERATIONS';
+};
+
+export default function ProjectManager({canManage}:{canManage:boolean}){
+ const [items,setItems]=useState<Project[]>([]);
+ const [open,setOpen]=useState(false);
+ const [busy,setBusy]=useState(false);
+ const [message,setMessage]=useState('Loading tenant projects…');
+ const [selected,setSelected]=useState('');
+ const [form,setForm]=useState<Form>({projectCode:'',name:'',status:'ACTIVE'});
+
+ async function refresh(){
+  const response=await fetch('/api/projects',{cache:'no-store',credentials:'same-origin'});
+  const body=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(body?.error||('Project load failed ('+response.status+').'));
+  setItems(body.projects||[]);
+  setMessage(body.projects?.length?'Tenant projects loaded.':'No tenant projects exist yet.');
+ }
+
+ useEffect(()=>{
+  try{setSelected(localStorage.getItem('stratum_spatial_project_id')||'')}catch{}
+  void refresh().catch(error=>setMessage(error instanceof Error?error.message:'Unable to load tenant projects.'));
+ },[]);
+
+ async function create(){
+  if(!canManage||busy)return;
+  if(!form.projectCode.trim()||!form.name.trim()){
+   setMessage('Project code and project name are required.');
+   return;
+  }
+  setBusy(true);
+  try{
+   const response=await fetch('/api/projects',{
+    method:'POST',
+    headers:{'content-type':'application/json'},
+    credentials:'same-origin',
+    body:JSON.stringify(form)
+   });
+   const body=await response.json().catch(()=>({}));
+   if(!response.ok)throw new Error(body?.error||('Project creation failed ('+response.status+').'));
+   setForm({projectCode:'',name:'',status:'ACTIVE'});
+   setOpen(false);
+   setSelected(body.project.id);
+   writeSelectedSpatialProjectId(body.project.id);
+   await refresh();
+   setMessage('Created '+body.project.project_code+' and selected it for Spatial.');
+  }catch(error){
+   setMessage(error instanceof Error?error.message:'Unable to create project.');
+  }finally{
+   setBusy(false);
+  }
+ }
+
+ async function update(projectId:string,patch:Record<string,unknown>,success:string){
+  if(!canManage||busy)return;
+  setBusy(true);
+  try{
+   const response=await fetch('/api/projects',{
+    method:'PATCH',
+    headers:{'content-type':'application/json'},
+    credentials:'same-origin',
+    body:JSON.stringify({projectId,...patch})
+   });
+   const body=await response.json().catch(()=>({}));
+   if(!response.ok)throw new Error(body?.error||('Project update failed ('+response.status+').'));
+   await refresh();
+   setMessage(success);
+  }catch(error){
+   setMessage(error instanceof Error?error.message:'Unable to update project.');
+  }finally{
+   setBusy(false);
+  }
+ }
+
+ function useForSpatial(project:Project){
+  writeSelectedSpatialProjectId(project.id);
+  setSelected(project.id);
+  setMessage(project.project_code+' is now the active project for Import and Spatial server persistence.');
+ }
+
+ return <>
+  <div className="page-head">
+   <div>
+    <div className="eyebrow">Portfolio</div>
+    <h1 className="title">Projects</h1>
+    <p className="subtitle">Create the real tenant project once, then use the same organization-scoped identity across Import, Spatial, source backup and review persistence.</p>
+   </div>
+   {canManage&&<button type="button" className="action" onClick={()=>setOpen(value=>!value)}>{open?'Close':'New project'}</button>}
+  </div>
+
+  {open&&<section className="card" style={{marginBottom:16}} aria-label="Create tenant project">
+   <div className="eyebrow">Create tenant project</div>
+   <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:10,marginTop:10}}>
+    <label><span>Project code</span><input aria-label="Project code" value={form.projectCode} onChange={event=>setForm(value=>({...value,projectCode:event.target.value}))} placeholder="e.g. SFO-DC-01"/></label>
+    <label><span>Project name</span><input aria-label="Project name" value={form.name} onChange={event=>setForm(value=>({...value,name:event.target.value}))} placeholder="Project name"/></label>
+    <label><span>Status</span><select aria-label="Project status" value={form.status} onChange={event=>setForm(value=>({...value,status:event.target.value as Form['status']}))}><option value="ACTIVE">Active</option><option value="PLANNING">Planning</option><option value="COMMISSIONING">Commissioning</option><option value="OPERATIONS">Operations</option></select></label>
+   </div>
+   <div className="button-row" style={{marginTop:12}}>
+    <button type="button" className="action" onClick={create} disabled={busy}>Create & use for Spatial</button>
+    <button type="button" className="ghost" onClick={()=>setOpen(false)} disabled={busy}>Cancel</button>
+   </div>
+  </section>}
+
+  {message&&<div className="notice" role="status" style={{marginBottom:16}}><strong>PROJECT WORKSPACE</strong><span>{message}</span></div>}
+
+  {!items.length?
+   <section className="card">
+    <div className="eyebrow">No tenant projects</div>
+    <h2>Create the first real project</h2>
+    <p className="muted">Spatial persistence, source vault backup and authenticated model recovery require a real organization-scoped project UUID. STRATUM will not invent one.</p>
+   </section>
+   :
+   <div className="project-grid">{items.map(project=><article className="card project-card" key={project.id}>
+    <div className="project-status">{project.status}</div>
+    <div className="eyebrow">{project.project_code}</div>
+    <h2>{project.name}</h2>
+    <div className="project-kpis">
+     <div><strong>{project.asset_count}</strong><span>Assets</span></div>
+     <div><strong>{project.latest_spatial_revision?'r'+project.latest_spatial_revision:'—'}</strong><span>Spatial</span></div>
+    </div>
+    <div className="button-row" style={{marginTop:12}}>
+     {project.status!=='ARCHIVED'&&<>
+      <button type="button" className={selected===project.id?'action':'ghost'} onClick={()=>useForSpatial(project)}>{selected===project.id?'Selected for Spatial':'Use for Spatial'}</button>
+      <Link className="ghost" href="/compiler" onClick={()=>useForSpatial(project)}>Open Import</Link>
+     </>}
+     {canManage&&project.status!=='ARCHIVED'&&<button type="button" className="ghost" disabled={busy} onClick={()=>void update(project.id,{status:'ARCHIVED'},'Archived '+project.project_code+'. Server records and provenance were retained.')}>Archive</button>}
+     {canManage&&project.status==='ARCHIVED'&&<button type="button" className="ghost" disabled={busy} onClick={()=>void update(project.id,{status:'ACTIVE'},'Restored '+project.project_code+' to Active.')}>Restore</button>}
+    </div>
+   </article>)}</div>
+  }
+
+  <p className="muted" style={{marginTop:16}}>Project status is management state only. It does not establish asset verification, DIR finality, PoVI finality or physical truth. Archived tenant projects are retained rather than destructively deleted.</p>
+ </>;
+}
