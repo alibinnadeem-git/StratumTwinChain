@@ -21,6 +21,7 @@ assert.equal(placed?.meta?.model,'Universal Wall Connector Gen 3');
 assert.equal(placed?.meta?.productIdentityStatus,'SOURCE_RECONCILED_CANDIDATE');
 assert.equal(placed?.meta?.productIdentityAuthority,'SAME_TAG_SCHEDULE_RECONCILIATION');
 assert.equal(placed?.meta?.productIdentityTag,'EVSE-1');
+assert.equal(placed?.meta?.assetTag,'EVSE-1');
 assert.deepEqual(placed?.meta?.productIdentityEvidenceIds,['schedule-evse-1']);
 assert.equal(placed?.meta?.productIdentityPhysicalAssetVerified,false);
 assert.equal(placed?.meta?.physicalTruth,false);
