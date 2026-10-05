@@ -250,7 +250,7 @@ async function parsePdfMainThreadFallback(file:File,level:{floor:string;elevatio
  const anchoredEntities=anchorPdfEquipmentToVectorSymbols(entities,symbolAnchorPolygons);
  entities.splice(0,entities.length,...anchoredEntities);
  for(const entity of entities){
-  if(entity.meta?.nonSpatial===true||entity.kind==='elevation-control-point'||entity.kind==='elevation-review-surface-triangle')continue;
+  if(entity.meta?.nonSpatial===true||entity.kind==='elevation-control-point'||entity.kind==='elevation-review-surface-triangle'||entity.kind==='terrain-breakline-candidate')continue;
   const page=Number(entity.meta?.page||0);if(!page)continue;
   const controls=elevationControlsByPage.get(page)||[],triangles=elevationTrianglesByPage.get(page)||[];
   if(controls.length<3||triangles.length===0)continue;
@@ -261,11 +261,13 @@ async function parsePdfMainThreadFallback(file:File,level:{floor:string;elevatio
   entity.meta={...entity.meta,localReviewSurfaceZ:local.zMeters,localReviewSurfaceKind:local.kind,localReviewSurfaceAuthority:local.authority,localReviewSurfaceConfidence:local.confidence,localReviewSurfaceTriangleId:local.triangleId,localReviewSurfaceControlPointIds:local.controlPointIds,physicalTruth:false,reviewRequired:true};
  }
  const symbolAnchoredCount=entities.filter(entity=>entity.meta?.symbolAnchorStatus==='RESOLVED_REVIEW_CANDIDATE').length;
+ const terrainBreaklineCount=[...terrainBreaklinesByPage.values()].reduce((sum,items)=>sum+items.length,0);
+ const terrainSlopeEvidenceCount=[...terrainSlopeEvidenceByPage.values()].reduce((sum,items)=>sum+items.length,0);
  const supportEnriched=enrichSupportBaseOffsets(entities,[...supportOffsetsByPage.values()].flat());
  const pageLabels=Array.from({length:doc.numPages},(_,index)=>[...raw.filter(item=>item.page===index+1).map(item=>item.str),...(ocrTextByPage.get(index+1)||[])]);
  const setCompleteness=analyzeDrawingSetCompleteness({pageLabels,sheetNumbers:Array.from({length:doc.numPages},(_,index)=>sheetNumbersByPage.get(index+1)||null)});
  const setSummary=setCompleteness.status==='PARTIAL'?` · partial drawing set · missing ${setCompleteness.missingSheets.join(', ')}`:setCompleteness.status==='COMPLETE'?' · indexed drawing set complete':' · drawing-set completeness unresolved';
- return{entities:supportEnriched,summary:`${doc.numPages} page${doc.numPages===1?'':'s'} · ${raw.length} positioned text objects · ${vectors} PDF drawing operators · ${nonSldPlanPages} non-SLD plan page${nonSldPlanPages===1?'':'s'} recognized${planTypes.length?` (${planTypes.join(', ')})`:''} · ${sourcePlanSegments} retained source-plan vector segment${sourcePlanSegments===1?'':'s'} · ${rasterPlanUnderlays} raster drawing underlay${rasterPlanUnderlays===1?'':'s'} · ${ocrPages} raster OCR fallback page${ocrPages===1?'':'s'} · ${ocrTextChars} OCR text character${ocrTextChars===1?'':'s'} · ${sldPages} SLD page${sldPages===1?'':'s'} recognized from content/topology · ${vectorFeederSegments} source-vector feeder segment${vectorFeederSegments===1?'':'s'} · ${symbolAnchoredCount} source-vector equipment anchor${symbolAnchoredCount===1?'':'s'} · ${supportEnriched.length} spatial/review candidates${setSummary}`,pages:doc.numPages,vectors,textItems:raw.length,sldPages,nonSldPlanPages,planTypes,disciplines:uniqueDisciplines,setCompleteness};
+ return{entities:supportEnriched,summary:`${doc.numPages} page${doc.numPages===1?'':'s'} · ${raw.length} positioned text objects · ${vectors} PDF drawing operators · ${nonSldPlanPages} non-SLD plan page${nonSldPlanPages===1?'':'s'} recognized${planTypes.length?` (${planTypes.join(', ')})`:''} · ${sourcePlanSegments} retained source-plan vector segment${sourcePlanSegments===1?'':'s'} · ${rasterPlanUnderlays} raster drawing underlay${rasterPlanUnderlays===1?'':'s'} · ${ocrPages} raster OCR fallback page${ocrPages===1?'':'s'} · ${ocrTextChars} OCR text character${ocrTextChars===1?'':'s'} · ${sldPages} SLD page${sldPages===1?'':'s'} recognized from content/topology · ${vectorFeederSegments} source-vector feeder segment${vectorFeederSegments===1?'':'s'} · ${symbolAnchoredCount} source-vector equipment anchor${symbolAnchoredCount===1?'':'s'} · ${terrainBreaklineCount} constrained terrain breakline${terrainBreaklineCount===1?'':'s'} · ${terrainSlopeEvidenceCount} source slope annotation${terrainSlopeEvidenceCount===1?'':'s'} · ${supportEnriched.length} spatial/review candidates${setSummary}`,pages:doc.numPages,vectors,textItems:raw.length,sldPages,nonSldPlanPages,planTypes,disciplines:uniqueDisciplines,setCompleteness};
  } finally {if(ocrWorker)await ocrWorker.terminate().catch(()=>{});await doc.destroy()}
 }
 
