@@ -53,8 +53,21 @@ function metricUnit(unit:string){
   return unit==='m'||unit==='m_reviewed_pdf'||unit==='m_xy'||unit==='m_dxf_design'||unit.startsWith('m_');
 }
 function frameUnits(entities:ProjectXYEntity[],key:string){
-  const units=uniq(entities.filter(entity=>entityKey(entity)===key).map(entity=>canonicalUnits(entity.meta?.coordinateUnits)).filter((value):value is string=>Boolean(value)));
-  if(!units.length)throw new Error('Reference sheet has no explicit coordinate-units authority.');
+  const scoped=entities.filter(entity=>entityKey(entity)===key);
+  const units=uniq(scoped.map(entity=>canonicalUnits(entity.meta?.coordinateUnits)).filter((value):value is string=>Boolean(value)));
+  if(!units.length){
+    const nativeOrMetricHint=scoped.some(entity=>{
+      const meta=entity.meta||{};
+      const sourceType=text(meta.sourceType).toUpperCase();
+      return sourceType==='DXF'||sourceType.startsWith('IFC')||
+        finite(meta.unitToMeters)!==null||
+        text(meta.xyCoordinateFrame)!==''||
+        finite(meta.metricFrameMetersPerSheetUnit)!==null||
+        meta.projectXYFrameMetric===true;
+    });
+    if(nativeOrMetricHint)throw new Error('Reference sheet has metric/native coordinate hints but no explicit coordinate-units authority.');
+    return'sheet';
+  }
   if(units.length>1)throw new Error('Reference sheet contains inconsistent coordinate units: '+units.join(', ')+'. Normalize/restore the sheet before project-frame registration.');
   return units[0];
 }
