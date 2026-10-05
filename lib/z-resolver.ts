@@ -117,13 +117,18 @@ function parseSuffixStructuralElevation(text:string){
 }
 function parseDecimalElevation(text:string){
   const t=clean(text);
-  const m=t.match(/(?:EL(?:EV(?:ATION)?)?\.?|ELEV\.?|FF(?:E)?\.?|FINISH(?:ED)?\s+FLOOR|T\.O\.?\s*(?:SLAB|CURB|STEEL|DECK)?|B\.O\.?\s*(?:SLAB|STEEL|DECK)?|TOP\s+OF\s+(?:SLAB|STEEL|DECK|CURB)(?:\s+ELEV(?:ATION)?)?|BOTTOM\s+OF\s+(?:SLAB|STEEL|DECK)(?:\s+ELEV(?:ATION)?)?|TOS|BOS|TOD|BOD|B\.O\.D\.|GRADE|FG|FS|FINISH(?:ED)?\s+SURFACE|EG|EXISTING\s+GRADE|TC|TOP\s+OF\s+CURB|FL|FLOW\s*LINE)\s*[:=@-]?\s*([+-]?\d{1,4}(?:\.\d+)?)(?:\s*(FT|FEET|M|METERS?|MM))?/i);
+  const semantic='(?:EL(?:EV(?:ATION)?)?\\.?|ELEV\\.?|FF(?:E)?\\.?|FINISH(?:ED)?\\s+FLOOR|T\\.O\\.?\\s*(?:SLAB|CURB|STEEL|DECK)?|B\\.O\\.?\\s*(?:SLAB|STEEL|DECK)?|TOP\\s+OF\\s+(?:SLAB|STEEL|DECK|CURB)(?:\\s+ELEV(?:ATION)?)?|BOTTOM\\s+OF\\s+(?:SLAB|STEEL|DECK)(?:\\s+ELEV(?:ATION)?)?|TOS|BOS|TOD|BOD|B\\.O\\.D\\.|GRADE|FG|FS|FINISH(?:ED)?\\s+(?:GRADE|SURFACE)|EG|EXISTING\\s+GRADE|TC|TOP\\s+OF\\s+CURB|FL|FLOW\\s*LINE)';
+  const number='([+-]?\\d{1,4}(?:\\.\\d+)?)';
+  const unit='(FT|FEET|M|METERS?|MM)';
+  const prefix=t.match(new RegExp(semantic+'\\\\s*[:=@-]?\\\\s*'+number+'(?:\\\\s*'+unit+')?','i'));
+  const suffix=t.match(new RegExp(number+'(?:\\\\s*'+unit+')?\\\\s*'+semantic+'\\\\b','i'));
+  const m=prefix||suffix;
   if(!m)return null;
   const n=Number(m[1]);if(!Number.isFinite(n))return null;
-  const unit=(m[2]||'').toUpperCase();
-  if(unit==='M'||unit.startsWith('METER'))return n;
-  if(unit==='MM')return n/1000;
-  if(unit==='FT'||unit==='FEET')return n*FT;
+  const rawUnit=(m[2]||'').toUpperCase();
+  if(rawUnit==='M'||rawUnit.startsWith('METER'))return n;
+  if(rawUnit==='MM')return n/1000;
+  if(rawUnit==='FT'||rawUnit==='FEET')return n*FT;
   return {raw:n,unit:'DRAWING_DATUM'} as const;
 }
 function civilElevationType(text:string,unitless=false):ZEvidenceType|null{
