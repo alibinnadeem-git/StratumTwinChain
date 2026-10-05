@@ -108,6 +108,8 @@ jobs:
         run: npm run qa:z-reference
       - name: Reconciled Z solution chain conformance
         run: npm run qa:z-solution
+      - name: Explicit Z constraint graph conformance
+        run: npm run qa:z-constraint-graph
       - name: Authenticated Z review provenance conformance
         run: npm run qa:z-review-persistence
       - name: Project datum review-surface conformance
