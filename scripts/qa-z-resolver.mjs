@@ -69,9 +69,29 @@ const suffixBod=realStructuralSplit.find(item=>item.type==='SECTION_ELEVATION'&&
 assert.ok(suffixBod);
 assert.ok(realStructuralSplit.every(item=>item.physicalTruth===false&&item.reviewRequired===true));
 
-const civil=extractZEvidenceFromText('FG 194.56\nTC 195.08',{source:'C-2.pdf'});
-assert.ok(civil.some(item=>item.type==='GRADE_ELEVATION'||item.type==='SPOT_ELEVATION'));
+const civil=extractZEvidenceFromText(
+  'FG 194.56 FT\nFS 194.62 FT\nTC 195.08 FT\nFL 194.10 FT\nTOP OF CURB 15\'-0"',
+  {source:'C-2.pdf'}
+);
+const fg=civil.find(item=>item.evidence[0]==='FG 194.56 FT');
+const fsGrade=civil.find(item=>item.evidence[0]==='FS 194.62 FT');
+const tc=civil.find(item=>item.evidence[0]==='TC 195.08 FT');
+const fl=civil.find(item=>item.evidence[0]==='FL 194.10 FT');
+const topCurbFeet=civil.find(item=>item.evidence[0]==='TOP OF CURB 15\'-0"');
+assert.equal(fg?.type,'GRADE_ELEVATION');
+assert.equal(fsGrade?.type,'GRADE_ELEVATION');
+assert.equal(tc?.type,'TOP_OF_CURB_ELEVATION');
+assert.equal(fl?.type,'FLOWLINE_ELEVATION');
+assert.equal(topCurbFeet?.type,'TOP_OF_CURB_ELEVATION');
+assert.ok(Math.abs(Number(topCurbFeet?.valueMeters)-4.572)<1e-6);
+assert.ok(!civil.some(item=>item.evidence[0]==='TOP OF CURB 15\'-0"'&&item.type==='SECTION_ELEVATION'),'top-of-curb must remain civil breakline evidence, never structural section datum');
 assert.ok(civil.every(item=>item.physicalTruth===false&&item.reviewRequired===true));
+
+const unitlessCivil=extractZEvidenceFromText('FG 194.56\nTC 195.08\nFL 194.10',{source:'C-2.pdf'});
+assert.equal(unitlessCivil.find(item=>item.evidence[0]==='FG 194.56')?.type,'SPOT_ELEVATION');
+assert.equal(unitlessCivil.find(item=>item.evidence[0]==='TC 195.08')?.type,'TOP_OF_CURB_ELEVATION');
+assert.equal(unitlessCivil.find(item=>item.evidence[0]==='FL 194.10')?.type,'FLOWLINE_ELEVATION');
+assert.ok(unitlessCivil.every(item=>item.evidence.includes('UNITS_REQUIRE_SOURCE_DATUM_REVIEW')));
 
 const compiler=fs.readFileSync('components/CompilerWorkspace.tsx','utf8');
 assert.doesNotMatch(compiler,/elevation:\s*12/);
@@ -87,4 +107,4 @@ const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
 assert.match(viewer,/Z REFERENCE CANDIDATE · REVIEW REQUIRED/);
 assert.match(viewer,/source reference Z|Source evidence places the/);
 
-console.log('Evidence-based Z resolver passed: source-origin Z, explicit AFF reference semantics, ambiguous AFF fail-closed behavior, structural datum parsing, civil elevation evidence, conflict handling, and no guessed floor heights.');
+console.log('Evidence-based Z resolver passed: source-origin Z, explicit AFF reference semantics, ambiguous AFF fail-closed behavior, structural datum parsing, typed finished-grade/curb/flowline evidence, conflict handling, and no guessed floor heights.');
