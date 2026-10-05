@@ -274,7 +274,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
         const review=coordinationReview.get(e.id);if(!review)return;
         const color=review.severity==="H3"?0xff5a52:0xffb84d;
         const root=new THREE.Group();
-        root.position.set(e.x,height(e)+2.45,e.y);
+        root.position.set(rx(e.x),height(e)+2.45,rz(e.y));
         const sphere=new THREE.Mesh(new THREE.SphereGeometry(.23,18,12),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.95,depthTest:false}));
         const ring=new THREE.Mesh(new THREE.TorusGeometry(.34,.035,8,24),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.92,depthTest:false}));
         ring.rotation.x=Math.PI/2;
@@ -287,10 +287,10 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       const label=(text:string,x:number,y:number,z:number,color="#cfefff",entity?:Entity,offset=0)=>{
         if(!labels)return;const canvas=document.createElement("canvas");canvas.width=512;canvas.height=112;const ctx=canvas.getContext("2d");if(!ctx)return;
         ctx.fillStyle="rgba(3,12,18,.82)";ctx.roundRect(4,4,504,104,16);ctx.fill();ctx.fillStyle=color;ctx.font="700 28px system-ui";ctx.fillText(text.slice(0,30),20,49);ctx.fillStyle="#83a6b7";ctx.font="20px system-ui";ctx.fillText(entity&&!physicalElevationKnown(entity)?(Number.isFinite(Number(entity.meta?.zCandidateMeters))?`Z ${String(entity.meta?.zCandidateReferencePoint||'reference').replaceAll('_',' ').toLowerCase()} ref ${Number(entity.meta?.zCandidateMeters).toFixed(2)} m`:metaNumber(entity,'localReviewSurfaceZ')!==null?`${String(entity.meta?.localReviewSurfaceKind||'Local').replaceAll('_',' ')} local surface ${metaNumber(entity,'localReviewSurfaceZ')!.toFixed(2)} m`:metaNumber(entity,'crossSheetReviewSurfaceZ')!==null?`${String(entity.meta?.crossSheetReviewSurfaceKind||'Cross-sheet').replaceAll('_',' ')} cross-sheet surface ${metaNumber(entity,'crossSheetReviewSurfaceZ')!.toFixed(2)} m`:metaNumber(entity,'reviewSurfaceZ')!==null?`${String(entity.meta?.reviewSurfaceKind||'Project datum').replaceAll('_',' ')} review surface ${metaNumber(entity,'reviewSurfaceZ')!.toFixed(2)} m`:'Review plane · Z unresolved'):entity?`${y.toFixed(2)} m Z`:'Drawing level · Z unverified',20,82);
-        const texture=new THREE.CanvasTexture(canvas),sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,depthTest:false}));sprite.scale.set(2.9,.64,1);sprite.position.set(x+offset*.08,y+1.2+offset*.82,z);if(entity){sprite.userData.entity=entity;clickable.push(sprite);if(offset>0){const leader=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x,y+.2,z),sprite.position]),new THREE.LineDashedMaterial({color:0xffb85c,dashSize:.12,gapSize:.08,transparent:true,opacity:.65}));leader.computeLineDistances();scene.add(leader)}}scene.add(sprite);
+        const texture=new THREE.CanvasTexture(canvas),sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,depthTest:false}));sprite.scale.set(2.9,.64,1);sprite.position.set(rx(x)+offset*.08,y+1.2+offset*.82,rz(z));if(entity){sprite.userData.entity=entity;clickable.push(sprite);if(offset>0){const leader=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(rx(x),y+.2,rz(z)),sprite.position]),new THREE.LineDashedMaterial({color:0xffb85c,dashSize:.12,gapSize:.08,transparent:true,opacity:.65}));leader.computeLineDistances();scene.add(leader)}}scene.add(sprite);
       };
-      const wall=(a:XY,b:XY,e:Entity)=>{const dx=b.x-a.x,dz=b.y-a.y,len=Math.hypot(dx,dz);if(len<.02)return;const op=xray?.12:.55,m=new THREE.Mesh(new THREE.BoxGeometry(len,2.7,.09),material(colors.L1,op));m.position.set((a.x+b.x)/2,height(e)+1.35,(a.y+b.y)/2);m.rotation.y=-Math.atan2(dz,dx);groups.L1.add(m)};
-      const room=(e:Entity)=>{if(!e.vertices||e.vertices.length<3||!isVisible(e))return;const shape=new THREE.Shape();e.vertices.forEach((p,i)=>i?shape.lineTo(p.x,p.y):shape.moveTo(p.x,p.y));shape.closePath();const floorMesh=new THREE.Mesh(new THREE.ShapeGeometry(shape),material(0x173748,xray?.07:.18));floorMesh.rotation.x=Math.PI/2;floorMesh.position.y=height(e)+.01;groups.L1.add(floorMesh);for(let i=0;i<e.vertices.length;i++)wall(e.vertices[i],e.vertices[(i+1)%e.vertices.length],e)};
+      const wall=(a:XY,b:XY,e:Entity)=>{const dx=b.x-a.x,dz=b.y-a.y,len=Math.hypot(dx,dz);if(len<.02)return;const op=xray?.12:.55,m=new THREE.Mesh(new THREE.BoxGeometry(len,2.7,.09),material(colors.L1,op));m.position.set(rx((a.x+b.x)/2),height(e)+1.35,rz((a.y+b.y)/2));m.rotation.y=-Math.atan2(dz,dx);groups.L1.add(m)};
+      const room=(e:Entity)=>{if(!e.vertices||e.vertices.length<3||!isVisible(e))return;const shape=new THREE.Shape();e.vertices.forEach((p,i)=>{const local=localXY(p.x,p.y);i?shape.lineTo(local.x,local.y):shape.moveTo(local.x,local.y)});shape.closePath();const floorMesh=new THREE.Mesh(new THREE.ShapeGeometry(shape),material(0x173748,xray?.07:.18));floorMesh.rotation.x=Math.PI/2;floorMesh.position.y=height(e)+.01;groups.L1.add(floorMesh);for(let i=0;i<e.vertices.length;i++)wall(e.vertices[i],e.vertices[(i+1)%e.vertices.length],e)};
       const rasterUnderlay=(e:Entity)=>{
         if(!isVisible(e))return;
         const source=e.meta?.embeddedRasterDataUrl;
@@ -300,7 +300,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
           if(disposed)return;
           texture.colorSpace=THREE.SRGBColorSpace;texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
           const mesh=new THREE.Mesh(new THREE.PlaneGeometry(width,depth),new THREE.MeshBasicMaterial({map:texture,transparent:true,opacity:xray?.32:.9,side:THREE.DoubleSide,depthWrite:false}));
-          mesh.rotation.x=-Math.PI/2;mesh.position.set((e.x+e.x2!)/2,height(e)+.015,(e.y+e.y2!)/2);mesh.renderOrder=-10;groups.L1.add(mesh);
+          mesh.rotation.x=-Math.PI/2;mesh.position.set(rx((e.x+e.x2!)/2),height(e)+.015,rz((e.y+e.y2!)/2));mesh.renderOrder=-10;groups.L1.add(mesh);
         });
       };
       const attachSpatialEvidence=(root:any,e:Entity,modelResolution:ReturnType<typeof resolveSpatialModel>|null)=>{
@@ -329,7 +329,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
           marker.position.y=.14;root.add(marker);
           const ring=new THREE.Mesh(new THREE.TorusGeometry(.13,.012,6,20),new THREE.MeshBasicMaterial({color:0xffb85c,transparent:true,opacity:.7,depthTest:false}));ring.rotation.x=Math.PI/2;ring.position.y=.14;root.add(ring);
           const stem=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-dx,.02,-dz),new THREE.Vector3(0,.14,0)]),new THREE.LineDashedMaterial({color:0xffb85c,dashSize:.08,gapSize:.055}));stem.computeLineDistances();root.add(stem);
-          root.position.set(e.x+dx,height(e),e.y+dz);tag(root,e);clickable.push(marker,ring);
+          root.position.set(rx(e.x)+dx,height(e),rz(e.y)+dz);tag(root,e);clickable.push(marker,ring);
           groups.L2.add(root);
           return;
         }
@@ -340,7 +340,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
         let geo:any;if(shape==="transformer")geo=new THREE.BoxGeometry(1.7,1.55,1.25);else if(shape==="generator")geo=new THREE.BoxGeometry(2.2,1.2,1.1);else if(shape==="motor")geo=new THREE.CylinderGeometry(.48,.48,1.15,20);else if(shape==="evse")geo=new THREE.BoxGeometry(.62,1.4,.44);else geo=new THREE.BoxGeometry(1.05,1.8,.62);
         const mesh=new THREE.Mesh(geo,material(colors.L2,op,0x211000));if(shape==="motor")mesh.rotation.z=Math.PI/2;root.add(mesh);
         try{fitProceduralObjectToMeters(root,target)}catch{}
-        root.position.set(e.x,placement.baseZ,e.y);root.rotation.y=THREE.MathUtils.degToRad(-(e.rotation||0));
+        root.position.set(rx(e.x),placement.baseZ,rz(e.y));root.rotation.y=THREE.MathUtils.degToRad(-(e.rotation||0));
         root.userData.dimensionAuthority=placement.dimensions.authority;root.userData.targetDimensionsMeters=target;root.userData.zPlacementAuthority=placement.zAuthority;root.userData.zPlacementConfidence=placement.zConfidence;root.userData.zSolutionStatus=reconciled.solution.status;root.userData.zSolutionConflicts=reconciled.solution.conflicts.length;
         root.userData.modelResolutionTier=modelResolution.tier;root.userData.modelGeometryAuthority=modelResolution.geometryAuthority;root.userData.modelIdentityAuthority=modelResolution.identityAuthority;root.userData.exactProductIdentity=modelResolution.exactProductIdentity;root.userData.modelComponentKey=modelResolution.componentKey;root.userData.physicalIdentityVerified=false;
         attachSpatialEvidence(root,e,modelResolution);
@@ -365,7 +365,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
                 const target:[number,number,number]=[placement.dimensions.width,placement.dimensions.height,placement.dimensions.depth];
                 const model=gltf.scene;
                 const normalized=normalizeObjectToMeters(model,target,.08);
-                const root=new THREE.Group();root.position.set(e.x,placement.baseZ,e.y);
+                const root=new THREE.Group();root.position.set(rx(e.x),placement.baseZ,rz(e.y));
                 root.rotation.y=THREE.MathUtils.degToRad(-(e.rotation||0));
                 root.userData.dimensionAuthority=placement.dimensions.authority+'_REVIEW_VISUALIZATION';
                 root.userData.sourceModelBounds=sourceBounds;
@@ -395,7 +395,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
             model.rotation.set(THREE.MathUtils.degToRad(cfg.rotation[0]),THREE.MathUtils.degToRad(cfg.rotation[1]),THREE.MathUtils.degToRad(cfg.rotation[2]));
             const normalized=normalizeObjectToMeters(model,target,.05);
             const root=new THREE.Group();
-            root.position.set(e.x+cfg.offset[0],placement.baseZ+cfg.offset[1],e.y+cfg.offset[2]);
+            root.position.set(rx(e.x)+cfg.offset[0],placement.baseZ+cfg.offset[1],rz(e.y)+cfg.offset[2]);
             root.rotation.y=THREE.MathUtils.degToRad(-(e.rotation||0));
             root.userData.dimensionAuthority=placement.dimensions.authority;
             root.userData.targetDimensionsMeters=target;root.userData.zPlacementAuthority=placement.zAuthority;root.userData.zPlacementConfidence=placement.zConfidence;root.userData.zSolutionStatus=reconciled.solution.status;root.userData.zSolutionConflicts=reconciled.solution.conflicts.length;
