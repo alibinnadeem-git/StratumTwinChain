@@ -118,5 +118,8 @@ assert.match(inspector,/Z solution evidence/);
 assert.match(inspector,/Z chains compared/);
 assert.match(inspector,/Use this design chain for review placement/);
 assert.match(inspector,/HUMAN REVIEW PLACEMENT · PHYSICAL Z UNVERIFIED/);
+assert.match(inspector,/VERTICAL FRAME REGISTRATION REQUIRED/);
+assert.match(inspector,/candidate\.coordinateFrame/);
+assert.match(inspector,/uncomparedFramePairs/);
 
 console.log('Z solution reconciliation passed: independent chains are compared only inside the same vertical coordinate frame, cross-frame values remain preserved but uncompared, IFC map Z remains correlated source evidence, conflicts block automatic placement, and an explicit human review can select one preserved design chain without claiming physical truth.');
