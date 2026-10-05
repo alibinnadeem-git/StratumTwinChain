@@ -136,6 +136,8 @@ jobs:
         run: npm run qa:pdf-equipment-anchor
       - name: Generic digital twin assembly golden path
         run: npm run qa:digital-twin-assembly
+      - name: Spatial evidence and uncertainty envelope
+        run: npm run qa:spatial-evidence-envelope
       - name: Demo-safe unresolved placement conformance
         run: npm run qa:demo-safe-placement
       - name: Local support-surface equipment placement conformance
