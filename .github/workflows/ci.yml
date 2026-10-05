@@ -114,6 +114,8 @@ jobs:
         run: npm run qa:project-datum
       - name: Local triangulated elevation surface conformance
         run: npm run qa:elevation-surface
+      - name: Constrained terrain breakline and slope conformance
+        run: npm run qa:terrain-constraints
       - name: Reviewed cross-sheet elevation transfer conformance
         run: npm run qa:cross-sheet-z
       - name: Independent scale validation conformance
