@@ -5,6 +5,7 @@ import {resolveSpatialModel} from '../lib/spatial-model-resolution.ts';
 import {anchorPdfEquipmentToVectorSymbols} from '../lib/pdf-equipment-symbol-anchor.ts';
 import {resolveRegisteredSpatialAsset,spatialAssetDirState} from '../lib/spatial-asset-link.ts';
 import {applyReviewedPdfMetricFrame,restoreReviewedPdfMetricFrame} from '../lib/pdf-metric-frame.ts';
+import {buildEntityZConstraintGraph} from '../lib/z-constraint-graph.ts';
 
 const drawingEntity={
   id:'drawing-evse-1',source:'Electrical Plan.pdf',layer:'L2',kind:'text-asset-candidate',
@@ -84,6 +85,29 @@ const restoredMetric=restoreReviewedPdfMetricFrame(metricEntity);
 assert.ok(Math.abs(restoredMetric.x-4.2)<1e-12);
 assert.ok(Math.abs(restoredMetric.y-1.9)<1e-12);
 
+const zReady={
+  ...metricEntity,
+  meta:{
+    ...(metricEntity.meta||{}),
+    localReviewSurfaceZ:10,
+    localReviewSurfaceKind:'GRADE',
+    localReviewSurfaceAuthority:'SOURCE_ELEVATION_TRIANGLE',
+    localReviewSurfaceConfidence:.92,
+    supportBaseOffsetMeters:.15,
+    supportOffsetAuthority:'SOURCE_SUPPORT_BASE_OFFSET',
+    supportOffsetConfidence:.94,
+    supportOffsetEvidenceId:'pad-1',
+    supportOffsetEvidenceLabel:'0.15 m equipment pad'
+  }
+};
+const zGraph=buildEntityZConstraintGraph(zReady);
+assert.equal(zGraph.status,'RESOLVED_BASE_CANDIDATE');
+assert.ok(Math.abs(Number(zGraph.baseZMeters)-10.15)<1e-12);
+assert.equal(zGraph.conflicts.length,0);
+assert.equal(zGraph.frameGaps.length,0);
+assert.equal(zGraph.physicalTruth,false);
+assert.equal(zGraph.reviewRequired,true);
+
 const model=resolveSpatialModel(anchored,DEFAULT_ELECTRICAL_MODEL_REGISTRY);
 assert.equal(model.componentKey,'evse-tesla-wall-connector-gen3');
 assert.equal(model.exactProductIdentity,true);
@@ -118,4 +142,4 @@ assert.equal(binding.asset.maintenance_status,'ACTIVE');
 assert.equal(anchored.meta?.physicalTruth,false,'drawing/schedule/model assembly must never become as-built truth merely because the registered asset is linked');
 assert.equal(model.physicalIdentityVerified,false,'catalog model selection must remain distinct from installed asset verification');
 
-console.log('Digital twin assembly golden path passed: generic source evidence reconciles schedule identity to positioned drawing equipment, unique source geometry anchors XY/orientation, the Component Library selects the source-supported product model, and the exact source tag opens the corresponding registered asset/DIR/lifecycle/maintenance record without converting design evidence into physical truth.');
+console.log('Digital twin assembly golden path passed: generic source evidence reconciles schedule identity to positioned drawing equipment, unique source geometry anchors XY/orientation, reviewed metric conversion establishes meter-space X/Y, explicit support constraints resolve review-only base Z, the Component Library selects the source-supported product model, and the exact source tag opens the corresponding registered asset/DIR/lifecycle/maintenance record without converting design evidence into physical truth.');
