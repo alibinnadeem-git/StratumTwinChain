@@ -67,5 +67,10 @@ assert.match(viewer,/modelResolutionTier/);
 assert.match(viewer,/modelGeometryAuthority/);
 assert.match(viewer,/modelIdentityAuthority/);
 assert.match(viewer,/exactProductIdentity/);
+const inspector=fs.readFileSync('components/SpatialAssetInspector.tsx','utf8');
+assert.match(inspector,/3D MODEL ·/);
+assert.match(inspector,/3D model tier/);
+assert.match(inspector,/Geometry authority/);
+assert.match(inspector,/Physical installed identity remains unverified/);
 
 console.log('Spatial model resolution passed: exact source product identity selects exact catalog geometry, generic equipment remains family-only, OEM names without model evidence cannot overclaim product identity, unresolved devices stay unresolved, and every rendered model exposes identity/geometry provenance.');
