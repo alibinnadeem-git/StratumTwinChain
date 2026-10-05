@@ -22,6 +22,13 @@ assert.match(genericEvse.geometryAuthority,/^FAMILY_/);
 assert.equal(genericEvse.physicalIdentityVerified,false);
 assert.ok(!genericEvse.evidence.join(' ').match(/Supercharger V3|Universal Wall Connector Gen 3/));
 
+const ambiguousTesla=resolveSpatialModel({
+  name:'TESLA CHARGER',
+  meta:{manufacturer:'Tesla'}
+},registry);
+assert.equal(ambiguousTesla.componentKey,'evse','broad OEM/category wording without a model family must remain generic');
+assert.equal(ambiguousTesla.exactProductIdentity,false);
+
 const exactTesla=resolveSpatialModel({
   name:'EV CHARGER EV-02',
   meta:{manufacturer:'Tesla',model:'Universal Wall Connector Gen 3',modelNumber:'1734412'}
