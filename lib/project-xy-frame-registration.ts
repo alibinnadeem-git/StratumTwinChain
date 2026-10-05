@@ -36,6 +36,11 @@ type RegistrationOriginal={
 };
 
 const text=(value:unknown)=>String(value??'').trim();
+const finite=(value:unknown)=>{
+  if(value===null||value===undefined||value==='')return null;
+  const number=Number(value);
+  return Number.isFinite(number)?number:null;
+};
 const uniq=<T,>(values:T[])=>[...new Set(values)];
 
 function entityKey(entity:ProjectXYEntity){
