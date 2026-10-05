@@ -50,7 +50,7 @@ function inferPrefix(actualSheetIds:string[]){
 }
 
 function sequentialRun(ids:string[],prefix:string){
- const numbers=[...new Set(ids.filter(id=>id.startsWith(prefix+'-')).map(numericPart).filter((value):value is number=>Number.isInteger(value)&&value>0))].sort((a,b)=>a-b);
+ const numbers=[...new Set(ids.filter(id=>id.startsWith(prefix+'-')).map(numericPart).filter((value):value is number=>typeof value==='number'&&Number.isInteger(value)&&value>0))].sort((a,b)=>a-b);
  if(!numbers.length)return[] as string[];
  const run:number[]=[numbers[0]];
  for(let i=1;i<numbers.length;i++){
