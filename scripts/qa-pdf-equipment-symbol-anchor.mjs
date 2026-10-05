@@ -30,6 +30,8 @@ assert.equal(anchored.meta?.spatialPlacementAuthority,'SOURCE_VECTOR_SYMBOL_ANCH
 assert.equal(anchored.meta?.rotationAuthority,'SOURCE_VECTOR_RECTANGLE_LONG_EDGE');
 assert.equal(anchored.meta?.physicalTruth,false);
 assert.equal(anchored.meta?.reviewRequired,true);
+assert.equal(anchored.meta?.manufacturer,undefined,'geometry anchoring must never create manufacturer identity');
+assert.equal(anchored.meta?.model,undefined,'geometry anchoring must never create product-model identity');
 
 const ambiguousAsset={...asset,id:'asset-amb',x:1,y:1};
 const ambiguous=anchorPdfEquipmentToVectorSymbols(
