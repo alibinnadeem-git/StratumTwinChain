@@ -169,6 +169,13 @@ export default function SpatialAssetInspector({
  const supportBaseOffset=optionalNumber(selected.meta?.supportBaseOffsetMeters);
  const zCandidateReferencePoint=String(selected.meta?.zCandidateReferencePoint||'UNSPECIFIED').replaceAll('_',' ');
  const zResolutionAuthority=String(selected.meta?.zResolutionAuthority||'');
+ const zConstraintGraph=(selected.meta?.zConstraintGraph&&typeof selected.meta.zConstraintGraph==='object'?selected.meta.zConstraintGraph:null) as null|{
+  status:string;baseZMeters:number|null;explanation:string;
+  nodes:Array<{id:string;kind:string;label:string;valueMeters:number|null;coordinateFrame:string;authority:string}>;
+  relations:Array<{id:string;kind:string;from:string;to:string;deltaMeters:number;authority:string;evidence:string[]}>;
+  conflicts:Array<{reason:string;deltaMeters:number}>;
+  frameGaps:Array<{reason:string;fromFrame:string;toFrame:string}>;
+ };
  const qr=asset?verificationUrl(asset):'';
  const zReviewed=selected.meta?.elevationKnown!==false&&selected.meta?.physicalElevationKnown!==false&&(selected.meta?.elevationKnown===true||selected.meta?.physicalElevationKnown===true||selected.meta?.zPlacementAuthority==='MEASURED_OR_REVIEWED');
  const tierLabel:Record<string,string>={L0:'Tier 0 · Source',L1:'Tier 1 · Drawing geometry',L2:'Tier 2 · Drawing callout, review required',L3:'Tier 3 · Electrical topology',L4:'Tier 4 · Registered asset'};
@@ -297,10 +304,26 @@ export default function SpatialAssetInspector({
     {supportBaseOffset!==null&&<><div><span>Support base offset</span><strong>{supportBaseOffset.toFixed(3)} m · {String(selected.meta?.supportOffsetKind||'SUPPORT').replaceAll('_',' ')}</strong></div><div><span>Support offset authority</span><strong>{String(selected.meta?.supportOffsetAuthority||'SOURCE_SUPPORT_NOTE').replaceAll('_',' ')}</strong></div><div><span>Support offset confidence</span><strong>{Math.round(Number(selected.meta?.supportOffsetConfidence||0)*100)}%</strong></div></>}
     {Number.isFinite(Number(selected.meta?.zScaleGuideMetersPerSourceUnit))&&<div><span>XYZ unit guide</span><strong>{Number(selected.meta?.zScaleGuideMetersPerSourceUnit).toFixed(6)} m/source unit</strong></div>}
     {zSolution&&<><div><span>Z solution</span><strong>{zSolution.status.replaceAll('_',' ')}</strong></div><div><span>Z chains compared</span><strong>{zSolution.candidates.length}</strong></div>{zSolution.chosenCandidateId&&<div><span>Chosen Z chain</span><strong>{zSolution.chosenCandidateId.replaceAll('_',' ')}</strong></div>}</>}
+    {zConstraintGraph&&<><div><span>Z constraint graph</span><strong>{zConstraintGraph.status.replaceAll('_',' ')}</strong></div><div><span>Constraint nodes / relations</span><strong>{zConstraintGraph.nodes.length} / {zConstraintGraph.relations.length}</strong></div>{zConstraintGraph.baseZMeters!==null&&<div><span>Constraint base candidate</span><strong>{zConstraintGraph.baseZMeters.toFixed(3)} m</strong></div>}{zConstraintGraph.conflicts.length>0&&<div><span>Constraint conflicts</span><strong>{zConstraintGraph.conflicts.length}</strong></div>}{zConstraintGraph.frameGaps.length>0&&<div><span>Frame registrations needed</span><strong>{zConstraintGraph.frameGaps.length}</strong></div>}</>}
     {placement?.recommendation&&<div><span>Placement basis</span><strong>{placement.recommendation.kind.replaceAll('_',' ')}</strong></div>}
    </div>
    <details className="proof-details"><summary>Raw source details</summary><dl>{Object.entries(selected.meta||{}).filter(([key])=>key!=='embeddedGlb'&&(zReviewed||!/(?:^z$|^inferredZCandidate$)/i.test(key))).map(([key,value])=><div key={key}><dt>{key}</dt><dd style={{overflowWrap:'anywhere'}}>{typeof value==='object'?JSON.stringify(value):String(value)}</dd></div>)}</dl></details>
   </details>
+  {zConstraintGraph&&<details className="secondary-details z-constraint-graph-details">
+   <summary>Z constraint graph</summary>
+   <p className="muted">{zConstraintGraph.explanation}</p>
+   {zConstraintGraph.conflicts.length>0&&<div className="notice"><strong>CONSTRAINT CONFLICT · REVIEW REQUIRED</strong><span>{zConstraintGraph.conflicts.map(item=>item.reason).join(' · ')}</span></div>}
+   {zConstraintGraph.frameGaps.length>0&&<div className="notice"><strong>VERTICAL FRAME REGISTRATION REQUIRED</strong><span>{zConstraintGraph.frameGaps.map(item=>item.fromFrame+' → '+item.toFrame).join(' · ')}</span></div>}
+   <div style={{display:'grid',gap:8,marginTop:10}}>
+    {zConstraintGraph.nodes.map(node=><div className="binding-panel" key={node.id}>
+     <strong>{node.label}</strong>
+     <small style={{display:'block',marginTop:4}}>{node.kind.replaceAll('_',' ')} · {node.valueMeters===null?'unresolved':node.valueMeters.toFixed(3)+' m'} · frame {node.coordinateFrame.replaceAll('_',' ')}</small>
+     <small style={{display:'block',marginTop:3}}>Authority · {node.authority.replaceAll('_',' ')}</small>
+    </div>)}
+   </div>
+   {zConstraintGraph.relations.length>0&&<ol style={{margin:'10px 0 0',paddingLeft:18}}>{zConstraintGraph.relations.map(relation=><li key={relation.id}><small>{relation.kind.replaceAll('_',' ')} · {relation.from} → {relation.to} · Δ {relation.deltaMeters.toFixed(3)} m · {relation.authority.replaceAll('_',' ')}</small></li>)}</ol>}
+   <small className="spatial-review-boundary">The constraint graph explains design/review relationships only. A solved graph does not establish measured/as-built physical elevation, engineering approval, DIR finality, or PoVI finality.</small>
+  </details>}
   {zSolution&&<details className="secondary-details z-solution-details">
    <summary>Z solution evidence</summary>
    <p className="muted">{zSolution.explanation}</p>
