@@ -117,11 +117,8 @@ function parseSuffixStructuralElevation(text:string){
 }
 function parseDecimalElevation(text:string){
   const t=clean(text);
-  const semantic='(?:EL(?:EV(?:ATION)?)?\\.?|ELEV\\.?|FF(?:E)?\\.?|FINISH(?:ED)?\\s+FLOOR|T\\.O\\.?\\s*(?:SLAB|CURB|STEEL|DECK)?|B\\.O\\.?\\s*(?:SLAB|STEEL|DECK)?|TOP\\s+OF\\s+(?:SLAB|STEEL|DECK|CURB)(?:\\s+ELEV(?:ATION)?)?|BOTTOM\\s+OF\\s+(?:SLAB|STEEL|DECK)(?:\\s+ELEV(?:ATION)?)?|TOS|BOS|TOD|BOD|B\\.O\\.D\\.|GRADE|FG|FS|FINISH(?:ED)?\\s+(?:GRADE|SURFACE)|EG|EXISTING\\s+GRADE|TC|TOP\\s+OF\\s+CURB|FL|FLOW\\s*LINE)';
-  const number='([+-]?\\d{1,4}(?:\\.\\d+)?)';
-  const unit='(FT|FEET|M|METERS?|MM)';
-  const prefix=t.match(new RegExp(semantic+'\\\\s*[:=@-]?\\\\s*'+number+'(?:\\\\s*'+unit+')?','i'));
-  const suffix=t.match(new RegExp(number+'(?:\\\\s*'+unit+')?\\\\s*'+semantic+'\\\\b','i'));
+  const prefix=t.match(/(?:EL(?:EV(?:ATION)?)?\.?|ELEV\.?|FF(?:E)?\.?|FINISH(?:ED)?\s+FLOOR|T\.O\.?\s*(?:SLAB|CURB|STEEL|DECK)?|B\.O\.?\s*(?:SLAB|STEEL|DECK)?|TOP\s+OF\s+(?:SLAB|STEEL|DECK|CURB)(?:\s+ELEV(?:ATION)?)?|BOTTOM\s+OF\s+(?:SLAB|STEEL|DECK)(?:\s+ELEV(?:ATION)?)?|TOS|BOS|TOD|BOD|B\.O\.D\.|GRADE|FG|FS|FINISH(?:ED)?\s+(?:GRADE|SURFACE)|EG|EXISTING\s+GRADE|TC|TOP\s+OF\s+CURB|FL|FLOW\s*LINE)\s*[:=@-]?\s*([+-]?\d{1,4}(?:\.\d+)?)(?:\s*(FT|FEET|M|METERS?|MM))?/i);
+  const suffix=t.match(/\b([+-]?\d{1,4}(?:\.\d+)?)\s*(FT|FEET|M|METERS?|MM)?\s*(FG|EG|FS|TC|FL|GRADE|EXISTING\s+GRADE|TOP\s+OF\s+CURB|FLOW\s*LINE)\b/i);
   const m=prefix||suffix;
   if(!m)return null;
   const n=Number(m[1]);if(!Number.isFinite(n))return null;
