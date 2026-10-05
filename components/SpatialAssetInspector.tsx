@@ -174,6 +174,13 @@ export default function SpatialAssetInspector({
  const supportBaseOffset=optionalNumber(selected.meta?.supportBaseOffsetMeters);
  const zCandidateReferencePoint=String(selected.meta?.zCandidateReferencePoint||'UNSPECIFIED').replaceAll('_',' ');
  const zResolutionAuthority=String(selected.meta?.zResolutionAuthority||'');
+ const zConstraintGraph=(selected.meta?.zConstraintGraph&&typeof selected.meta.zConstraintGraph==='object'?selected.meta.zConstraintGraph:null) as null|{
+  status:string;baseZMeters:number|null;explanation:string;
+  nodes:Array<{id:string;kind:string;label:string;valueMeters:number|null;coordinateFrame:string;authority:string}>;
+  relations:Array<{id:string;kind:string;from:string;to:string;deltaMeters:number;authority:string;evidence:string[]}>;
+  conflicts:Array<{reason:string;deltaMeters:number}>;
+  frameGaps:Array<{reason:string;fromFrame:string;toFrame:string}>;
+ };
  const qr=asset?verificationUrl(asset):'';
  const zReviewed=selected.meta?.elevationKnown!==false&&selected.meta?.physicalElevationKnown!==false&&(selected.meta?.elevationKnown===true||selected.meta?.physicalElevationKnown===true||selected.meta?.zPlacementAuthority==='MEASURED_OR_REVIEWED');
  const tierLabel:Record<string,string>={L0:'Tier 0 · Source',L1:'Tier 1 · Drawing geometry',L2:'Tier 2 · Drawing callout, review required',L3:'Tier 3 · Electrical topology',L4:'Tier 4 · Registered asset'};
