@@ -8,6 +8,8 @@ export type ZEvidenceType=
   |'MOUNTING_HEIGHT_AFF'
   |'SECTION_ELEVATION'
   |'GRADE_ELEVATION'
+  |'TOP_OF_CURB_ELEVATION'
+  |'FLOWLINE_ELEVATION'
   |'UNRESOLVED';
 
 export type ZEvidence={
@@ -83,7 +85,7 @@ function structuralDatumLabel(text:string):{type:'FLOOR_DATUM'|'SECTION_ELEVATIO
   const t=clean(text).toUpperCase();
   const floor=floorToken(t);
   if(/\bLEVEL\s*\d+\s+SLAB\s+ELEV\.?\b|\bFINISH(?:ED)?\s+FLOOR\s+ELEV\.?\b|\bFFE?\b/.test(t))return{type:'FLOOR_DATUM',floor};
-  if(/\bB\.O\.D\.?\b|\bBOD\b|\bTOP\s+OF\s+(?:SLAB|STEEL|DECK|CURB)\b|\bBOTTOM\s+OF\s+(?:SLAB|STEEL|DECK)\b|\b(?:HIGH|LOW)\s+PARAPET\s+ELEV\.?\b|\bROOF\s+ELEV\.?\b/.test(t))return{type:'SECTION_ELEVATION',floor};
+  if(/\bB\.O\.D\.?\b|\bBOD\b|\bTOP\s+OF\s+(?:SLAB|STEEL|DECK)\b|\bBOTTOM\s+OF\s+(?:SLAB|STEEL|DECK)\b|\b(?:HIGH|LOW)\s+PARAPET\s+ELEV\.?\b|\bROOF\s+ELEV\.?\b/.test(t))return{type:'SECTION_ELEVATION',floor};
   return null;
 }
 function parseSuffixStructuralElevation(text:string){
@@ -96,7 +98,7 @@ function parseSuffixStructuralElevation(text:string){
 }
 function parseDecimalElevation(text:string){
   const t=clean(text);
-  const m=t.match(/(?:EL(?:EV(?:ATION)?)?\.?|ELEV\.?|FF(?:E)?\.?|FINISH(?:ED)?\s+FLOOR|T\.O\.?\s*(?:SLAB|CURB|STEEL|DECK)?|B\.O\.?\s*(?:SLAB|STEEL|DECK)?|TOP\s+OF\s+(?:SLAB|STEEL|DECK|CURB)(?:\s+ELEV(?:ATION)?)?|BOTTOM\s+OF\s+(?:SLAB|STEEL|DECK)(?:\s+ELEV(?:ATION)?)?|TOS|BOS|TOD|BOD|B\.O\.D\.|GRADE|FG|TC|FL)\s*[:=@-]?\s*([+-]?\d{1,4}(?:\.\d+)?)(?:\s*(FT|FEET|M|METERS?|MM))?/i);
+  const m=t.match(/(?:EL(?:EV(?:ATION)?)?\.?|ELEV\.?|FF(?:E)?\.?|FINISH(?:ED)?\s+FLOOR|T\.O\.?\s*(?:SLAB|CURB|STEEL|DECK)?|B\.O\.?\s*(?:SLAB|STEEL|DECK)?|TOP\s+OF\s+(?:SLAB|STEEL|DECK|CURB)(?:\s+ELEV(?:ATION)?)?|BOTTOM\s+OF\s+(?:SLAB|STEEL|DECK)(?:\s+ELEV(?:ATION)?)?|TOS|BOS|TOD|BOD|B\.O\.D\.|GRADE|FG|FS|FINISH(?:ED)?\s+SURFACE|TC|TOP\s+OF\s+CURB|FL|FLOW\s*LINE)\s*[:=@-]?\s*([+-]?\d{1,4}(?:\.\d+)?)(?:\s*(FT|FEET|M|METERS?|MM))?/i);
   if(!m)return null;
   const n=Number(m[1]);if(!Number.isFinite(n))return null;
   const unit=(m[2]||'').toUpperCase();
@@ -104,6 +106,13 @@ function parseDecimalElevation(text:string){
   if(unit==='MM')return n/1000;
   if(unit==='FT'||unit==='FEET')return n*FT;
   return {raw:n,unit:'DRAWING_DATUM'} as const;
+}
+function civilElevationType(text:string,unitless=false):ZEvidenceType|null{
+  const t=clean(text).toUpperCase();
+  if(/\bTC\b|\bTOP\s+OF\s+CURB\b/.test(t))return'TOP_OF_CURB_ELEVATION';
+  if(/\bFL\b|\bFLOW\s*LINE\b/.test(t))return'FLOWLINE_ELEVATION';
+  if(/\bFG\b|\bGRADE\b|\bFS\b|\bFINISH(?:ED)?\s+SURFACE\b/.test(t))return unitless?'SPOT_ELEVATION':'GRADE_ELEVATION';
+  return null;
 }
 function parseAff(text:string){
   const t=clean(text).replace(/[’]/g,"'").replace(/[”]/g,'"');
@@ -156,10 +165,10 @@ export function extractZEvidenceFromText(text:string,context?:{source?:string;fl
       }
     }
     const arch=suffix?null:inlineValue;
-    if(arch!==null)out.push({id:`${context?.idPrefix||'z'}-${i++}`,type:/SECTION|ELEVATION|T\.O\.|B\.O\.|TOP OF|BOTTOM OF|\bTOS\b|\bBOS\b|\bTOD\b|\bBOD\b|B\.O\.D\./i.test(line)?'SECTION_ELEVATION':'FLOOR_DATUM',valueMeters:arch,relativeTo:'PROJECT_DATUM',referencePoint:'PROJECT_DATUM',floor,source:context?.source||null,confidence:.9,evidence:[line],physicalTruth:false,reviewRequired:true});
+    if(arch!==null){const civilType=civilElevationType(line);out.push({id:`${context?.idPrefix||'z'}-${i++}`,type:civilType||(/SECTION|ELEVATION|T\.O\.|B\.O\.|TOP OF|BOTTOM OF|\bTOS\b|\bBOS\b|\bTOD\b|\bBOD\b|B\.O\.D\./i.test(line)?'SECTION_ELEVATION':'FLOOR_DATUM'),valueMeters:arch,relativeTo:civilType?'GRADE':'PROJECT_DATUM',referencePoint:'PROJECT_DATUM',floor,source:context?.source||null,confidence:.9,evidence:[line],physicalTruth:false,reviewRequired:true});}
     const dec=arch===null?parseDecimalElevation(line):null;
-    if(typeof dec==='number')out.push({id:`${context?.idPrefix||'z'}-${i++}`,type:/GRADE|FG|TC|FL/i.test(line)?'GRADE_ELEVATION':'FLOOR_DATUM',valueMeters:dec,relativeTo:/GRADE|FG|TC|FL/i.test(line)?'GRADE':'PROJECT_DATUM',referencePoint:'PROJECT_DATUM',floor,source:context?.source||null,confidence:.88,evidence:[line],physicalTruth:false,reviewRequired:true});
-    else if(dec&&dec.unit==='DRAWING_DATUM')out.push({id:`${context?.idPrefix||'z'}-${i++}`,type:/GRADE|FG|TC|FL/i.test(line)?'SPOT_ELEVATION':'FLOOR_DATUM',valueMeters:dec.raw,relativeTo:/GRADE|FG|TC|FL/i.test(line)?'GRADE':'PROJECT_DATUM',referencePoint:'PROJECT_DATUM',floor,source:context?.source||null,confidence:.72,evidence:[line,'UNITS_REQUIRE_SOURCE_DATUM_REVIEW'],physicalTruth:false,reviewRequired:true});
+    if(typeof dec==='number'){const civilType=civilElevationType(line);out.push({id:`${context?.idPrefix||'z'}-${i++}`,type:civilType||'FLOOR_DATUM',valueMeters:dec,relativeTo:civilType?'GRADE':'PROJECT_DATUM',referencePoint:'PROJECT_DATUM',floor,source:context?.source||null,confidence:.88,evidence:[line],physicalTruth:false,reviewRequired:true});}
+    else if(dec&&dec.unit==='DRAWING_DATUM'){const civilType=civilElevationType(line,true);out.push({id:`${context?.idPrefix||'z'}-${i++}`,type:civilType||'FLOOR_DATUM',valueMeters:dec.raw,relativeTo:civilType?'GRADE':'PROJECT_DATUM',referencePoint:'PROJECT_DATUM',floor,source:context?.source||null,confidence:.72,evidence:[line,'UNITS_REQUIRE_SOURCE_DATUM_REVIEW'],physicalTruth:false,reviewRequired:true});}
     const aff=parseAff(line);
     if(aff!==null){const tag=equipmentTagFromLine(line),referencePoint=affReferencePoint(line);out.push({id:`${context?.idPrefix||'z'}-${i++}`,type:'MOUNTING_HEIGHT_AFF',valueMeters:aff,relativeTo:'FLOOR_DATUM',referencePoint,floor,tag,source:context?.source||null,confidence:tag?(referencePoint==='UNSPECIFIED'?.7:.88):.58,evidence:[line,...(tag?[`OBJECT_LINK:${tag}`]:['OBJECT_LINK_UNRESOLVED']),`REFERENCE_POINT:${referencePoint}`],physicalTruth:false,reviewRequired:true});}
   }
