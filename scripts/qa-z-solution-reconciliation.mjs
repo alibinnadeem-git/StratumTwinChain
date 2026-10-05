@@ -65,6 +65,43 @@ assert.equal(centerlineSolution.status,'RESOLVED_CANDIDATE');
 assert.ok(Math.abs(Number(centerlineSolution.baseZ)-4.8864)<1e-6);
 assert.ok(centerlineSolution.candidates.some(c=>c.steps.some(step=>step.kind==='REFERENCE_TO_BASE')));
 
+const multiFrame={
+ name:'PAD MOUNT TRANSFORMER IFC-T1',floor:'UNRESOLVED',z:1,
+ meta:{
+  sourceType:'IFC_STEP_PRODUCT',
+  assetDimensionAuthority:'SOURCE_SPEC',assetDimensionsMeters:[1.7,1.6,1.25],
+  reviewSurfaceZ:100,reviewSurfaceKind:'GRADE',reviewSurfaceAuthority:'SOURCE_PROJECT_DATUM',reviewSurfaceConfidence:.9,
+  zResolutionStatus:'RESOLVED_DESIGN_CANDIDATE',zCandidateMeters:1,zCandidateReferencePoint:'SOURCE_ORIGIN',zResolutionConfidence:.96,zResolutionAuthority:'SOURCE_IFC_DESIGN_PLACEMENT',
+  zResolutionCoordinateFrame:'IFC_LOCAL_ENGINEERING:site.ifc',
+  ifcMapZCandidateMeters:101,ifcMapZAuthority:'SOURCE_IFC_MAP_CONVERSION',ifcMapCrsName:'EPSG:26910',ifcMapVerticalDatum:'NAVD88',
+  physicalElevationKnown:false,elevationKnown:false
+ }
+};
+const multiFrameSolution=buildZSolution(multiFrame);
+assert.equal(multiFrameSolution.status,'RESOLVED_CANDIDATE','different coordinate frames must not create a false Z conflict');
+assert.equal(multiFrameSolution.baseZ,1);
+assert.equal(multiFrameSolution.conflicts.length,0);
+assert.ok(multiFrameSolution.uncomparedFramePairs.length>=1);
+assert.ok(multiFrameSolution.uncomparedFramePairs.some(pair=>pair.frameA!==pair.frameB));
+const localIfcCandidate=multiFrameSolution.candidates.find(candidate=>candidate.kind==='SOURCE_REFERENCE');
+assert.equal(localIfcCandidate?.coordinateFrame,'IFC_LOCAL_ENGINEERING:site.ifc');
+assert.ok(localIfcCandidate?.steps.some(step=>step.kind==='MAP_Z_REFERENCE'&&Math.abs(Number(step.valueMeters)-101)<1e-9));
+assert.match(multiFrameSolution.explanation,/different unregistered vertical frames/i);
+
+const explicitlyRegisteredFrame={
+ ...multiFrame,
+ meta:{
+  ...multiFrame.meta,
+  zResolutionCoordinateFrame:'PROJECT_REVIEW_DATUM',
+  ifcMapZCandidateMeters:undefined,
+  zCandidateMeters:1
+ }
+};
+const registeredFrameSolution=buildZSolution(explicitlyRegisteredFrame);
+assert.equal(registeredFrameSolution.status,'CONFLICT','once chains share a registered frame, their numeric disagreement must be evaluated');
+assert.ok(registeredFrameSolution.conflicts.some(conflict=>conflict.deltaMeters>90));
+assert.equal(registeredFrameSolution.uncomparedFramePairs.length,0);
+
 const unresolved=buildZSolution({name:'UNKNOWN DEVICE',floor:'UNRESOLVED',z:0,meta:{physicalElevationKnown:false,elevationKnown:false}});
 assert.ok(['RELATIVE_ONLY','UNRESOLVED'].includes(unresolved.status));
 assert.equal(unresolved.physicalTruth,false);
@@ -81,5 +118,8 @@ assert.match(inspector,/Z solution evidence/);
 assert.match(inspector,/Z chains compared/);
 assert.match(inspector,/Use this design chain for review placement/);
 assert.match(inspector,/HUMAN REVIEW PLACEMENT · PHYSICAL Z UNVERIFIED/);
+assert.match(inspector,/VERTICAL FRAME REGISTRATION REQUIRED/);
+assert.match(inspector,/candidate\.coordinateFrame/);
+assert.match(inspector,/uncomparedFramePairs/);
 
-console.log('Z solution reconciliation passed: independent chains are compared, conflicts block automatic placement, and an explicit human review can select one preserved design chain without claiming physical truth.');
+console.log('Z solution reconciliation passed: independent chains are compared only inside the same vertical coordinate frame, cross-frame values remain preserved but uncompared, IFC map Z remains correlated source evidence, conflicts block automatic placement, and an explicit human review can select one preserved design chain without claiming physical truth.');
