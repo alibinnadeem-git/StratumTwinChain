@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import AutoSheetAlignmentReview from '@/components/AutoSheetAlignmentReview';
 import ManualSheetXYCalibrationReview from '@/components/ManualSheetXYCalibrationReview';
+import PdfMetricFrameReview from '@/components/PdfMetricFrameReview';
 import CompilerWorkspace from '@/components/CompilerWorkspace';
 import RoomReconstructionReview from '@/components/RoomReconstructionReview';
 import SpatialCompilationPersistence from '@/components/SpatialCompilationPersistence';
@@ -28,6 +29,7 @@ export default async function CompilerPage(){const session=await readSession();r
    <p className="muted">Open this only when STRATUM flags uncertain rooms, title blocks, alignment or elevation. Automatic proposals remain reviewable and never become Verified state by themselves.</p>
    <RoomReconstructionReview/>
    <TitleBlockIntelligence/>
+   <PdfMetricFrameReview/>
    <AutoSheetAlignmentReview/>
    <ManualSheetXYCalibrationReview/>
   </details>
