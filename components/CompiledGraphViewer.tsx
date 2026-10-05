@@ -464,7 +464,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       const center=bounds.getCenter(new THREE.Vector3()),size=bounds.getSize(new THREE.Vector3()),span=Math.max(size.x,size.y,size.z,8);
       const minX=bounds.min.x-2,minZ=bounds.min.z-2,minY=Math.min(bounds.min.y,0),maxY=Math.max(bounds.max.y+3,4);
       const axis=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(minX,minY,minZ),new THREE.Vector3(minX,maxY,minZ)]),new THREE.LineBasicMaterial({color:0x49d39a}));scene.add(axis);
-      for(const [name,z] of levels){const y=(z??0)+(exploded?(floorIndex.get(name)||0)*2.6:0),grid=new THREE.GridHelper(Math.max(span*1.15,20),20,0x244d61,0x102c39);grid.position.y=y;grid.material.transparent=true;grid.material.opacity=.18;scene.add(grid);label(z===null?`${name} · Z unverified`:`${name} · ${z.toFixed(2)} m`,minX+.8,y,minZ,"#7be0b1")}
+      for(const [name,z] of levels){const y=(z??0)+(exploded?(floorIndex.get(name)||0)*2.6:0),grid=new THREE.GridHelper(Math.max(span*1.15,20),20,0x244d61,0x102c39);grid.position.y=y;grid.material.transparent=true;grid.material.opacity=.18;scene.add(grid);label(z===null?`${name} · Z unverified`:`${name} · ${z.toFixed(2)} m`,minX+.8,y,minZ,"#7be0b1",undefined,0,'LOCAL')}
       const fit=()=>{const c=bounds.getCenter(new THREE.Vector3()),s=bounds.getSize(new THREE.Vector3()),d=Math.max(s.x,s.y,s.z,8);controls.target.copy(c);camera.position.set(c.x+d*.9,c.y+d*.72+4,c.z+d);camera.near=.05;camera.far=Math.max(1000,d*20);camera.updateProjectionMatrix();controls.update()};fit();
       runtime.current.fit=fit;runtime.current.clickable=clickable;
       renderer.domElement.setAttribute("aria-label","Interactive Spatial model");
