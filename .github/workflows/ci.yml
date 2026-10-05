@@ -140,6 +140,8 @@ jobs:
         run: npm run qa:spatial-evidence-envelope
       - name: Project XY frame registration conformance
         run: npm run qa:project-xy-frame
+      - name: Multi-discipline project frame golden path
+        run: npm run qa:multidiscipline-project-frame
       - name: Demo-safe unresolved placement conformance
         run: npm run qa:demo-safe-placement
       - name: Local support-surface equipment placement conformance
