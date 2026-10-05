@@ -7,6 +7,7 @@ import {detectPlanFrames,resolveDrawingPageRecognition,resolvePlanFrameAtPoint} 
 import {inferPdfPageFloor} from '../lib/compiler-source.ts';
 import {drawingScaleDenominator} from '../lib/title-block.ts';
 import {extractZEvidenceFromText} from '../lib/z-resolver.ts';
+import {analyzeDrawingSetCompleteness} from '../lib/drawing-set-completeness.ts';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const fixture=JSON.parse(fs.readFileSync(path.join(root,'tests/fixtures/brynhurst-electrical-golden.json'),'utf8'));
@@ -18,6 +19,9 @@ assert.equal(fixture.source.sha256,'9ad7aea4dccfe584dd3837796d4b5ba04588aeea8e2b
 assert.equal(fixture.trustBoundary.authoritativeXYZ,false);
 assert.equal(fixture.trustBoundary.physicalTruth,false);
 assert.equal(fixture.trustBoundary.reviewRequired,true);
+assert.equal(fixture.source.setCompleteness.status,'PARTIAL');
+assert.deepEqual(fixture.source.setCompleteness.presentSheets,['E-1','E-2','E-3','E-4','E-5','E-6','E-7','E-8','E-9']);
+assert.deepEqual(fixture.source.setCompleteness.missingSheets,['E-10','E-11','E-12','E-13']);
 ok('Brynhurst architectural scale normalizes to denominator 96',Math.abs(drawingScaleDenominator('1/8" = 1\'-0"')-96)<1e-9);
 
 for(const page of fixture.pages){
@@ -43,6 +47,16 @@ for(const page of fixture.pages){
  }
 }
 console.log('✓ all nine Brynhurst sheets meet the stored comprehension contract');
+
+
+const completeness=analyzeDrawingSetCompleteness({
+ pageLabels:fixture.pages.map(page=>page.labels),
+ sheetNumbers:fixture.source.setCompleteness.presentSheets
+});
+assert.equal(completeness.status,'PARTIAL','E-1 index versus physical title blocks must classify this PDF as a partial electrical set');
+assert.deepEqual(completeness.expectedSheets,fixture.source.setCompleteness.indexedSheets,'sheet-index analysis must recover E-1 through E-13');
+assert.deepEqual(completeness.missingSheets,fixture.source.setCompleteness.missingSheets,'missing E-10 through E-13 must be explicit source incompleteness');
+console.log('✓ Brynhurst electrical sheet index is explicitly PARTIAL, not silently treated as complete');
 
 const page5=fixture.pages.find(page=>page.page===5);
 const page5Recognition=resolveDrawingPageRecognition(page5.labels,page5.vectorOps);
@@ -81,5 +95,10 @@ assert.match(compiler,/floorAt\(segment\.page/);
 assert.match(compiler,/floorAt\(p\.page,c\.x,c\.y\)/);
 assert.match(compiler,/floorAt\(t\.page,t\.x,t\.y\)/);
 assert.match(compiler,/TITLE_ANCHOR_ONLY/);
+assert.match(compiler,/setCompleteness:parsed\.setCompleteness/,'ingestion must persist drawing-set completeness with the source record');
+const viewer=fs.readFileSync(path.join(root,'components/CompiledGraphViewer.tsx'),'utf8');
+assert.match(viewer,/planFrameId/,'Spatial frame identity must preserve detected sub-viewports on multi-plan sheets');
+assert.match(viewer,/planFrameTitle/,'Spatial selector must expose the detected viewport title');
+assert.match(viewer,/planFrameFloor/,'Spatial selector must expose the detected viewport level');
 
-console.log('\nBrynhurst golden comprehension passed: one-line detection, site/floor/roof/unit-plan recognition, multi-viewport segmentation, page-level floor fail-closed behavior, scale interpretation, and non-invented Z trust boundaries.');
+console.log('\nBrynhurst electrical ingestion contract passed: one-line detection, site/floor/roof/unit-plan recognition, multi-viewport isolation, explicit partial-set status, scale interpretation, render-ready source metadata, and non-invented Z trust boundaries.');
