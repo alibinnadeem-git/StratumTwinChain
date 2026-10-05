@@ -88,6 +88,17 @@ const nonMetric=applyReviewedProjectXYFrameRegistration([nonMetricReference,movi
 assert.equal(nonMetric.registration.metric,false);
 assert.equal(nonMetric.entities.find(entity=>entity.id==='mov').meta.coordinateUnits,'sheet');
 
+const legacyReference={...reference,id:'ref-legacy',meta:{...reference.meta}};
+delete legacyReference.meta.coordinateUnits;
+const legacy=applyReviewedProjectXYFrameRegistration([legacyReference,moving],proposal);
+assert.equal(legacy.registration.coordinateUnits,'sheet');
+assert.equal(legacy.registration.metric,false);
+assert.equal(legacy.entities.find(entity=>entity.id==='mov').meta.coordinateUnits,'sheet','legacy PDF/source-sheet coordinates remain non-metric when units are absent');
+
+const nativeHintReference={...reference,id:'ref-native-hint',meta:{...reference.meta,sourceType:'DXF',unitToMeters:.3048}};
+delete nativeHintReference.meta.coordinateUnits;
+assert.throws(()=>applyReviewedProjectXYFrameRegistration([nativeHintReference,moving],proposal),/metric\/native coordinate hints but no explicit coordinate-units authority/);
+
 const autoSync=fs.readFileSync('components/SpatialAutoSync.tsx','utf8');
 const spatialPage=fs.readFileSync('app/spatial/page.tsx','utf8');
 const compilationApi=fs.readFileSync('app/api/spatial/compilations/route.ts','utf8');
