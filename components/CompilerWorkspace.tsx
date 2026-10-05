@@ -7,7 +7,7 @@ import SpatialPortableRecovery from './SpatialPortableRecovery';
 import {inferPdfPageFloor,sameSourceFrame,scopeSourceEntities} from '../lib/compiler-source';
 import {classifyElectricalLabel,detectSldPage,isElectricalAssetLabel,isElectricalCircuitLabel} from '../lib/sld-recognition';
 import {detectNonSldPlanPage,detectPlanFrames,resolveDrawingPageRecognition,resolvePlanFrameAtPoint} from '../lib/plan-recognition';
-import {extractSheetGeometryEvidence,type PositionedSheetText} from '../lib/title-block';
+import {extractSheetGeometryEvidence,extractSheetIdentity,type PositionedSheetText} from '../lib/title-block';
 import {validateIndependentScale} from '../lib/scale-validation';
 import {buildSldVectorTopology} from '../lib/sld-vector-topology';
 import {poweredEquipmentClass} from '../lib/power-intelligence';
@@ -168,7 +168,8 @@ async function parsePdfMainThreadFallback(file:File,level:{floor:string;elevatio
   const nativeItems=raw.filter(item=>item.page===page).map(item=>({text:item.str,x:item.x/20+.5,y:.5-item.y/20}));
   const items=(preview?.geometryItems?.length?preview.geometryItems:nativeItems) as PositionedSheetText[];
   const geometryEvidence=preview?.geometryEvidence||extractSheetGeometryEvidence({items,pageWidthPoints:pageGeometry?.width,pageHeightPoints:pageGeometry?.height});
-  sheetNumbersByPage.set(page,geometryEvidence.sheetNumber.value||null);
+  const sheetIdentity=extractSheetIdentity({page,sourceName:file.name,sourceSha256:'',items,pageWidthPoints:pageGeometry?.width,pageHeightPoints:pageGeometry?.height});
+  sheetNumbersByPage.set(page,sheetIdentity.sheetNumber.value||null);
   const pageSegments=segments.filter(segment=>segment.page===page).map(segment=>({x:segment.x/20+.5,y:.5-segment.y/20,x2:segment.x2/20+.5,y2:.5-segment.y2/20}));
   const validation=validateIndependentScale({items,segments:pageSegments,declaredScale:geometryEvidence.drawingScale.value,pageMaxDimensionPoints:pageGeometry?.max,normalizedSheetSpan:20,coordinateSpan:1});
   scaleValidationByPage.set(page,validation);
