@@ -11,6 +11,8 @@ export type TerrainBreakline={
   y:number;
   x2:number;
   y2:number;
+  zMeters:number;
+  z2Meters:number;
   pointIds:[string,string];
   confidence:number;
   authority:'SOURCE_VECTOR_BETWEEN_TYPED_ELEVATION_CONTROLS';
@@ -152,6 +154,7 @@ export function associateTerrainBreaklines(input:{
         id:`terrain-breakline-${input.page}-${semantic.toLowerCase()}-${out.length}`,
         source:input.source,page:input.page,semantic,
         x:segment.x,y:segment.y,x2:segment.x2,y2:segment.y2,
+        zMeters:a.point.zMeters,z2Meters:b.point.zMeters,
         pointIds:[a.point.id,b.point.id],
         confidence:Math.max(0,Math.min(1,Math.min(a.point.confidence,b.point.confidence)*.9)),
         authority:'SOURCE_VECTOR_BETWEEN_TYPED_ELEVATION_CONTROLS',
