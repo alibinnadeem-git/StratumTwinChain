@@ -7,7 +7,43 @@
     "pageCount": 9,
     "project": "4 STORY 53 UNIT APARTMENT BUILDING",
     "address": "5749-5753 BRYNHURST AVE, LOS ANGELES, CA 90043",
-    "bidSetDate": "04/04/25"
+    "bidSetDate": "04/04/25",
+    "setCompleteness": {
+      "status": "PARTIAL",
+      "indexedSheets": [
+        "E-1",
+        "E-2",
+        "E-3",
+        "E-4",
+        "E-5",
+        "E-6",
+        "E-7",
+        "E-8",
+        "E-9",
+        "E-10",
+        "E-11",
+        "E-12",
+        "E-13"
+      ],
+      "presentSheets": [
+        "E-1",
+        "E-2",
+        "E-3",
+        "E-4",
+        "E-5",
+        "E-6",
+        "E-7",
+        "E-8",
+        "E-9"
+      ],
+      "missingSheets": [
+        "E-10",
+        "E-11",
+        "E-12",
+        "E-13"
+      ],
+      "note": "E-1 advertises E-1 through E-13, while this exact PDF contains nine physical pages ending at E-9. Missing sheets are source incompleteness, not parser failure."
+    }
   },
   "trustBoundary": {
     "authoritativeXYZ": false,
@@ -377,5 +413,26 @@
   "exactFileHardening": {
     "sourceExtraction": "PyMuPDF text extraction from the exact uploaded PDF matched source SHA-256 and revealed split ELEC./PANEL and Plan/Unit text objects plus an ELECTRICAL SHEET INDEX containing plan titles.",
     "regressionPurpose": "Prevent index-page promotion, preserve electrical discipline when cues are split across adjacent text objects, and detect unit viewports when plan/unit labels are separate source objects."
+  },
+  "acceptance": {
+    "multiViewportIsolation": [
+      {
+        "page": 5,
+        "viewports": [
+          "L2",
+          "L3"
+        ],
+        "rule": "Spatial frame identity must include planFrameId so the two plans can be isolated independently."
+      },
+      {
+        "page": 6,
+        "viewports": [
+          "L4",
+          "ROOF"
+        ],
+        "rule": "Spatial frame identity must include planFrameId so the two plans can be isolated independently."
+      }
+    ],
+    "renderHandoff": "A successful parse must persist the exact source-derived graph before Render Spatial Environment navigates."
   }
 }
