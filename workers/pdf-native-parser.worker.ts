@@ -8,6 +8,7 @@ import {poweredEquipmentClass} from '../lib/power-intelligence';
 import {extractZEvidenceFromText,type ZEvidence} from '../lib/z-resolver';
 import {buildElevationTriangles,extractPositionedElevationControls,resolveLocalElevationSurface,type ElevationControlPoint,type ElevationTriangle} from '../lib/elevation-surface';
 import {enrichSupportBaseOffsets,extractSupportOffsetEvidence,type SupportOffsetEvidence} from '../lib/support-base-evidence';
+import {analyzeDrawingSetCompleteness,type DrawingSetCompleteness} from '../lib/drawing-set-completeness';
 
 type Layer='L0'|'L1'|'L2'|'L3'|'L4';
 type XY={x:number;y:number};
@@ -16,7 +17,7 @@ type RawText={key:string;str:string;x:number;y:number;page:number};
 type Segment={x:number;y:number;x2:number;y2:number;page:number};
 type Polygon={vertices:XY[];page:number;confidence:number};
 type Level={floor:string;elevation:number};
-type ParseResult={entities:GraphEntity[];summary:string;pages:number;vectors:number;textItems:number;sldPages:number;nonSldPlanPages:number;planTypes:string[];disciplines:string[]};
+type ParseResult={entities:GraphEntity[];summary:string;pages:number;vectors:number;textItems:number;sldPages:number;nonSldPlanPages:number;planTypes:string[];disciplines:string[];setCompleteness:DrawingSetCompleteness};
 
 const MAX_FILE_BYTES=64*1024*1024;
 const MAX_PAGES=120;
@@ -145,10 +146,12 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
   const elevationControlsByPage=new Map<number,ElevationControlPoint[]>();
   const elevationTrianglesByPage=new Map<number,ElevationTriangle[]>();
   const supportOffsetsByPage=new Map<number,SupportOffsetEvidence[]>();
+  const sheetNumbersByPage=new Map<number,string|null>();
   for(let page=1;page<=doc.numPages;page++){
    const pageGeometry=pageGeometryByPage.get(page);
    const items=raw.filter(item=>item.page===page).map(item=>({text:item.str,x:item.x/20+.5,y:.5-item.y/20})) as PositionedSheetText[];
    const geometryEvidence=extractSheetGeometryEvidence({items,pageWidthPoints:pageGeometry?.width,pageHeightPoints:pageGeometry?.height});
+   sheetNumbersByPage.set(page,geometryEvidence.sheetNumber.value||null);
    const pageSegments=segments.filter(segment=>segment.page===page).map(segment=>({x:segment.x/20+.5,y:.5-segment.y/20,x2:segment.x2/20+.5,y2:.5-segment.y2/20}));
    const validation=validateIndependentScale({items,segments:pageSegments,declaredScale:geometryEvidence.drawingScale.value,pageMaxDimensionPoints:pageGeometry?.max,normalizedSheetSpan:20,coordinateSpan:1});
    scaleValidationByPage.set(page,validation);
@@ -201,7 +204,10 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
    entity.meta={...entity.meta,localReviewSurfaceZ:local.zMeters,localReviewSurfaceKind:local.kind,localReviewSurfaceAuthority:local.authority,localReviewSurfaceConfidence:local.confidence,localReviewSurfaceTriangleId:local.triangleId,localReviewSurfaceControlPointIds:local.controlPointIds,physicalTruth:false,reviewRequired:true};
   }
   const supportEnriched=enrichSupportBaseOffsets(entities,[...supportOffsetsByPage.values()].flat());
-  return{entities:supportEnriched,summary:`${doc.numPages} page${doc.numPages===1?'':'s'} · ${raw.length} positioned text objects · ${vectors} PDF drawing operators · ${nonSldPlanPages} non-SLD plan page${nonSldPlanPages===1?'':'s'} recognized${planTypes.length?` (${planTypes.join(', ')})`:''} · ${sourcePlanSegments} retained source-plan vector segment${sourcePlanSegments===1?'':'s'} · 0 raster OCR fallback pages · ${sldPages} SLD page${sldPages===1?'':'s'} recognized from content/topology · ${vectorFeederSegments} source-vector feeder segment${vectorFeederSegments===1?'':'s'} · ${supportEnriched.length} spatial/review candidates · parsed off the UI thread`,pages:doc.numPages,vectors,textItems:raw.length,sldPages,nonSldPlanPages,planTypes,disciplines:uniqueDisciplines};
+  const pageLabels=Array.from({length:doc.numPages},(_,index)=>raw.filter(item=>item.page===index+1).map(item=>item.str));
+  const setCompleteness=analyzeDrawingSetCompleteness({pageLabels,sheetNumbers:Array.from({length:doc.numPages},(_,index)=>sheetNumbersByPage.get(index+1)||null)});
+  const setSummary=setCompleteness.status==='PARTIAL'?` · partial drawing set · missing ${setCompleteness.missingSheets.join(', ')}`:setCompleteness.status==='COMPLETE'?' · indexed drawing set complete':' · drawing-set completeness unresolved';
+  return{entities:supportEnriched,summary:`${doc.numPages} page${doc.numPages===1?'':'s'} · ${raw.length} positioned text objects · ${vectors} PDF drawing operators · ${nonSldPlanPages} non-SLD plan page${nonSldPlanPages===1?'':'s'} recognized${planTypes.length?` (${planTypes.join(', ')})`:''} · ${sourcePlanSegments} retained source-plan vector segment${sourcePlanSegments===1?'':'s'} · 0 raster OCR fallback pages · ${sldPages} SLD page${sldPages===1?'':'s'} recognized from content/topology · ${vectorFeederSegments} source-vector feeder segment${vectorFeederSegments===1?'':'s'} · ${supportEnriched.length} spatial/review candidates${setSummary} · parsed off the UI thread`,pages:doc.numPages,vectors,textItems:raw.length,sldPages,nonSldPlanPages,planTypes,disciplines:uniqueDisciplines,setCompleteness};
  }finally{await doc.destroy()}
 }
 
