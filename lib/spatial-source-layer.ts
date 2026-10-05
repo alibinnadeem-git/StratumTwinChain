@@ -15,9 +15,11 @@ export function spatialSourceKey(source:SpatialSourceIdentity){
  return digest||source.name;
 }
 
-export function spatialEntitySourceKey(entity:SpatialEntitySourceIdentity){
+export function spatialEntitySourceKey(entity:SpatialEntitySourceIdentity,sources:SpatialSourceIdentity[]=[]){
  const digest=String(entity.meta?.sourceSha256||'').trim().toLowerCase();
- return digest||entity.source;
+ if(digest)return digest;
+ const matches=sources.filter(source=>source.name===entity.source);
+ return matches.length===1?spatialSourceKey(matches[0]):entity.source;
 }
 
 export function spatialSourceLayerLabels(sources:SpatialSourceIdentity[]){
