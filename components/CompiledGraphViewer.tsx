@@ -53,7 +53,7 @@ function sheetFrameKey(e:Entity){const pageKey=sheetPageKey(e);if(!pageKey)retur
 function planTypeLabel(value:unknown){return String(value||'').replaceAll('_',' ').toLowerCase().replace(/\b\w/g,letter=>letter.toUpperCase())}
 function metaNumber(e:Entity,key:string){const value=e.meta?.[key];if(value===null||value===undefined||value==='')return null;const x=Number(value);return Number.isFinite(x)?x:null}
 function isSld(e:Entity){return Boolean(e.meta?.sldCandidate===true||e.meta?.sldSpatialProjection||e.meta?.sldLogicalDepth!==undefined||/single.?line|one.?line|\bsld\b|riser/i.test(String(e.meta?.sheetTitle||e.source)))}
-function physicalElevationKnown(e:Entity){if(e.meta?.elevationKnown===false||e.meta?.physicalElevationKnown===false)return false;return e.meta?.elevationKnown===true||e.meta?.physicalElevationKnown===true||e.meta?.sourceType==="DXF"||e.meta?.coordinateUnits==="m"&&e.floor!=="UNRESOLVED"}
+function physicalElevationKnown(e:Entity){if(e.meta?.elevationKnown===false||e.meta?.physicalElevationKnown===false)return false;return e.meta?.elevationKnown===true||e.meta?.physicalElevationKnown===true}
 function displayElevation(e:Entity,mode:ViewMode){
   const base=n(e.z);
   if(mode==="ELECTRICAL"&&isSld(e)){
