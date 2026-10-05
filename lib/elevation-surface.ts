@@ -3,7 +3,7 @@ import type {IndependentScaleValidation} from './scale-validation.ts';
 
 export type ElevationUnit='ft'|'m';
 export type ElevationSurfaceKind='GRADE'|'FINISHED_FLOOR';
-export type ElevationControlSemantic='FINISHED_GRADE'|'FINISHED_SURFACE'|'TOP_OF_CURB'|'FLOWLINE'|'FINISHED_FLOOR';
+export type ElevationControlSemantic='FINISHED_GRADE'|'EXISTING_GRADE'|'FINISHED_SURFACE'|'TOP_OF_CURB'|'FLOWLINE'|'FINISHED_FLOOR';
 export type ElevationControlPoint={
   id:string;
   source:string;
@@ -55,8 +55,10 @@ function unitFromScale(declaredScale:string|null|undefined,validation?:Independe
 }
 function surfaceControlSemantic(label:string):{kind:ElevationSurfaceKind;semantic:ElevationControlSemantic;triangulationEligible:boolean}|null{
   const t=clean(label).toUpperCase();
+  if(/\bGRADE\s+PLANE\b|\bLOWEST\s+ADJACENT\s+GRADE\b|^LAG\b/.test(t))return null;
+  if(/\bEG\b|\bEXISTING\s+GRADE\b/.test(t))return{kind:'GRADE',semantic:'EXISTING_GRADE',triangulationEligible:false};
   if(/\b(?:FFE|FF)\b|FINISH(?:ED)?\s+FLOOR/.test(t))return{kind:'FINISHED_FLOOR',semantic:'FINISHED_FLOOR',triangulationEligible:true};
-  if(/\bFG\b|FG$|\bGRADE\b/.test(t))return{kind:'GRADE',semantic:'FINISHED_GRADE',triangulationEligible:true};
+  if(/\bFG\b|FG$|\bFINISH(?:ED)?\s+GRADE\b|(?:^|\s)GRADE(?:\s|$)/.test(t))return{kind:'GRADE',semantic:'FINISHED_GRADE',triangulationEligible:true};
   if(/\bFS\b|FS$|FINISH(?:ED)?\s+SURFACE/.test(t))return{kind:'GRADE',semantic:'FINISHED_SURFACE',triangulationEligible:true};
   if(/\bTC\b|TC$|TOP\s+OF\s+CURB/.test(t))return{kind:'GRADE',semantic:'TOP_OF_CURB',triangulationEligible:false};
   if(/\bFL\b|FL$|FLOW\s*LINE/.test(t))return{kind:'GRADE',semantic:'FLOWLINE',triangulationEligible:false};
@@ -65,13 +67,13 @@ function surfaceControlSemantic(label:string):{kind:ElevationSurfaceKind;semanti
 function parseExplicit(label:string){
   const t=clean(label).toUpperCase(),control=surfaceControlSemantic(t);
   if(!control)return null;
-  const feetInches=t.match(/(?:FG|FFE|FF|FS|TC|FL|GRADE|FINISH(?:ED)?\s+(?:FLOOR|SURFACE)|TOP\s+OF\s+CURB|FLOW\s*LINE)(?:\s+(?:EL|ELEV|ELEVATION)\.?)?\s*[:=@-]?\s*([+-]?\d{1,3})\s*'\s*(\d{1,2}(?:\.\d+)?)?\s*"?/i);
+  const feetInches=t.match(/(?:FG|EG|FFE|FF|FS|TC|FL|GRADE|EXISTING\s+GRADE|FINISH(?:ED)?\s+(?:GRADE|FLOOR|SURFACE)|TOP\s+OF\s+CURB|FLOW\s*LINE)(?:\s+(?:EL|ELEV|ELEVATION)\.?)?\s*[:=@-]?\s*([+-]?\d{1,3})\s*'\s*(\d{1,2}(?:\.\d+)?)?\s*"?/i);
   if(feetInches){
     const feet=Number(feetInches[1]),inches=Number(feetInches[2]||0);
     if(Number.isFinite(feet)&&Number.isFinite(inches)&&inches<12)return{value:feet+Math.sign(feet||1)*inches/12,unit:'ft' as ElevationUnit,...control};
   }
-  const prefix=t.match(/(?:FG|FFE|FF|FS|TC|FL|GRADE|FINISH(?:ED)?\s+(?:FLOOR|SURFACE)|TOP\s+OF\s+CURB|FLOW\s*LINE)(?:\s+(?:EL|ELEV|ELEVATION)\.?)?\s*[:=@-]?\s*([+-]?\d{1,4}(?:\.\d+)?)\s*(FT|FEET|M|METERS?|METRES?)\b/i);
-  const suffix=t.match(/\b([+-]?\d{1,4}(?:\.\d+)?)\s*(FT|FEET|M|METERS?|METRES?)\s*(FG|FFE|FF|TC|FL|GRADE)\b/i);
+  const prefix=t.match(/(?:FG|EG|FFE|FF|FS|TC|FL|GRADE|EXISTING\s+GRADE|FINISH(?:ED)?\s+(?:GRADE|FLOOR|SURFACE)|TOP\s+OF\s+CURB|FLOW\s*LINE)(?:\s+(?:EL|ELEV|ELEVATION)\.?)?\s*[:=@-]?\s*([+-]?\d{1,4}(?:\.\d+)?)\s*(FT|FEET|M|METERS?|METRES?)\b/i);
+  const suffix=t.match(/\b([+-]?\d{1,4}(?:\.\d+)?)\s*(FT|FEET|M|METERS?|METRES?)\s*(FG|EG|FFE|FF|TC|FL|GRADE)\b/i);
   const match=prefix||suffix;if(!match)return null;
   const raw=Number(match[1]),unit=String(match[2]).toUpperCase();
   if(!Number.isFinite(raw))return null;
