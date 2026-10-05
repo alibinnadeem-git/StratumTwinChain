@@ -7,6 +7,7 @@ import {readSelectedSpatialProjectId} from '@/lib/spatial-project-selection';
 import {resolveReconciledAssetPlacement} from '@/lib/z-solution-chain';
 import AssetActivityPanel from '@/components/AssetActivityPanel';
 import AssetQR from '@/components/AssetQR';
+import AssetTelemetryPanel from '@/components/AssetTelemetryPanel';
 import {
  resolveRegisteredSpatialAsset,
  spatialAssetDirState,
@@ -251,6 +252,8 @@ export default function SpatialAssetInspector({
      </div>
     </div>
    </details>
+
+   <AssetTelemetryPanel assetId={asset.id}/>
 
    {asset.project_id
     ?<AssetActivityPanel key={asset.id} assetId={asset.id} projectId={asset.project_id}/>
