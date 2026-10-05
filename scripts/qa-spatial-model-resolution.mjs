@@ -18,6 +18,8 @@ const genericEvse=resolveSpatialModel({
 assert.equal(genericEvse.componentKey,'evse','manufacturer name alone must not select a Tesla product family');
 assert.equal(genericEvse.exactProductIdentity,false);
 assert.equal(genericEvse.tier,'FAMILY_MODEL');
+assert.match(genericEvse.geometryAuthority,/^FAMILY_/);
+assert.equal(genericEvse.physicalIdentityVerified,false);
 assert.ok(!genericEvse.evidence.join(' ').match(/Supercharger V3|Universal Wall Connector Gen 3/));
 
 const exactTesla=resolveSpatialModel({
