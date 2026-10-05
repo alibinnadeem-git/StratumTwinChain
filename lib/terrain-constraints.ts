@@ -69,7 +69,7 @@ function slopeFromLabel(label:string):{slopeFraction:number;format:TerrainSlopeF
     if(Number.isFinite(run)&&run>0)return{slopeFraction:1/run,format:'RATIO'};
   }
 
-  const inchPerFoot=t.match(/([+-]?(?:\d+\s+)?(?:\d+\/\d+|\d+(?:\.\d+)?))\s*"\s*(?:\/|PER)\s*(?:1\s*)?(?:FT|FOOT|')\b/i);
+  const inchPerFoot=t.match(/([+-]?(?:\d+\s+)?(?:\d+\/\d+|\d+(?:\.\d+)?))\s*"\s*(?:\/|PER)\s*(?:1\s*)?(?:FT|FOOT|FEET|')(?=\s|$)/i);
   if(inchPerFoot){
     const raw=inchPerFoot[1].trim();
     let inches=0;
