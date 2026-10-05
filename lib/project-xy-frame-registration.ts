@@ -78,12 +78,17 @@ export function applyReviewedProjectXYFrameRegistration<T extends ProjectXYEntit
   if(!reference.length||!moving.length)throw new Error('Reference and moving sheet geometry must both be present.');
 
   for(const entity of reference){
-    const existing=text(entity.meta?.projectXYFrameId);
+    const meta=entity.meta||{};
+    const existing=text(meta.projectXYFrameId);
     if(existing&&existing!==frameId)throw new Error('Reference sheet is already registered to a different project XY frame.');
+    if(meta.sheetXYCalibrationId)throw new Error('Restore manual XY calibration on the reference sheet before project-frame registration.');
+    if(meta.sheetTransform||meta.sheetOriginal)throw new Error('Restore full sheet alignment on the reference sheet before project-frame registration.');
+    if(meta.autoSheetAlignmentCandidateId&&meta.autoSheetAlignmentCandidateId!==proposal.id)throw new Error('Reference sheet carries another automatic alignment. Restore it first.');
   }
   for(const entity of moving){
     const meta=entity.meta||{};
     if(meta.sheetXYCalibrationId)throw new Error('Restore manual XY calibration on the moving sheet before project-frame registration.');
+    if(meta.sheetTransform||meta.sheetOriginal)throw new Error('Restore full sheet alignment on the moving sheet before project-frame registration.');
     if(meta.projectXYFrameId)throw new Error('Moving sheet is already registered to a project XY frame. Restore that registration first.');
     if(meta.autoSheetAlignmentCandidateId&&meta.autoSheetAlignmentCandidateId!==proposal.id)throw new Error('Moving sheet carries another automatic alignment. Restore it first.');
   }
