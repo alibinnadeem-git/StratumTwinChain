@@ -45,10 +45,17 @@ try{
  assert.throws(()=>solveSheetTransform([source[0],source[0]],target,'L1',0));
  assert.throws(()=>solveSheetTransform(source,target,'UNRESOLVED',0));
  assert.throws(()=>solveSheetTransform(source,target,'L1',NaN));
- const xy=solveSheetXYTransform(source,target),xyResidual=sheetXYValidationResidual({x:4,y:3},{x:100,y:204},xy);
+ assert.throws(()=>applySheetTransform({...e,meta:{...e.meta,projectXYFrameId:'PROJECT_XY:test'}},t),/Restore the project XY frame registration/);
+ assert.throws(()=>applySheetTransform({...e,meta:{...e.meta,autoSheetAlignmentCandidateId:'align:test'}},t),/Restore the automatic\/project-frame alignment/);
+ assert.throws(()=>applySheetTransform({...e,meta:{...e.meta,sheetXYCalibrationId:'xy:test'}},t),/Restore the manual XY calibration/);
+
+  const xy=solveSheetXYTransform(source,target),xyResidual=sheetXYValidationResidual({x:4,y:3},{x:100,y:204},xy);
  assert.ok(xyResidual<1e-9,'third control point validates independent XY transform');
  const unknownZ={id:'xy',source:'sheet.pdf',kind:'sheet-callout-candidate',name:'review',x:2,y:3,meta:{elevationKnown:false,physicalElevationKnown:false,coordinateUnits:'sheet'}};
- const xyApplied=applySheetXYTransform(unknownZ,xy,{residualMeters:xyResidual,toleranceMeters:.25});
+ assert.throws(()=>applySheetXYTransform({...unknownZ,meta:{...unknownZ.meta,projectXYFrameId:'PROJECT_XY:test'}},xy,{residualMeters:xyResidual,toleranceMeters:.25}),/Restore the project XY frame registration/);
+ assert.throws(()=>applySheetXYTransform({...unknownZ,meta:{...unknownZ.meta,autoSheetAlignmentCandidateId:'align:test'}},xy,{residualMeters:xyResidual,toleranceMeters:.25}),/Restore the automatic\/project-frame alignment/);
+ assert.throws(()=>applySheetXYTransform({...unknownZ,meta:{...unknownZ.meta,sheetTransform:{a:1,b:0,tx:0,ty:0,floor:'L1',elevation:0}}},xy,{residualMeters:xyResidual,toleranceMeters:.25}),/Restore the full sheet alignment/);
+  const xyApplied=applySheetXYTransform(unknownZ,xy,{residualMeters:xyResidual,toleranceMeters:.25});
  assert.equal(xyApplied.z,undefined,'XY calibration must not invent Z');
  assert.equal(xyApplied.meta.elevationKnown,false,'XY calibration must preserve elevation uncertainty');
  assert.equal(xyApplied.meta.physicalElevationKnown,false,'XY calibration must preserve physical elevation uncertainty');
@@ -58,9 +65,16 @@ try{
  assert.deepEqual([xyRestored.x,xyRestored.y],[2,3]);assert.equal(xyRestored.z,undefined);
  const viewer=await readFile(new URL('../components/CompiledGraphViewer.tsx',import.meta.url),'utf8');
  const sheetReview=await readFile(new URL('../components/SheetReview.tsx',import.meta.url),'utf8');
+ const manualXYReview=await readFile(new URL('../components/ManualSheetXYCalibrationReview.tsx',import.meta.url),'utf8');
+ assert.match(sheetReview,/projectFrameBlocked/);
+ assert.match(sheetReview,/manualXYBlocked/);
+ assert.match(sheetReview,/RESTORE PROJECT FRAME FIRST/);
+ assert.match(manualXYReview,/projectRegistered/);
+ assert.match(manualXYReview,/fullAligned/);
+ assert.match(manualXYReview,/RESTORE PROJECT FRAME FIRST/);
  assert.match(viewer,/return e\.meta\?\.elevationKnown===true\|\|e\.meta\?\.physicalElevationKnown===true/,'viewer only treats explicit known-elevation flags as physical/known Z');
  assert.match(sheetReview,/Reviewed elevation \/ datum \(m\)/);
  assert.doesNotMatch(sheetReview,/Measured elevation \(m\)/,'review UI must not imply field measurement provenance');
  assert.match(sheetReview,/reviewed design datum only unless separately backed by field\/measurement evidence/);
- console.log('PASS: control point alignment, XY-only calibration, independent validation, reviewed-Z truth separation, source immutability, restoration and invalid input guards');
+ console.log('PASS: control point alignment, XY-only calibration, independent validation, reviewed-Z truth separation, coordinate-frame compounding guards, source immutability, restoration and invalid input guards');
 }finally{await unlink(url)}
