@@ -4,6 +4,7 @@ import {reconcileSpatialEquipmentIdentity} from '../lib/spatial-equipment-identi
 import {resolveSpatialModel} from '../lib/spatial-model-resolution.ts';
 import {anchorPdfEquipmentToVectorSymbols} from '../lib/pdf-equipment-symbol-anchor.ts';
 import {resolveRegisteredSpatialAsset,spatialAssetDirState} from '../lib/spatial-asset-link.ts';
+import {applyReviewedPdfMetricFrame,restoreReviewedPdfMetricFrame} from '../lib/pdf-metric-frame.ts';
 
 const drawingEntity={
   id:'drawing-evse-1',source:'Electrical Plan.pdf',layer:'L2',kind:'text-asset-candidate',
@@ -42,6 +43,46 @@ assert.equal(anchored.meta?.sourceLabelY,2.08);
 assert.equal(anchored.meta?.spatialPlacementAuthority,'SOURCE_VECTOR_SYMBOL_ANCHOR');
 assert.equal(anchored.meta?.manufacturer,'Tesla','geometry anchoring must preserve source-reconciled product identity');
 assert.equal(anchored.meta?.model,'Universal Wall Connector Gen 3');
+
+const metricCandidate={
+  id:'metric-frame:generic-page:0.5',
+  frameKey:'a'.repeat(64)+':2',
+  source:'Electrical Plan.pdf',
+  page:2,
+  metersPerSheetUnit:.5,
+  declaredMetersPerSheetUnit:.5,
+  corroboratedMetersPerSheetUnit:.5,
+  confidence:.95,
+  witnessCount:2,
+  eligible:true,
+  reasons:[],
+  reviewRequired:true,
+  autoApply:false,
+  physicalPositionVerified:false,
+  zChanged:false
+};
+const metricReady={
+  ...anchored,
+  source:'Electrical Plan.pdf',
+  meta:{
+    ...(anchored.meta||{}),
+    sourceSha256:'a'.repeat(64),
+    page:2,
+    coordinateUnits:'sheet',
+    sourceType:'PDF text object'
+  }
+};
+const metricEntity=applyReviewedPdfMetricFrame(metricReady,metricCandidate,'2026-10-05T00:00:00.000Z');
+assert.ok(Math.abs(metricEntity.x-2.1)<1e-12);
+assert.ok(Math.abs(metricEntity.y-.95)<1e-12);
+assert.equal(metricEntity.z,0,'reviewed PDF metric transform must not alter Z');
+assert.equal(metricEntity.meta?.coordinateUnits,'m_reviewed_pdf');
+assert.equal(metricEntity.meta?.metricFrameAuthority,'HUMAN_REVIEWED_CORROBORATED_PDF_SCALE');
+assert.equal(metricEntity.meta?.sourceLabelX,4.42,'source label coordinates remain source-sheet provenance');
+assert.equal(metricEntity.meta?.sourceLabelY,2.08);
+const restoredMetric=restoreReviewedPdfMetricFrame(metricEntity);
+assert.ok(Math.abs(restoredMetric.x-4.2)<1e-12);
+assert.ok(Math.abs(restoredMetric.y-1.9)<1e-12);
 
 const model=resolveSpatialModel(anchored,DEFAULT_ELECTRICAL_MODEL_REGISTRY);
 assert.equal(model.componentKey,'evse-tesla-wall-connector-gen3');
