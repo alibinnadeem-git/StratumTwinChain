@@ -20,6 +20,36 @@ function syntheticElectricalPdf(lines:string[]){
  return Buffer.from(pdf);
 }
 
+function syntheticMultiViewportElectricalPdf(){
+ const escape=(value:string)=>value.replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)');
+ const text=(value:string,x:number,y:number)=>`BT /F1 11 Tf ${x} ${y} Td (${escape(value)}) Tj ET`;
+ const stream=[
+  text('THIRD FLOOR PLAN SCALE: 1/8" = 1\'-0"',90,700),
+  text('PANEL LP3',120,650),
+  text('SECOND FLOOR PLAN SCALE: 1/8" = 1\'-0"',345,250),
+  text('PANEL LP2',380,210),
+  text('SECOND & THIRD FLOOR PLAN',470,70),
+  text('E - 5',540,35),
+  text('ELEC.',500,120),
+  '70 720 m 280 720 l S',
+  '330 270 m 560 270 l S'
+ ].join('\n')+'\n';
+ const bodies=[
+  '<< /Type /Catalog /Pages 2 0 R >>',
+  '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+  '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',
+  `<< /Length ${Buffer.byteLength(stream)} >>\nstream\n${stream}endstream`,
+  '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'
+ ];
+ let pdf='%PDF-1.4\n',offset=Buffer.byteLength(pdf),offsets=[0];
+ bodies.forEach((body,index)=>{offsets.push(offset);const object=`${index+1} 0 obj\n${body}\nendobj\n`;pdf+=object;offset+=Buffer.byteLength(object)});
+ const xref=offset;pdf+='xref\n0 6\n0000000000 65535 f \n';
+ for(let i=1;i<=5;i++)pdf+=String(offsets[i]).padStart(10,'0')+' 00000 n \n';
+ pdf+=`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+ return Buffer.from(pdf);
+}
+
+
 test('content-only electrical SLD upload populates the Spatial model',async({page})=>{
  await page.goto('/compiler');
  const pdf=syntheticElectricalPdf(['UTILITY SERVICE 12KV','XFMR-1','SWBD-1','MDP-1','CB-12','480V FEEDER']);
@@ -59,6 +89,27 @@ test('Render Spatial Environment verifies persistence before opening the parsed 
  })).toMatchObject({handoffEntities:expect.any(Number),graphEntities:expect.any(Number),sources:expect.arrayContaining(['render-handoff-plan.pdf'])});
  const state=await page.evaluate(()=>JSON.parse(sessionStorage.getItem('stratum_spatial_render_handoff')||'{}'));
  expect(state.handoffEntities||state.entities).toBeGreaterThan(0);
+});
+
+
+test('multi-plan electrical sheet renders L2 and L3 as independent Spatial viewports',async({page},testInfo)=>{
+ if(testInfo.project.name!=='desktop-chromium')return;
+ await page.goto('/import');
+ const pdf=syntheticMultiViewportElectricalPdf();
+ const input=page.locator('section.import-primary input[type=file][accept*=".pdf"]');
+ await input.setInputFiles({name:'E-5-multi-viewport.pdf',mimeType:'application/pdf',buffer:pdf});
+ await expect(page.getByText('E-5-multi-viewport.pdf',{exact:true})).toBeVisible();
+ await expect.poll(()=>page.evaluate(()=>{
+  const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
+  const frames=(graph.entities||[]).filter((entity:any)=>entity.meta?.sourceSha256&&entity.meta?.planFrameId).map((entity:any)=>({id:entity.meta.planFrameId,floor:entity.meta.planFrameFloor,title:entity.meta.planFrameTitle}));
+  return{floors:[...new Set(frames.map((frame:any)=>frame.floor))],titles:[...new Set(frames.map((frame:any)=>frame.title))]};
+ }),{timeout:30000}).toMatchObject({floors:expect.arrayContaining(['L2','L3'])});
+ await page.getByRole('button',{name:'Render Spatial Environment'}).click();
+ await expect(page).toHaveURL(/\/spatial$/);
+ const selector=page.getByLabel('Sheet page isolation');
+ await expect(selector).toContainText(/SECOND FLOOR PLAN/i);
+ await expect(selector).toContainText(/THIRD FLOOR PLAN/i);
+ await expect(selector.locator('option')).toHaveCount(4);
 });
 
 test('public product routes expose import, field, docs and sign-in instead of moved-workspace dead ends',async({page})=>{
