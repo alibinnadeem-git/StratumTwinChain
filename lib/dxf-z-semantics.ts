@@ -1,6 +1,15 @@
 export type DxfPair={code:number;value:string};
 export type DxfUnitInfo={unitName:string;unitToMeters:number;insunits:number};
 export type DxfRecordValues=Record<number,string[]|undefined>;
+export type DxfMetricXY={
+ rawX:number;
+ rawY:number;
+ xMeters:number;
+ yMeters:number;
+ coordinateFrame:'CAD_LOCAL_ENGINEERING';
+ authority:'SOURCE_DXF_INSUNITS';
+};
+
 export type DxfRecordZ={
  rawZ:number;
  rawZ2:number;
@@ -29,6 +38,19 @@ export function dxfUnitInfo(pairs:DxfPair[]):DxfUnitInfo{
  }
  const [unitName,unitToMeters]=UNIT_MAP[code]||['unitless',1];
  return{unitName,unitToMeters,insunits:code};
+}
+
+export function dxfRawXYToMeters(rawX:unknown,rawY:unknown,units:DxfUnitInfo):DxfMetricXY|null{
+ if(units.insunits===0||units.unitName==='unitless')return null;
+ const x=Number(rawX),y=Number(rawY);
+ if(!Number.isFinite(x)||!Number.isFinite(y)||!Number.isFinite(units.unitToMeters)||units.unitToMeters<=0)return null;
+ return{
+  rawX:x,rawY:y,
+  xMeters:x*units.unitToMeters,
+  yMeters:y*units.unitToMeters,
+  coordinateFrame:'CAD_LOCAL_ENGINEERING',
+  authority:'SOURCE_DXF_INSUNITS'
+ };
 }
 
 function explicit(values:string[]|undefined,units:DxfUnitInfo){
