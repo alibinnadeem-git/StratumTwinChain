@@ -78,6 +78,21 @@ assert.throws(()=>applyReviewedProjectXYFrameRegistration([
 ],proposal),/Restore manual XY calibration/);
 
 assert.throws(()=>applyReviewedProjectXYFrameRegistration([
+ {...reference,meta:{...reference.meta,sheetXYCalibrationId:'xy:reference'}},
+ moving
+],proposal),/Restore manual XY calibration on the reference sheet/);
+
+assert.throws(()=>applyReviewedProjectXYFrameRegistration([
+ reference,
+ {...moving,meta:{...moving.meta,sheetTransform:{a:1,b:0,tx:0,ty:0,floor:'L1',elevation:0}}}
+],proposal),/Restore full sheet alignment on the moving sheet/);
+
+assert.throws(()=>applyReviewedProjectXYFrameRegistration([
+ {...reference,meta:{...reference.meta,sheetOriginal:{x:reference.x,y:reference.y}}},
+ moving
+],proposal),/Restore full sheet alignment on the reference sheet/);
+
+assert.throws(()=>applyReviewedProjectXYFrameRegistration([
  reference,
  {...reference,id:'ref-2',meta:{...reference.meta,coordinateUnits:'sheet'}},
  moving
@@ -110,6 +125,15 @@ assert.match(compilationApi,/const Graph=z\.object\([\s\S]*\)\.passthrough\(\)/,
 assert.match(compilationApi,/JSON\.stringify\(graph\)/,'server snapshot must persist the complete graph JSON');
 assert.match(hydrator,/body\.latest\?\.graph_json/);
 assert.match(hydrator,/replaceCurrentSpatialGraph\(restoredGraph\)/,'server hydration must restore the persisted full graph into the browser workspace');
+
+const manualCalibration=fs.readFileSync('components/ManualSheetXYCalibrationReview.tsx','utf8');
+const sheetReview=fs.readFileSync('components/SheetReview.tsx','utf8');
+assert.match(manualCalibration,/RESTORE PROJECT FRAME FIRST/);
+assert.match(manualCalibration,/projectRegistered/);
+assert.match(manualCalibration,/fullAligned/);
+assert.match(sheetReview,/RESTORE PROJECT FRAME FIRST/);
+assert.match(sheetReview,/projectFrameBlocked/);
+assert.match(sheetReview,/manualXYBlocked/);
 
 const component=fs.readFileSync('components/AutoSheetAlignmentReview.tsx','utf8');
 assert.match(component,/applyReviewedProjectXYFrameRegistration/);

@@ -93,6 +93,30 @@ const movingOtherFrame=entities.map(entity=>String(entity.meta?.sourceSha256||''
 const otherFrameProposal=proposeSheetAlignments(movingOtherFrame,sheets);
 ok('moving sheet already registered to a different project frame is blocked',otherFrameProposal.length===1&&!otherFrameProposal[0].eligible&&otherFrameProposal[0].reasons.some(reason=>reason.includes('different project XY frame')));
 
+const manualMoving=entities.map(entity=>String(entity.meta?.sourceSha256||'')===movingSha
+ ?{...entity,meta:{...entity.meta,sheetXYCalibrationId:'xy:manual'}}
+ :entity);
+const manualMovingProposal=proposeSheetAlignments(manualMoving,sheets);
+ok('moving sheet manual XY calibration blocks project-frame proposal',manualMovingProposal.length===1&&!manualMovingProposal[0].eligible&&manualMovingProposal[0].reasons.some(reason=>reason.includes('Moving sheet has an active manual XY calibration')));
+
+const fullMoving=entities.map(entity=>String(entity.meta?.sourceSha256||'')===movingSha
+ ?{...entity,meta:{...entity.meta,sheetTransform:{a:1,b:0,tx:0,ty:0,floor:'L1',elevation:0}}}
+ :entity);
+const fullMovingProposal=proposeSheetAlignments(fullMoving,sheets);
+ok('moving sheet full alignment blocks project-frame proposal',fullMovingProposal.length===1&&!fullMovingProposal[0].eligible&&fullMovingProposal[0].reasons.some(reason=>reason.includes('Moving sheet has an active full sheet alignment')));
+
+const manualReference=entities.map(entity=>String(entity.meta?.sourceSha256||'')===refSha
+ ?{...entity,meta:{...entity.meta,sheetXYCalibrationId:'xy:reference'}}
+ :entity);
+const manualReferenceProposal=proposeSheetAlignments(manualReference,sheets);
+ok('reference sheet manual XY calibration blocks project-frame proposal',manualReferenceProposal.length===1&&!manualReferenceProposal[0].eligible&&manualReferenceProposal[0].reasons.some(reason=>reason.includes('Reference sheet has an active manual XY calibration')));
+
+const fullReference=entities.map(entity=>String(entity.meta?.sourceSha256||'')===refSha
+ ?{...entity,meta:{...entity.meta,sheetOriginal:{x:entity.x,y:entity.y}}}
+ :entity);
+const fullReferenceProposal=proposeSheetAlignments(fullReference,sheets);
+ok('reference sheet full alignment blocks project-frame proposal',fullReferenceProposal.length===1&&!fullReferenceProposal[0].eligible&&fullReferenceProposal[0].reasons.some(reason=>reason.includes('Reference sheet has an active full sheet alignment')));
+
 const component=read('components/AutoSheetAlignmentReview.tsx');
 const registration=read('lib/project-xy-frame-registration.ts');
 const overlap=read('lib/sheet-boundary-overlap.ts');
