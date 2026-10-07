@@ -54,7 +54,7 @@ export function resolveRegisteredSpatialAsset(entity:SpatialAssetEntity|null|und
  const explicitId=firstMeta(entity,['registeredAssetId','registryAssetId','assetId']);
  if(explicitId){const asset=assets.find(item=>item.id===explicitId);if(asset)return{asset,method:'EXPLICIT_ID',confidence:1};}
 
- const explicitCode=firstMeta(entity,['registeredAssetCode','registryAssetCode','assetCode','asset_code']);
+ const explicitCode=firstMeta(entity,['registeredAssetCode','registryAssetCode','assetCode','asset_code','assetTag','equipmentTag','tag']);
  if(explicitCode){const matches=assets.filter(item=>upper(item.asset_code)===upper(explicitCode));if(matches.length===1)return{asset:matches[0],method:'EXPLICIT_CODE',confidence:1};}
 
  const explicitSerial=firstMeta(entity,['serialNumber','serial_number','assetSerial']);

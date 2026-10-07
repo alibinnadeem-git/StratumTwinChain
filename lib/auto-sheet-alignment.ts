@@ -44,6 +44,21 @@ function anchorsFor(entities:AlignmentEntity[],key:string){
  }
  return byName;
 }
+function projectFrameIdFor(entities:AlignmentEntity[],key:string){
+ const frames=[...new Set(entities.filter(entity=>entityKey(entity)===key).map(entity=>String(entity.meta?.projectXYFrameId||'').trim()).filter(Boolean))];
+ if(frames.length>1)return{status:'CONFLICT' as const,frameId:null,frames};
+ if(frames.length===1)return{status:'REGISTERED' as const,frameId:frames[0],frames};
+ return{status:'UNREGISTERED' as const,frameId:null,frames:[] as string[]};
+}
+
+function sheetTransformState(entities:AlignmentEntity[],key:string){
+ const scoped=entities.filter(entity=>entityKey(entity)===key);
+ return{
+  manualXY:scoped.some(entity=>Boolean(entity.meta?.sheetXYCalibrationId)),
+  fullSheet:scoped.some(entity=>Boolean(entity.meta?.sheetTransform||entity.meta?.sheetOriginal))
+ };
+}
+
 function dominantPlanFrameId(entities:AlignmentEntity[]){
  const counts=new Map<string,number>();
  for(const entity of entities){
@@ -67,11 +82,22 @@ export function proposeSheetAlignments(entities:AlignmentEntity[],sheets:Alignme
  const proposals:AlignmentProposal[]=[];
  for(let i=0;i<confirmed.length;i++)for(let j=i+1;j<confirmed.length;j++){
   const reference=confirmed[i],moving=confirmed[j],referenceKey=sheetKey(reference),movingKey=sheetKey(moving);
+  const referenceFrame=projectFrameIdFor(entities,referenceKey),movingFrame=projectFrameIdFor(entities,movingKey);
+  const referenceTransform=sheetTransformState(entities,referenceKey),movingTransform=sheetTransformState(entities,movingKey);
+  if(referenceFrame.status==='REGISTERED'&&movingFrame.status==='REGISTERED'&&referenceFrame.frameId===movingFrame.frameId)continue;
   const referenceAnchors=anchorsFor(entities,referenceKey),movingAnchors=anchorsFor(entities,movingKey);
   const names=[...referenceAnchors.keys()].filter(name=>movingAnchors.has(name)).sort();if(names.length<2)continue;
   const referenceMatched=names.map(name=>referenceAnchors.get(name)!),movingMatched=names.map(name=>movingAnchors.get(name)!);
   const transform=fitSheetSimilarity(movingMatched.map(entity=>({x:entity.x,y:entity.y})),referenceMatched.map(entity=>({x:entity.x,y:entity.y})));if(!transform)continue;
   const reasons:string[]=[],warnings:string[]=[];
+  if(referenceTransform.manualXY)reasons.push('Reference sheet has an active manual XY calibration; restore it before project-frame registration.');
+  if(referenceTransform.fullSheet)reasons.push('Reference sheet has an active full sheet alignment; restore it before project-frame registration.');
+  if(movingTransform.manualXY)reasons.push('Moving sheet has an active manual XY calibration; restore it before project-frame registration.');
+  if(movingTransform.fullSheet)reasons.push('Moving sheet has an active full sheet alignment; restore it before project-frame registration.');
+  if(referenceFrame.status==='CONFLICT')reasons.push('Reference sheet contains conflicting project XY frame registrations.');
+  if(movingFrame.status==='CONFLICT')reasons.push('Moving sheet contains conflicting project XY frame registrations.');
+  if(movingFrame.status==='REGISTERED'&&referenceFrame.frameId!==movingFrame.frameId)reasons.push('Moving sheet is already registered to a different project XY frame; restore that registration before proposing another transform.');
+  if(referenceFrame.status==='REGISTERED'&&movingFrame.status==='UNREGISTERED')warnings.push('Reference sheet is already the anchor of '+referenceFrame.frameId+'; this proposal will attach the moving sheet to that existing project frame after review.');
   if(names.length<3)reasons.push('At least three shared source-grounded anchors are required.');
   if(transform.scale<.25||transform.scale>4)reasons.push('Estimated scale is outside the bounded review range.');
   if(transform.rmsResidual>.75)reasons.push('Residual exceeds the review threshold.');

@@ -2,6 +2,29 @@ export type Point={x:number;y:number};
 export type SheetXYTransform={a:number;b:number;tx:number;ty:number};
 export type SheetTransform=SheetXYTransform&{floor:string;elevation:number};
 export type DrawingEntity={id:string;source:string;x:number;y:number;z?:number;x2?:number;y2?:number;z2?:number;vertices?:Point[];floor?:string;kind:string;name:string;meta?:Record<string,unknown>};
+type MetaSnapshotEntry={present:boolean;value:unknown};
+type MetaSnapshot=Record<string,MetaSnapshotEntry>;
+const SHEET_Z_REVIEW_META_KEYS=[
+ 'coordinateUnits','elevationKnown','physicalElevationKnown','physicalTruth','reviewRequired',
+ 'zCandidateMeters','zCandidateReferencePoint','zResolutionStatus','zResolutionAuthority',
+ 'zResolutionCoordinateFrame','zPlacementAuthority','sheetElevationReviewRequired',
+ 'alignmentMethod','alignmentVerified'
+] as const;
+function captureMeta(meta:Record<string,unknown>,keys:readonly string[]):MetaSnapshot{
+ const snapshot:MetaSnapshot={};
+ for(const key of keys)snapshot[key]={present:Object.prototype.hasOwnProperty.call(meta,key),value:meta[key]};
+ return snapshot;
+}
+function restoreMeta(meta:Record<string,unknown>,snapshot:MetaSnapshot|undefined,keys:readonly string[]){
+ const next={...meta};
+ for(const key of keys)delete next[key];
+ if(snapshot)for(const key of keys){
+  const item=snapshot[key];
+  if(item?.present)next[key]=item.value;
+ }
+ return next;
+}
+
 export function solveSheetXYTransform(source:[Point,Point],target:[Point,Point]):SheetXYTransform{
  if(![...source,...target].every(p=>Number.isFinite(p.x)&&Number.isFinite(p.y)))throw new Error('Provide finite source and target control point coordinates.');
  const dx=source[1].x-source[0].x,dy=source[1].y-source[0].y,ux=target[1].x-target[0].x,uy=target[1].y-target[0].y,d=dx*dx+dy*dy;
@@ -17,6 +40,9 @@ export function sheetXYValidationResidual(source:Point,target:Point,t:SheetXYTra
  return Math.hypot(actual.x-target.x,actual.y-target.y);
 }
 export function applySheetXYTransform<T extends DrawingEntity>(entity:T,t:SheetXYTransform,validation?:{residualMeters:number;toleranceMeters:number}):T{
+ if(entity.meta?.projectXYFrameId)throw new Error('Restore the project XY frame registration before applying a manual sheet XY calibration.');
+ if(entity.meta?.autoSheetAlignmentCandidateId)throw new Error('Restore the automatic/project-frame alignment before applying a manual sheet XY calibration.');
+ if(entity.meta?.sheetTransform)throw new Error('Restore the full sheet alignment before applying a manual sheet XY calibration.');
  const original=(entity.meta?.sheetXYOriginal as Partial<DrawingEntity>|undefined)||{x:entity.x,y:entity.y,x2:entity.x2,y2:entity.y2,vertices:entity.vertices};
  const point=(p:Point)=>transformSheetXY(p,t);
  const end=original.x2!==undefined&&original.y2!==undefined?point({x:original.x2,y:original.y2}):undefined;
@@ -36,14 +62,41 @@ export function solveSheetTransform(source:[Point,Point],target:[Point,Point],fl
  return {...xy,floor:floor.trim(),elevation};
 }
 export function applySheetTransform<T extends DrawingEntity>(entity:T,t:SheetTransform):T{
- const base=(entity.meta?.sheetOriginal as DrawingEntity|undefined)||{x:entity.x,y:entity.y,z:entity.z,x2:entity.x2,y2:entity.y2,z2:entity.z2,vertices:entity.vertices,floor:entity.floor};
+ if(entity.meta?.projectXYFrameId)throw new Error('Restore the project XY frame registration before applying a full sheet alignment.');
+ if(entity.meta?.autoSheetAlignmentCandidateId)throw new Error('Restore the automatic/project-frame alignment before applying a full sheet alignment.');
+ if(entity.meta?.sheetXYCalibrationId)throw new Error('Restore the manual XY calibration before applying a full sheet alignment.');
+ const currentMeta={...(entity.meta||{})};
+ const base=(currentMeta.sheetOriginal as DrawingEntity|undefined)||{x:entity.x,y:entity.y,z:entity.z,x2:entity.x2,y2:entity.y2,z2:entity.z2,vertices:entity.vertices,floor:entity.floor};
+ const originalMeta=(currentMeta.sheetZReviewOriginalMeta as MetaSnapshot|undefined)||captureMeta(currentMeta,SHEET_Z_REVIEW_META_KEYS);
  const point=(p:Point):Point=>({x:t.a*p.x-t.b*p.y+t.tx,y:t.b*p.x+t.a*p.y+t.ty});
  const end=base.x2!==undefined&&base.y2!==undefined?point({x:base.x2,y:base.y2}):undefined;
- return {...entity,...point(base),z:t.elevation,...(end?{x2:end.x,y2:end.y,z2:t.elevation}:{}),vertices:base.vertices?.map(point),floor:t.floor,meta:{...entity.meta,sheetOriginal:base,sheetTransform:t,coordinateUnits:'m',elevationKnown:true,alignmentMethod:'reviewed-two-control-points',alignmentVerified:false}};
+ return {...entity,...point(base),z:t.elevation,...(end?{x2:end.x,y2:end.y,z2:t.elevation}:{}),vertices:base.vertices?.map(point),floor:t.floor,meta:{
+  ...currentMeta,
+  sheetOriginal:base,
+  sheetTransform:t,
+  sheetZReviewOriginalMeta:originalMeta,
+  coordinateUnits:'m',
+  elevationKnown:false,
+  physicalElevationKnown:false,
+  physicalTruth:false,
+  reviewRequired:true,
+  zCandidateMeters:t.elevation,
+  zCandidateReferencePoint:'PROJECT_DATUM',
+  zResolutionStatus:'RESOLVED_DESIGN_CANDIDATE',
+  zResolutionAuthority:'HUMAN_REVIEWED_SHEET_ELEVATION',
+  zResolutionCoordinateFrame:'PROJECT_REVIEW_DATUM',
+  zPlacementAuthority:'HUMAN_REVIEWED_SHEET_ELEVATION',
+  sheetElevationReviewRequired:true,
+  alignmentMethod:'reviewed-two-control-points',
+  alignmentVerified:false
+ }};
 }
 export function restoreSheetCoordinates<T extends DrawingEntity>(entity:T):T{
  const original=entity.meta?.sheetOriginal as Partial<DrawingEntity>|undefined;
  if(!original)return entity;
- const {sheetOriginal,sheetTransform,...meta}=entity.meta||{};
- return {...entity,...original,meta:{...meta,coordinateUnits:'sheet',elevationKnown:false,alignmentMethod:undefined,alignmentVerified:false}};
+ const currentMeta={...(entity.meta||{})};
+ const snapshot=currentMeta.sheetZReviewOriginalMeta as MetaSnapshot|undefined;
+ delete currentMeta.sheetOriginal;delete currentMeta.sheetTransform;delete currentMeta.sheetZReviewOriginalMeta;
+ const meta=restoreMeta(currentMeta,snapshot,SHEET_Z_REVIEW_META_KEYS);
+ return {...entity,...original,meta};
 }

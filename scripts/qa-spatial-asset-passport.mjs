@@ -13,6 +13,10 @@ assert.equal(explicit?.asset.id,'asset-1');assert.equal(explicit?.method,'EXPLIC
 const label=resolveRegisteredSpatialAsset({id:'cad-1',name:'PANELBOARD LP-1',layer:'L2',meta:{}},assets);
 assert.equal(label?.asset.id,'asset-1');assert.equal(label?.method,'IDENTIFIER_IN_LABEL');assert.equal(spatialAssetDirState(label).blockHeight,'142');
 
+const sourceTag=resolveRegisteredSpatialAsset({id:'cad-tag',name:'PANELBOARD',layer:'L2',meta:{assetTag:'LP-1'}},assets);
+assert.equal(sourceTag?.asset.id,'asset-1');assert.equal(sourceTag?.method,'EXPLICIT_CODE');assert.equal(sourceTag?.confidence,1);
+assert.equal(spatialAssetDirState(sourceTag).finalized,true);
+
 const noDir=resolveRegisteredSpatialAsset({id:'cad-2',name:'PANELBOARD LP-2',layer:'L2',meta:{}},assets);
 assert.equal(noDir?.asset.id,'asset-2');assert.equal(spatialAssetDirState(noDir).finalized,false);
 

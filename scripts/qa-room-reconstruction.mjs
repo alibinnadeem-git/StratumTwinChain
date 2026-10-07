@@ -93,6 +93,10 @@ assert.match(component,/reconstruction!=='wall-segment-loop'/);
 assert.match(component,/Branching or open topology fails closed/);
 assert.match(component,/Automatic room proposals do not set/);
 assert.match(component,/geometryValidated/);
+assert.ok(
+  component.indexOf("await writePrimarySpatialGraph")<component.indexOf("setProposals(next)"),
+  'proposal UI must not publish before enriched room metadata is durably written'
+);
 assert.doesNotMatch(component,/fetch\(['"`]\/api\/(assets|lifecycle|chain|verify|dir)/);
 assert.match(review,/Confirm selected boundary as room/);
 assert.match(review,/automaticProposalAccepted:Boolean\(chosenProposal\?\.eligible\)/);

@@ -22,6 +22,7 @@ export type ZSolutionStep={
 export type ZSolutionCandidate={
   id:string;
   kind:ZSolutionCandidateKind;
+  coordinateFrame:string;
   baseZ:number|null;
   topZ:number|null;
   confidence:number;
@@ -39,6 +40,14 @@ export type ZSolutionConflict={
   reason:string;
 };
 
+export type ZSolutionUncomparedFramePair={
+  candidateA:string;
+  candidateB:string;
+  frameA:string;
+  frameB:string;
+  reason:string;
+};
+
 export type ZSolution={
   status:'RESOLVED_CANDIDATE'|'REVIEW_RESOLVED_CANDIDATE'|'CONFLICT'|'RELATIVE_ONLY'|'UNRESOLVED';
   chosenCandidateId:string|null;
@@ -47,6 +56,7 @@ export type ZSolution={
   confidence:number;
   candidates:ZSolutionCandidate[];
   conflicts:ZSolutionConflict[];
+  uncomparedFramePairs:ZSolutionUncomparedFramePair[];
   toleranceMeters:number;
   physicalTruth:false;
   reviewRequired:true;
@@ -55,6 +65,35 @@ export type ZSolution={
 
 const finite=(value:unknown)=>{const n=Number(value);return Number.isFinite(n)?n:null};
 const confidence=(value:unknown,fallback=0)=>Math.max(0,Math.min(1,Number.isFinite(Number(value))?Number(value):fallback));
+
+function sourceCoordinateFrame(entity:PlacementEntity){
+  const meta=entity.meta||{};
+  const explicit=String(meta.zResolutionCoordinateFrame||meta.sourceZCoordinateFrame||'').trim();
+  if(explicit)return explicit;
+  const sourceType=String(meta.sourceType||'').toUpperCase();
+  const authority=String(meta.zResolutionAuthority||meta.zPlacementAuthority||'').toUpperCase();
+  if(sourceType.startsWith('IFC')||authority.includes('IFC'))return `IFC_LOCAL_ENGINEERING:${String((entity as any).source||meta.sourceSha256||'SOURCE')}`;
+  if(sourceType==='DXF'||authority.includes('DXF')||authority.includes('CAD_Z'))return `CAD_LOCAL_ENGINEERING:${String((entity as any).source||meta.sourceSha256||'SOURCE')}`;
+  return 'PROJECT_REVIEW_DATUM';
+}
+function supportCoordinateFrame(entity:PlacementEntity){
+  const meta=entity.meta||{};
+  if(finite(meta.localReviewSurfaceZ)!==null)return String(meta.localReviewSurfaceCoordinateFrame||'PROJECT_REVIEW_DATUM');
+  if(finite(meta.crossSheetReviewSurfaceZ)!==null)return String(meta.crossSheetReviewSurfaceCoordinateFrame||'PROJECT_REVIEW_DATUM');
+  if(finite(meta.floorDatumMeters??meta.floorElevationMeters??meta.finishedFloorElevationMeters??meta.reviewSurfaceZ)!==null)return String(meta.reviewSurfaceCoordinateFrame||meta.projectDatumCoordinateFrame||'PROJECT_REVIEW_DATUM');
+  return 'UNRESOLVED';
+}
+function placementCoordinateFrame(entity:PlacementEntity,kind:ZSolutionCandidateKind){
+  if(kind==='SOURCE_REFERENCE')return sourceCoordinateFrame(entity);
+  if(kind==='SUPPORT_SURFACE_PLUS_OFFSET'||kind==='SUPPORT_SURFACE_BASE'||kind==='MOUNTING_GUIDANCE'||kind==='RELATIVE_ONLY')return supportCoordinateFrame(entity);
+  if(kind==='REVIEWED_OR_MEASURED')return String(entity.meta?.zCoordinateFrame||entity.meta?.reviewedZCoordinateFrame||'PHYSICAL_PROJECT_FRAME');
+  return 'UNRESOLVED';
+}
+function mapFrameLabel(meta:Record<string,unknown>){
+  const crs=String(meta.ifcMapCrsName||'UNRESOLVED_CRS');
+  const vertical=String(meta.ifcMapVerticalDatum||'UNRESOLVED_VERTICAL_DATUM');
+  return `MAP_CRS:${crs}|VERTICAL:${vertical}`;
+}
 
 const WITHOUT_SOURCE_REFERENCE=[
   'zCandidateMeters','zCandidateReferencePoint','zResolutionStatus','zResolutionConfidence','zResolutionAuthority','zResolutionEvidence',
@@ -110,6 +149,19 @@ function baseSteps(entity:PlacementEntity,placement:AssetPlacement,kind:ZSolutio
 
   const reference=finite(meta.zCandidateMeters);
   if(reference!==null&&kind==='SOURCE_REFERENCE')steps.push({kind:'SOURCE_Z_REFERENCE',label:String(meta.zCandidateReferencePoint||meta.sourceZReferencePoint||'SOURCE_ORIGIN'),valueMeters:reference,authority:String(meta.zResolutionAuthority||meta.zPlacementAuthority||'SOURCE_Z_EVIDENCE'),confidence:confidence(meta.zResolutionConfidence,.75)});
+  const mapped=finite(meta.ifcMapZCandidateMeters);
+  if(mapped!==null&&kind==='SOURCE_REFERENCE')steps.push({
+    kind:'MAP_Z_REFERENCE',
+    label:mapFrameLabel(meta),
+    valueMeters:mapped,
+    authority:String(meta.ifcMapZAuthority||'SOURCE_IFC_MAP_CONVERSION'),
+    confidence:confidence(meta.zResolutionConfidence,.94),
+    evidence:[
+      `LOCAL_FRAME:${sourceCoordinateFrame(entity)}`,
+      `MAP_FRAME:${mapFrameLabel(meta)}`,
+      'DERIVED_FROM_SOURCE_LOCAL_COORDINATE_BY_IFC_MAP_CONVERSION'
+    ]
+  });
 
   if(placement.referenceZ!==undefined)steps.push({kind:'REFERENCE_TO_BASE',label:String(placement.referencePoint||'SOURCE REFERENCE'),valueMeters:placement.baseZ,authority:'EQUIPMENT_GEOMETRY_REFERENCE_CONVERSION',confidence:placement.dimensions.confidence,evidence:[placement.dimensions.source]});
 
@@ -121,6 +173,7 @@ function candidateFromPlacement(id:string,entity:PlacementEntity,placement:Asset
   const kind=classifyPlacement(placement),absolute=absoluteAuthority(String(placement.zAuthority));
   return{
     id,kind,
+    coordinateFrame:placementCoordinateFrame(entity,kind),
     baseZ:absolute||kind==='MOUNTING_GUIDANCE'||kind==='RELATIVE_ONLY'?placement.baseZ:null,
     topZ:absolute||kind==='MOUNTING_GUIDANCE'||kind==='RELATIVE_ONLY'?placement.topZ:null,
     confidence:placement.zConfidence,
@@ -137,6 +190,7 @@ function uniqueCandidates(candidates:ZSolutionCandidate[]){
   for(const candidate of candidates){
     const duplicate=out.some(existing=>
       existing.kind===candidate.kind&&
+      existing.coordinateFrame===candidate.coordinateFrame&&
       existing.baseZ!==null&&candidate.baseZ!==null&&Math.abs(existing.baseZ-candidate.baseZ)<1e-6&&
       existing.authority===candidate.authority
     );
@@ -176,13 +230,21 @@ export function buildZSolution(entity:PlacementEntity,options?:{toleranceMeters?
   const all=uniqueCandidates(candidates);
   const absolute=all.filter(c=>c.absolute&&c.baseZ!==null&&c.confidence>=.55);
   const conflicts:ZSolutionConflict[]=[];
+  const uncomparedFramePairs:ZSolutionUncomparedFramePair[]=[];
   for(let i=0;i<absolute.length;i++)for(let j=i+1;j<absolute.length;j++){
     const a=absolute[i],b=absolute[j];
+    if(a.coordinateFrame!==b.coordinateFrame){
+      uncomparedFramePairs.push({
+        candidateA:a.id,candidateB:b.id,frameA:a.coordinateFrame,frameB:b.coordinateFrame,
+        reason:'Absolute Z values belong to different vertical coordinate frames. STRATUM preserves both but will not compare their numeric values until a source-grounded frame transform is registered.'
+      });
+      continue;
+    }
     const delta=Math.abs(Number(a.baseZ)-Number(b.baseZ));
     if(delta>tolerance){
       conflicts.push({
         candidateA:a.id,candidateB:b.id,deltaMeters:delta,toleranceMeters:tolerance,
-        reason:`Independent absolute-Z chains disagree by ${delta.toFixed(3)} m (> ${tolerance.toFixed(3)} m review threshold).`
+        reason:`Independent absolute-Z chains disagree by ${delta.toFixed(3)} m (> ${tolerance.toFixed(3)} m review threshold) in vertical frame ${a.coordinateFrame}.`
       });
     }
   }
@@ -198,7 +260,7 @@ export function buildZSolution(entity:PlacementEntity,options?:{toleranceMeters?
   if(conflicts.length&&reviewedCandidate){
     return{
       status:'REVIEW_RESOLVED_CANDIDATE',chosenCandidateId:reviewedCandidate.id,baseZ:reviewedCandidate.baseZ,topZ:reviewedCandidate.topZ,confidence:reviewedCandidate.confidence,
-      candidates:all,conflicts,toleranceMeters:tolerance,physicalTruth:false,reviewRequired:true,
+      candidates:all,conflicts,uncomparedFramePairs,toleranceMeters:tolerance,physicalTruth:false,reviewRequired:true,
       explanation:`Human review selected ${reviewedCandidate.id.replaceAll('_',' ')} as the design placement chain after STRATUM detected conflicting absolute-Z evidence. The competing chains remain preserved for audit; this does not establish field-verified physical elevation.`
     };
   }
@@ -206,7 +268,7 @@ export function buildZSolution(entity:PlacementEntity,options?:{toleranceMeters?
   if(conflicts.length){
     return{
       status:'CONFLICT',chosenCandidateId:null,baseZ:null,topZ:null,confidence:0,
-      candidates:all,conflicts,toleranceMeters:tolerance,physicalTruth:false,reviewRequired:true,
+      candidates:all,conflicts,uncomparedFramePairs,toleranceMeters:tolerance,physicalTruth:false,reviewRequired:true,
       explanation:'Multiple defensible Z chains disagree beyond the review threshold. STRATUM preserves each chain and refuses to select a final design base Z until reviewed.'
     };
   }
@@ -214,20 +276,22 @@ export function buildZSolution(entity:PlacementEntity,options?:{toleranceMeters?
   if(chosen&&chosen.absolute){
     return{
       status:'RESOLVED_CANDIDATE',chosenCandidateId:chosen.id,baseZ:chosen.baseZ,topZ:chosen.topZ,confidence:chosen.confidence,
-      candidates:all,conflicts:[],toleranceMeters:tolerance,physicalTruth:false,reviewRequired:true,
-      explanation:`Selected ${chosen.kind.replaceAll('_',' ').toLowerCase()} because all available absolute-Z chains are mutually consistent within the review threshold.`
+      candidates:all,conflicts:[],uncomparedFramePairs,toleranceMeters:tolerance,physicalTruth:false,reviewRequired:true,
+      explanation:uncomparedFramePairs.length
+        ?`Selected ${chosen.kind.replaceAll('_',' ').toLowerCase()} in ${chosen.coordinateFrame}. Other absolute-Z chains exist in different unregistered vertical frames and were preserved without numeric comparison.`
+        :`Selected ${chosen.kind.replaceAll('_',' ').toLowerCase()} because all comparable absolute-Z chains in the same vertical frame are mutually consistent within the review threshold.`
     };
   }
   if(chosen){
     return{
       status:'RELATIVE_ONLY',chosenCandidateId:chosen.id,baseZ:chosen.baseZ,topZ:chosen.topZ,confidence:chosen.confidence,
-      candidates:all,conflicts:[],toleranceMeters:tolerance,physicalTruth:false,reviewRequired:true,
+      candidates:all,conflicts:[],uncomparedFramePairs,toleranceMeters:tolerance,physicalTruth:false,reviewRequired:true,
       explanation:'Only relative/review-plane placement is available; no source-grounded absolute project Z is established.'
     };
   }
   return{
     status:'UNRESOLVED',chosenCandidateId:null,baseZ:null,topZ:null,confidence:0,
-    candidates:all,conflicts:[],toleranceMeters:tolerance,physicalTruth:false,reviewRequired:true,
+    candidates:all,conflicts:[],uncomparedFramePairs,toleranceMeters:tolerance,physicalTruth:false,reviewRequired:true,
     explanation:'No defensible source-grounded Z chain is available.'
   };
 }
