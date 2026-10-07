@@ -130,12 +130,22 @@ const sourceOnly=deriveDigitalTwinComponentReadiness({
 assert.equal(sourceOnly.state,'SOURCE_ONLY');
 assert.ok(sourceOnly.blockerCodes.includes('XY_NOT_METRIC'));
 
+const derivedL4={
+  ...exactEntity,id:'registered-projection-evse-1',layer:'L4',kind:'registered-asset',
+  meta:{...exactEntity.meta,derivedFrom:'evse-1',registeredAssetId:'asset-evse-1'}
+};
+const standaloneL4={
+  ...familyEntity,id:'standalone-l4',layer:'L4',kind:'registered-asset',name:'MSB-1 MAIN SWITCHBOARD',
+  meta:{...familyEntity.meta,derivedFrom:undefined}
+};
 const project=deriveDigitalTwinProjectReadiness(
-  [exactEntity,familyEntity,{...familyEntity,id:'msb-2',meta:{...familyEntity.meta,zConstraintGraph:unresolvedZ}},{...familyEntity,id:'msb-3',meta:{...familyEntity.meta,zConstraintGraph:conflictedZ}}],
+  [exactEntity,familyEntity,{...familyEntity,id:'msb-2',meta:{...familyEntity.meta,zConstraintGraph:unresolvedZ}},{...familyEntity,id:'msb-3',meta:{...familyEntity.meta,zConstraintGraph:conflictedZ}},derivedL4],
   [exactAsset,familyAsset],
   DEFAULT_ELECTRICAL_MODEL_REGISTRY
 );
-assert.equal(project.totalEquipment,4);
+assert.equal(project.totalEquipment,4,'derived L4 projection must not double-count its L2 source equipment');
+const standaloneProject=deriveDigitalTwinProjectReadiness([standaloneL4],[familyAsset],DEFAULT_ELECTRICAL_MODEL_REGISTRY);
+assert.equal(standaloneProject.totalEquipment,1,'standalone L4 asset without a source counterpart must remain countable');
 assert.equal(project.exactTwinReady,1);
 assert.equal(project.familyTwinReady,1);
 assert.equal(project.spatial2DReviewReady,1);
