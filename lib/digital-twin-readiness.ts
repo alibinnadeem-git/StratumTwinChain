@@ -211,7 +211,13 @@ export function deriveDigitalTwinProjectReadiness(
   assets:RegisteredSpatialAsset[],
   registry:ElectricalModelConfig[]
 ):DigitalTwinProjectReadiness{
-  const equipment=entities.filter(entity=>isIdentifiedProjectEquipment(entity));
+  const ids=new Set(entities.map(entity=>entity.id));
+  const equipment=entities.filter(entity=>{
+    if(!isIdentifiedProjectEquipment(entity))return false;
+    const derivedFrom=String(entity.meta?.derivedFrom||'').trim();
+    if(entity.layer==='L4'&&derivedFrom&&ids.has(derivedFrom))return false;
+    return true;
+  });
   const components=equipment.map(entity=>deriveDigitalTwinComponentReadiness(entity,assets,registry));
   const blockerCounts:Record<string,number>={},warningCounts:Record<string,number>={};
   for(const component of components){
