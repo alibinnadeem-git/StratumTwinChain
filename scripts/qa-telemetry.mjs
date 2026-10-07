@@ -16,7 +16,7 @@ for(const table of ['telemetry_points','telemetry_readings']){
 assert.match(migration,/source_protocol text NOT NULL CHECK \(source_protocol IN \('OPC_UA','MQTT','REST_WEBHOOK','BACNET_IP','MODBUS_TCP','SIMULATOR'\)\)/);
 assert.match(migration,/telemetry_readings are append-only/);
 assert.match(migration,/OBSERVED_OPERATIONAL_DATA_NOT_VERIFIED_PHYSICAL_TRUTH/);
-assert.doesNotMatch(migration,/UPDATE\s+assets\s+SET\s+status|VERIFIED/i);
+assert.doesNotMatch(migration,/UPDATE\s+assets\s+SET\s+status\b/i,'telemetry migration must not mutate asset status');
 
 assert.match(service,/TELEMETRY_PROTOCOLS=\['OPC_UA','MQTT','REST_WEBHOOK','BACNET_IP','MODBUS_TCP','SIMULATOR'\]/);
 assert.match(service,/WHERE organization_id=\$1 AND id=\$2/,'asset lookup must be tenant-scoped');
