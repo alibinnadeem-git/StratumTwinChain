@@ -62,6 +62,16 @@ function httpError(message:string,status:number){
  return Object.assign(new Error(message),{status});
 }
 
+function reviewTransitionAllowed(previousAction:string|null,nextAction:z.infer<typeof ReviewRelationshipInput>['action']){
+ if(previousAction===null)return nextAction==='VERIFY'||nextAction==='REJECT';
+ if(previousAction==='VERIFY'||previousAction==='MAINTAIN'){
+  return nextAction==='MAINTAIN'||nextAction==='DEPRECATE'||nextAction==='REOPEN_REVIEW';
+ }
+ if(previousAction==='REJECT'||previousAction==='DEPRECATE')return nextAction==='REOPEN_REVIEW';
+ if(previousAction==='REOPEN_REVIEW')return nextAction==='VERIFY'||nextAction==='REJECT';
+ return false;
+}
+
 async function insertEvidence(
  client:import('pg').PoolClient,
  organizationId:string,
@@ -227,6 +237,10 @@ export async function reviewRelationship(
   const previous=latest.rows[0]||null;
   if(previous&&previous.action===input.action&&previous.reason===input.reason&&previous.actor_user_id===actorUserId){
    return{review:previous,currentState:stateFromAction(previous.action),idempotent:true};
+  }
+
+  if(!reviewTransitionAllowed(previous?.action||null,input.action)){
+   throw httpError('Invalid relationship review transition; reopen rejected or deprecated relationships before re-verification',409);
   }
 
   if(input.action==='VERIFY'||input.action==='MAINTAIN'){
