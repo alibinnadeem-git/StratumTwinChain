@@ -45,6 +45,7 @@ assert.match(viewer,/p\.x-renderOrigin\.x,ly=p\.y-renderOrigin\.y/,'room polygon
 assert.match(viewer,/verts\[0\]\.x-renderOrigin\.x[\s\S]*verts\[0\]\.y-renderOrigin\.y/,'terrain review triangles must use localized vertex buffers');
 assert.match(viewer,/e\.x-renderOrigin\.x,height\(e\)\+\.08,e\.y-renderOrigin\.y/,'drawing line vertices must be localized');
 assert.match(viewer,/a\.x-renderOrigin\.x,height\(a\)\+\.65,a\.y-renderOrigin\.y/,'logical link vertices must be localized');
+assert.match(viewer,/leaderStart=new THREE\.Vector3\(x-renderOrigin\.x[\s\S]*leaderEnd=new THREE\.Vector3\(sprite\.position\.x-renderOrigin\.x/,'label leader vertices must be localized before Float32 upload');
 assert.match(viewer,/absoluteCenter\.x-renderOrigin\.x/,'camera fit must target render-local world coordinates');
 assert.match(viewer,/selected\.x-origin\.x[\s\S]*selected\.y-origin\.y/,'selected-asset focus must target render-local coordinates');
 assert.match(viewer,/renderedBox\.translate\(new THREE\.Vector3\(renderOrigin\.x,0,renderOrigin\.y\)\)/,'async model bounds must be converted back to authoritative coordinates before union');
