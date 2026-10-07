@@ -164,6 +164,8 @@ jobs:
         run: npm run qa:offline-field
       - name: Reality Validation Observed/Verified truth-boundary conformance
         run: npm run qa:reality-validation
+      - name: Trusted asset relationship graph conformance
+        run: npm run qa:relationship-graph
       - name: Accessibility foundation conformance
         run: npm run qa:accessibility
       - name: Product agent release gate
@@ -239,6 +241,8 @@ jobs:
         run: npm run db:migrate -- --apply
       - name: Seed isolated tenant fixtures
         run: node scripts/seed-e2e-spatial-persistence.mjs
+      - name: Seed isolated relationship graph fixtures
+        run: node scripts/seed-e2e-relationship-graph.mjs
       - name: Typecheck authenticated persistence additions
         run: npm run typecheck
       - name: Build production application against disposable runtime
