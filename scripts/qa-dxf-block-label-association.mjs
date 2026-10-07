@@ -64,7 +64,7 @@ assert.equal(evseOut.meta.assetTag,'EVSE-7');
 const otherFrameLabel={...label,id:'other-frame',meta:{...label.meta,xyCoordinateFrame:'CAD_LOCAL_ENGINEERING:other.dxf'}};
 const frameSafe=associateDxfEquipmentLabels([block,otherFrameLabel]);
 assert.equal(frameSafe.find(item=>item.id==='other-frame').meta.dxfLabelAssociationStatus,'UNRESOLVED');
-assert.equal(frameSafe.find(item=>item.id==='block').meta?.dxfIdentityAssociationStatus,undefined);
+assert.equal(frameSafe.find(item=>item.id==='block-1').meta?.dxfIdentityAssociationStatus,undefined);
 
 const farLabel={...label,id:'far',x:20,y:20};
 const far=associateDxfEquipmentLabels([block,farLabel]);
