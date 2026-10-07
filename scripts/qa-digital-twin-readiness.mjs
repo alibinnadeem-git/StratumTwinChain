@@ -149,6 +149,13 @@ assert.equal(project.asBuiltAuthority,false);
 assert.equal(project.blockerCounts.Z_UNRESOLVED,1);
 assert.equal(project.blockerCounts.Z_CONFLICT,1);
 
+const inspector=fs.readFileSync('components/SpatialAssetInspector.tsx','utf8');
+assert.match(inspector,/deriveDigitalTwinComponentReadiness/);
+assert.match(inspector,/DIGITAL TWIN ·/);
+assert.match(inspector,/Twin chain is not yet demo-ready/);
+assert.match(inspector,/graph\/render Δ/);
+assert.match(inspector,/Design\/review readiness only/);
+
 const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
 assert.match(viewer,/deriveDigitalTwinProjectReadiness/);
 assert.match(viewer,/Digital twin readiness/);
