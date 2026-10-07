@@ -32,6 +32,8 @@ export function dxfEquipmentSpatialAuthority(
         rotationConfidence:.98,
         sourceRotationDegrees:sourceRotation,
         physicalTruth:false,
+        physicalPositionVerified:false,
+        asBuiltAuthority:false,
         reviewRequired:true
       }
     };
@@ -47,6 +49,8 @@ export function dxfEquipmentSpatialAuthority(
       rotationAuthority:'TEXT_ORIENTATION_ONLY_NOT_EQUIPMENT',
       sourceTextRotationDegrees:sourceRotation,
       physicalTruth:false,
+      physicalPositionVerified:false,
+      asBuiltAuthority:false,
       reviewRequired:true
     }
   };
