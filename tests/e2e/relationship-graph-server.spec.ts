@@ -96,6 +96,38 @@ test.describe('authenticated trusted relationship graph',()=>{
   expect(verified.status).toBe(200);
   expect(verified.body.currentState).toBe('VERIFIED');
 
+  const deprecated=await api(page,'/api/relationships/'+firstRelationshipId+'/review','POST',{
+   action:'DEPRECATE',
+   reason:'Adversarial transition fixture: temporarily retire this reviewed feeder relationship.'
+  });
+  expect(deprecated.status).toBe(200);
+  expect(deprecated.body.currentState).toBe('DEPRECATED');
+
+  const deprecatedTraversal=await api(page,'/api/relationships/traverse?assetId='+alpha.msb+'&depth=6');
+  expect(deprecatedTraversal.status).toBe(200);
+  expect(deprecatedTraversal.body.affected).toEqual([]);
+
+  const illegalReverify=await api(page,'/api/relationships/'+firstRelationshipId+'/review','POST',{
+   action:'VERIFY',
+   reason:'Attempt to bypass reopen review should be rejected.'
+  });
+  expect(illegalReverify.status).toBe(409);
+  expect(String(illegalReverify.body.error)).toMatch(/reopen/i);
+
+  const reopened=await api(page,'/api/relationships/'+firstRelationshipId+'/review','POST',{
+   action:'REOPEN_REVIEW',
+   reason:'New engineering review is required before this relationship can be trusted again.'
+  });
+  expect(reopened.status).toBe(200);
+  expect(reopened.body.currentState).toBe('REVIEW_REQUIRED');
+
+  const reverified=await api(page,'/api/relationships/'+firstRelationshipId+'/review','POST',{
+   action:'VERIFY',
+   reason:'Evidence has been re-reviewed after reopening and the feeder relationship remains valid.'
+  });
+  expect(reverified.status).toBe(200);
+  expect(reverified.body.currentState).toBe('VERIFIED');
+
   const second=await api(page,'/api/relationships','POST',{
    projectId:alpha.projectId,
    sourceAssetId:alpha.mcc,
