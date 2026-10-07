@@ -3,6 +3,7 @@ import {resolveSpatialModel,type SpatialModelResolution} from './spatial-model-r
 import {resolveRegisteredSpatialAsset,spatialAssetDirState,type RegisteredSpatialAsset,type SpatialAssetBinding} from './spatial-asset-link.ts';
 import {isIdentifiedProjectEquipment} from './spatial-ui-counts.ts';
 import type {ElectricalModelConfig} from './electrical-model-registry.ts';
+import {resolveReconciledAssetPlacement} from './z-solution-chain.ts';
 
 export type DigitalTwinReadinessEntity=SpatialEvidenceEntity&{
   layer?:string;
@@ -27,6 +28,8 @@ export type DigitalTwinBlockerCode=
   |'VERTICAL_FRAME_GAP'
   |'GEOMETRY_UNRESOLVED'
   |'PROCEDURAL_GEOMETRY_ONLY'
+  |'RENDER_Z_UNRESOLVED'
+  |'Z_RENDER_DIVERGENCE'
   |'ASSET_NOT_BOUND';
 
 export type DigitalTwinWarningCode=
@@ -51,6 +54,9 @@ export type DigitalTwinComponentReadiness={
   dirBlockHeight:string|null;
   maintenanceConfigured:boolean;
   maintenanceStatus:string|null;
+  renderZSolutionStatus:string;
+  renderBaseZMeters:number|null;
+  zAgreementDeltaMeters:number|null;
   blockerCodes:DigitalTwinBlockerCode[];
   warningCodes:DigitalTwinWarningCode[];
   blockerLabels:string[];
@@ -86,6 +92,8 @@ const BLOCKER_LABELS:Record<DigitalTwinBlockerCode,string>={
   VERTICAL_FRAME_GAP:'Vertical coordinate frames still require registration.',
   GEOMETRY_UNRESOLVED:'No source-grounded component geometry is resolved.',
   PROCEDURAL_GEOMETRY_ONLY:'Only procedural review-envelope geometry is available.',
+  RENDER_Z_UNRESOLVED:'The viewer placement solver cannot reproduce a resolved absolute base Z from the current source evidence.',
+  Z_RENDER_DIVERGENCE:'The constraint-graph base Z and rendered placement base Z disagree beyond the review tolerance.',
   ASSET_NOT_BOUND:'No unique registered STRATUM asset is bound to this source component.'
 };
 
@@ -119,6 +127,14 @@ export function deriveDigitalTwinComponentReadiness(
 ):DigitalTwinComponentReadiness{
   const model=resolveSpatialModel(entity,registry);
   const evidence=deriveSpatialEvidenceEnvelope(entity,model);
+  const rendered=resolveReconciledAssetPlacement(entity,{registry:model.model});
+  const renderSolution=rendered.solution;
+  const renderResolved=(renderSolution.status==='RESOLVED_CANDIDATE'||renderSolution.status==='REVIEW_RESOLVED_CANDIDATE')&&renderSolution.baseZ!==null;
+  const graphBase=evidence.vertical.baseCandidateMeters;
+  const renderBase=renderResolved?renderSolution.baseZ:null;
+  const graphToleranceRaw=Number((entity.meta?.zConstraintGraph as Record<string,unknown>|undefined)?.toleranceMeters??.15);
+  const graphTolerance=Number.isFinite(graphToleranceRaw)&&graphToleranceRaw>0?graphToleranceRaw:.15;
+  const zAgreementDelta=graphBase!==null&&renderBase!==null?Math.abs(graphBase-renderBase):null;
   const assetBinding=resolveRegisteredSpatialAsset({id:entity.id,name:entity.name,layer:String(entity.layer||'L2'),meta:entity.meta},assets);
   const asset=assetBinding?.asset||null;
   const dir=spatialAssetDirState(assetBinding);
@@ -131,6 +147,8 @@ export function deriveDigitalTwinComponentReadiness(
   if(evidence.vertical.state==='CONFLICT')addUnique(blockers,'Z_CONFLICT');
   else if(evidence.vertical.state!=='RESOLVED_CANDIDATE')addUnique(blockers,'Z_UNRESOLVED');
   if(evidence.vertical.frameGapCount>0)addUnique(blockers,'VERTICAL_FRAME_GAP');
+  if(evidence.vertical.state==='RESOLVED_CANDIDATE'&&!renderResolved)addUnique(blockers,'RENDER_Z_UNRESOLVED');
+  if(zAgreementDelta!==null&&zAgreementDelta>graphTolerance)addUnique(blockers,'Z_RENDER_DIVERGENCE');
   if(model.tier==='UNRESOLVED')addUnique(blockers,'GEOMETRY_UNRESOLVED');
   if(model.tier==='PROCEDURAL_FALLBACK')addUnique(blockers,'PROCEDURAL_GEOMETRY_ONLY');
   if(!assetBinding)addUnique(blockers,'ASSET_NOT_BOUND');
@@ -144,12 +162,12 @@ export function deriveDigitalTwinComponentReadiness(
   const usable3D=evidence.readiness==='DESIGN_3D_COORDINATION_CANDIDATE'&&
     ['EXACT_VERIFIED_OEM_CAD','EXACT_PRODUCT_VISUALIZATION','FAMILY_MODEL'].includes(model.tier);
   const assetConnected=Boolean(assetBinding);
-  const demoReady=usable3D&&assetConnected&&!blockers.some(code=>
-    ['XY_NOT_METRIC','XY_CONFLICT','Z_UNRESOLVED','Z_CONFLICT','VERTICAL_FRAME_GAP','GEOMETRY_UNRESOLVED','PROCEDURAL_GEOMETRY_ONLY','ASSET_NOT_BOUND'].includes(code)
+  const demoReady=usable3D&&renderResolved&&assetConnected&&!blockers.some(code=>
+    ['XY_NOT_METRIC','XY_CONFLICT','Z_UNRESOLVED','Z_CONFLICT','VERTICAL_FRAME_GAP','GEOMETRY_UNRESOLVED','PROCEDURAL_GEOMETRY_ONLY','RENDER_Z_UNRESOLVED','Z_RENDER_DIVERGENCE','ASSET_NOT_BOUND'].includes(code)
   );
 
   let state:DigitalTwinComponentState='SOURCE_ONLY';
-  if(evidence.readiness==='REVIEW_BLOCKED'||blockers.includes('XY_CONFLICT')||blockers.includes('Z_CONFLICT')||blockers.includes('VERTICAL_FRAME_GAP')){
+  if(evidence.readiness==='REVIEW_BLOCKED'||blockers.includes('XY_CONFLICT')||blockers.includes('Z_CONFLICT')||blockers.includes('VERTICAL_FRAME_GAP')||blockers.includes('Z_RENDER_DIVERGENCE')){
     state='REVIEW_BLOCKED';
   }else if(demoReady&&model.exactProductIdentity&&['EXACT_VERIFIED_OEM_CAD','EXACT_PRODUCT_VISUALIZATION'].includes(model.tier)){
     state='EXACT_TWIN_READY';
@@ -176,6 +194,9 @@ export function deriveDigitalTwinComponentReadiness(
     dirBlockHeight:dir.blockHeight,
     maintenanceConfigured:maintenance,
     maintenanceStatus:asset?.maintenance_status||null,
+    renderZSolutionStatus:renderSolution.status,
+    renderBaseZMeters:renderBase,
+    zAgreementDeltaMeters:zAgreementDelta,
     blockerCodes:blockers,
     warningCodes:warnings,
     blockerLabels:blockers.map(code=>BLOCKER_LABELS[code]),
