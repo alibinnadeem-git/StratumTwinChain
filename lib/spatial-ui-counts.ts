@@ -19,6 +19,8 @@ export function isIdentifiedProjectEquipment(entity:SpatialUiEntityLike){
   return isSpatialRecord(entity)&&
     (entity.layer==='L2'||entity.layer==='L4')&&
     entity.meta?.referenceOnly!==true&&
+    entity.meta?.cadPhysicalAnchor!==false&&
+    String(entity.kind||'')!=='cad-text'&&
     !NON_OBJECT_KINDS.has(String(entity.kind||''));
 }
 
