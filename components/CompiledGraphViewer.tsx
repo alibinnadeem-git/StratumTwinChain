@@ -5,6 +5,7 @@ import {useEffect,useMemo,useRef,useState} from "react";
 import {resolveElectricalComponent} from "@/lib/electrical-component-library";
 import {resolveSpatialModel} from "@/lib/spatial-model-resolution";
 import {deriveSpatialEvidenceEnvelope} from "@/lib/spatial-evidence-envelope";
+import {deriveRenderLocalOrigin} from "@/lib/render-local-origin";
 import {resolveReconciledAssetPlacement} from "@/lib/z-solution-chain";
 import {fitProceduralObjectToMeters,normalizeObjectToMeters} from "@/lib/three-model-normalization";
 import {decodeGlbBase64,inspectStandaloneGlb} from "@/lib/spatial-glb-import";
@@ -207,6 +208,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
   }).length||0,[graph,registry]);
   const matching=useMemo(()=>inventory,[inventory]);
   const fallbackBounds=useMemo(()=>bounds2d(visible),[visible]);
+  const renderOrigin=useMemo(()=>deriveRenderLocalOrigin(visible),[visible]);
 
   useEffect(()=>{
     if(!graph)return;
@@ -235,17 +237,24 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       setRenderStatus("WEBGL");
       const scene=new THREE.Scene();
       scene.background=new THREE.Color(environment==="NIGHT"?0x02070b:environment==="EMERGENCY"?0x130504:0x07131d);
+      const spatialRoot=new THREE.Group();
+      spatialRoot.name="STRATUM_RENDER_LOCAL_ROOT";
+      spatialRoot.position.set(-renderOrigin.x,0,-renderOrigin.y);
+      scene.add(spatialRoot);
       const camera=new THREE.PerspectiveCamera(44,host.clientWidth/Math.max(host.clientHeight,1),0.05,2000);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));renderer.setSize(host.clientWidth,host.clientHeight);renderer.outputColorSpace=THREE.SRGBColorSpace;
       renderer.shadowMap.enabled=true;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=environment==="NIGHT"?.8:1.05;
       host.appendChild(renderer.domElement);
       const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.dampingFactor=.07;controls.maxPolarAngle=Math.PI*.495;
-      runtime.current={THREE,camera,controls,scene};
+      runtime.current={THREE,camera,controls,scene,spatialRoot,renderOrigin};
+      renderer.domElement.dataset.renderOriginX=String(renderOrigin.x);
+      renderer.domElement.dataset.renderOriginY=String(renderOrigin.y);
+      renderer.domElement.dataset.renderOriginAuthority=renderOrigin.authority;
       scene.add(new THREE.HemisphereLight(0xccecff,0x071018,environment==="NIGHT"?.8:1.7));
       const sun=new THREE.DirectionalLight(environment==="EMERGENCY"?0xff9378:0xffffff,environment==="NIGHT"?1.2:3.2);sun.position.set(16,25,12);sun.castShadow=true;scene.add(sun);
       scene.add(new THREE.AmbientLight(0x7796a8,.45));
       const groups={L0:new THREE.Group(),L1:new THREE.Group(),L2:new THREE.Group(),L3:new THREE.Group(),L4:new THREE.Group()} as Record<Layer,any>;
-      (Object.keys(groups) as Layer[]).forEach(l=>scene.add(groups[l]));
+      (Object.keys(groups) as Layer[]).forEach(l=>spatialRoot.add(groups[l]));
       groups.L0.visible=mode!=="ELECTRICAL";groups.L1.visible=mode!=="ELECTRICAL";groups.L2.visible=true;groups.L3.visible=true;groups.L4.visible=true;
       const entityById=new Map(graph.entities.map(e=>[e.id,e]));
       const clickable:any[]=[];const clickableEntities=new Set<string>();const entityAnchors=new Map<string,any>();const coordinationAnchors=new Map<string,any>();
@@ -280,10 +289,10 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       const label=(text:string,x:number,y:number,z:number,color="#cfefff",entity?:Entity,offset=0)=>{
         if(!labels)return;const canvas=document.createElement("canvas");canvas.width=512;canvas.height=112;const ctx=canvas.getContext("2d");if(!ctx)return;
         ctx.fillStyle="rgba(3,12,18,.82)";ctx.roundRect(4,4,504,104,16);ctx.fill();ctx.fillStyle=color;ctx.font="700 28px system-ui";ctx.fillText(text.slice(0,30),20,49);ctx.fillStyle="#83a6b7";ctx.font="20px system-ui";ctx.fillText(entity&&!physicalElevationKnown(entity)?(Number.isFinite(Number(entity.meta?.zCandidateMeters))?`Z ${String(entity.meta?.zCandidateReferencePoint||'reference').replaceAll('_',' ').toLowerCase()} ref ${Number(entity.meta?.zCandidateMeters).toFixed(2)} m`:metaNumber(entity,'localReviewSurfaceZ')!==null?`${String(entity.meta?.localReviewSurfaceKind||'Local').replaceAll('_',' ')} local surface ${metaNumber(entity,'localReviewSurfaceZ')!.toFixed(2)} m`:metaNumber(entity,'crossSheetReviewSurfaceZ')!==null?`${String(entity.meta?.crossSheetReviewSurfaceKind||'Cross-sheet').replaceAll('_',' ')} cross-sheet surface ${metaNumber(entity,'crossSheetReviewSurfaceZ')!.toFixed(2)} m`:metaNumber(entity,'reviewSurfaceZ')!==null?`${String(entity.meta?.reviewSurfaceKind||'Project datum').replaceAll('_',' ')} review surface ${metaNumber(entity,'reviewSurfaceZ')!.toFixed(2)} m`:'Review plane · Z unresolved'):entity?`${y.toFixed(2)} m Z`:'Drawing level · Z unverified',20,82);
-        const texture=new THREE.CanvasTexture(canvas),sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,depthTest:false}));sprite.scale.set(2.9,.64,1);sprite.position.set(x+offset*.08,y+1.2+offset*.82,z);if(entity){sprite.userData.entity=entity;clickable.push(sprite);if(offset>0){const leader=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x,y+.2,z),sprite.position]),new THREE.LineDashedMaterial({color:0xffb85c,dashSize:.12,gapSize:.08,transparent:true,opacity:.65}));leader.computeLineDistances();scene.add(leader)}}scene.add(sprite);
+        const texture=new THREE.CanvasTexture(canvas),sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,depthTest:false}));sprite.scale.set(2.9,.64,1);sprite.position.set(x+offset*.08,y+1.2+offset*.82,z);if(entity){sprite.userData.entity=entity;clickable.push(sprite);if(offset>0){const leaderStart=new THREE.Vector3(x-renderOrigin.x,y+.2,z-renderOrigin.y),leaderEnd=new THREE.Vector3(sprite.position.x-renderOrigin.x,sprite.position.y,sprite.position.z-renderOrigin.y);const leader=new THREE.Line(new THREE.BufferGeometry().setFromPoints([leaderStart,leaderEnd]),new THREE.LineDashedMaterial({color:0xffb85c,dashSize:.12,gapSize:.08,transparent:true,opacity:.65}));leader.position.set(renderOrigin.x,0,renderOrigin.y);leader.computeLineDistances();spatialRoot.add(leader)}}spatialRoot.add(sprite);
       };
       const wall=(a:XY,b:XY,e:Entity)=>{const dx=b.x-a.x,dz=b.y-a.y,len=Math.hypot(dx,dz);if(len<.02)return;const op=xray?.12:.55,m=new THREE.Mesh(new THREE.BoxGeometry(len,2.7,.09),material(colors.L1,op));m.position.set((a.x+b.x)/2,height(e)+1.35,(a.y+b.y)/2);m.rotation.y=-Math.atan2(dz,dx);groups.L1.add(m)};
-      const room=(e:Entity)=>{if(!e.vertices||e.vertices.length<3||!isVisible(e))return;const shape=new THREE.Shape();e.vertices.forEach((p,i)=>i?shape.lineTo(p.x,p.y):shape.moveTo(p.x,p.y));shape.closePath();const floorMesh=new THREE.Mesh(new THREE.ShapeGeometry(shape),material(0x173748,xray?.07:.18));floorMesh.rotation.x=Math.PI/2;floorMesh.position.y=height(e)+.01;groups.L1.add(floorMesh);for(let i=0;i<e.vertices.length;i++)wall(e.vertices[i],e.vertices[(i+1)%e.vertices.length],e)};
+      const room=(e:Entity)=>{if(!e.vertices||e.vertices.length<3||!isVisible(e))return;const shape=new THREE.Shape();e.vertices.forEach((p,i)=>{const lx=p.x-renderOrigin.x,ly=p.y-renderOrigin.y;i?shape.lineTo(lx,ly):shape.moveTo(lx,ly)});shape.closePath();const floorMesh=new THREE.Mesh(new THREE.ShapeGeometry(shape),material(0x173748,xray?.07:.18));floorMesh.rotation.x=Math.PI/2;floorMesh.position.set(renderOrigin.x,height(e)+.01,renderOrigin.y);groups.L1.add(floorMesh);for(let i=0;i<e.vertices.length;i++)wall(e.vertices[i],e.vertices[(i+1)%e.vertices.length],e)};
       const rasterUnderlay=(e:Entity)=>{
         if(!isVisible(e))return;
         const source=e.meta?.embeddedRasterDataUrl;
@@ -368,7 +377,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
                 attachSpatialEvidence(root,e,null);
                 root.add(model);interactionProxy(root,target);tag(root,e);
                 groups.L2.add(root);label(e.name,e.x,placement.baseZ,e.y,'#ffd08a',e);
-                const renderedBox=new THREE.Box3().setFromObject(root);if(!renderedBox.isEmpty())bounds.union(renderedBox);
+                const renderedBox=new THREE.Box3().setFromObject(root);if(!renderedBox.isEmpty()){renderedBox.translate(new THREE.Vector3(renderOrigin.x,0,renderOrigin.y));bounds.union(renderedBox);}
                 runtime.current?.fit?.();
               }catch{setModelLoadErrors(current=>current.includes(e.id)?current:[...current,e.id])}
             },()=>{if(!disposed)setModelLoadErrors(current=>current.includes(e.id)?current:[...current,e.id])});
@@ -397,7 +406,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
             root.userData.normalization={scalar:normalized.scalar,ratioSpread:normalized.ratioSpread,reviewRequired:normalized.reviewRequired};
             if(normalized.reviewRequired)console.warn("STRATUM model dimension mismatch requires review",{component:e.name,target,intrinsic:normalized.intrinsic,ratios:normalized.ratios,ratioSpread:normalized.ratioSpread});
             root.add(model);interactionProxy(root,target);tag(root,e);groups[e.layer==="L4"?"L4":"L2"].add(root);label(e.name,e.x,placement.baseZ,e.y,"#cfefff",e);
-            const renderedBox=new THREE.Box3().setFromObject(root);if(!renderedBox.isEmpty())bounds.union(renderedBox);
+            const renderedBox=new THREE.Box3().setFromObject(root);if(!renderedBox.isEmpty()){renderedBox.translate(new THREE.Vector3(renderOrigin.x,0,renderOrigin.y));bounds.union(renderedBox);}
             runtime.current?.fit?.();
           }catch(error){
             console.warn("STRATUM meter normalization failed; procedural envelope fallback active",e.name,error);
@@ -418,26 +427,26 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
             const verts=e.vertices;
             const geometry=new THREE.BufferGeometry();
             geometry.setAttribute('position',new THREE.Float32BufferAttribute([
-              verts[0].x,Number(zs[0])+extra(e),verts[0].y,
-              verts[1].x,Number(zs[1])+extra(e),verts[1].y,
-              verts[2].x,Number(zs[2])+extra(e),verts[2].y
+              verts[0].x-renderOrigin.x,Number(zs[0])+extra(e),verts[0].y-renderOrigin.y,
+              verts[1].x-renderOrigin.x,Number(zs[1])+extra(e),verts[1].y-renderOrigin.y,
+              verts[2].x-renderOrigin.x,Number(zs[2])+extra(e),verts[2].y-renderOrigin.y
             ],3));
             geometry.setIndex([0,1,2]);geometry.computeVertexNormals();
             const mesh=new THREE.Mesh(geometry,new THREE.MeshStandardMaterial({color:0x3e9db8,transparent:true,opacity:.16,side:THREE.DoubleSide,depthWrite:false,roughness:.85,metalness:0}));
-            mesh.userData.reviewSurface=true;groups.L1.add(mesh);
+            mesh.position.set(renderOrigin.x,0,renderOrigin.y);mesh.userData.reviewSurface=true;groups.L1.add(mesh);
             const edge=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints([
-              new THREE.Vector3(verts[0].x,Number(zs[0])+.025+extra(e),verts[0].y),
-              new THREE.Vector3(verts[1].x,Number(zs[1])+.025+extra(e),verts[1].y),
-              new THREE.Vector3(verts[2].x,Number(zs[2])+.025+extra(e),verts[2].y)
+              new THREE.Vector3(verts[0].x-renderOrigin.x,Number(zs[0])+.025+extra(e),verts[0].y-renderOrigin.y),
+              new THREE.Vector3(verts[1].x-renderOrigin.x,Number(zs[1])+.025+extra(e),verts[1].y-renderOrigin.y),
+              new THREE.Vector3(verts[2].x-renderOrigin.x,Number(zs[2])+.025+extra(e),verts[2].y-renderOrigin.y)
             ]),new THREE.LineBasicMaterial({color:0x62c7df,transparent:true,opacity:.42}));
-            groups.L1.add(edge);
+            edge.position.set(renderOrigin.x,0,renderOrigin.y);groups.L1.add(edge);
           }
           continue;
         }
         if(e.kind==="room-boundary"||e.kind==="floor-boundary"){room(e);continue}
         if(e.kind==="wall-segment"&&Number.isFinite(e.x2)&&Number.isFinite(e.y2)){wall({x:e.x,y:e.y},{x:e.x2!,y:e.y2!},e);continue}
         if((e.kind==="line"||e.kind==="sld-feeder-candidate")&&Number.isFinite(e.x2)&&Number.isFinite(e.y2)){
-          const pts=[new THREE.Vector3(e.x,height(e)+.08,e.y),new THREE.Vector3(e.x2!,n(e.z2,e.z)+extra(e)+.08,e.y2!)];groups[e.layer].add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:colors[e.layer],transparent:true,opacity:.82})));continue;
+          const pts=[new THREE.Vector3(e.x-renderOrigin.x,height(e)+.08,e.y-renderOrigin.y),new THREE.Vector3(e.x2!-renderOrigin.x,n(e.z2,e.z)+extra(e)+.08,e.y2!-renderOrigin.y)];const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:colors[e.layer],transparent:true,opacity:.82}));line.position.set(renderOrigin.x,0,renderOrigin.y);groups[e.layer].add(line);continue;
         }
         if(e.layer==="L2"){equipment(e);continue}
         if(e.layer==="L4"){
@@ -449,16 +458,16 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       }
       for(const link of graph.links||[]){
         if(!["SAME_TAG","SLD_FEEDS","SOURCE_RELATION"].includes(link.type))continue;const a=entityById.get(link.from),b=entityById.get(link.to);if(!a||!b||!isVisible(a)||!isVisible(b))continue;
-        const pts=[new THREE.Vector3(a.x,height(a)+.65,a.y),new THREE.Vector3(b.x,height(b)+.65,b.y)];const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineDashedMaterial({color:link.type==="SLD_FEEDS"?0x56b9ff:0xa57cff,dashSize:.28,gapSize:.14,transparent:true,opacity:.78}));line.computeLineDistances();groups.L3.add(line);
+        const pts=[new THREE.Vector3(a.x-renderOrigin.x,height(a)+.65,a.y-renderOrigin.y),new THREE.Vector3(b.x-renderOrigin.x,height(b)+.65,b.y-renderOrigin.y)];const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineDashedMaterial({color:link.type==="SLD_FEEDS"?0x56b9ff:0xa57cff,dashSize:.28,gapSize:.14,transparent:true,opacity:.78}));line.position.set(renderOrigin.x,0,renderOrigin.y);line.computeLineDistances();groups.L3.add(line);
       }
       const visiblePoints=visible.flatMap(e=>[{x:e.x,y:height(e),z:e.y},...(Number.isFinite(e.x2)&&Number.isFinite(e.y2)?[{x:e.x2!,y:n(e.z2,e.z)+extra(e),z:e.y2!}]:[])]);
       const bounds=new THREE.Box3();visiblePoints.forEach(p=>bounds.expandByPoint(new THREE.Vector3(p.x,p.y,p.z)));
       if(bounds.isEmpty())bounds.expandByPoint(new THREE.Vector3(-5,0,-5)).expandByPoint(new THREE.Vector3(5,5,5));
       const center=bounds.getCenter(new THREE.Vector3()),size=bounds.getSize(new THREE.Vector3()),span=Math.max(size.x,size.y,size.z,8);
       const minX=bounds.min.x-2,minZ=bounds.min.z-2,minY=Math.min(bounds.min.y,0),maxY=Math.max(bounds.max.y+3,4);
-      const axis=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(minX,minY,minZ),new THREE.Vector3(minX,maxY,minZ)]),new THREE.LineBasicMaterial({color:0x49d39a}));scene.add(axis);
-      for(const [name,z] of levels){const y=(z??0)+(exploded?(floorIndex.get(name)||0)*2.6:0),grid=new THREE.GridHelper(Math.max(span*1.15,20),20,0x244d61,0x102c39);grid.position.y=y;grid.material.transparent=true;grid.material.opacity=.18;scene.add(grid);label(z===null?`${name} · Z unverified`:`${name} · ${z.toFixed(2)} m`,minX+.8,y,minZ,"#7be0b1")}
-      const fit=()=>{const c=bounds.getCenter(new THREE.Vector3()),s=bounds.getSize(new THREE.Vector3()),d=Math.max(s.x,s.y,s.z,8);controls.target.copy(c);camera.position.set(c.x+d*.9,c.y+d*.72+4,c.z+d);camera.near=.05;camera.far=Math.max(1000,d*20);camera.updateProjectionMatrix();controls.update()};fit();
+      const axis=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(minX-renderOrigin.x,minY,minZ-renderOrigin.y),new THREE.Vector3(minX-renderOrigin.x,maxY,minZ-renderOrigin.y)]),new THREE.LineBasicMaterial({color:0x49d39a}));axis.position.set(renderOrigin.x,0,renderOrigin.y);spatialRoot.add(axis);
+      for(const [name,z] of levels){const y=(z??0)+(exploded?(floorIndex.get(name)||0)*2.6:0),grid=new THREE.GridHelper(Math.max(span*1.15,20),20,0x244d61,0x102c39);grid.position.set(center.x,y,center.z);grid.material.transparent=true;grid.material.opacity=.18;spatialRoot.add(grid);label(z===null?`${name} · Z unverified`:`${name} · ${z.toFixed(2)} m`,minX+.8,y,minZ,"#7be0b1")}
+      const fit=()=>{const absoluteCenter=bounds.getCenter(new THREE.Vector3()),c=new THREE.Vector3(absoluteCenter.x-renderOrigin.x,absoluteCenter.y,absoluteCenter.z-renderOrigin.y),s=bounds.getSize(new THREE.Vector3()),d=Math.max(s.x,s.y,s.z,8);controls.target.copy(c);camera.position.set(c.x+d*.9,c.y+d*.72+4,c.z+d);camera.near=.05;camera.far=Math.max(1000,d*20);camera.updateProjectionMatrix();controls.update()};fit();
       runtime.current.fit=fit;runtime.current.clickable=clickable;
       renderer.domElement.setAttribute("aria-label","Interactive Spatial model");
       renderer.domElement.setAttribute("role","application");
@@ -488,7 +497,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       cleanup=()=>{runtime.current=null;cancelAnimationFrame(frame);ro.disconnect();renderer.domElement.removeEventListener("pointerdown",pointerDown);renderer.domElement.removeEventListener("pointermove",pointerMove);renderer.domElement.removeEventListener("pointerup",pointerUp);renderer.domElement.removeEventListener("pointercancel",pointerCancel);renderer.domElement.removeEventListener("click",clickPick);controls.dispose();renderer.dispose();host.replaceChildren()};
     })();
     return()=>{disposed=true;cleanup()};
-  },[graph,registry,mode,environment,systemMode,floor,exploded,xray,labels,visible,levels]);
+  },[graph,registry,mode,environment,systemMode,floor,exploded,xray,labels,visible,levels,renderOrigin.x,renderOrigin.y]);
 
   useEffect(()=>{
     const r=runtime.current;if(!r?.scene)return;
@@ -521,7 +530,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
 
   useEffect(()=>{runtime.current?.fit?.()},[fitRevision]);
   useEffect(()=>{
-    const r=runtime.current;if(!r||!selected)return;const y=displayElevation(selected,mode),target=new r.THREE.Vector3(selected.x,y+1,selected.y),span=5;r.controls.target.copy(target);r.camera.position.copy(target).add(new r.THREE.Vector3(span,span*.75,span));r.controls.update();
+    const r=runtime.current;if(!r||!selected)return;const y=displayElevation(selected,mode),origin=r.renderOrigin||{x:0,y:0},target=new r.THREE.Vector3(selected.x-origin.x,y+1,selected.y-origin.y),span=5;r.controls.target.copy(target);r.camera.position.copy(target).add(new r.THREE.Vector3(span,span*.75,span));r.controls.update();
   },[selected?.id,mode]);
 
   if(!graph||!Array.isArray(graph.entities)||graph.entities.length===0)return <section className="card" style={{marginBottom:18}}><div className="eyebrow">Spatial viewer</div><h2>No compiled spatial objects yet</h2><p className="subtitle">Import and successfully extract a drawing, SLD or DXF first. A source fingerprint by itself does not unlock the project viewer.</p><Link className="action" href="/compiler">Review engineering sources</Link></section>;
