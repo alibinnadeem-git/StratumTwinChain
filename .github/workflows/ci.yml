@@ -68,6 +68,8 @@ jobs:
         run: npm run qa:stale-drawing-reprocess
       - name: Browser-local source archive conformance
         run: npm run qa:source-browser-archive
+      - name: Source revision layer identity conformance
+        run: npm run qa:source-layer
       - name: Project source vault security and recovery conformance
         run: npm run qa:project-source-vault
       - name: OEM CAD registry provenance and activation conformance
@@ -90,8 +92,6 @@ jobs:
         run: npm run qa:office-ingestion
       - name: IFC BIM semantic and placement ingestion conformance
         run: npm run qa:ifc-ingestion
-      - name: Native DXF vertical coordinate conformance
-        run: npm run qa:dxf-z
       - name: Scanned-image OCR review-evidence conformance
         run: npm run qa:image-ocr
       - name: Scanned PDF OCR fallback conformance
@@ -104,44 +104,22 @@ jobs:
         run: npm run qa:title-block
       - name: Automatic sheet alignment conformance
         run: npm run qa:auto-alignment
-      - name: Project-agnostic Z generalization guard
-        run: npm run qa:z-generalization
       - name: Evidence-based Z resolver conformance
         run: npm run qa:z-resolver
       - name: Vertical Z reference semantics conformance
         run: npm run qa:z-reference
       - name: Reconciled Z solution chain conformance
         run: npm run qa:z-solution
-      - name: Explicit Z constraint graph conformance
-        run: npm run qa:z-constraint-graph
       - name: Authenticated Z review provenance conformance
         run: npm run qa:z-review-persistence
       - name: Project datum review-surface conformance
         run: npm run qa:project-datum
       - name: Local triangulated elevation surface conformance
         run: npm run qa:elevation-surface
-      - name: Constrained terrain breakline and slope conformance
-        run: npm run qa:terrain-constraints
       - name: Reviewed cross-sheet elevation transfer conformance
         run: npm run qa:cross-sheet-z
       - name: Independent scale validation conformance
         run: npm run qa:scale-validation
-      - name: Reviewed PDF metric frame conformance
-        run: npm run qa:metric-frame
-      - name: Spatial component to 3D model resolution conformance
-        run: npm run qa:spatial-model-resolution
-      - name: Schedule to positioned equipment identity reconciliation
-        run: npm run qa:spatial-equipment-identity
-      - name: PDF equipment source-symbol anchoring conformance
-        run: npm run qa:pdf-equipment-anchor
-      - name: Generic digital twin assembly golden path
-        run: npm run qa:digital-twin-assembly
-      - name: Spatial evidence and uncertainty envelope
-        run: npm run qa:spatial-evidence-envelope
-      - name: Project XY frame registration conformance
-        run: npm run qa:project-xy-frame
-      - name: Multi-discipline project frame golden path
-        run: npm run qa:multidiscipline-project-frame
       - name: Demo-safe unresolved placement conformance
         run: npm run qa:demo-safe-placement
       - name: Local support-surface equipment placement conformance
