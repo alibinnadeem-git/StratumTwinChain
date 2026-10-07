@@ -6,7 +6,7 @@ const baseURL=externalBaseURL||localBaseURL;
 
 export default defineConfig({
   testDir:'./tests/e2e',
-  testIgnore:process.env.STRATUM_E2E_SERVER_PERSISTENCE==='1'?[]:['**/spatial-server-persistence.spec.ts'],
+  testIgnore:process.env.STRATUM_E2E_SERVER_PERSISTENCE==='1'?[]:['**/spatial-server-persistence.spec.ts','**/relationship-graph-server.spec.ts','**/electrical-relationship-resolver-server.spec.ts'],
   timeout:45_000,
   expect:{timeout:8_000},
   fullyParallel:true,
