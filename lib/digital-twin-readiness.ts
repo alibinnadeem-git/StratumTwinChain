@@ -42,7 +42,7 @@ export type DigitalTwinComponentReadiness={
   state:DigitalTwinComponentState;
   demoReady:boolean;
   exactProductTwin:boolean;
-  evidenceReturnType:ReturnType<typeof deriveSpatialEvidenceEnvelope>;
+  evidence:ReturnType<typeof deriveSpatialEvidenceEnvelope>;
   model:SpatialModelResolution;
   assetBinding:SpatialAssetBinding|null;
   assetCode:string|null;
@@ -167,7 +167,7 @@ export function deriveDigitalTwinComponentReadiness(
     state,
     demoReady,
     exactProductTwin:state==='EXACT_TWIN_READY',
-    evidenceReturnType:evidence,
+    evidence,
     model,
     assetBinding,
     assetCode:asset?.asset_code||null,
