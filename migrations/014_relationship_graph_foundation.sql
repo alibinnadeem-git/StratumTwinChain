@@ -159,18 +159,40 @@ FOR EACH ROW EXECUTE FUNCTION stratum_validate_relationship_evidence_context();
 
 CREATE OR REPLACE FUNCTION stratum_validate_relationship_review_context()
 RETURNS trigger AS $$
+DECLARE
+  latest_action text;
+  latest_review_id uuid;
 BEGIN
   PERFORM 1 FROM asset_relationships
-   WHERE id=NEW.relationship_id AND organization_id=NEW.organization_id AND project_id=NEW.project_id;
-  IF NOT FOUND THEN RAISE EXCEPTION 'relationship review is outside the relationship organization/project'; END IF;
+   WHERE id=NEW.relationship_id
+     AND organization_id=NEW.organization_id
+     AND project_id=NEW.project_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'relationship review is outside the relationship organization/project';
+  END IF;
 
-  IF NEW.previous_review_id IS NOT NULL THEN
-    PERFORM 1 FROM relationship_review_events
-     WHERE id=NEW.previous_review_id
-       AND organization_id=NEW.organization_id
-       AND project_id=NEW.project_id
-       AND relationship_id=NEW.relationship_id;
-    IF NOT FOUND THEN RAISE EXCEPTION 'previous relationship review does not belong to this relationship'; END IF;
+  SELECT id,action INTO latest_review_id,latest_action
+  FROM relationship_review_events
+  WHERE organization_id=NEW.organization_id
+    AND project_id=NEW.project_id
+    AND relationship_id=NEW.relationship_id
+  ORDER BY occurred_at DESC,id DESC
+  LIMIT 1;
+
+  IF NEW.previous_review_id IS DISTINCT FROM latest_review_id THEN
+    RAISE EXCEPTION 'relationship review must extend the latest append-only review state';
+  END IF;
+
+  IF latest_action IS NULL AND NEW.action NOT IN ('VERIFY','REJECT') THEN
+    RAISE EXCEPTION 'initial relationship review must VERIFY or REJECT the candidate';
+  ELSIF latest_action='VERIFY' AND NEW.action NOT IN ('MAINTAIN','DEPRECATE','REOPEN_REVIEW') THEN
+    RAISE EXCEPTION 'invalid relationship review transition from VERIFY';
+  ELSIF latest_action='MAINTAIN' AND NEW.action NOT IN ('MAINTAIN','DEPRECATE','REOPEN_REVIEW') THEN
+    RAISE EXCEPTION 'invalid relationship review transition from MAINTAIN';
+  ELSIF latest_action IN ('REJECT','DEPRECATE') AND NEW.action<>'REOPEN_REVIEW' THEN
+    RAISE EXCEPTION 'rejected or deprecated relationships must be reopened before new verification';
+  ELSIF latest_action='REOPEN_REVIEW' AND NEW.action NOT IN ('VERIFY','REJECT') THEN
+    RAISE EXCEPTION 'reopened relationship review must VERIFY or REJECT the candidate';
   END IF;
 
   IF NEW.action IN ('VERIFY','MAINTAIN') THEN
@@ -179,7 +201,9 @@ BEGIN
        AND project_id=NEW.project_id
        AND relationship_id=NEW.relationship_id
      LIMIT 1;
-    IF NOT FOUND THEN RAISE EXCEPTION 'evidence is required before a relationship may become trusted'; END IF;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'evidence is required before a relationship may become trusted';
+    END IF;
   END IF;
 
   RETURN NEW;
@@ -198,6 +222,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS relationship_types_append_only ON relationship_types;
+CREATE TRIGGER relationship_types_append_only
+BEFORE UPDATE OR DELETE ON relationship_types
+FOR EACH ROW EXECUTE FUNCTION stratum_prevent_relationship_graph_mutation();
+
 DROP TRIGGER IF EXISTS asset_relationships_append_only ON asset_relationships;
 CREATE TRIGGER asset_relationships_append_only
 BEFORE UPDATE OR DELETE ON asset_relationships
@@ -213,6 +242,8 @@ CREATE TRIGGER relationship_review_events_append_only
 BEFORE UPDATE OR DELETE ON relationship_review_events
 FOR EACH ROW EXECUTE FUNCTION stratum_prevent_relationship_graph_mutation();
 
+COMMENT ON TABLE relationship_types IS
+  'Append-only controlled relationship vocabulary. Impact direction and propagation weight are immutable once published so trusted traversal semantics cannot silently change.';
 COMMENT ON TABLE asset_relationships IS
   'Append-only tenant/project-scoped relationship candidates between durable STRATUM Assets. A candidate does not become operationally trusted until evidence-backed human review verifies it.';
 COMMENT ON TABLE relationship_evidence IS
