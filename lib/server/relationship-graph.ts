@@ -176,6 +176,32 @@ export async function createRelationshipCandidate(
  });
 }
 
+export async function appendRelationshipEvidence(
+ organizationId:string,
+ actorUserId:string,
+ relationshipId:string,
+ raw:z.input<typeof RelationshipEvidenceInput>,
+){
+ const input=RelationshipEvidenceInput.parse(raw);
+ return tx(async client=>{
+  const relationship=await client.query<{id:string;project_id:string}>(`
+   SELECT id::text,project_id::text
+   FROM asset_relationships
+   WHERE organization_id=$1 AND id=$2
+   LIMIT 1
+   FOR SHARE
+  `,[organizationId,relationshipId]);
+  if(!relationship.rows[0])throw httpError('Relationship not found',404);
+  const evidence=await insertEvidence(
+   client,organizationId,relationship.rows[0].project_id,relationshipId,actorUserId,input
+  );
+  return{
+   evidence,
+   truthBoundary:'RELATIONSHIP_EVIDENCE_SUPPORTS_REVIEW_NOT_PHYSICAL_TRUTH_DIR_OR_POVI_FINALITY',
+  };
+ });
+}
+
 export async function reviewRelationship(
  organizationId:string,
  actorUserId:string,
