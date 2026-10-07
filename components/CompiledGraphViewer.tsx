@@ -3,6 +3,8 @@
 import Link from "next/link";
 import {useEffect,useMemo,useRef,useState} from "react";
 import {resolveElectricalComponent} from "@/lib/electrical-component-library";
+import {resolveSpatialModel} from "@/lib/spatial-model-resolution";
+import {deriveSpatialEvidenceEnvelope} from "@/lib/spatial-evidence-envelope";
 import {resolveReconciledAssetPlacement} from "@/lib/z-solution-chain";
 import {fitProceduralObjectToMeters,normalizeObjectToMeters} from "@/lib/three-model-normalization";
 import {decodeGlbBase64,inspectStandaloneGlb} from "@/lib/spatial-glb-import";
@@ -48,11 +50,12 @@ const systemOptions:{id:SystemMode;label:string}[]=[
 ];
 
 function n(value:unknown,fallback=0){const x=Number(value);return Number.isFinite(x)?x:fallback}
-function sheetFrameKey(e:Entity){const page=Number(e.meta?.page||0),sourceKey=String(e.meta?.sourceSha256||e.source||'').trim();return sourceKey&&Number.isInteger(page)&&page>0?`${sourceKey}:${page}`:null}
+function sheetPageKey(e:Entity){const page=Number(e.meta?.page||0),sourceKey=String(e.meta?.sourceSha256||e.source||'').trim();return sourceKey&&Number.isInteger(page)&&page>0?`${sourceKey}:${page}`:null}
+function sheetFrameKey(e:Entity){const pageKey=sheetPageKey(e);if(!pageKey)return null;const frameId=String(e.meta?.planFrameId||'').trim();return frameId?`${pageKey}:${frameId}`:pageKey}
 function planTypeLabel(value:unknown){return String(value||'').replaceAll('_',' ').toLowerCase().replace(/\b\w/g,letter=>letter.toUpperCase())}
 function metaNumber(e:Entity,key:string){const value=e.meta?.[key];if(value===null||value===undefined||value==='')return null;const x=Number(value);return Number.isFinite(x)?x:null}
 function isSld(e:Entity){return Boolean(e.meta?.sldCandidate===true||e.meta?.sldSpatialProjection||e.meta?.sldLogicalDepth!==undefined||/single.?line|one.?line|\bsld\b|riser/i.test(String(e.meta?.sheetTitle||e.source)))}
-function physicalElevationKnown(e:Entity){if(e.meta?.elevationKnown===false||e.meta?.physicalElevationKnown===false)return false;return e.meta?.elevationKnown===true||e.meta?.physicalElevationKnown===true||e.meta?.sourceType==="DXF"||e.meta?.coordinateUnits==="m"&&e.floor!=="UNRESOLVED"}
+function physicalElevationKnown(e:Entity){if(e.meta?.elevationKnown===false||e.meta?.physicalElevationKnown===false)return false;return e.meta?.elevationKnown===true||e.meta?.physicalElevationKnown===true}
 function displayElevation(e:Entity,mode:ViewMode){
   const base=n(e.z);
   if(mode==="ELECTRICAL"&&isSld(e)){
@@ -134,10 +137,10 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
   const sourceLayerLabels=useMemo(()=>spatialSourceLayerLabels(sourceLayers),[sourceLayers]);
   const staleDrawingSources=useMemo(()=>graph?findDrawingSourcesNeedingReprocess(graph.sources,graph.entities):[],[graph]);
   const hiddenSourceSet=useMemo(()=>new Set(hiddenSources),[hiddenSources]);
-  const sourceDisciplines=useMemo(()=>new Map((graph?.sources||[]).flatMap(source=>{const discipline=source.discipline||"Unclassified";return [[spatialSourceKey(source),discipline],[source.name,discipline]] as [string,string][];})),[graph]);
+  const sourceDisciplines=useMemo(()=>new Map((graph?.sources||[]).flatMap(source=>{const d=source.discipline||"Unclassified";return [[spatialSourceKey(source),d],[source.name,d]] as [string,string][];})),[graph]);
   const sheetFrames=useMemo(()=>{
-    if(!graph)return[] as {key:string;source:string;page:number;planType:string;discipline:string;aligned:boolean;count:number}[];
-    const map=new Map<string,{key:string;source:string;page:number;planType:string;discipline:string;aligned:boolean;count:number}>();
+    if(!graph)return[] as {key:string;source:string;page:number;planType:string;discipline:string;aligned:boolean;count:number;title:string;floor:string|null}[];
+    const map=new Map<string,{key:string;source:string;page:number;planType:string;discipline:string;aligned:boolean;count:number;title:string;floor:string|null}>();
     for(const entity of graph.entities){
       if(entity.meta?.nonSpatial===true)continue;
       const key=sheetFrameKey(entity);if(!key)continue;
@@ -146,7 +149,9 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       const page=Number(entity.meta?.page),prior=map.get(key),planType=plan?String(entity.meta?.planType||"PLAN_VIEW_UNCLASSIFIED"):sld?"SLD":String(entity.meta?.planType||"RASTER_DRAWING");
       const entityDiscipline=String(entity.meta?.planDiscipline||entity.meta?.discipline||sourceDisciplines.get(entity.source)||"Unclassified");
       const aligned=Boolean(entity.meta?.planXYValidated===true||entity.meta?.sheetXYTransform||entity.meta?.autoSheetAlignmentCandidateId||entity.meta?.sheetTransform);
-      map.set(key,{key,source:entity.source,page,planType:prior?.planType&&prior.planType!=="RASTER_DRAWING"?prior.planType:planType,discipline:prior?.discipline&&prior.discipline!=="Unclassified"?prior.discipline:entityDiscipline,aligned:Boolean(prior?.aligned||aligned),count:(prior?.count||0)+1});
+      const title=String(entity.meta?.planFrameTitle||entity.meta?.sheetTitle||planTypeLabel(planType));
+      const frameFloor=String(entity.meta?.planFrameFloor||entity.floor||'').trim()||null;
+      map.set(key,{key,source:entity.source,page,planType:prior?.planType&&prior.planType!=="RASTER_DRAWING"?prior.planType:planType,discipline:prior?.discipline&&prior.discipline!=="Unclassified"?prior.discipline:entityDiscipline,aligned:Boolean(prior?.aligned||aligned),count:(prior?.count||0)+1,title:prior?.title||title,floor:prior?.floor||frameFloor});
     }
     return[...map.values()].sort((a,b)=>a.source.localeCompare(b.source)||a.page-b.page);
   },[graph,sourceDisciplines]);
@@ -162,7 +167,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
   const nonSldPlanSheets=useMemo(()=>sheetFrames.filter(frame=>frame.planType!=="SLD"&&frame.planType!=="RASTER_DRAWING").length,[sheetFrames]);
   const activeScaleValidation=useMemo(()=>{
     if(!graph)return null as null|Record<string,unknown>;
-    const candidates=graph.entities.filter(entity=>entity.meta?.scaleValidationEvidence&&(!activeSheetFrame||sheetFrameKey(entity)===activeSheetFrame));
+    const candidates=graph.entities.filter(entity=>{if(!entity.meta?.scaleValidationEvidence)return false;if(!activeSheetFrame)return true;const pageKey=sheetPageKey(entity);return sheetFrameKey(entity)===activeSheetFrame||Boolean(pageKey&&(activeSheetFrame===pageKey||activeSheetFrame.startsWith(pageKey+':')))});
     return candidates[0]?.meta?.scaleValidationEvidence as Record<string,unknown>||null;
   },[graph,activeSheetFrame]);
   const coordinationSnapshot=useMemo(()=>graph?.coordinationIntelligence||(graph?buildCoordinationIntelligence(graph):undefined),[graph]);
@@ -201,7 +206,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
   const modelMapped=useMemo(()=>graph?.entities.filter(e=>{
     if(e.layer!=="L2"||e.kind==="line")return false;
     if(e.kind==="imported-3d-model")return typeof e.meta?.embeddedGlb==='string';
-    const def=resolveElectricalComponent(e.name);return!!def&&!!registry.find(r=>r.componentKey===def.key)?.modelUrl.trim();
+    return Boolean(resolveSpatialModel(e,registry).model?.modelUrl.trim());
   }).length||0,[graph,registry]);
   const matching=useMemo(()=>inventory,[inventory]);
   const fallbackBounds=useMemo(()=>bounds2d(visible),[visible]);
@@ -251,7 +256,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       const extra=(e:Entity)=>exploded?(floorIndex.get(e.floor||"UNRESOLVED")||0)*2.6:0;
       const height=(e:Entity)=>{
         if(e.layer==="L2"||e.layer==="L4"){
-          const def=resolveElectricalComponent(e.name),cfg=def?registry.find(r=>r.componentKey===def.key):null;
+          const cfg=resolveSpatialModel(e,registry).model;
           return resolveReconciledAssetPlacement({name:e.name,floor:e.floor,z:e.z,meta:e.meta},{registry:cfg}).placement.baseZ+extra(e);
         }
         return displayElevation(e,mode)+extra(e);
@@ -294,6 +299,19 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
           mesh.rotation.x=-Math.PI/2;mesh.position.set((e.x+e.x2!)/2,height(e)+.015,(e.y+e.y2!)/2);mesh.renderOrder=-10;groups.L1.add(mesh);
         });
       };
+      const attachSpatialEvidence=(root:any,e:Entity,modelResolution:ReturnType<typeof resolveSpatialModel>|null)=>{
+        const envelope=deriveSpatialEvidenceEnvelope(e,modelResolution);
+        root.userData.coordinationReadiness=envelope.readiness;
+        root.userData.horizontalEvidenceState=envelope.horizontal.state;
+        root.userData.horizontalCoordinateFrame=envelope.horizontal.coordinateFrame;
+        root.userData.verticalEvidenceState=envelope.vertical.state;
+        root.userData.verticalCoordinateFrame=envelope.vertical.coordinateFrame;
+        root.userData.spatialEvidenceLineages=envelope.distinctEvidenceLineages;
+        root.userData.horizontalUncertaintyBoundMeters=envelope.horizontal.totalUncertaintyBoundMeters;
+        root.userData.verticalUncertaintyBoundMeters=envelope.vertical.totalUncertaintyBoundMeters;
+        root.userData.physicalClashAuthority=false;
+        root.userData.asBuiltAuthority=false;
+      };
       const fallbackShape=(e:Entity)=>{
         if(e.kind==='sheet-callout-candidate'||e.kind==='annotated-asset-candidate'){
           const root=new THREE.Group();
@@ -311,7 +329,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
           groups.L2.add(root);
           return;
         }
-        const def=resolveElectricalComponent(e.name),shape=def?.twinShape||"cabinet",cfg=def?registry.find(r=>r.componentKey===def.key):null;
+        const modelResolution=resolveSpatialModel(e,registry),def=modelResolution.component||resolveElectricalComponent(e.name),shape=def?.twinShape||"cabinet",cfg=modelResolution.model;
         const reconciled=resolveReconciledAssetPlacement({name:e.name,floor:e.floor,z:e.z,meta:e.meta},{registry:cfg}),placement=reconciled.placement;
         const target:[number,number,number]=[placement.dimensions.width,placement.dimensions.height,placement.dimensions.depth];
         const root=new THREE.Group(),op=1;
@@ -320,6 +338,8 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
         try{fitProceduralObjectToMeters(root,target)}catch{}
         root.position.set(e.x,placement.baseZ,e.y);root.rotation.y=THREE.MathUtils.degToRad(-(e.rotation||0));
         root.userData.dimensionAuthority=placement.dimensions.authority;root.userData.targetDimensionsMeters=target;root.userData.zPlacementAuthority=placement.zAuthority;root.userData.zPlacementConfidence=placement.zConfidence;root.userData.zSolutionStatus=reconciled.solution.status;root.userData.zSolutionConflicts=reconciled.solution.conflicts.length;
+        root.userData.modelResolutionTier=modelResolution.tier;root.userData.modelGeometryAuthority=modelResolution.geometryAuthority;root.userData.modelIdentityAuthority=modelResolution.identityAuthority;root.userData.exactProductIdentity=modelResolution.exactProductIdentity;root.userData.modelComponentKey=modelResolution.componentKey;root.userData.physicalIdentityVerified=false;
+        attachSpatialEvidence(root,e,modelResolution);
         interactionProxy(root,target);tag(root,e);groups[e.layer==="L4"?"L4":"L2"].add(root);label(e.name,e.x,placement.baseZ,e.y,isSld(e)?"#8fcfff":"#ffd08a",e);
       };
       const loader=new GLTFLoader();
@@ -348,6 +368,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
                 root.userData.targetDimensionsMeters=target;
                 root.userData.normalization={scalar:normalized.scalar,ratioSpread:normalized.ratioSpread,reviewRequired:true};
                 root.userData.zDisplayAuthority=placement.zAuthority;root.userData.zPlacementConfidence=placement.zConfidence;root.userData.zSolutionStatus=reconciled.solution.status;root.userData.zSolutionConflicts=reconciled.solution.conflicts.length;
+                attachSpatialEvidence(root,e,null);
                 root.add(model);interactionProxy(root,target);tag(root,e);
                 groups.L2.add(root);label(e.name,e.x,placement.baseZ,e.y,'#ffd08a',e);
                 const renderedBox=new THREE.Box3().setFromObject(root);if(!renderedBox.isEmpty())bounds.union(renderedBox);
@@ -358,7 +379,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
           return;
         }
         if(e.kind==='sheet-callout-candidate'||e.kind==='annotated-asset-candidate'){fallbackShape(e);return}
-        const def=resolveElectricalComponent(e.name),cfg=def?registry.find(r=>r.componentKey===def.key):null;
+        const modelResolution=resolveSpatialModel(e,registry),cfg=modelResolution.model;
         if(!cfg?.modelUrl.trim()||!["GLB","GLTF"].includes(cfg.format)){fallbackShape(e);return}
         const reconciled=resolveReconciledAssetPlacement({name:e.name,floor:e.floor,z:e.z,meta:e.meta},{registry:cfg}),placement=reconciled.placement;
         const target:[number,number,number]=[placement.dimensions.width,placement.dimensions.height,placement.dimensions.depth];
@@ -374,6 +395,8 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
             root.rotation.y=THREE.MathUtils.degToRad(-(e.rotation||0));
             root.userData.dimensionAuthority=placement.dimensions.authority;
             root.userData.targetDimensionsMeters=target;root.userData.zPlacementAuthority=placement.zAuthority;root.userData.zPlacementConfidence=placement.zConfidence;root.userData.zSolutionStatus=reconciled.solution.status;root.userData.zSolutionConflicts=reconciled.solution.conflicts.length;
+            root.userData.modelResolutionTier=modelResolution.tier;root.userData.modelGeometryAuthority=modelResolution.geometryAuthority;root.userData.modelIdentityAuthority=modelResolution.identityAuthority;root.userData.exactProductIdentity=modelResolution.exactProductIdentity;root.userData.modelComponentKey=modelResolution.componentKey;root.userData.modelResolutionConfidence=modelResolution.confidence;root.userData.physicalIdentityVerified=false;
+            attachSpatialEvidence(root,e,modelResolution);
             root.userData.normalization={scalar:normalized.scalar,ratioSpread:normalized.ratioSpread,reviewRequired:normalized.reviewRequired};
             if(normalized.reviewRequired)console.warn("STRATUM model dimension mismatch requires review",{component:e.name,target,intrinsic:normalized.intrinsic,ratios:normalized.ratios,ratioSpread:normalized.ratioSpread});
             root.add(model);interactionProxy(root,target);tag(root,e);groups[e.layer==="L4"?"L4":"L2"].add(root);label(e.name,e.x,placement.baseZ,e.y,"#cfefff",e);
@@ -540,7 +563,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
     <div style={{display:"flex",gap:8,padding:"10px 12px",alignItems:"center",flexWrap:"wrap",borderBottom:"1px solid #17334a"}}>
       <select aria-label="Floor isolation" value={floor} onChange={e=>setFloor(e.target.value)}><option value="ALL">All floors</option>{levels.map(([f])=><option key={f} value={f}>{f}</option>)}</select>
       <select aria-label="Discipline isolation" value={discipline} onChange={e=>setDiscipline(e.target.value)}><option value="ALL">All disciplines</option>{disciplines.map(value=><option key={value} value={value}>{value}</option>)}</select>
-      <select aria-label="Sheet page isolation" value={sheetFrame} onChange={e=>setSheetFrame(e.target.value)} style={{maxWidth:360}}><option value="AUTO">Auto-safe sheet isolation</option>{sheetFrames.length>1&&<option value="ALL">All sheet frames · review overlay</option>}{sheetFrames.map(frame=><option key={frame.key} value={frame.key}>{frame.source} · p{frame.page} · {planTypeLabel(frame.planType)}{frame.aligned?' · aligned':''}</option>)}</select>
+      <select aria-label="Sheet page isolation" value={sheetFrame} onChange={e=>setSheetFrame(e.target.value)} style={{maxWidth:360}}><option value="AUTO">Auto-safe sheet isolation</option>{sheetFrames.length>1&&<option value="ALL">All sheet frames · review overlay</option>}{sheetFrames.map(frame=><option key={frame.key} value={frame.key}>{frame.source} · p{frame.page} · {frame.title}{frame.floor?` · ${frame.floor}`:''}{frame.aligned?' · aligned':''}</option>)}</select>
       <input aria-label="Search objects" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search equipment, room or source" style={{minWidth:220,flex:"1 1 240px"}}/>
       <button className="ghost" onClick={()=>setFitRevision(v=>v+1)}>Fit model</button>
       <button className="ghost" onClick={()=>setLabels(v=>!v)}>{labels?"Hide labels":"Show labels"}</button>
