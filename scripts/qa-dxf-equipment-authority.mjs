@@ -11,6 +11,8 @@ assert.equal(insert.rotationDegrees,90);
 assert.equal(insert.meta.spatialPlacementAuthority,'SOURCE_DXF_INSERT');
 assert.equal(insert.meta.rotationAuthority,'SOURCE_DXF_INSERT_ROTATION');
 assert.equal(insert.meta.cadPhysicalAnchor,true);
+assert.equal(insert.meta.physicalPositionVerified,false);
+assert.equal(insert.meta.asBuiltAuthority,false);
 
 const unitlessInsert=dxfEquipmentSpatialAuthority('INSERT',-30,false);
 assert.equal(unitlessInsert.physicalAnchor,true);
@@ -27,6 +29,8 @@ for(const type of ['TEXT','MTEXT']){
   assert.equal(text.meta.rotationAuthority,'TEXT_ORIENTATION_ONLY_NOT_EQUIPMENT');
   assert.equal(text.meta.sourceTextRotationDegrees,37);
   assert.equal(text.meta.cadPhysicalAnchor,false);
+  assert.equal(text.meta.physicalPositionVerified,false);
+  assert.equal(text.meta.asBuiltAuthority,false);
 }
 
 const cadText={
