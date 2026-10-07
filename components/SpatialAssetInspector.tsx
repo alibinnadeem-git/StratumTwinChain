@@ -11,6 +11,7 @@ import {deriveDigitalTwinComponentReadiness} from '@/lib/digital-twin-readiness'
 import type {ElectricalModelConfig} from '@/lib/electrical-model-registry';
 import AssetActivityPanel from '@/components/AssetActivityPanel';
 import AssetQR from '@/components/AssetQR';
+import AssetTelemetryPanel from '@/components/AssetTelemetryPanel';
 import {
  resolveRegisteredSpatialAsset,
  spatialAssetDirState,
@@ -272,7 +273,8 @@ export default function SpatialAssetInspector({
    </details>
 
    {asset.project_id
-    ?<AssetActivityPanel key={asset.id} assetId={asset.id} projectId={asset.project_id}/>
+    ?<AssetTelemetryPanel assetId={asset.id}/>
+   <AssetActivityPanel key={asset.id} assetId={asset.id} projectId={asset.project_id}/>
     :<div className="notice" style={{marginTop:12}}><strong>ACTIVITY UNAVAILABLE</strong><span>This asset summary is missing its project identifier. Reload the live asset registry before submitting activity.</span></div>}
 
    <details className="secondary-details">
