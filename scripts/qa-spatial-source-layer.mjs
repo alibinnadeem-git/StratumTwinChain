@@ -9,6 +9,8 @@ const sources=[
 assert.notEqual(spatialSourceKey(sources[0]),spatialSourceKey(sources[1]));
 assert.equal(spatialEntitySourceKey({source:sources[0].name,meta:{sourceSha256:sources[0].sha256}}),sources[0].sha256);
 assert.equal(spatialEntitySourceKey({source:'legacy-source.pdf'}),'legacy-source.pdf');
+assert.equal(spatialEntitySourceKey({source:sources[2].name},sources),sources[2].sha256,'unique legacy source resolves to fingerprint');
+assert.equal(spatialEntitySourceKey({source:sources[0].name},sources),sources[0].name,'ambiguous same-named legacy source fails closed to filename');
 const labels=spatialSourceLayerLabels(sources);
 assert.equal(labels.get(sources[0].sha256),'E-201 Electrical Plan.dxf · aaaaaaaa');
 assert.equal(labels.get(sources[1].sha256),'E-201 Electrical Plan.dxf · bbbbbbbb');
