@@ -16,6 +16,10 @@ assert.match(migration,/relationship source asset is outside the organization\/p
 assert.match(migration,/relationship target asset is outside the organization\/project/);
 assert.match(migration,/evidence is required before a relationship may become trusted/);
 assert.match(migration,/relationship graph records are append-only/);
+assert.match(migration,/relationship_types_append_only/,'relationship type semantics must be immutable once published');
+assert.match(migration,/initial relationship review must VERIFY or REJECT the candidate/);
+assert.match(migration,/rejected or deprecated relationships must be reopened before new verification/);
+assert.match(migration,/relationship review must extend the latest append-only review state/);
 assert.match(migration,/impact_direction text NOT NULL DEFAULT 'NONE'/);
 assert.match(migration,/\('DEPENDS_ON','OPERATIONAL'.*'REVERSE'/);
 assert.match(migration,/\('FEEDS','ELECTRICAL'.*'FORWARD'/);
@@ -26,6 +30,8 @@ assert.match(service,/latest\.action IN \('VERIFY','MAINTAIN'\)/,'traversal must
 assert.match(service,/rt\.impact_direction <> 'NONE'/,'non-propagating relationship types must fail closed in traversal');
 assert.match(service,/NOT \(/,'cycle guard must reject already visited assets');
 assert.match(service,/Evidence is required before a relationship may become trusted/);
+assert.match(service,/reviewTransitionAllowed/,'service must reject illegal review transitions before database insertion');
+assert.match(service,/Invalid relationship review transition/);
 assert.match(service,/ON CONFLICT\(organization_id,candidate_sha256\) DO NOTHING/,'candidate creation must be idempotent');
 assert.match(service,/ON CONFLICT\(organization_id,evidence_sha256\) DO NOTHING/,'evidence append must be idempotent');
 assert.match(service,/RELATIONSHIP_CANDIDATE_NOT_OPERATIONAL_TRUTH_UNTIL_EVIDENCE_BACKED_HUMAN_VERIFIED/);
