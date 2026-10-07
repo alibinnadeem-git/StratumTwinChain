@@ -72,7 +72,7 @@ export async function POST(req:Request){
     NULL::text ledger_network,NULL::text ledger_tx_hash,NULL::text ledger_block_height
    FROM assets a
    LEFT JOIN systems s ON s.id=a.system_id AND s.organization_id=a.organization_id
-   LEFT JOIN manufacturers m ON m.id=a.manufacturer_id AND m.organization_id=a.organization_id
+   LEFT JOIN manufacturers m ON m.id=a.manufacturer_id
    WHERE a.organization_id=$1 AND a.project_id=$2
    ORDER BY a.asset_code,a.id
   `,[session.organizationId,body.projectId]);
