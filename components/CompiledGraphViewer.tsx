@@ -179,7 +179,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
     const q=search.trim().toLowerCase();
     return graph.entities.filter(e=>{
       if(e.meta?.nonSpatial===true)return false;
-      const sourceKey=spatialEntitySourceKey(e);
+      const sourceKey=spatialEntitySourceKey(e,graph.sources);
       if(hiddenSourceSet.has(sourceKey))return false;
       const frame=sheetFrameKey(e);if(activeSheetFrame&&frame&&frame!==activeSheetFrame)return false;
       if(floor!=="ALL"&&(e.floor||"UNRESOLVED")!==floor)return false;
@@ -556,7 +556,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
           {sourceLayers.map(source=>{
             const key=spatialSourceKey(source),label=sourceLayerLabels.get(key)||source.name;
             const active=!hiddenSourceSet.has(key);
-            const entityCount=graph.entities.filter(entity=>spatialEntitySourceKey(entity)===key&&entity.meta?.nonSpatial!==true&&entity.kind!=='line').length;
+            const entityCount=graph.entities.filter(entity=>spatialEntitySourceKey(entity,graph.sources)===key&&entity.meta?.nonSpatial!==true&&entity.kind!=='line').length;
             return <label key={key} style={{display:"flex",alignItems:"flex-start",gap:8,border:"1px solid #17334a",borderRadius:10,padding:"9px 10px"}}>
               <input type="checkbox" aria-label={`Toggle source ${label}`} checked={active} onChange={()=>toggleSource(key)}/>
               <span style={{minWidth:0}}><strong style={{display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={source.name}>{label}</strong><small className="muted">{source.discipline||"Unclassified"} · {source.ext?.toUpperCase()||"SOURCE"} · {entityCount} spatial object{entityCount===1?"":"s"}</small></span>
