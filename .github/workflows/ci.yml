@@ -94,6 +94,8 @@ jobs:
         run: npm run qa:dxf-z
       - name: DXF equipment block versus text authority
         run: npm run qa:dxf-equipment-authority
+      - name: DXF block-label identity association
+        run: npm run qa:dxf-block-label-association
       - name: Scanned-image OCR review-evidence conformance
         run: npm run qa:image-ocr
       - name: Scanned PDF OCR fallback conformance
