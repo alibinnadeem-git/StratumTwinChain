@@ -20,6 +20,15 @@ const baseMeta={
   sourceSha256:'a'.repeat(64),page:1,coordinateUnits:'m_reviewed_pdf',
   symbolAnchorStatus:'RESOLVED_REVIEW_CANDIDATE',
   spatialPlacementAuthority:'SOURCE_VECTOR_SYMBOL_ANCHOR',
+  localReviewSurfaceZ:3,
+  localReviewSurfaceKind:'FINISHED_FLOOR',
+  localReviewSurfaceAuthority:'SOURCE_ELEVATION_TRIANGLE',
+  localReviewSurfaceConfidence:.93,
+  localReviewSurfaceCoordinateFrame:'PROJECT_REVIEW_DATUM',
+  supportBaseOffsetMeters:.2,
+  supportOffsetAuthority:'SOURCE_SUPPORT_BASE_OFFSET',
+  supportOffsetConfidence:.95,
+  supportOffsetEvidenceLabel:'0.20 m equipment pad',
   physicalTruth:false,reviewRequired:true
 };
 
@@ -44,6 +53,9 @@ assert.equal(exact.exactProductTwin,true);
 assert.equal(exact.assetCode,'EVSE-1');
 assert.equal(exact.dirFinalized,true);
 assert.equal(exact.maintenanceConfigured,true);
+assert.equal(exact.renderZSolutionStatus,'RESOLVED_CANDIDATE');
+assert.ok(Math.abs(Number(exact.renderBaseZMeters)-3.2)<1e-12);
+assert.ok(Math.abs(Number(exact.zAgreementDeltaMeters))<1e-12);
 assert.equal(exact.blockerCodes.length,0);
 assert.ok(exact.warningCodes.includes('PHYSICAL_IDENTITY_NOT_VERIFIED'));
 assert.ok(exact.warningCodes.includes('PHYSICAL_POSITION_NOT_VERIFIED'));
@@ -89,6 +101,28 @@ assert.equal(blocked.state,'REVIEW_BLOCKED');
 assert.equal(blocked.demoReady,false);
 assert.ok(blocked.blockerCodes.includes('Z_CONFLICT'));
 
+const graphOnly=deriveDigitalTwinComponentReadiness({
+  ...familyEntity,id:'msb-graph-only',
+  meta:{
+    ...familyEntity.meta,
+    localReviewSurfaceZ:undefined,
+    supportBaseOffsetMeters:undefined,
+    zConstraintGraph:resolvedZ
+  }
+},[familyAsset],DEFAULT_ELECTRICAL_MODEL_REGISTRY);
+assert.equal(graphOnly.demoReady,false);
+assert.ok(graphOnly.blockerCodes.includes('RENDER_Z_UNRESOLVED'),'a persisted graph cannot declare demo readiness when the viewer solver cannot reproduce absolute Z');
+
+const divergentGraph={...resolvedZ,baseZMeters:4.1,nodes:resolvedZ.nodes.map(node=>node.id==='base'?{...node,valueMeters:4.1}:node)};
+const divergent=deriveDigitalTwinComponentReadiness({
+  ...familyEntity,id:'msb-divergent',
+  meta:{...familyEntity.meta,zConstraintGraph:divergentGraph}
+},[familyAsset],DEFAULT_ELECTRICAL_MODEL_REGISTRY);
+assert.equal(divergent.state,'REVIEW_BLOCKED');
+assert.equal(divergent.demoReady,false);
+assert.ok(divergent.blockerCodes.includes('Z_RENDER_DIVERGENCE'));
+assert.ok(Number(divergent.zAgreementDeltaMeters)>.8);
+
 const sourceOnly=deriveDigitalTwinComponentReadiness({
   ...familyEntity,id:'msb-4',x:4,y:4,
   meta:{...familyEntity.meta,coordinateUnits:'sheet',symbolAnchorStatus:'UNRESOLVED',spatialPlacementAuthority:'TEXT_LABEL_POSITION_ONLY',zConstraintGraph:unresolvedZ}
@@ -123,5 +157,6 @@ assert.match(viewer,/Exact product twin/);
 assert.match(viewer,/DIR finalized/);
 assert.match(viewer,/Maintenance configured/);
 assert.match(viewer,/Design\/review readiness only/);
+assert.match(viewer,/component\.blockerLabels/);
 
-console.log('Digital twin readiness passed: project/component states expose the real XY/Z/model/asset/DIR/maintenance chain, exact and family twins remain distinct, unresolved/conflicting evidence blocks readiness, and demo readiness never promotes physical/as-built truth.');
+console.log('Digital twin readiness passed: project/component states expose the real XY/Z/model/asset/DIR/maintenance chain, exact and family twins remain distinct, unresolved/conflicting evidence blocks readiness, graph/render Z agreement is mandatory, and demo readiness never promotes physical/as-built truth.');
