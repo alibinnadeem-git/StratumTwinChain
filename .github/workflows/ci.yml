@@ -166,6 +166,8 @@ jobs:
         run: npm run qa:reality-validation
       - name: Trusted asset relationship graph conformance
         run: npm run qa:relationship-graph
+      - name: Electrical SLD relationship resolver conformance
+        run: npm run qa:electrical-relationship-resolver
       - name: Accessibility foundation conformance
         run: npm run qa:accessibility
       - name: Product agent release gate
