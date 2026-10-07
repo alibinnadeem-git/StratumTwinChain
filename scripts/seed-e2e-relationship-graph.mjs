@@ -14,6 +14,8 @@ const fixtures=[
    {id:'41000000-0000-4000-8000-000000000011',code:'E2E-ALPHA-MSB',type:'SWITCHGEAR',name:'E2E Alpha Main Switchboard'},
    {id:'41000000-0000-4000-8000-000000000012',code:'E2E-ALPHA-MCC',type:'MCC',name:'E2E Alpha MCC'},
    {id:'41000000-0000-4000-8000-000000000013',code:'E2E-ALPHA-PUMP',type:'PUMP',name:'E2E Alpha Cooling Pump'},
+   {id:'41000000-0000-4000-8000-000000000014',code:'E2E-ALPHA-RESOLVER-SWBD',type:'SWITCHBOARD',name:'E2E Resolver Switchboard'},
+   {id:'41000000-0000-4000-8000-000000000015',code:'E2E-ALPHA-RESOLVER-PNL',type:'PANELBOARD',name:'E2E Resolver Panel'},
   ],
  },
  {
