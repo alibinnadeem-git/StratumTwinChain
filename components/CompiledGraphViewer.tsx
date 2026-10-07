@@ -204,6 +204,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
   const unresolvedZ=useMemo(()=>graph?.entities.filter(e=>e.layer==="L2"&&!physicalElevationKnown(e)&&!isSld(e)).length||0,[graph]);
   const modelMapped=useMemo(()=>graph?.entities.filter(e=>{
     if(e.layer!=="L2"||e.kind==="line")return false;
+    if(e.kind==="cad-text"||e.meta?.cadPhysicalAnchor===false)return false;
     if(e.kind==="imported-3d-model")return typeof e.meta?.embeddedGlb==='string';
     return Boolean(resolveSpatialModel(e,registry).model?.modelUrl.trim());
   }).length||0,[graph,registry]);
@@ -322,7 +323,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
         root.userData.asBuiltAuthority=false;
       };
       const fallbackShape=(e:Entity)=>{
-        if(e.kind==='sheet-callout-candidate'||e.kind==='annotated-asset-candidate'){
+        if(e.kind==='sheet-callout-candidate'||e.kind==='annotated-asset-candidate'||(e.kind==='cad-text'&&e.meta?.cadPhysicalAnchor===false)){
           const root=new THREE.Group();
           const candidates=inventory.filter(item=>item.kind==='sheet-callout-candidate'||item.kind==='annotated-asset-candidate');
           const nearby=candidates.filter(item=>Math.hypot(item.x-e.x,item.y-e.y)<1);
@@ -387,7 +388,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
           }catch{setModelLoadErrors(current=>current.includes(e.id)?current:[...current,e.id])}
           return;
         }
-        if(e.kind==='sheet-callout-candidate'||e.kind==='annotated-asset-candidate'){fallbackShape(e);return}
+        if(e.kind==='sheet-callout-candidate'||e.kind==='annotated-asset-candidate'||(e.kind==='cad-text'&&e.meta?.cadPhysicalAnchor===false)){fallbackShape(e);return}
         const modelResolution=resolveSpatialModel(e,registry),cfg=modelResolution.model;
         if(!cfg?.modelUrl.trim()||!["GLB","GLTF"].includes(cfg.format)){fallbackShape(e);return}
         const reconciled=resolveReconciledAssetPlacement({name:e.name,floor:e.floor,z:e.z,meta:e.meta},{registry:cfg}),placement=reconciled.placement;
