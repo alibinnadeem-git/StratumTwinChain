@@ -138,6 +138,8 @@ jobs:
         run: npm run qa:digital-twin-assembly
       - name: Spatial evidence and uncertainty envelope
         run: npm run qa:spatial-evidence-envelope
+      - name: Render-local coordinate precision conformance
+        run: npm run qa:render-local-origin
       - name: Project XY frame registration conformance
         run: npm run qa:project-xy-frame
       - name: Multi-discipline project frame golden path
