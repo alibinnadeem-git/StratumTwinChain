@@ -294,7 +294,7 @@ test('sheet review requires explicit room confirmation and alignment remains rev
  const values:Record<string,string>={
   'Sheet A X':'0','Sheet A Y':'0','Sheet B X':'10','Sheet B Y':'0',
   'Project A X (m)':'100','Project A Y (m)':'200','Project B X (m)':'120','Project B Y (m)':'200',
-  'Floor identifier':'L2','Measured elevation (m)':'4'
+  'Floor identifier':'L2','Reviewed elevation / datum (m)':'4'
  };
  for(const [label,value] of Object.entries(values))await review.getByLabel(label).fill(value);
  await review.getByRole('button',{name:'Apply sheet alignment'}).click();
@@ -306,7 +306,15 @@ test('sheet review requires explicit room confirmation and alignment remains rev
  })).toEqual({x:110,y:205,z:4,floor:'L2',method:'reviewed-two-control-points'});
  const aligned=await page.evaluate(()=>{
   const entity=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}').entities[0];
-  return {x:entity.x,y:entity.y,z:entity.z,floor:entity.floor,units:entity.meta.coordinateUnits,method:entity.meta.alignmentMethod,verified:entity.meta.alignmentVerified,original:entity.meta.sheetOriginal};
+  return {
+   x:entity.x,y:entity.y,z:entity.z,floor:entity.floor,
+   units:entity.meta.coordinateUnits,method:entity.meta.alignmentMethod,verified:entity.meta.alignmentVerified,original:entity.meta.sheetOriginal,
+   elevationKnown:entity.meta.elevationKnown,physicalElevationKnown:entity.meta.physicalElevationKnown,
+   physicalTruth:entity.meta.physicalTruth,reviewRequired:entity.meta.reviewRequired,
+   zCandidateMeters:entity.meta.zCandidateMeters,zCandidateReferencePoint:entity.meta.zCandidateReferencePoint,
+   zResolutionStatus:entity.meta.zResolutionStatus,zResolutionAuthority:entity.meta.zResolutionAuthority,
+   zResolutionCoordinateFrame:entity.meta.zResolutionCoordinateFrame,zPlacementAuthority:entity.meta.zPlacementAuthority
+  };
  });
  expect(aligned.x).toBeCloseTo(110,8);
  expect(aligned.y).toBeCloseTo(205,8);
@@ -315,6 +323,16 @@ test('sheet review requires explicit room confirmation and alignment remains rev
  expect(aligned.units).toBe('m');
  expect(aligned.method).toBe('reviewed-two-control-points');
  expect(aligned.verified).toBe(false);
+ expect(aligned.elevationKnown).toBe(false);
+ expect(aligned.physicalElevationKnown).toBe(false);
+ expect(aligned.physicalTruth).toBe(false);
+ expect(aligned.reviewRequired).toBe(true);
+ expect(aligned.zCandidateMeters).toBe(4);
+ expect(aligned.zCandidateReferencePoint).toBe('PROJECT_DATUM');
+ expect(aligned.zResolutionStatus).toBe('RESOLVED_DESIGN_CANDIDATE');
+ expect(aligned.zResolutionAuthority).toBe('HUMAN_REVIEWED_SHEET_ELEVATION');
+ expect(aligned.zResolutionCoordinateFrame).toBe('PROJECT_REVIEW_DATUM');
+ expect(aligned.zPlacementAuthority).toBe('HUMAN_REVIEWED_SHEET_ELEVATION');
  expect(aligned.original.x).toBe(5);
  expect(aligned.original.y).toBe(2.5);
 
