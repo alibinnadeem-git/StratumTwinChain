@@ -168,6 +168,8 @@ assert.match(inspector,/Design\/review readiness only/);
 
 const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
 assert.match(viewer,/deriveDigitalTwinProjectReadiness/);
+assert.match(viewer,/deriveRenderLocalOrigin/,'digital twin readiness must coexist with large-coordinate render rebasing');
+assert.match(viewer,/STRATUM_RENDER_LOCAL_ROOT/);
 assert.match(viewer,/Digital twin readiness/);
 assert.match(viewer,/demo-ready/);
 assert.match(viewer,/Exact product twin/);
