@@ -94,6 +94,8 @@ jobs:
         run: npm run qa:ifc-ingestion
       - name: Native DXF vertical coordinate conformance
         run: npm run qa:dxf-z
+      - name: DXF equipment block versus text authority
+        run: npm run qa:dxf-equipment-authority
       - name: Scanned-image OCR review-evidence conformance
         run: npm run qa:image-ocr
       - name: Scanned PDF OCR fallback conformance
@@ -138,6 +140,8 @@ jobs:
         run: npm run qa:pdf-equipment-anchor
       - name: Generic digital twin assembly golden path
         run: npm run qa:digital-twin-assembly
+      - name: Digital twin readiness chain conformance
+        run: npm run qa:digital-twin-readiness
       - name: Spatial evidence and uncertainty envelope
         run: npm run qa:spatial-evidence-envelope
       - name: Render-local coordinate precision conformance
