@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {DATABASE_CAPABILITY_TABLES,REQUIRED_DATABASE_TABLES,summarizeDatabaseReadiness} from '../lib/server/database-readiness.ts';
+import {resolveDatabaseTlsRuntime} from '../lib/server/database-tls.ts';
 
 const full=summarizeDatabaseReadiness(REQUIRED_DATABASE_TABLES);
 assert.equal(full.fullSchemaReady,true);
@@ -108,5 +109,33 @@ assert.match(chainRuntime,/required 3-of-3 PoVI compatibility quorum/);
 console.log('✓ application tenant database and validator chain authority are explicitly separated');
 
 
+const requireTls=resolveDatabaseTlsRuntime('postgresql://user:pass@example.neon.tech/db?sslmode=require',true);
+assert.equal(new URL(requireTls.connectionString).searchParams.get('sslmode'),'verify-full');
+assert.equal(requireTls.ssl?.rejectUnauthorized,true);
+
+const preferTls=resolveDatabaseTlsRuntime('postgresql://user:pass@example.neon.tech/db?sslmode=prefer',true);
+assert.equal(new URL(preferTls.connectionString).searchParams.get('sslmode'),'verify-full');
+assert.equal(preferTls.ssl?.rejectUnauthorized,true);
+
+const verifyCaTls=resolveDatabaseTlsRuntime('postgresql://user:pass@example.neon.tech/db?sslmode=verify-ca',true);
+assert.equal(new URL(verifyCaTls.connectionString).searchParams.get('sslmode'),'verify-full');
+assert.equal(verifyCaTls.ssl?.rejectUnauthorized,true);
+
+const verifyFullTls=resolveDatabaseTlsRuntime('postgresql://user:pass@example.neon.tech/db?sslmode=verify-full',true);
+assert.equal(new URL(verifyFullTls.connectionString).searchParams.get('sslmode'),'verify-full');
+assert.equal(verifyFullTls.ssl?.rejectUnauthorized,true);
+
+const neonDefaultTls=resolveDatabaseTlsRuntime('postgresql://user:pass@example.neon.tech/db',true);
+assert.equal(new URL(neonDefaultTls.connectionString).searchParams.get('sslmode'),'verify-full');
+assert.equal(neonDefaultTls.ssl?.rejectUnauthorized,true);
+
+const disabledTls=resolveDatabaseTlsRuntime('postgresql://user:pass@localhost/db?sslmode=disable',true);
+assert.equal(new URL(disabledTls.connectionString).searchParams.get('sslmode'),'disable');
+assert.equal(disabledTls.ssl,undefined);
+
+const localDevTls=resolveDatabaseTlsRuntime('postgresql://user:pass@localhost/db',false);
+assert.equal(new URL(localDevTls.connectionString).searchParams.get('sslmode'),null);
+assert.equal(localDevTls.ssl,undefined);
+console.log('✓ PostgreSQL TLS normalization pins Neon/ambiguous SSL modes to verify-full without breaking explicit local disable/dev behavior');
 
 console.log('\nDatabase and server-backed persistence readiness contract passed.');
