@@ -1,4 +1,4 @@
-import {resolveRegisteredSpatialAsset,type RegisteredSpatialAsset,type SpatialAssetBinding} from './spatial-asset-link';
+import {resolveRegisteredSpatialAsset,type RegisteredSpatialAsset,type SpatialAssetBinding} from './spatial-asset-link.ts';
 
 export type ElectricalRelationshipGraphSource={
  name:string;
