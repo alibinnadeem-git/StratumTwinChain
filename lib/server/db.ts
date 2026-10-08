@@ -1,5 +1,6 @@
 import {Pool,PoolClient,QueryResultRow} from 'pg';
 import {resolveDatabaseRuntime} from './runtime-config';
+import {resolveDatabaseTlsRuntime} from './database-tls';
 
 let pool:Pool|undefined;
 let poolUrl:string|undefined;
@@ -9,19 +10,10 @@ export function db(){
  if(!runtime)throw new Error('No supported database connection secret is configured');
  if(!pool||poolUrl!==runtime.url){
   if(pool)void pool.end().catch(()=>{});
-  const sslMode=(()=>{try{return new URL(runtime.url).searchParams.get('sslmode')?.toLowerCase()||''}catch{return''}})();
-  const ssl=sslMode==='disable'
-   ?undefined
-   :sslMode==='verify-ca'||sslMode==='verify-full'
-     ?{rejectUnauthorized:true}
-     :sslMode==='require'
-       ?{rejectUnauthorized:false}
-       :process.env.NODE_ENV==='production'
-         ?{rejectUnauthorized:false}
-         :undefined;
+  const tls=resolveDatabaseTlsRuntime(runtime.url);
   pool=new Pool({
-   connectionString:runtime.url,
-   ssl,
+   connectionString:tls.connectionString,
+   ssl:tls.ssl,
    max:process.env.NODE_ENV==='production'?2:10,
   });
   poolUrl=runtime.url;
