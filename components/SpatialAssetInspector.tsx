@@ -7,9 +7,11 @@ import {readSelectedSpatialProjectId} from '@/lib/spatial-project-selection';
 import {resolveReconciledAssetPlacement} from '@/lib/z-solution-chain';
 import {resolveSpatialModel} from '@/lib/spatial-model-resolution';
 import {deriveSpatialEvidenceEnvelope} from '@/lib/spatial-evidence-envelope';
+import {deriveDigitalTwinComponentReadiness} from '@/lib/digital-twin-readiness';
 import type {ElectricalModelConfig} from '@/lib/electrical-model-registry';
 import AssetActivityPanel from '@/components/AssetActivityPanel';
 import AssetQR from '@/components/AssetQR';
+import AssetTelemetryPanel from '@/components/AssetTelemetryPanel';
 import {
  resolveRegisteredSpatialAsset,
  spatialAssetDirState,
@@ -55,6 +57,7 @@ export default function SpatialAssetInspector({
  const reconciliation=useMemo(()=>selected?resolveReconciledAssetPlacement({name:selected.name,floor:selected.floor,z:selected.z,meta:selected.meta}):null,[selected]);
  const modelResolution=useMemo(()=>selected?resolveSpatialModel(selected,modelRegistry):null,[selected,modelRegistry]);
  const evidenceEnvelope=useMemo(()=>selected?deriveSpatialEvidenceEnvelope(selected,modelResolution):null,[selected,modelResolution]);
+ const twinReadiness=useMemo(()=>selected?deriveDigitalTwinComponentReadiness(selected,registeredAssets,modelRegistry):null,[selected,registeredAssets,modelRegistry]);
  const placement=reconciliation?.placement||null;
  const zSolution=reconciliation?.solution||null;
  const dir=useMemo(()=>spatialAssetDirState(binding),[binding]);
@@ -202,6 +205,7 @@ export default function SpatialAssetInspector({
   </div>
   {modelResolution&&<div className="notice" role="status"><strong>3D MODEL · {modelResolution.tier.replaceAll('_',' ')}</strong><span>{modelResolution.component?.name||'Component unresolved'} · {modelResolution.geometryAuthority.replaceAll('_',' ')} · confidence {Math.round(modelResolution.confidence*100)}%. {modelResolution.fallbackReason||'The model matches the source product identity available in the drawing/library evidence.'} Physical installed identity remains unverified until explicitly bound to the registered asset.</span></div>}
   {evidenceEnvelope&&<div className="notice" role="status"><strong>SPATIAL EVIDENCE · {evidenceEnvelope.readiness.replaceAll('_',' ')}</strong><span>{evidenceEnvelope.explanation} Evidence lineages {evidenceEnvelope.distinctEvidenceLineages}. Physical clash authority remains false.</span></div>}
+  {twinReadiness&&<div className="notice" role="status"><strong>DIGITAL TWIN · {twinReadiness.state.replaceAll('_',' ')}</strong><span>{twinReadiness.demoReady?'Interactive design-twin chain is demo-ready.':'Twin chain is not yet demo-ready.'} {twinReadiness.blockerLabels.length?twinReadiness.blockerLabels.join(' · '):'No hard readiness blockers.'} Render Z {twinReadiness.renderBaseZMeters===null?'unresolved':twinReadiness.renderBaseZMeters.toFixed(3)+' m'} · graph/render Δ {twinReadiness.zAgreementDeltaMeters===null?'n/a':twinReadiness.zAgreementDeltaMeters.toFixed(3)+' m'} · asset {twinReadiness.assetCode||'not bound'} · DIR {twinReadiness.dirFinalized?'finalized':'not finalized'} · maintenance {twinReadiness.maintenanceConfigured?'configured':'not configured'}. Design/review readiness only; installed identity and as-built position remain separate.</span></div>}
   {!zReviewed&&<div className="button-row" style={{margin:'8px 0 10px'}}><a className="action" href="#z-resolution-review">Resolve Z</a><Link className="ghost" href="/docs#z-method">View Z method</Link></div>}
   {zSolution?.status==='CONFLICT'&&<div className="notice" role="status"><strong>Z CONFLICT · AUTO-PLACEMENT BLOCKED</strong><span>{zSolution.explanation}</span><ul style={{margin:'8px 0 0',paddingLeft:18}}>{zSolution.conflicts.map((conflict,index)=><li key={index}><small>{conflict.reason} · {conflict.candidateA} vs {conflict.candidateB} · Δ {conflict.deltaMeters.toFixed(3)} m · threshold {conflict.toleranceMeters.toFixed(3)} m</small></li>)}</ul></div>}
   {zSolution?.status==='REVIEW_RESOLVED_CANDIDATE'&&<div className="notice" role="status"><strong>HUMAN REVIEW PLACEMENT · PHYSICAL Z UNVERIFIED</strong><span>The authenticated selected chain controls the review model only. Conflicting evidence remains preserved, and this review does not establish field-verified physical elevation.</span></div>}
@@ -269,7 +273,7 @@ export default function SpatialAssetInspector({
    </details>
 
    {asset.project_id
-    ?<AssetActivityPanel key={asset.id} assetId={asset.id} projectId={asset.project_id}/>
+    ?<><AssetTelemetryPanel assetId={asset.id}/><AssetActivityPanel key={asset.id} assetId={asset.id} projectId={asset.project_id}/></>
     :<div className="notice" style={{marginTop:12}}><strong>ACTIVITY UNAVAILABLE</strong><span>This asset summary is missing its project identifier. Reload the live asset registry before submitting activity.</span></div>}
 
    <details className="secondary-details">

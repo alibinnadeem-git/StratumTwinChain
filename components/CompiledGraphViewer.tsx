@@ -5,6 +5,7 @@ import {useEffect,useMemo,useRef,useState} from "react";
 import {resolveElectricalComponent} from "@/lib/electrical-component-library";
 import {resolveSpatialModel} from "@/lib/spatial-model-resolution";
 import {deriveSpatialEvidenceEnvelope} from "@/lib/spatial-evidence-envelope";
+import {deriveDigitalTwinProjectReadiness} from "@/lib/digital-twin-readiness";
 import {deriveRenderLocalOrigin} from "@/lib/render-local-origin";
 import {resolveReconciledAssetPlacement} from "@/lib/z-solution-chain";
 import {fitProceduralObjectToMeters,normalizeObjectToMeters} from "@/lib/three-model-normalization";
@@ -206,10 +207,13 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
   const unresolvedZ=useMemo(()=>graph?.entities.filter(e=>e.layer==="L2"&&!physicalElevationKnown(e)&&!isSld(e)).length||0,[graph]);
   const modelMapped=useMemo(()=>graph?.entities.filter(e=>{
     if(e.layer!=="L2"||e.kind==="line")return false;
+    if(e.kind==="cad-text"||e.meta?.cadPhysicalAnchor===false)return false;
     if(e.kind==="imported-3d-model")return typeof e.meta?.embeddedGlb==='string';
     return Boolean(resolveSpatialModel(e,registry).model?.modelUrl.trim());
   }).length||0,[graph,registry]);
   const matching=useMemo(()=>inventory,[inventory]);
+  const projectAssets=useMemo(()=>activeProjectId?registeredAssets.filter(asset=>asset.project_id===activeProjectId&&!/^STR-UAT-/i.test(asset.asset_code)):[],[activeProjectId,registeredAssets]);
+  const twinReadiness=useMemo(()=>graph?deriveDigitalTwinProjectReadiness(graph.entities,projectAssets,registry):null,[graph,projectAssets,registry]);
   const fallbackBounds=useMemo(()=>bounds2d(visible),[visible]);
   const renderOrigin=useMemo(()=>deriveRenderLocalOrigin(visible),[visible]);
 
@@ -322,7 +326,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
         root.userData.asBuiltAuthority=false;
       };
       const fallbackShape=(e:Entity)=>{
-        if(e.kind==='sheet-callout-candidate'||e.kind==='annotated-asset-candidate'){
+        if(e.kind==='sheet-callout-candidate'||e.kind==='annotated-asset-candidate'||(e.kind==='cad-text'&&e.meta?.cadPhysicalAnchor===false)){
           const root=new THREE.Group();
           const candidates=inventory.filter(item=>item.kind==='sheet-callout-candidate'||item.kind==='annotated-asset-candidate');
           const nearby=candidates.filter(item=>Math.hypot(item.x-e.x,item.y-e.y)<1);
@@ -387,7 +391,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
           }catch{setModelLoadErrors(current=>current.includes(e.id)?current:[...current,e.id])}
           return;
         }
-        if(e.kind==='sheet-callout-candidate'||e.kind==='annotated-asset-candidate'){fallbackShape(e);return}
+        if(e.kind==='sheet-callout-candidate'||e.kind==='annotated-asset-candidate'||(e.kind==='cad-text'&&e.meta?.cadPhysicalAnchor===false)){fallbackShape(e);return}
         const modelResolution=resolveSpatialModel(e,registry),cfg=modelResolution.model;
         if(!cfg?.modelUrl.trim()||!["GLB","GLTF"].includes(cfg.format)){fallbackShape(e);return}
         const reconciled=resolveReconciledAssetPlacement({name:e.name,floor:e.floor,z:e.z,meta:e.meta},{registry:cfg}),placement=reconciled.placement;
@@ -540,7 +544,6 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
 
   const width=fallbackBounds.maxX-fallbackBounds.minX,height2=fallbackBounds.maxY-fallbackBounds.minY;
   const sx=(x:number)=>((x-fallbackBounds.minX)/width)*92+4,sy=(y:number)=>96-((y-fallbackBounds.minY)/height2)*92;
-  const projectAssets=activeProjectId?registeredAssets.filter(asset=>asset.project_id===activeProjectId&&!/^STR-UAT-/i.test(asset.asset_code)):[];
   const reviewPins=inventory.filter(item=>item.kind==='sheet-callout-candidate'||item.kind==='annotated-asset-candidate');
   const plural=(count:number,singular:string)=>`${count} ${singular}${count===1?'':'s'}`;
 
@@ -549,6 +552,27 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       <div><div className="eyebrow">STRATUM Spatial Verified</div><h2 style={{margin:"3px 0"}}>Spatial model</h2><p className="muted" style={{margin:0}}>{plural(graph.sources.length,'source')} · {plural(sheetFrames.length,'drawing frame')} · {plural(nonSldPlanSheets,'non-SLD plan')} · {plural(levels.length,'level')} · {plural(rooms,'room')} · {plural(visibleLines,'drawing line')} · {plural(rasterUnderlays,'drawing underlay')} · {plural(sldObjects,'SLD object')}</p></div>
       <div className="button-row"><Link className="ghost" href="/compiler">Edit sources</Link><Link className="ghost" href="/component-library">3D models</Link></div>
     </div>
+
+    {twinReadiness&&twinReadiness.totalEquipment>0&&<details className="secondary-details" style={{margin:"12px 14px"}}>
+      <summary>Digital twin readiness · {twinReadiness.demoReady}/{twinReadiness.totalEquipment} demo-ready</summary>
+      <div className="grid two" style={{marginTop:10}}>
+        <div><div className="label">Exact product twin</div><b>{twinReadiness.exactTwinReady}</b><small style={{display:'block'}}>Source-supported exact product geometry + 3D design coordinates + registered asset.</small></div>
+        <div><div className="label">Family twin</div><b>{twinReadiness.familyTwinReady}</b><small style={{display:'block'}}>3D design coordinates + family geometry + registered asset; exact product identity remains unresolved.</small></div>
+        <div><div className="label">Asset bound</div><b>{twinReadiness.assetBound}/{twinReadiness.totalEquipment}</b><small style={{display:'block'}}>Unique registered asset opens the click-through lifecycle context.</small></div>
+        <div><div className="label">DIR finalized</div><b>{twinReadiness.dirFinalized}/{twinReadiness.totalEquipment}</b><small style={{display:'block'}}>Ledger finality is shown separately from spatial/physical truth.</small></div>
+        <div><div className="label">Maintenance configured</div><b>{twinReadiness.maintenanceConfigured}/{twinReadiness.totalEquipment}</b><small style={{display:'block'}}>Linked asset has maintenance plan/status context.</small></div>
+        <div><div className="label">Needs review</div><b>{twinReadiness.reviewBlocked+twinReadiness.spatial2DReviewReady+twinReadiness.spatial3DReviewReady+twinReadiness.sourceOnly}</b><small style={{display:'block'}}>Includes evidence conflicts, incomplete Z, missing asset links or source-only placement.</small></div>
+      </div>
+      <p className="muted" style={{marginTop:10}}>Design/review readiness only. Demo-ready means the interactive design twin chain is assembled; it does not establish installed physical identity, field/as-built coordinates, physical clash authority, engineering approval, DIR truth of position, or PoVI finality.</p>
+      {twinReadiness.components.some(component=>!component.demoReady)&&<div style={{display:'grid',gap:8,marginTop:10}}>
+        {twinReadiness.components.filter(component=>!component.demoReady).slice(0,12).map(component=><div className="binding-panel" key={component.entityId}>
+          <div style={{display:'flex',justifyContent:'space-between',gap:10,alignItems:'center',flexWrap:'wrap'}}><strong>{component.name}</strong><span className="pending">{component.state.replaceAll('_',' ')}</span></div>
+          <small style={{display:'block',marginTop:4}}>{component.blockerLabels.length?component.blockerLabels.join(' · '):'No hard blocker; review chain remains incomplete.'}</small>
+          <small style={{display:'block',marginTop:3}}>Model {component.model.tier.replaceAll('_',' ')} · asset {component.assetCode||'not bound'} · DIR {component.dirFinalized?'finalized':'not finalized'} · maintenance {component.maintenanceConfigured?'configured':'not configured'}</small>
+          <button className="ghost" style={{marginTop:7}} onClick={()=>{const entity=graph.entities.find(item=>item.id===component.entityId);if(entity){setSelected(entity);setFitRevision(value=>value+1)}}}>Review component</button>
+        </div>)}
+      </div>}
+    </details>}
 
     {staleDrawingSources.length>0&&<details className="secondary-details" style={{margin:"12px 14px"}}>
       <summary>Legacy drawing frame · {staleDrawingSources.length} source{staleDrawingSources.length===1?'':'s'} can be refreshed</summary>
