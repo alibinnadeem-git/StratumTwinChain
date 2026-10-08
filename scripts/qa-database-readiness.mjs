@@ -14,6 +14,7 @@ assert.equal(full.spatialSourceVaultReady,true);
 assert.equal(full.spatialZReviewReady,true);
 assert.equal(full.oemCadVerificationReady,true);
 assert.equal(full.telemetryReady,true);
+assert.equal(full.relationshipGraphReady,true);
 assert.equal(full.attestationsReady,true);
 assert.equal(full.dirRuntimeReady,true);
 assert.equal(full.missingTables.length,0);
@@ -47,6 +48,13 @@ assert.equal(telemetryMissing.telemetryReady,false);
 assert.equal(telemetryMissing.spatialPersistenceReady,true);
 console.log('✓ telemetry readiness fails independently without degrading core or Spatial persistence');
 
+const withoutRelationshipGraph=REQUIRED_DATABASE_TABLES.filter(table=>!['relationship_types','asset_relationships','relationship_evidence','relationship_review_events'].includes(table));
+const relationshipMissing=summarizeDatabaseReadiness(withoutRelationshipGraph);
+assert.equal(relationshipMissing.coreReady,true);
+assert.equal(relationshipMissing.relationshipGraphReady,false);
+assert.equal(relationshipMissing.spatialPersistenceReady,true);
+console.log('✓ relationship-graph readiness fails independently without disabling core or Spatial persistence');
+
 const withoutLifecycle=REQUIRED_DATABASE_TABLES.filter(table=>table!=='lifecycle_events');
 const lifecycleMissing=summarizeDatabaseReadiness(withoutLifecycle);
 assert.equal(lifecycleMissing.lifecycleReady,false);
@@ -76,10 +84,14 @@ assert.ok(DATABASE_CAPABILITY_TABLES.oemCadVerification.includes('oem_cad_verifi
 assert.ok(DATABASE_CAPABILITY_TABLES.oemCadVerification.includes('oem_cad_source_files'));
 assert.ok(DATABASE_CAPABILITY_TABLES.telemetry.includes('telemetry_points'));
 assert.ok(DATABASE_CAPABILITY_TABLES.telemetry.includes('telemetry_readings'));
+assert.ok(DATABASE_CAPABILITY_TABLES.relationshipGraph.includes('relationship_types'));
+assert.ok(DATABASE_CAPABILITY_TABLES.relationshipGraph.includes('asset_relationships'));
+assert.ok(DATABASE_CAPABILITY_TABLES.relationshipGraph.includes('relationship_evidence'));
+assert.ok(DATABASE_CAPABILITY_TABLES.relationshipGraph.includes('relationship_review_events'));
 assert.ok(DATABASE_CAPABILITY_TABLES.dirRuntime.includes('approval_policies'));
 assert.ok(DATABASE_CAPABILITY_TABLES.dirRuntime.includes('ledger_records'));
 assert.ok(!DATABASE_CAPABILITY_TABLES.dirRuntime.some(table=>table.startsWith('sv_chain_')),'validator chain tables must not be duplicated into the Spatial application database');
-console.log('✓ post-baseline Spatial, source-vault, OEM CAD verification, attestation and archive migrations are part of readiness');
+console.log('✓ post-baseline Spatial, source-vault, OEM CAD verification, telemetry, relationship graph, attestation and archive migrations are part of readiness');
 
 const health=fs.readFileSync('app/api/health/route.ts','utf8');
 assert.match(health,/DATABASE_READINESS_SQL/);
