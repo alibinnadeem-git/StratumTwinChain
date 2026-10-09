@@ -58,7 +58,7 @@ const centroid=(poly:XY[])=>poly.reduce((a,p)=>({x:a.x+p.x/poly.length,y:a.y+p.y
 function assignZones(entities:GraphEntity[]){const rooms=entities.filter(e=>e.kind==='room-boundary'&&e.vertices?.length);const labels=entities.filter(e=>e.kind==='room-label');const namedRooms=rooms.map(r=>{const inside=labels.filter(l=>sameSourceFrame(l,r)&&pointInPolygon({x:l.x,y:l.y},r.vertices!));if(!inside.length)return r;inside.sort((a,b)=>b.confidence-a.confidence);return{...r,name:inside[0].name,zone:inside[0].name}});const replacements=new Map(namedRooms.map(r=>[r.id,r]));return entities.map(original=>{const e=replacements.get(original.id)||original;if(e.meta?.nonSpatial===true||e.layer==='L1'||e.zone)return e;const containing=namedRooms.filter(r=>sameSourceFrame(r,e)&&r.vertices&&pointInPolygon({x:e.x,y:e.y},r.vertices));if(containing.length)return{...e,zone:containing[0].name};const sameLabels=labels.filter(r=>sameSourceFrame(r,e));let best:GraphEntity|undefined,dist=Infinity;for(const r of sameLabels){const d=Math.hypot(e.x-r.x,e.y-r.y);if(d<dist){dist=d;best=r}}return best&&dist<3?{...e,zone:best.name}:e})}
 function buildLinks(entities:GraphEntity[]){const links:GraphLink[]=[];const seen=new Map<string,GraphEntity[]>();for(const e of entities.filter(x=>x.layer==='L2'||x.layer==='L3')){const key=cleanTag(e.name);if(key.length<2)continue;const arr=seen.get(key)||[];arr.push(e);seen.set(key,arr)}for(const [key,arr] of seen){if(arr.length<2)continue;for(let i=1;i<arr.length;i++)links.push({id:`tag-${key}-${i}`,from:arr[0].id,to:arr[i].id,type:'SAME_TAG',confidence:.82})}for(const e of entities.filter(x=>x.layer==='L4')){const from=String(e.meta?.derivedFrom||'');if(from)links.push({id:`asset-${e.id}`,from,to:e.id,type:'DERIVED_ASSET',confidence:.99})}return links}
 
-type PdfParseResult={entities:GraphEntity[];summary:string;pages:number;vectors:number;textItems:number;sldPages:number;nonSldPlanPages:number;planTypes:string[];disciplines:string[];setCompleteness:DrawingSetCompleteness};
+type PdfParseResult={entities:GraphEntity[];summary:string;pages:number;vectors:number;textItems:number;sldPages:number;nonSldPlanPages:number;planTypes:string[];disciplines:string[];setCompleteness:DrawingSetCompleteness;ocrRequiredPages:number[]};
 type PdfParseProgress={page:number;total:number;phase:string;elapsedMs?:number};
 class PdfParseError extends Error{code:string;page:number|null;constructor(code:string,message:string,page:number|null=null){super(message);this.name='PdfParseError';this.code=code;this.page=page}}
 
@@ -326,6 +326,107 @@ function enrichZCandidates(parsed:GraphEntity[]){
   }
   return withZConstraintGraph({...entity,meta:{...entity.meta,...surfaceMeta,...xyzGuide,zCandidateReferencePoint:resolution.referencePoint,zResolutionStatus:resolution.status,zResolutionConfidence:resolution.confidence,zResolutionAuthority:resolution.authority,zResolutionEvidence:resolution.evidence,physicalElevationKnown:false,elevationKnown:false,reviewRequired:true}});
  });
+}
+
+type SelectivePdfOcrResult={entities:GraphEntity[];ocrPages:number;textChars:number;nonSldPlanPages:number;planTypes:string[];disciplines:string[];failedPages:number[]};
+
+async function parsePdfSelectedOcrPages(
+ file:File,
+ pageNumbers:number[],
+ level:{floor:string;elevation:number},
+ discipline:string,
+ onProgress:(page:number,total:number)=>void,
+ signal:AbortSignal
+):Promise<SelectivePdfOcrResult>{
+ const wanted=[...new Set(pageNumbers.map(Number).filter(page=>Number.isInteger(page)&&page>0))].sort((a,b)=>a-b);
+ if(!wanted.length)return{entities:[],ocrPages:0,textChars:0,nonSldPlanPages:0,planTypes:[],disciplines:[],failedPages:[]};
+ const PromiseWithResolvers=Promise as any;
+ if(typeof PromiseWithResolvers.withResolvers!=='function')PromiseWithResolvers.withResolvers=()=>{let resolve:any,reject:any;const promise=new Promise((ok,fail)=>{resolve=ok;reject=fail});return{promise,resolve,reject}};
+ const pdfjs:any=await import('pdfjs-dist/legacy/build/pdf.mjs');
+ try{pdfjs.GlobalWorkerOptions.workerSrc=new URL('pdfjs-dist/build/pdf.worker.min.mjs',import.meta.url).toString()}catch{}
+ const objectUrl=URL.createObjectURL(file);
+ const doc=await pdfjs.getDocument({url:objectUrl,wasmUrl:'/pdfjs/wasm/'}).promise;
+ const mod=await import('tesseract.js');
+ const ocrWorker=await mod.createWorker('eng',mod.OEM.LSTM_ONLY);
+ const entities:GraphEntity[]=[],supportOffsets:SupportOffsetEvidence[]=[];
+ const planTypes=new Set<string>(),disciplines=new Set<string>();
+ const failedPages:number[]=[];let textChars=0,ocrPages=0;
+ try{
+  for(let index=0;index<wanted.length;index++){
+   if(signal.aborted)throw new PdfParseError('PDF_PARSE_CANCELLED','Selective scanned-page OCR was canceled. Native parsed content remains retryable.');
+   const pageNumber=wanted[index];onProgress(pageNumber,wanted.length);
+   let page:any=null;
+   try{
+    page=await doc.getPage(pageNumber);
+    const viewport=page.getViewport({scale:1}),maxSide=Math.max(viewport.width,viewport.height,1);
+    const renderScale=Math.max(.35,Math.min(1.8,1800/maxSide)),ocrViewport=page.getViewport({scale:renderScale});
+    const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');
+    canvas.width=Math.max(1,Math.round(ocrViewport.width));canvas.height=Math.max(1,Math.round(ocrViewport.height));
+    if(!ctx)throw new Error('Canvas rendering unavailable');
+    await page.render({canvasContext:ctx,viewport:ocrViewport}).promise;
+    if(signal.aborted)throw new PdfParseError('PDF_PARSE_CANCELLED','Selective scanned-page OCR was canceled. Native parsed content remains retryable.');
+    const recognized=await ocrWorker.recognize(canvas,{}, {text:true,blocks:true});
+    const ocrText=String(recognized.data?.text||'').trim();
+    if(!ocrText){failedPages.push(pageNumber);continue}
+    ocrPages++;textChars+=ocrText.length;
+    const lines=ocrText.split(/\r?\n/).map((line:string)=>line.trim()).filter(Boolean);
+    const pageFloor=inferPdfPageFloor(lines)||level.floor;
+    const landscape=canvas.width>=canvas.height;
+    const planeWidth=landscape?20:20*canvas.width/Math.max(canvas.height,1);
+    const planeHeight=landscape?20*canvas.height/Math.max(canvas.width,1):20;
+    const blockLines=(Array.isArray(recognized.data?.blocks)?recognized.data.blocks:[]).flatMap((block:any)=>Array.isArray(block?.paragraphs)?block.paragraphs:[]).flatMap((paragraph:any)=>Array.isArray(paragraph?.lines)?paragraph.lines:[]);
+    const geometryItems:PositionedSheetText[]=blockLines.flatMap((line:any)=>{
+      const label=String(line?.text||'').replace(/\s+/g,' ').trim(),bbox=line?.bbox;if(!label||!bbox)return[];
+      const x0=Number(bbox.x0),y0=Number(bbox.y0),x1=Number(bbox.x1),y1=Number(bbox.y1);if(![x0,y0,x1,y1].every(Number.isFinite))return[];
+      return[{text:label,x:(x0+x1)/2/Math.max(canvas.width,1),y:(y0+y1)/2/Math.max(canvas.height,1),width:Math.abs(x1-x0)/Math.max(canvas.width,1),height:Math.abs(y1-y0)/Math.max(canvas.height,1)}];
+    });
+    const positioned=geometryItems.map(item=>({text:item.text,x:(Number(item.x)-.5)*planeWidth,y:(.5-Number(item.y))*planeHeight}));
+    const recognition=resolveDrawingPageRecognition(lines,0);
+    if(recognition.plan.isPlan&&recognition.plan.planType)planTypes.add(String(recognition.plan.planType));
+    if(recognition.plan.isPlan&&recognition.plan.discipline)disciplines.add(String(recognition.plan.discipline));
+    const frames=detectPlanFrames(positioned,recognition.plan);
+    const frameAt=(x:number,y:number)=>resolvePlanFrameAtPoint(frames,x,y);
+    const geometryEvidence=extractSheetGeometryEvidence({items:geometryItems,pageWidthPoints:viewport.width,pageHeightPoints:viewport.height});
+    const validation=validateIndependentScale({items:geometryItems,segments:[],declaredScale:geometryEvidence.drawingScale.value,pageMaxDimensionPoints:maxSide,normalizedSheetSpan:20,coordinateSpan:1});
+    const previewMax=1000,previewScale=Math.min(1,previewMax/Math.max(canvas.width,canvas.height,1)),preview=document.createElement('canvas'),previewCtx=preview.getContext('2d');
+    preview.width=Math.max(1,Math.round(canvas.width*previewScale));preview.height=Math.max(1,Math.round(canvas.height*previewScale));
+    if(previewCtx)previewCtx.drawImage(canvas,0,0,preview.width,preview.height);
+    const embeddedRasterDataUrl=previewCtx?preview.toDataURL('image/jpeg',.55):'';
+    const planMeta={...(recognition.plan.isPlan?{nonSldPlan:true,planType:recognition.plan.planType,planRecognition:'OCR_CONTENT_PLAN_V2_FRAMES',planRecognitionScore:recognition.plan.score,planEvidence:recognition.plan.reasons,planTitleEvidence:recognition.plan.titleEvidence,planDiscipline:recognition.plan.discipline,planFrameCount:frames.length,planFrames:frames.map(frame=>({id:frame.id,title:frame.title,floor:frame.floor,unitId:frame.unitId,confidence:frame.confidence,reviewRequired:true,physicalTruth:false}))}:{})};
+    entities.push({id:`pdf-selective-ocr-underlay-${pageNumber}`,source:file.name,layer:'L1',kind:'source-raster-underlay',name:`${file.name} · scanned page ${pageNumber}`,x:-planeWidth/2,y:-planeHeight/2,z:0,x2:planeWidth/2,y2:planeHeight/2,z2:0,floor:pageFloor,confidence:1,meta:{page:pageNumber,sourceType:'PDF_RASTER_OCR_UNDERLAY',drawingBasemap:true,embeddedRasterDataUrl,previewWidth:preview.width,previewHeight:preview.height,coordinateUnits:'image_sheet',geometryAuthority:'SOURCE_IMAGE_PLANE_ONLY',spatialPlacementAuthority:'SOURCE_IMAGE_PLANE_ONLY',zPlacementAuthority:'UNVERIFIED_DRAWING_PLANE',scaleValidationEvidence:validation,drawingScaleEvidence:geometryEvidence.drawingScale,northOrientationEvidence:geometryEvidence.northOrientation,physicalTruth:false,reviewRequired:false,...planMeta}});
+
+    const zEvidence=extractZEvidenceFromText(ocrText,{source:file.name,floor:pageFloor,idPrefix:`pdf-selective-z-${pageNumber}`});
+    for(const item of zEvidence)entities.push({id:item.id,source:file.name,layer:'L0',kind:'z-evidence-candidate',name:item.evidence[0]||item.type,x:0,y:0,z:0,floor:item.floor||pageFloor,confidence:item.confidence,meta:{page:pageNumber,nonSpatial:true,zEvidence:item,sourceType:'PDF_RASTER_OCR_Z_EVIDENCE',physicalTruth:false,reviewRequired:true,zPlacementAuthority:'SOURCE_OCR_TEXT_Z_EVIDENCE_ONLY',elevationKnown:false,physicalElevationKnown:false}});
+
+    const controls=extractPositionedElevationControls({items:geometryItems,source:file.name,page:pageNumber,declaredScale:geometryEvidence.drawingScale.value,scaleValidation:validation,planeWidth,planeHeight});
+    const triangles=[...buildElevationTriangles(controls,'GRADE'),...buildElevationTriangles(controls,'FINISHED_FLOOR')];
+    for(const control of controls)entities.push({id:`pdf-selective-elevation-control-${pageNumber}-${control.id}`,source:file.name,layer:'L0',kind:'elevation-control-point',name:control.label,x:control.x,y:control.y,z:control.zMeters,floor:pageFloor,confidence:control.confidence,meta:{page:pageNumber,elevationControl:control,sourceType:'PDF_RASTER_OCR_ELEVATION_CONTROL',coordinateUnits:'image_sheet',physicalTruth:false,reviewRequired:true,elevationKnown:false,physicalElevationKnown:false}});
+    for(const triangle of triangles){const [a,b,d]=triangle.points;entities.push({id:`pdf-selective-elevation-triangle-${pageNumber}-${triangle.id}`,source:file.name,layer:'L1',kind:'elevation-review-surface-triangle',name:`${triangle.kind} review surface`,x:(a.x+b.x+d.x)/3,y:(a.y+b.y+d.y)/3,z:(a.zMeters+b.zMeters+d.zMeters)/3,floor:pageFloor,confidence:triangle.confidence,vertices:[{x:a.x,y:a.y},{x:b.x,y:b.y},{x:d.x,y:d.y}],meta:{page:pageNumber,elevationTriangle:{id:triangle.id,kind:triangle.kind,pointIds:triangle.pointIds,zMeters:[a.zMeters,b.zMeters,d.zMeters]},sourceType:'PDF_RASTER_OCR_ELEVATION_TRIANGLE',coordinateUnits:'image_sheet',zPlacementAuthority:'SOURCE_ELEVATION_TRIANGLE',physicalTruth:false,reviewRequired:true,elevationKnown:false,physicalElevationKnown:false}})}
+    supportOffsets.push(...extractSupportOffsetEvidence({items:geometryItems,source:file.name,page:pageNumber,planeWidth,planeHeight}));
+
+    let candidateIndex=0;
+    for(const line of blockLines){
+      const label=String(line?.text||'').replace(/\s+/g,' ').trim(),bbox=line?.bbox;if(!label||!bbox)continue;
+      const x0=Number(bbox.x0),y0=Number(bbox.y0),x1=Number(bbox.x1),y1=Number(bbox.y1);if(![x0,y0,x1,y1].every(Number.isFinite)||x1<=x0||y1<=y0)continue;
+      const equipmentClass=classifyElectricalLabel(label),poweredClass=poweredEquipmentClass(label),isRoom=roomCandidate(label);
+      if(!equipmentClass&&!poweredClass&&!isRoom)continue;
+      const x=((x0+x1)/2/Math.max(canvas.width,1)-.5)*planeWidth,y=(.5-(y0+y1)/2/Math.max(canvas.height,1))*planeHeight,frame=frameAt(x,y);
+      const layer:Layer=isRoom?'L1':poweredClass&&!equipmentClass?'L4':'L2';
+      entities.push({id:`pdf-selective-ocr-position-${pageNumber}-${candidateIndex++}`,source:file.name,layer,kind:isRoom?'room-label':poweredClass&&!equipmentClass?'powered-equipment-candidate':'text-asset-candidate',name:label,x,y,z:0,floor:frame?.floor||pageFloor,confidence:.62,meta:{page:pageNumber,sourceType:'PDF_RASTER_OCR_POSITIONAL_CANDIDATE',ocrAuthority:'REVIEW_ONLY',geometryAuthority:'SOURCE_IMAGE_BBOX_ONLY',coordinateUnits:'image_sheet',spatialPlacementAuthority:'OCR_SOURCE_IMAGE_POSITION_ONLY',zPlacementAuthority:'UNVERIFIED_DRAWING_PLANE',scaleValidationEvidence:validation,physicalTruth:false,reviewRequired:true,registrationState:'CANDIDATE',...(frame?{planFrameId:frame.id,planFrameTitle:frame.title,planFrameFloor:frame.floor}:{}),...(equipmentClass?{electricalComponentHint:equipmentClass}:{}),...(poweredClass?{poweredEquipmentClass:poweredClass}:{}),...planMeta}});
+    }
+    const normalized=buildImageOcrEvidence({text:ocrText,source:file.name,discipline:recognition.plan.discipline||discipline,floor:pageFloor,width:canvas.width,height:canvas.height,meanConfidence:Number.isFinite(Number(recognized.data?.confidence))?Number(recognized.data.confidence):null});
+    entities.push(...normalized.entities.map((entity,index)=>({...entity,id:`pdf-selective-ocr-text-${pageNumber}-${index}-${entity.id}`,meta:{...entity.meta,page:pageNumber,sourceType:'PDF_RASTER_OCR_TEXT',ocrAuthority:'REVIEW_ONLY',geometryAuthority:'NONE',coordinateUnits:'NONE',nonSpatial:true,physicalTruth:false,reviewRequired:true,spatialPlacementAuthority:'OCR_NON_SPATIAL'}})) as GraphEntity[]);
+   }catch(error){
+    if(error instanceof PdfParseError&&error.code==='PDF_PARSE_CANCELLED')throw error;
+    failedPages.push(pageNumber);
+   }finally{page?.cleanup?.()}
+  }
+  return{entities:enrichSupportBaseOffsets(entities,supportOffsets),ocrPages,textChars,nonSldPlanPages:planTypes.size?wanted.length-failedPages.length:0,planTypes:[...planTypes],disciplines:[...disciplines],failedPages};
+ }finally{
+  await ocrWorker.terminate().catch(()=>{});
+  await doc.destroy().catch(()=>{});
+  URL.revokeObjectURL(objectUrl);
+ }
 }
 
 async function parseImage(file:File,level:{floor:string;elevation:number},discipline:string,onProgress?:(message:string)=>void):Promise<{entities:GraphEntity[];summary:string;ocrSucceeded:boolean;planType:string|null;planDiscipline:string|null}> {
