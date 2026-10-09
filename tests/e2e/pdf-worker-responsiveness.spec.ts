@@ -1,4 +1,5 @@
 import {expect,test} from '@playwright/test';
+import fs from 'node:fs';
 
 function syntheticVectorPdf(pageCount=9,linesPerPage=1000){
  const escape=(value:string)=>value.replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)');
@@ -44,7 +45,9 @@ test('valid PDF beyond the legacy 64 MB ceiling enters LARGE_SOURCE parsing inst
  expect(pdf.byteLength).toBeGreaterThan(64*1024*1024);
  expect(pdf.byteLength).toBeLessThan(250*1024*1024);
  const input=page.locator('section.import-primary input[type=file][accept*=".pdf"]');
- await input.setInputFiles({name:'large-source-over-64mb.pdf',mimeType:'application/pdf',buffer:pdf});
+ const filePath=testInfo.outputPath('large-source-over-64mb.pdf');
+ fs.writeFileSync(filePath,pdf);
+ await input.setInputFiles(filePath);
  await expect(page.getByText('large-source-over-64mb.pdf',{exact:true})).toBeVisible({timeout:15000});
  await expect(page.getByText(/large-source bounded parse off the UI thread/i)).toBeVisible({timeout:90000});
  await expect(page.getByText('PARSED',{exact:true})).toBeVisible();
@@ -74,7 +77,7 @@ test('native PDF worker stays responsive, can cancel, and retries the same file 
 
  await input.setInputFiles({name:'worker-stress-electrical.pdf',mimeType:'application/pdf',buffer:pdf});
  await expect(page.getByText('worker-stress-electrical.pdf',{exact:true})).toBeVisible();
- await expect(page.getByText(/parsed off the UI thread/i)).toBeVisible({timeout:60000});
+ await expect(page.getByText(/standard parse off the UI thread/i)).toBeVisible({timeout:60000});
  await expect(page.getByText('PARSED',{exact:true})).toBeVisible();
  await expect(page.locator('section.import-primary input[type=file][accept*=".pdf"]')).toBeEnabled();
  await page.evaluate(()=>window.clearInterval((window as any).__stratumHeartbeatTimer));
