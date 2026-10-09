@@ -104,6 +104,8 @@ jobs:
         run: npm run qa:pdf-worker
       - name: Large-source PDF ingestion envelope conformance
         run: npm run qa:large-pdf-ingestion
+      - name: Real-project ingestion, scale and Z breadth
+        run: npm run qa:real-project-breadth
       - name: Spatial asset click and DIR Passport conformance
         run: npm run qa:spatial-asset-passport
       - name: PDF title-block intelligence conformance
