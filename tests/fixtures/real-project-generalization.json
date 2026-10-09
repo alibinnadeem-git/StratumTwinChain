@@ -9,7 +9,9 @@
         "fileName": "5749 Brynhurst - Electrical - Bid Set 2025.04.17 (1).pdf",
         "sha256": "9ad7aea4dccfe584dd3837796d4b5ba04588aeea8e2b1a90cc547575d4c323ec",
         "sizeBytes": 5472602,
-        "expectedIngestionMode": "STANDARD"
+        "expectedIngestionMode": "STANDARD",
+        "pageCount": 9,
+        "lowNativeTextPageCount": 0
       },
       "semanticContract": {
         "indexedSheets": [
@@ -54,7 +56,9 @@
         "fileName": "5749 Brynhurst - Architectural - 2025-04-04.pdf",
         "sha256": "7efe374aa46261ef1a97149360b1ab8ee6e913d6ac87d86767bdf45c28b2bb24",
         "sizeBytes": 85715172,
-        "expectedIngestionMode": "LARGE_SOURCE"
+        "expectedIngestionMode": "LARGE_SOURCE",
+        "pageCount": 79,
+        "lowNativeTextPageCount": 0
       },
       "semanticContract": {
         "zText": [
@@ -92,7 +96,9 @@
         "fileName": "Full Rev 3 Set.pdf",
         "sha256": "c02327064985362da188911d05112f26a1294f0775f7ef4ae7459f30f6594f39",
         "sizeBytes": 193705494,
-        "expectedIngestionMode": "LARGE_SOURCE"
+        "expectedIngestionMode": "LARGE_SOURCE",
+        "pageCount": 159,
+        "lowNativeTextPageCount": 132
       },
       "semanticContract": {
         "expectedScaleStrings": [
