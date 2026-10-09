@@ -144,22 +144,20 @@ function civilRelativeTo(type:ZEvidenceType|null){
 }
 function parseStoryHeight(text:string){
   const t=clean(text).replace(/[’]/g,"'").replace(/[”]/g,'"');
-  const label='(?:FLOOR\\s*[- ]?TO\\s*[- ]?FLOOR|STORY\\s+HEIGHT|FLOOR\\s+HEIGHT|LEVEL\\s+HEIGHT)';
-  let m=t.match(new RegExp(label+'\\s*[:=@-]?\\s*([+-]?\\d{1,2})\\s*\\'\\s*(?:-\\s*((?:\\d+\\s+)?(?:\\d+\\/\\d+|\\d+(?:\\.\\d+)?))\\s*")?','i'));
+  let m=t.match(/(?:FLOOR\s*[- ]?TO\s*[- ]?FLOOR|STORY\s+HEIGHT|FLOOR\s+HEIGHT|LEVEL\s+HEIGHT)\s*[:=@-]?\s*([+-]?\d{1,2})\s*'\s*(?:-\s*((?:\d+\s+)?(?:\d+\/\d+|\d+(?:\.\d+)?))\s*")?/i);
   if(m)return feetInchesToMeters(m[1],m[2]);
-  m=t.match(new RegExp(label+'\\s*[:=@-]?\\s*([+-]?\\d+(?:\\.\\d+)?)\\s*(MM|CM|M|METERS?|FT|FEET)','i'));
+  m=t.match(/(?:FLOOR\s*[- ]?TO\s*[- ]?FLOOR|STORY\s+HEIGHT|FLOOR\s+HEIGHT|LEVEL\s+HEIGHT)\s*[:=@-]?\s*([+-]?\d+(?:\.\d+)?)\s*(MM|CM|M|METERS?|FT|FEET)/i);
   if(!m)return null;
   const n=Number(m[1]),u=m[2].toUpperCase();if(!Number.isFinite(n)||n<=0)return null;
   if(u==='MM')return n/1000;if(u==='CM')return n/100;if(u==='M'||u.startsWith('METER'))return n;return n*FT;
 }
-
 function parseAff(text:string){
   const t=clean(text).replace(/[’]/g,"'").replace(/[”]/g,'"');
   let m=t.match(/([+-]?\d+(?:\.\d+)?)\s*'\s*(?:-\s*(\d+(?:\.\d+)?)\s*")?\s*(?:A\.?F\.?F\.?|AFF)\b/i);
   if(m)return feetInchesToMeters(m[1],m[2]);
-  m=t.match(/([+-]?\d+(?:\.\d+)?)\s*(IN|INCHES|MM|CM|M)\s*(?:A\.?F\.?F\.?|AFF)\b/i);
+  m=t.match(/([+-]?\d+(?:\.\d+)?)\s*(\"|IN|INCHES|MM|CM|M)\s*(?:A\.?F\.?F\.?|AFF)\b/i);
   if(!m)return null;const n=Number(m[1]),u=m[2].toUpperCase();if(!Number.isFinite(n))return null;
-  return u==='IN'||u==='INCHES'?n*IN:u==='MM'?n/1000:u==='CM'?n/100:n;
+  return u==='"'||u==='IN'||u==='INCHES'?n*IN:u==='MM'?n/1000:u==='CM'?n/100:n;
 }
 
 function affReferencePoint(text:string):ZReferencePoint{
@@ -175,7 +173,9 @@ function affReferencePoint(text:string):ZReferencePoint{
 function equipmentTagFromLine(text:string){
   const t=clean(text).toUpperCase();
   const m=t.match(/\b(PANEL|PNL|TRANSFORMER|XFMR|SWITCHBOARD|SWBD|SWITCHGEAR|SWGR|ATS|UPS|MCC|PDU|VFD|EVSE|RTU|AHU|FCU|DEVICE|RECEPTACLE|LIGHT|FIXTURE)\s*[-#:]?\s*([A-Z0-9][A-Z0-9._-]{0,24})\b/);
-  return m?`${m[1]} ${m[2]}`:null;
+  if(m)return `${m[1]} ${m[2]}`;
+  const nema=t.match(/\b(\d{1,2}-\d{2}R)\b/);
+  return nema?`RECEPTACLE ${nema[1]}`:null;
 }
 function tagMatchesEntity(tag:string|undefined|null,name:string){
   if(!tag)return false;
