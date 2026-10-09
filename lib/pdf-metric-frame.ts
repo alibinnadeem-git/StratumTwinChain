@@ -25,6 +25,7 @@ export type PdfMetricFrameCandidate={
  confidence:number;
  witnessCount:number;
  eligible:boolean;
+ autoApplyEligible:boolean;
  reasons:string[];
  reviewRequired:true;
  autoApply:false;
@@ -92,6 +93,7 @@ export function derivePdfMetricFrameCandidates(entities:MetricFrameEntity[]):Pdf
    confidence:Math.max(0,Math.min(1,Number(validation.confidence||0))),
    witnessCount:Array.isArray(validation.witnesses)?validation.witnesses.length:0,
    eligible:reasons.length===0,
+   autoApplyEligible:false, // No witness score can authorize automatic metric coordinates.
    reasons,
    reviewRequired:true,
    autoApply:false,
@@ -102,13 +104,17 @@ export function derivePdfMetricFrameCandidates(entities:MetricFrameEntity[]):Pdf
  return out.sort((a,b)=>Number(b.eligible)-Number(a.eligible)||b.confidence-a.confidence||a.source.localeCompare(b.source)||a.page-b.page);
 }
 
-export function applyReviewedPdfMetricFrame<T extends MetricFrameEntity>(
+function applyPdfMetricFrame<T extends MetricFrameEntity>(
  entity:T,
  candidate:PdfMetricFrameCandidate,
- appliedAt=new Date().toISOString()
+ appliedAt:string,
+ authority:'HUMAN_REVIEWED_CORROBORATED_PDF_SCALE'|'AUTO_CORROBORATED_PDF_SCALE',
+ autoApplied:boolean
 ):T{
+ if(autoApplied)throw new Error('Automatic PDF metric-frame application is prohibited; human-confirm manual XY calibration and witness corroboration.');
  if(pdfMetricFrameKey(entity)!==candidate.frameKey)return entity;
- if(!candidate.eligible||candidate.metersPerSheetUnit===null)throw new Error('This PDF metric-frame candidate is not eligible for reviewed application.');
+ if(!candidate.eligible||candidate.metersPerSheetUnit===null)throw new Error('This PDF metric-frame candidate is not eligible for application.');
+ if(autoApplied&&!candidate.autoApplyEligible)throw new Error('This PDF metric-frame candidate does not have redundant evidence for automatic application.');
  const meta={...(entity.meta||{})};
  if(meta.autoSheetAlignmentCandidateId)throw new Error('Restore automatic sheet alignment before applying the PDF metric frame.');
  if(meta.sheetXYCalibrationId)throw new Error('Restore manual XY calibration before applying the PDF metric frame.');
@@ -129,15 +135,15 @@ export function applyReviewedPdfMetricFrame<T extends MetricFrameEntity>(
   pdfMetricFrameOriginal:original,
   pdfMetricFrameCandidateId:candidate.id,
   pdfMetricFrameAppliedAt:appliedAt,
-  metricFrameAuthority:'HUMAN_REVIEWED_CORROBORATED_PDF_SCALE',
+  metricFrameAuthority:authority,
   metricFrameMetersPerSheetUnit:scalar,
   metricFrameConfidence:candidate.confidence,
   metricFrameWitnessCount:candidate.witnessCount,
   metricFrameReviewRequired:true,
-  metricFrameAutoApplied:false,
+  metricFrameAutoApplied:autoApplied,
   metricFramePhysicalPositionVerified:false,
   metricFrameZChanged:false,
-  coordinateUnits:'m_reviewed_pdf',
+  coordinateUnits:autoApplied?'m_auto_corroborated_pdf':'m_reviewed_pdf',
   physicalTruth:false
  };
  return{
@@ -148,6 +154,22 @@ export function applyReviewedPdfMetricFrame<T extends MetricFrameEntity>(
   ...(original.vertices?{vertices:original.vertices.map(point=>({x:point.x*scalar,y:point.y*scalar}))}:{}),
   meta:nextMeta
  };
+}
+
+export function applyReviewedPdfMetricFrame<T extends MetricFrameEntity>(
+ entity:T,
+ candidate:PdfMetricFrameCandidate,
+ appliedAt=new Date().toISOString()
+):T{
+ return applyPdfMetricFrame(entity,candidate,appliedAt,'HUMAN_REVIEWED_CORROBORATED_PDF_SCALE',false);
+}
+
+export function applyAutomaticPdfMetricFrame<T extends MetricFrameEntity>(
+ entity:T,
+ candidate:PdfMetricFrameCandidate,
+ appliedAt=new Date().toISOString()
+):T{
+ return applyPdfMetricFrame(entity,candidate,appliedAt,'AUTO_CORROBORATED_PDF_SCALE',true);
 }
 
 export function restoreReviewedPdfMetricFrame<T extends MetricFrameEntity>(entity:T):T{

@@ -102,6 +102,10 @@ jobs:
         run: npm run qa:pdf-ocr
       - name: Responsive native PDF worker conformance
         run: npm run qa:pdf-worker
+      - name: Large-source PDF ingestion envelope conformance
+        run: npm run qa:large-pdf-ingestion
+      - name: Real-project ingestion, scale and Z breadth
+        run: npm run qa:real-project-breadth
       - name: Spatial asset click and DIR Passport conformance
         run: npm run qa:spatial-asset-passport
       - name: PDF title-block intelligence conformance
@@ -116,6 +120,8 @@ jobs:
         run: npm run qa:z-reference
       - name: Reconciled Z solution chain conformance
         run: npm run qa:z-solution
+      - name: Missing-evidence Z recovery ladder conformance
+        run: npm run qa:z-recovery
       - name: Explicit Z constraint graph conformance
         run: npm run qa:z-constraint-graph
       - name: Authenticated Z review provenance conformance

@@ -7,7 +7,9 @@ const forbidden=[
   /\bBrynhurst\b/i,
   /\b5749\b/i,
   /5749\s+Brynhurst/i,
-  /A106\s+Grade\s+Plane\s+Exhibit/i
+  /A106\s+Grade\s+Plane\s+Exhibit/i,
+  /\bCAMARILLO\b/i,
+  /4605\s+CALLE\s+QUETZAL/i
 ];
 
 function walk(dir){
@@ -35,7 +37,7 @@ for(const root of roots){
 assert.deepEqual(
   violations,
   [],
-  'Production code must remain project-agnostic. Brynhurst/5749/A106 strings are allowed only in QA fixtures and tests, never as parser, resolver, placement, viewer, or compiler conditions.'
+  'Production code must remain project-agnostic. Brynhurst/5749/A106/Camarillo project identifiers are allowed only in QA fixtures and tests, never as parser, resolver, placement, viewer, or compiler conditions.'
 );
 
-console.log('Z generalization guard passed: production code contains no Brynhurst/5749/A106 project-specific branching. Real-project fixtures may train regression coverage, but runtime behavior remains source-semantic and project-agnostic.');
+console.log('Z generalization guard passed: production code contains no Brynhurst/5749/A106 project-specific branching. Real-project fixtures may train regression coverage, but runtime behavior remains source-semantic and project-agnostic across residential and industrial sets.');

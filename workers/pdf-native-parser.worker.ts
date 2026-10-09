@@ -9,6 +9,7 @@ import {extractZEvidenceFromText,type ZEvidence} from '../lib/z-resolver';
 import {buildElevationTriangles,extractPositionedElevationControls,resolveLocalElevationSurface,type ElevationControlPoint,type ElevationTriangle} from '../lib/elevation-surface';
 import {enrichSupportBaseOffsets,extractSupportOffsetEvidence,type SupportOffsetEvidence} from '../lib/support-base-evidence';
 import {analyzeDrawingSetCompleteness,type DrawingSetCompleteness} from '../lib/drawing-set-completeness';
+import {pdfIngestionProfile} from '../lib/pdf-ingestion-profile';
 
 type Layer='L0'|'L1'|'L2'|'L3'|'L4';
 type XY={x:number;y:number};
@@ -17,17 +18,8 @@ type RawText={key:string;str:string;x:number;y:number;page:number};
 type Segment={x:number;y:number;x2:number;y2:number;page:number};
 type Polygon={vertices:XY[];page:number;confidence:number};
 type Level={floor:string;elevation:number};
-type ParseResult={entities:GraphEntity[];summary:string;pages:number;vectors:number;textItems:number;sldPages:number;nonSldPlanPages:number;planTypes:string[];disciplines:string[];setCompleteness:DrawingSetCompleteness};
+type ParseResult={entities:GraphEntity[];summary:string;pages:number;vectors:number;textItems:number;sldPages:number;nonSldPlanPages:number;planTypes:string[];disciplines:string[];setCompleteness:DrawingSetCompleteness;ocrRequiredPages:number[]};
 
-const MAX_FILE_BYTES=64*1024*1024;
-const MAX_PAGES=120;
-const MAX_TEXT_ITEMS=120000;
-const MAX_OPERATORS_PER_PAGE=600000;
-const MAX_TOTAL_OPERATORS=2500000;
-const MAX_ANALYSIS_SEGMENTS_PER_PAGE=30000;
-const MAX_ANALYSIS_SEGMENTS_TOTAL=180000;
-const MAX_POLYGONS_PER_PAGE=6000;
-const MAX_ACTIVE_PATH_POINTS=25000;
 
 function fail(code:string,message:string,page?:number):never{
  const error=new Error(message) as Error&{code?:string;page?:number};
@@ -39,14 +31,16 @@ function centroid(poly:XY[]){return poly.reduce((a,p)=>({x:a.x+p.x/poly.length,y
 
 async function parseNativePdf(input:{requestId:string;fileName:string;buffer:ArrayBuffer;level:Level;discipline:string}):Promise<ParseResult>{
  const {requestId,fileName,buffer,level,discipline}=input;
- if(buffer.byteLength>MAX_FILE_BYTES)fail('PDF_FILE_BUDGET',`PDF is ${Math.round(buffer.byteLength/1024/1024)} MB; the browser parser limit is ${MAX_FILE_BYTES/1024/1024} MB. Split the set or use a smaller source.`);
+ const ingestion=pdfIngestionProfile(buffer.byteLength);
+ if(!ingestion.accepted)fail('PDF_FILE_BUDGET',`PDF is ${Math.round(buffer.byteLength/1024/1024)} MB; the protected native-ingestion ceiling is ${Math.round(ingestion.maxBytes/1024/1024)} MB.`);
+ post({type:'progress',requestId,page:0,total:0,phase:ingestion.mode==='LARGE_SOURCE'?'large-source initialization':'standard initialization'});
  const PromiseWithResolvers=Promise as any;
  if(typeof PromiseWithResolvers.withResolvers!=='function')PromiseWithResolvers.withResolvers=()=>{let resolve:any,reject:any;const promise=new Promise((ok,fail)=>{resolve=ok;reject=fail});return{promise,resolve,reject}};
  const pdfjs:any=await import('pdfjs-dist/legacy/build/pdf.mjs');
  try{pdfjs.GlobalWorkerOptions.workerSrc='/pdfjs/pdf.worker.min.mjs'}catch{}
  const task=pdfjs.getDocument({data:new Uint8Array(buffer),wasmUrl:'/pdfjs/wasm/'});
  const doc=await task.promise;
- if(doc.numPages>MAX_PAGES){await doc.destroy();fail('PDF_PAGE_BUDGET',`PDF has ${doc.numPages} pages; this browser parse is capped at ${MAX_PAGES}. Split the set and retry.`)}
+ if(doc.numPages>ingestion.maxPages){await doc.destroy();fail('PDF_PAGE_BUDGET',`PDF has ${doc.numPages} pages; ${ingestion.mode.toLowerCase().replace('_',' ')} parsing is capped at ${ingestion.maxPages} pages. Split only if the protected source exceeds this bounded parser envelope.`)}
 
  const raw:RawText[]=[];
  const polygons:Polygon[]=[];
@@ -56,7 +50,7 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
  const pageGeometryByPage=new Map<number,{width:number;height:number;max:number}>();
  const pageEvidence=new Map<number,ReturnType<typeof resolveDrawingPageRecognition>['sld']>();
  const planEvidence=new Map<number,ReturnType<typeof resolveDrawingPageRecognition>['plan']>();
- let vectors=0,totalOps=0;
+ let vectors=0,totalOps=0;const ocrRequiredPages:number[]=[];
 
  try{
   for(let p=1;p<=doc.numPages;p++){
@@ -68,14 +62,11 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
    pageGeometryByPage.set(p,{width:viewport.width,height:viewport.height,max:Math.max(viewport.width,viewport.height)});
    const items=Array.isArray(text.items)?text.items:[];
    const nativeText=items.map((item:any)=>String(item?.str||'').trim()).filter(Boolean);
-   if(nativeText.length<3){
-    page.cleanup();
-    fail('OCR_FALLBACK_REQUIRED',`Page ${p} has too little native text for the off-thread vector parser. STRATUM will use the scanned/OCR review path instead.`,p);
-   }
+   if(nativeText.length<3)ocrRequiredPages.push(p);
    pageFloors.set(p,inferPdfPageFloor(nativeText));
    for(const item of items){
     if(!item?.str?.trim())continue;
-    if(raw.length>=MAX_TEXT_ITEMS){page.cleanup();fail('PDF_TEXT_BUDGET',`PDF exceeds the ${MAX_TEXT_ITEMS.toLocaleString()} positioned-text budget. Split the drawing set and retry.`,p)}
+    if(raw.length>=ingestion.maxTextItems){page.cleanup();fail('PDF_TEXT_BUDGET',`PDF exceeds the ${ingestion.maxTextItems.toLocaleString()} positioned-text budget. Split the drawing set and retry.`,p)}
     const t=item.transform||[1,0,0,1,0,0],point=viewport.convertToViewportPoint(Number(t[4]||0),Number(t[5]||0));
     raw.push({key:`text-${p}-${raw.length}`,str:item.str.trim(),x:(point[0]-viewport.width/2)*20/Math.max(viewport.width,viewport.height,1),y:(viewport.height/2-point[1])*20/Math.max(viewport.width,viewport.height,1),page:p});
    }
@@ -83,9 +74,9 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
    post({type:'progress',requestId,page:p,total:doc.numPages,phase:'vector operators'});
    const ops=await page.getOperatorList();
    const pageOps=ops.fnArray?.length||0;
-   if(pageOps>MAX_OPERATORS_PER_PAGE){page.cleanup();fail('PDF_OPERATOR_BUDGET',`Page ${p} contains ${pageOps.toLocaleString()} drawing operators, above the ${MAX_OPERATORS_PER_PAGE.toLocaleString()} per-page safety budget. Split/flatten this sheet or export a lighter PDF.`,p)}
+   if(pageOps>ingestion.maxOperatorsPerPage){page.cleanup();fail('PDF_OPERATOR_BUDGET',`Page ${p} contains ${pageOps.toLocaleString()} drawing operators, above the ${ingestion.maxOperatorsPerPage.toLocaleString()} per-page safety budget. Split/flatten this sheet or export a lighter PDF.`,p)}
    totalOps+=pageOps;
-   if(totalOps>MAX_TOTAL_OPERATORS){page.cleanup();fail('PDF_OPERATOR_BUDGET',`PDF contains more than ${MAX_TOTAL_OPERATORS.toLocaleString()} drawing operators. Split the set and retry.`,p)}
+   if(totalOps>ingestion.maxTotalOperators){page.cleanup();fail('PDF_OPERATOR_BUDGET',`PDF contains more than ${ingestion.maxTotalOperators.toLocaleString()} drawing operators. Split the set and retry.`,p)}
    vectors+=pageOps;pageVectorOps.set(p,pageOps);
    const recognition=resolveDrawingPageRecognition(nativeText,pageOps);
    pageEvidence.set(p,recognition.sld);planEvidence.set(p,recognition.plan);
@@ -96,16 +87,16 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
     let pageSegments=0,pagePolygons=0;
     const transform=(b:number[])=>{const a=matrix;matrix=[a[0]*b[0]+a[2]*b[1],a[1]*b[0]+a[3]*b[1],a[0]*b[2]+a[2]*b[3],a[1]*b[2]+a[3]*b[3],a[0]*b[4]+a[2]*b[5]+a[4],a[1]*b[4]+a[3]*b[5]+a[5]]};
     const pushSegment=(prev:XY,next:XY)=>{
-     if(pageSegments>=MAX_ANALYSIS_SEGMENTS_PER_PAGE||segments.length>=MAX_ANALYSIS_SEGMENTS_TOTAL)return;
+     if(pageSegments>=ingestion.maxAnalysisSegmentsPerPage||segments.length>=ingestion.maxAnalysisSegmentsTotal)return;
      if(Math.hypot(next.x-prev.x,next.y-prev.y)>.015){segments.push({x:prev.x,y:prev.y,x2:next.x,y2:next.y,page:p});pageSegments++}
     };
     const add=(x:number,y:number,connect=true)=>{
      const point=viewport.convertToViewportPoint(matrix[0]*x+matrix[2]*y+matrix[4],matrix[1]*x+matrix[3]*y+matrix[5]),next={x:(point[0]-viewport.width/2)*20/Math.max(viewport.width,viewport.height,1),y:(viewport.height/2-point[1])*20/Math.max(viewport.width,viewport.height,1)};
      if(connect&&active.length)pushSegment(active[active.length-1],next);
-     if(active.length<MAX_ACTIVE_PATH_POINTS)active.push(next);
+     if(active.length<ingestion.maxActivePathPoints)active.push(next);
     };
-    const finish=()=>{if(active.length>=3&&pagePolygons<MAX_POLYGONS_PER_PAGE){const first=active[0],last=active[active.length-1];if(Math.hypot(first.x-last.x,first.y-last.y)<.08){polygons.push({vertices:[...active],page:p,confidence:.74});pagePolygons++}}active.length=0};
-    const close=()=>{if(active.length>=2){const first=active[0],last=active[active.length-1];pushSegment(last,first);if(active.length<MAX_ACTIVE_PATH_POINTS)active.push(first)}finish()};
+    const finish=()=>{if(active.length>=3&&pagePolygons<ingestion.maxPolygonsPerPage){const first=active[0],last=active[active.length-1];if(Math.hypot(first.x-last.x,first.y-last.y)<.08){polygons.push({vertices:[...active],page:p,confidence:.74});pagePolygons++}}active.length=0};
+    const close=()=>{if(active.length>=2){const first=active[0],last=active[active.length-1];pushSegment(last,first);if(active.length<ingestion.maxActivePathPoints)active.push(first)}finish()};
     for(let k=0;k<pageOps;k++){
      const fn=ops.fnArray[k],a=ops.argsArray?.[k]||[];
      if(fn===pdfjs.OPS.save){stack.push([...matrix])}
@@ -185,7 +176,7 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
    if(Math.hypot(segment.x2-segment.x,segment.y2-segment.y)<.015)continue;
    const a=`${segment.x.toFixed(4)},${segment.y.toFixed(4)}`,b=`${segment.x2.toFixed(4)},${segment.y2.toFixed(4)}`,key=`${segment.page}:${[a,b].sort().join('>')}`;
    if(seenPlanSegments.has(key))continue;seenPlanSegments.add(key);
-   const pageCount=sourcePlanSegmentsByPage.get(segment.page)||0;if(pageCount>=4000||sourcePlanSegments>=40000)continue;
+   const pageCount=sourcePlanSegmentsByPage.get(segment.page)||0;if(pageCount>=ingestion.maxSourcePlanSegmentsPerPage||sourcePlanSegments>=ingestion.maxSourcePlanSegmentsTotal)continue;
    sourcePlanSegmentsByPage.set(segment.page,pageCount+1);sourcePlanSegments++;
    entities.push({id:`pdf-plan-line-${segment.page}-${i++}`,source:fileName,layer:'L1',kind:'line',name:`Source plan line · page ${segment.page}`,x:segment.x,y:segment.y,z:0,x2:segment.x2,y2:segment.y2,z2:0,floor:floorAt(segment.page,(segment.x+segment.x2)/2,(segment.y+segment.y2)/2),confidence:.99,meta:{page:segment.page,floorInference:'plan-frame-or-sheet-title-candidate',coordinateUnits:'sheet',sourceType:'PDF source-plan vector line',drawingBasemap:true,pdfTransformsApplied:true,elevationKnown:false,physicalElevationKnown:false,zPlacementAuthority:'UNVERIFIED_DRAWING_PLANE',spatialPlacementAuthority:'SOURCE_SHEET_POSITION_ONLY',physicalTruth:false,reviewRequired:false,scaleValidationEvidence:scaleValidationByPage.get(segment.page),...planMeta(segment.page,(segment.x+segment.x2)/2,(segment.y+segment.y2)/2)}});
   }
@@ -208,7 +199,7 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
   const pageLabels=Array.from({length:doc.numPages},(_,index)=>raw.filter(item=>item.page===index+1).map(item=>item.str));
   const setCompleteness=analyzeDrawingSetCompleteness({pageLabels,sheetNumbers:Array.from({length:doc.numPages},(_,index)=>sheetNumbersByPage.get(index+1)||null)});
   const setSummary=setCompleteness.status==='PARTIAL'?` · partial drawing set · missing ${setCompleteness.missingSheets.join(', ')}`:setCompleteness.status==='COMPLETE'?' · indexed drawing set complete':' · drawing-set completeness unresolved';
-  return{entities:supportEnriched,summary:`${doc.numPages} page${doc.numPages===1?'':'s'} · ${raw.length} positioned text objects · ${vectors} PDF drawing operators · ${nonSldPlanPages} non-SLD plan page${nonSldPlanPages===1?'':'s'} recognized${planTypes.length?` (${planTypes.join(', ')})`:''} · ${sourcePlanSegments} retained source-plan vector segment${sourcePlanSegments===1?'':'s'} · 0 raster OCR fallback pages · ${sldPages} SLD page${sldPages===1?'':'s'} recognized from content/topology · ${vectorFeederSegments} source-vector feeder segment${vectorFeederSegments===1?'':'s'} · ${supportEnriched.length} spatial/review candidates${setSummary} · parsed off the UI thread`,pages:doc.numPages,vectors,textItems:raw.length,sldPages,nonSldPlanPages,planTypes,disciplines:uniqueDisciplines,setCompleteness};
+  return{entities:supportEnriched,summary:`${doc.numPages} page${doc.numPages===1?'':'s'} · ${raw.length} positioned text objects · ${vectors} PDF drawing operators · ${nonSldPlanPages} non-SLD plan page${nonSldPlanPages===1?'':'s'} recognized${planTypes.length?` (${planTypes.join(', ')})`:''} · ${sourcePlanSegments} retained source-plan vector segment${sourcePlanSegments===1?'':'s'} · 0 raster OCR fallback pages · ${sldPages} SLD page${sldPages===1?'':'s'} recognized from content/topology · ${vectorFeederSegments} source-vector feeder segment${vectorFeederSegments===1?'':'s'} · ${supportEnriched.length} spatial/review candidates${setSummary} · ${ocrRequiredPages.length} low-text/scanned page${ocrRequiredPages.length===1?'':'s'} queued for selective OCR · ${ingestion.mode==='LARGE_SOURCE'?'large-source bounded parse':'standard parse'} off the UI thread`,pages:doc.numPages,vectors,textItems:raw.length,sldPages,nonSldPlanPages,planTypes,disciplines:uniqueDisciplines,setCompleteness,ocrRequiredPages};
  }finally{await doc.destroy()}
 }
 

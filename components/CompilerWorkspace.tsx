@@ -31,6 +31,8 @@ import {buildElevationTriangles,extractPositionedElevationControls,resolveLocalE
 import {associateTerrainBreaklines,buildConstrainedElevationTriangles,extractPositionedTerrainSlopeEvidence,type TerrainBreakline,type TerrainSlopeEvidence} from '../lib/terrain-constraints';
 import {enrichSupportBaseOffsets,extractSupportOffsetEvidence,type SupportOffsetEvidence} from '../lib/support-base-evidence';
 import {analyzeDrawingSetCompleteness,type DrawingSetCompleteness} from '../lib/drawing-set-completeness';
+import {pdfIngestionProfile} from '../lib/pdf-ingestion-profile';
+import {enrichZRecovery} from '../lib/z-recovery';
 import {ChangeEvent,DragEvent,useEffect,useMemo,useRef,useState} from 'react';
 
 type Layer='L0'|'L1'|'L2'|'L3'|'L4';
@@ -55,18 +57,21 @@ const centroid=(poly:XY[])=>poly.reduce((a,p)=>({x:a.x+p.x/poly.length,y:a.y+p.y
 function assignZones(entities:GraphEntity[]){const rooms=entities.filter(e=>e.kind==='room-boundary'&&e.vertices?.length);const labels=entities.filter(e=>e.kind==='room-label');const namedRooms=rooms.map(r=>{const inside=labels.filter(l=>sameSourceFrame(l,r)&&pointInPolygon({x:l.x,y:l.y},r.vertices!));if(!inside.length)return r;inside.sort((a,b)=>b.confidence-a.confidence);return{...r,name:inside[0].name,zone:inside[0].name}});const replacements=new Map(namedRooms.map(r=>[r.id,r]));return entities.map(original=>{const e=replacements.get(original.id)||original;if(e.meta?.nonSpatial===true||e.layer==='L1'||e.zone)return e;const containing=namedRooms.filter(r=>sameSourceFrame(r,e)&&r.vertices&&pointInPolygon({x:e.x,y:e.y},r.vertices));if(containing.length)return{...e,zone:containing[0].name};const sameLabels=labels.filter(r=>sameSourceFrame(r,e));let best:GraphEntity|undefined,dist=Infinity;for(const r of sameLabels){const d=Math.hypot(e.x-r.x,e.y-r.y);if(d<dist){dist=d;best=r}}return best&&dist<3?{...e,zone:best.name}:e})}
 function buildLinks(entities:GraphEntity[]){const links:GraphLink[]=[];const seen=new Map<string,GraphEntity[]>();for(const e of entities.filter(x=>x.layer==='L2'||x.layer==='L3')){const key=cleanTag(e.name);if(key.length<2)continue;const arr=seen.get(key)||[];arr.push(e);seen.set(key,arr)}for(const [key,arr] of seen){if(arr.length<2)continue;for(let i=1;i<arr.length;i++)links.push({id:`tag-${key}-${i}`,from:arr[0].id,to:arr[i].id,type:'SAME_TAG',confidence:.82})}for(const e of entities.filter(x=>x.layer==='L4')){const from=String(e.meta?.derivedFrom||'');if(from)links.push({id:`asset-${e.id}`,from,to:e.id,type:'DERIVED_ASSET',confidence:.99})}return links}
 
-type PdfParseResult={entities:GraphEntity[];summary:string;pages:number;vectors:number;textItems:number;sldPages:number;nonSldPlanPages:number;planTypes:string[];disciplines:string[];setCompleteness:DrawingSetCompleteness};
+type PdfParseResult={entities:GraphEntity[];summary:string;pages:number;vectors:number;textItems:number;sldPages:number;nonSldPlanPages:number;planTypes:string[];disciplines:string[];setCompleteness:DrawingSetCompleteness;ocrRequiredPages:number[]};
 type PdfParseProgress={page:number;total:number;phase:string;elapsedMs?:number};
 class PdfParseError extends Error{code:string;page:number|null;constructor(code:string,message:string,page:number|null=null){super(message);this.name='PdfParseError';this.code=code;this.page=page}}
 
 async function parsePdfOffThread(fileName:string,buffer:ArrayBuffer,level:{floor:string;elevation:number},discipline:string,onProgress:(progress:PdfParseProgress)=>void,signal:AbortSignal):Promise<PdfParseResult>{
  if(typeof Worker==='undefined')throw new PdfParseError('WORKER_UNAVAILABLE','This browser cannot start the protected PDF parser worker.');
+ const ingestion=pdfIngestionProfile(buffer.byteLength);
+ if(!ingestion.accepted)throw new PdfParseError('PDF_FILE_BUDGET',ingestion.reason);
  const requestId=crypto.randomUUID(),worker=new Worker(new URL('../workers/pdf-native-parser.worker.ts',import.meta.url),{type:'module'});
  return await new Promise<PdfParseResult>((resolve,reject)=>{
   let settled=false,watchdog:number|undefined;
   const cleanup=()=>{if(watchdog!==undefined)window.clearTimeout(watchdog);signal.removeEventListener('abort',onAbort);worker.terminate()};
   const finish=(fn:()=>void)=>{if(settled)return;settled=true;cleanup();fn()};
-  const armWatchdog=(page:number,phase:string)=>{if(watchdog!==undefined)window.clearTimeout(watchdog);watchdog=window.setTimeout(()=>finish(()=>reject(new PdfParseError('PDF_PARSE_TIMEOUT',`Page ${page||'?'} stopped responding during ${phase}. The parser worker was stopped safely; split/flatten the sheet or retry.`,page||null))),35000)};
+  const watchdogMs=ingestion.mode==='LARGE_SOURCE'?90000:35000;
+  const armWatchdog=(page:number,phase:string)=>{if(watchdog!==undefined)window.clearTimeout(watchdog);watchdog=window.setTimeout(()=>finish(()=>reject(new PdfParseError('PDF_PARSE_TIMEOUT',`Page ${page||'?'} stopped responding during ${phase}. The parser worker was stopped safely; retry or flatten only the pathological sheet if the bounded worker repeatedly fails.`,page||null))),watchdogMs)};
   const onAbort=()=>finish(()=>reject(new PdfParseError('PDF_PARSE_CANCELLED','PDF parsing was canceled. No parsed result was accepted; retry without reloading.')));
   signal.addEventListener('abort',onAbort,{once:true});
   worker.onmessage=(event:MessageEvent)=>{
@@ -77,7 +82,7 @@ async function parsePdfOffThread(fileName:string,buffer:ArrayBuffer,level:{floor
   };
   worker.onerror=(event:ErrorEvent)=>finish(()=>reject(new PdfParseError('PDF_WORKER_FAILED',event.message||'The PDF parser worker stopped unexpectedly. Retry the file.')));
   armWatchdog(0,'startup');
-  const transferable=buffer.slice(0);
+  const transferable=buffer;
   worker.postMessage({type:'parse',requestId,fileName,buffer:transferable,level,discipline},[transferable]);
  });
 }
@@ -268,7 +273,7 @@ async function parsePdfMainThreadFallback(file:File,level:{floor:string;elevatio
  const pageLabels=Array.from({length:doc.numPages},(_,index)=>[...raw.filter(item=>item.page===index+1).map(item=>item.str),...(ocrTextByPage.get(index+1)||[])]);
  const setCompleteness=analyzeDrawingSetCompleteness({pageLabels,sheetNumbers:Array.from({length:doc.numPages},(_,index)=>sheetNumbersByPage.get(index+1)||null)});
  const setSummary=setCompleteness.status==='PARTIAL'?` · partial drawing set · missing ${setCompleteness.missingSheets.join(', ')}`:setCompleteness.status==='COMPLETE'?' · indexed drawing set complete':' · drawing-set completeness unresolved';
- return{entities:supportEnriched,summary:`${doc.numPages} page${doc.numPages===1?'':'s'} · ${raw.length} positioned text objects · ${vectors} PDF drawing operators · ${nonSldPlanPages} non-SLD plan page${nonSldPlanPages===1?'':'s'} recognized${planTypes.length?` (${planTypes.join(', ')})`:''} · ${sourcePlanSegments} retained source-plan vector segment${sourcePlanSegments===1?'':'s'} · ${rasterPlanUnderlays} raster drawing underlay${rasterPlanUnderlays===1?'':'s'} · ${ocrPages} raster OCR fallback page${ocrPages===1?'':'s'} · ${ocrTextChars} OCR text character${ocrTextChars===1?'':'s'} · ${sldPages} SLD page${sldPages===1?'':'s'} recognized from content/topology · ${vectorFeederSegments} source-vector feeder segment${vectorFeederSegments===1?'':'s'} · ${symbolAnchoredCount} source-vector equipment anchor${symbolAnchoredCount===1?'':'s'} · ${terrainBreaklineCount} constrained terrain breakline${terrainBreaklineCount===1?'':'s'} · ${terrainSlopeEvidenceCount} source slope annotation${terrainSlopeEvidenceCount===1?'':'s'} · ${supportEnriched.length} spatial/review candidates${setSummary}`,pages:doc.numPages,vectors,textItems:raw.length,sldPages,nonSldPlanPages,planTypes,disciplines:uniqueDisciplines,setCompleteness};
+ return{entities:supportEnriched,summary:`${doc.numPages} page${doc.numPages===1?'':'s'} · ${raw.length} positioned text objects · ${vectors} PDF drawing operators · ${nonSldPlanPages} non-SLD plan page${nonSldPlanPages===1?'':'s'} recognized${planTypes.length?` (${planTypes.join(', ')})`:''} · ${sourcePlanSegments} retained source-plan vector segment${sourcePlanSegments===1?'':'s'} · ${rasterPlanUnderlays} raster drawing underlay${rasterPlanUnderlays===1?'':'s'} · ${ocrPages} raster OCR fallback page${ocrPages===1?'':'s'} · ${ocrTextChars} OCR text character${ocrTextChars===1?'':'s'} · ${sldPages} SLD page${sldPages===1?'':'s'} recognized from content/topology · ${vectorFeederSegments} source-vector feeder segment${vectorFeederSegments===1?'':'s'} · ${symbolAnchoredCount} source-vector equipment anchor${symbolAnchoredCount===1?'':'s'} · ${terrainBreaklineCount} constrained terrain breakline${terrainBreaklineCount===1?'':'s'} · ${terrainSlopeEvidenceCount} source slope annotation${terrainSlopeEvidenceCount===1?'':'s'} · ${supportEnriched.length} spatial/review candidates${setSummary}`,pages:doc.numPages,vectors,textItems:raw.length,sldPages,nonSldPlanPages,planTypes,disciplines:uniqueDisciplines,setCompleteness,ocrRequiredPages:[]};
  } finally {if(ocrWorker)await ocrWorker.terminate().catch(()=>{});await doc.destroy()}
 }
 
@@ -293,20 +298,126 @@ function withZConstraintGraph(entity:GraphEntity){
 function enrichZCandidates(parsed:GraphEntity[]){
  const evidence=parsed.flatMap(entity=>entity.meta?.zEvidence?[entity.meta.zEvidence as ZEvidence]:[]);
  const surfaces=buildProjectDatumSurfaces(evidence);
- const index=buildZResolutionIndex(parsed,evidence);
- return parsed.map(entity=>{
+ const recovered=enrichZRecovery(parsed,evidence,surfaces);
+ const index=buildZResolutionIndex(recovered,evidence);
+ return recovered.map(entity=>{
   const resolution=index.get(entity.id);
   const surface=projectDatumSurfaceForEntity(entity,surfaces);
   const surfaceMeta=datumSurfaceMetadata(surface);
   const xyzGuide=Number.isFinite(Number(entity.meta?.unitToMeters))&&String(entity.meta?.unitName||'')!=='unitless'
    ?{zScaleGuideMetersPerSourceUnit:Number(entity.meta?.unitToMeters),zScaleGuideAuthority:'XY_AND_Z_SHARE_SOURCE_UNITS'}
    :{};
-  if(!resolution||resolution.status==='UNRESOLVED')return withZConstraintGraph({...entity,meta:{...entity.meta,...surfaceMeta,...xyzGuide,zResolutionStatus:'UNRESOLVED',physicalElevationKnown:false,elevationKnown:false}});
+  if(!resolution||resolution.status==='UNRESOLVED'){
+   const inferred=Number.isFinite(Number(entity.meta?.inferredProjectDatumZ));
+   const relative=Number.isFinite(Number(entity.meta?.relativeReviewSurfaceZ));
+   return withZConstraintGraph({...entity,meta:{...entity.meta,...surfaceMeta,...xyzGuide,zResolutionStatus:inferred?'INFERRED_PROJECT_DATUM_CANDIDATE':relative?'RELATIVE_VISUALIZATION_ONLY':'UNRESOLVED',zResolutionConfidence:inferred?Number(entity.meta?.inferredProjectDatumConfidence||0):relative?Number(entity.meta?.relativeReviewSurfaceConfidence||0):0,zResolutionAuthority:inferred?String(entity.meta?.inferredProjectDatumAuthority||'PROJECT_STORY_INTERVAL_EXTRAPOLATION'):relative?String(entity.meta?.relativeReviewSurfaceAuthority||'VISUALIZATION_STORY_STACK_ONLY'):'UNRESOLVED',physicalElevationKnown:false,elevationKnown:false,reviewRequired:true}});
+  }
   if(resolution.status==='RESOLVED_DESIGN_CANDIDATE'&&resolution.zMeters!==null){
    return withZConstraintGraph({...entity,meta:{...entity.meta,...surfaceMeta,...xyzGuide,zCandidateMeters:resolution.zMeters,zCandidateReferencePoint:resolution.referencePoint,zResolutionStatus:resolution.status,zResolutionConfidence:resolution.confidence,zResolutionAuthority:resolution.authority,zResolutionEvidence:resolution.evidence,physicalElevationKnown:false,elevationKnown:false,reviewRequired:true}});
   }
   return withZConstraintGraph({...entity,meta:{...entity.meta,...surfaceMeta,...xyzGuide,zCandidateReferencePoint:resolution.referencePoint,zResolutionStatus:resolution.status,zResolutionConfidence:resolution.confidence,zResolutionAuthority:resolution.authority,zResolutionEvidence:resolution.evidence,physicalElevationKnown:false,elevationKnown:false,reviewRequired:true}});
  });
+}
+
+type SelectivePdfOcrResult={entities:GraphEntity[];ocrPages:number;textChars:number;nonSldPlanPages:number;planTypes:string[];disciplines:string[];failedPages:number[]};
+
+async function parsePdfSelectedOcrPages(
+ file:File,
+ pageNumbers:number[],
+ level:{floor:string;elevation:number},
+ discipline:string,
+ onProgress:(page:number,total:number)=>void,
+ signal:AbortSignal
+):Promise<SelectivePdfOcrResult>{
+ const wanted=[...new Set(pageNumbers.map(Number).filter(page=>Number.isInteger(page)&&page>0))].sort((a,b)=>a-b);
+ if(!wanted.length)return{entities:[],ocrPages:0,textChars:0,nonSldPlanPages:0,planTypes:[],disciplines:[],failedPages:[]};
+ const PromiseWithResolvers=Promise as any;
+ if(typeof PromiseWithResolvers.withResolvers!=='function')PromiseWithResolvers.withResolvers=()=>{let resolve:any,reject:any;const promise=new Promise((ok,fail)=>{resolve=ok;reject=fail});return{promise,resolve,reject}};
+ const pdfjs:any=await import('pdfjs-dist/legacy/build/pdf.mjs');
+ try{pdfjs.GlobalWorkerOptions.workerSrc=new URL('pdfjs-dist/build/pdf.worker.min.mjs',import.meta.url).toString()}catch{}
+ const objectUrl=URL.createObjectURL(file);
+ const doc=await pdfjs.getDocument({url:objectUrl,wasmUrl:'/pdfjs/wasm/'}).promise;
+ const mod=await import('tesseract.js');
+ const ocrWorker=await mod.createWorker('eng',mod.OEM.LSTM_ONLY);
+ const entities:GraphEntity[]=[],supportOffsets:SupportOffsetEvidence[]=[];
+ const planTypes=new Set<string>(),disciplines=new Set<string>();
+ const failedPages:number[]=[];let textChars=0,ocrPages=0,nonSldPlanPages=0;
+ try{
+  for(let index=0;index<wanted.length;index++){
+   if(signal.aborted)throw new PdfParseError('PDF_PARSE_CANCELLED','Selective scanned-page OCR was canceled. Native parsed content remains retryable.');
+   const pageNumber=wanted[index];onProgress(pageNumber,wanted.length);
+   let page:any=null;
+   try{
+    page=await doc.getPage(pageNumber);
+    const viewport=page.getViewport({scale:1}),maxSide=Math.max(viewport.width,viewport.height,1);
+    const renderScale=Math.max(.35,Math.min(1.8,1800/maxSide)),ocrViewport=page.getViewport({scale:renderScale});
+    const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');
+    canvas.width=Math.max(1,Math.round(ocrViewport.width));canvas.height=Math.max(1,Math.round(ocrViewport.height));
+    if(!ctx)throw new Error('Canvas rendering unavailable');
+    await page.render({canvasContext:ctx,viewport:ocrViewport}).promise;
+    if(signal.aborted)throw new PdfParseError('PDF_PARSE_CANCELLED','Selective scanned-page OCR was canceled. Native parsed content remains retryable.');
+    const recognized=await ocrWorker.recognize(canvas,{}, {text:true,blocks:true});
+    const ocrText=String(recognized.data?.text||'').trim();
+    if(!ocrText){failedPages.push(pageNumber);continue}
+    ocrPages++;textChars+=ocrText.length;
+    const lines=ocrText.split(/\r?\n/).map((line:string)=>line.trim()).filter(Boolean);
+    const pageFloor=inferPdfPageFloor(lines)||level.floor;
+    const landscape=canvas.width>=canvas.height;
+    const planeWidth=landscape?20:20*canvas.width/Math.max(canvas.height,1);
+    const planeHeight=landscape?20*canvas.height/Math.max(canvas.width,1):20;
+    const blockLines=(Array.isArray(recognized.data?.blocks)?recognized.data.blocks:[]).flatMap((block:any)=>Array.isArray(block?.paragraphs)?block.paragraphs:[]).flatMap((paragraph:any)=>Array.isArray(paragraph?.lines)?paragraph.lines:[]);
+    const geometryItems:PositionedSheetText[]=blockLines.flatMap((line:any)=>{
+      const label=String(line?.text||'').replace(/\s+/g,' ').trim(),bbox=line?.bbox;if(!label||!bbox)return[];
+      const x0=Number(bbox.x0),y0=Number(bbox.y0),x1=Number(bbox.x1),y1=Number(bbox.y1);if(![x0,y0,x1,y1].every(Number.isFinite))return[];
+      return[{text:label,x:(x0+x1)/2/Math.max(canvas.width,1),y:(y0+y1)/2/Math.max(canvas.height,1),width:Math.abs(x1-x0)/Math.max(canvas.width,1),height:Math.abs(y1-y0)/Math.max(canvas.height,1)}];
+    });
+    const positioned=geometryItems.map(item=>({text:item.text,x:(Number(item.x)-.5)*planeWidth,y:(.5-Number(item.y))*planeHeight}));
+    const recognition=resolveDrawingPageRecognition(lines,0);
+    if(recognition.plan.isPlan){nonSldPlanPages++;if(recognition.plan.planType)planTypes.add(String(recognition.plan.planType));}
+    if(recognition.plan.isPlan&&recognition.plan.discipline)disciplines.add(String(recognition.plan.discipline));
+    const frames=detectPlanFrames(positioned,recognition.plan);
+    const frameAt=(x:number,y:number)=>resolvePlanFrameAtPoint(frames,x,y);
+    const geometryEvidence=extractSheetGeometryEvidence({items:geometryItems,pageWidthPoints:viewport.width,pageHeightPoints:viewport.height});
+    const validation=validateIndependentScale({items:geometryItems,segments:[],declaredScale:geometryEvidence.drawingScale.value,pageMaxDimensionPoints:maxSide,normalizedSheetSpan:20,coordinateSpan:1});
+    const previewMax=1000,previewScale=Math.min(1,previewMax/Math.max(canvas.width,canvas.height,1)),preview=document.createElement('canvas'),previewCtx=preview.getContext('2d');
+    preview.width=Math.max(1,Math.round(canvas.width*previewScale));preview.height=Math.max(1,Math.round(canvas.height*previewScale));
+    if(previewCtx)previewCtx.drawImage(canvas,0,0,preview.width,preview.height);
+    const embeddedRasterDataUrl=previewCtx?preview.toDataURL('image/jpeg',.55):'';
+    const planMeta={...(recognition.plan.isPlan?{nonSldPlan:true,planType:recognition.plan.planType,planRecognition:'OCR_CONTENT_PLAN_V2_FRAMES',planRecognitionScore:recognition.plan.score,planEvidence:recognition.plan.reasons,planTitleEvidence:recognition.plan.titleEvidence,planDiscipline:recognition.plan.discipline,planFrameCount:frames.length,planFrames:frames.map(frame=>({id:frame.id,title:frame.title,floor:frame.floor,unitId:frame.unitId,confidence:frame.confidence,reviewRequired:true,physicalTruth:false}))}:{})};
+    entities.push({id:`pdf-selective-ocr-underlay-${pageNumber}`,source:file.name,layer:'L1',kind:'source-raster-underlay',name:`${file.name} · scanned page ${pageNumber}`,x:-planeWidth/2,y:-planeHeight/2,z:0,x2:planeWidth/2,y2:planeHeight/2,z2:0,floor:pageFloor,confidence:1,meta:{page:pageNumber,sourceType:'PDF_RASTER_OCR_UNDERLAY',drawingBasemap:true,embeddedRasterDataUrl,previewWidth:preview.width,previewHeight:preview.height,coordinateUnits:'image_sheet',geometryAuthority:'SOURCE_IMAGE_PLANE_ONLY',spatialPlacementAuthority:'SOURCE_IMAGE_PLANE_ONLY',zPlacementAuthority:'UNVERIFIED_DRAWING_PLANE',scaleValidationEvidence:validation,drawingScaleEvidence:geometryEvidence.drawingScale,northOrientationEvidence:geometryEvidence.northOrientation,physicalTruth:false,reviewRequired:false,...planMeta}});
+
+    const zEvidence=extractZEvidenceFromText(ocrText,{source:file.name,floor:pageFloor,idPrefix:`pdf-selective-z-${pageNumber}`});
+    for(const item of zEvidence)entities.push({id:item.id,source:file.name,layer:'L0',kind:'z-evidence-candidate',name:item.evidence[0]||item.type,x:0,y:0,z:0,floor:item.floor||pageFloor,confidence:item.confidence,meta:{page:pageNumber,nonSpatial:true,zEvidence:item,sourceType:'PDF_RASTER_OCR_Z_EVIDENCE',physicalTruth:false,reviewRequired:true,zPlacementAuthority:'SOURCE_OCR_TEXT_Z_EVIDENCE_ONLY',elevationKnown:false,physicalElevationKnown:false}});
+
+    const controls=extractPositionedElevationControls({items:geometryItems,source:file.name,page:pageNumber,declaredScale:geometryEvidence.drawingScale.value,scaleValidation:validation,planeWidth,planeHeight});
+    const triangles=[...buildElevationTriangles(controls,'GRADE'),...buildElevationTriangles(controls,'FINISHED_FLOOR')];
+    for(const control of controls)entities.push({id:`pdf-selective-elevation-control-${pageNumber}-${control.id}`,source:file.name,layer:'L0',kind:'elevation-control-point',name:control.label,x:control.x,y:control.y,z:control.zMeters,floor:pageFloor,confidence:control.confidence,meta:{page:pageNumber,elevationControl:control,sourceType:'PDF_RASTER_OCR_ELEVATION_CONTROL',coordinateUnits:'image_sheet',physicalTruth:false,reviewRequired:true,elevationKnown:false,physicalElevationKnown:false}});
+    for(const triangle of triangles){const [a,b,d]=triangle.points;entities.push({id:`pdf-selective-elevation-triangle-${pageNumber}-${triangle.id}`,source:file.name,layer:'L1',kind:'elevation-review-surface-triangle',name:`${triangle.kind} review surface`,x:(a.x+b.x+d.x)/3,y:(a.y+b.y+d.y)/3,z:(a.zMeters+b.zMeters+d.zMeters)/3,floor:pageFloor,confidence:triangle.confidence,vertices:[{x:a.x,y:a.y},{x:b.x,y:b.y},{x:d.x,y:d.y}],meta:{page:pageNumber,elevationTriangle:{id:triangle.id,kind:triangle.kind,pointIds:triangle.pointIds,zMeters:[a.zMeters,b.zMeters,d.zMeters]},sourceType:'PDF_RASTER_OCR_ELEVATION_TRIANGLE',coordinateUnits:'image_sheet',zPlacementAuthority:'SOURCE_ELEVATION_TRIANGLE',physicalTruth:false,reviewRequired:true,elevationKnown:false,physicalElevationKnown:false}})}
+    supportOffsets.push(...extractSupportOffsetEvidence({items:geometryItems,source:file.name,page:pageNumber,planeWidth,planeHeight}));
+
+    let candidateIndex=0;
+    for(const line of blockLines){
+      const label=String(line?.text||'').replace(/\s+/g,' ').trim(),bbox=line?.bbox;if(!label||!bbox)continue;
+      const x0=Number(bbox.x0),y0=Number(bbox.y0),x1=Number(bbox.x1),y1=Number(bbox.y1);if(![x0,y0,x1,y1].every(Number.isFinite)||x1<=x0||y1<=y0)continue;
+      const equipmentClass=classifyElectricalLabel(label),poweredClass=poweredEquipmentClass(label),isRoom=roomCandidate(label);
+      if(!equipmentClass&&!poweredClass&&!isRoom)continue;
+      const x=((x0+x1)/2/Math.max(canvas.width,1)-.5)*planeWidth,y=(.5-(y0+y1)/2/Math.max(canvas.height,1))*planeHeight,frame=frameAt(x,y);
+      const layer:Layer=isRoom?'L1':poweredClass&&!equipmentClass?'L4':'L2';
+      entities.push({id:`pdf-selective-ocr-position-${pageNumber}-${candidateIndex++}`,source:file.name,layer,kind:isRoom?'room-label':poweredClass&&!equipmentClass?'powered-equipment-candidate':'text-asset-candidate',name:label,x,y,z:0,floor:frame?.floor||pageFloor,confidence:.62,meta:{page:pageNumber,sourceType:'PDF_RASTER_OCR_POSITIONAL_CANDIDATE',ocrAuthority:'REVIEW_ONLY',geometryAuthority:'SOURCE_IMAGE_BBOX_ONLY',coordinateUnits:'image_sheet',spatialPlacementAuthority:'OCR_SOURCE_IMAGE_POSITION_ONLY',zPlacementAuthority:'UNVERIFIED_DRAWING_PLANE',scaleValidationEvidence:validation,physicalTruth:false,reviewRequired:true,registrationState:'CANDIDATE',...(frame?{planFrameId:frame.id,planFrameTitle:frame.title,planFrameFloor:frame.floor}:{}),...(equipmentClass?{electricalComponentHint:equipmentClass}:{}),...(poweredClass?{poweredEquipmentClass:poweredClass}:{}),...planMeta}});
+    }
+    const normalized=buildImageOcrEvidence({text:ocrText,source:file.name,discipline:recognition.plan.discipline||discipline,floor:pageFloor,width:canvas.width,height:canvas.height,meanConfidence:Number.isFinite(Number(recognized.data?.confidence))?Number(recognized.data.confidence):null});
+    entities.push(...normalized.entities.map((entity,index)=>({...entity,id:`pdf-selective-ocr-text-${pageNumber}-${index}-${entity.id}`,meta:{...entity.meta,page:pageNumber,sourceType:'PDF_RASTER_OCR_TEXT',ocrAuthority:'REVIEW_ONLY',geometryAuthority:'NONE',coordinateUnits:'NONE',nonSpatial:true,physicalTruth:false,reviewRequired:true,spatialPlacementAuthority:'OCR_NON_SPATIAL'}})) as GraphEntity[]);
+   }catch(error){
+    if(error instanceof PdfParseError&&error.code==='PDF_PARSE_CANCELLED')throw error;
+    failedPages.push(pageNumber);
+   }finally{page?.cleanup?.()}
+  }
+  return{entities:enrichSupportBaseOffsets(entities,supportOffsets),ocrPages,textChars,nonSldPlanPages,planTypes:[...planTypes],disciplines:[...disciplines],failedPages};
+ }finally{
+  await ocrWorker.terminate().catch(()=>{});
+  await doc.destroy().catch(()=>{});
+  URL.revokeObjectURL(objectUrl);
+ }
 }
 
 async function parseImage(file:File,level:{floor:string;elevation:number},discipline:string,onProgress?:(message:string)=>void):Promise<{entities:GraphEntity[];summary:string;ocrSucceeded:boolean;planType:string|null;planDiscipline:string|null}> {
@@ -401,13 +512,28 @@ export default function CompilerWorkspace(){
  let parsed:PdfParseResult;
  try{
   parsed=await parsePdfOffThread(file.name,buf,level,discipline,progress=>{setParseProgress(progress);setMessage(`${file.name}: page ${progress.page||'?'}${progress.total?` of ${progress.total}`:''} · ${progress.phase}`)},controller.signal);
+  if(parsed.ocrRequiredPages.length){
+   const queued=[...parsed.ocrRequiredPages];
+   setMessage(`${file.name}: native/vector pass complete · selectively OCR'ing ${queued.length} low-text/scanned page${queued.length===1?'':'s'}…`);
+   const ocr=await parsePdfSelectedOcrPages(file,queued,level,discipline,(page,total)=>{setParseProgress({page,total,phase:'selective scanned-page OCR'});setMessage(`${file.name}: selective OCR page ${page} · ${total} queued scanned page${total===1?'':'s'}`)},controller.signal);
+   parsed={
+    ...parsed,
+    entities:[...parsed.entities,...ocr.entities],
+    summary:`${parsed.summary} · ${ocr.ocrPages} scanned page${ocr.ocrPages===1?'':'s'} selectively OCR'd${ocr.failedPages.length?` · ${ocr.failedPages.length} OCR page${ocr.failedPages.length===1?'':'s'} remain review exceptions`:''}`,
+    textItems:parsed.textItems+ocr.textChars,
+    nonSldPlanPages:parsed.nonSldPlanPages+ocr.nonSldPlanPages,
+    planTypes:[...new Set([...parsed.planTypes,...ocr.planTypes])],
+    disciplines:[...new Set([...parsed.disciplines,...ocr.disciplines])],
+    ocrRequiredPages:ocr.failedPages
+   };
+  }
  }catch(error){
-  if(error instanceof PdfParseError&&error.code==='OCR_FALLBACK_REQUIRED'){
-   setMessage(`${file.name}: low-text/scanned page detected; switching to the OCR review path…`);
-   parsed=await parsePdfMainThreadFallback(file,level,discipline,(page,total)=>{setParseProgress({page,total,phase:'OCR review fallback'});setMessage(`${file.name}: OCR review page ${page} of ${total}`)});
+  if(error instanceof PdfParseError&&error.code==='WORKER_UNAVAILABLE'){
+   setMessage(`${file.name}: protected worker unavailable; using bounded whole-file review fallback…`);
+   parsed=await parsePdfMainThreadFallback(file,level,discipline,(page,total)=>{setParseProgress({page,total,phase:'legacy OCR review fallback'});setMessage(`${file.name}: fallback page ${page} of ${total}`)});
   }else throw error;
  }finally{if(parseAbortRef.current===controller)parseAbortRef.current=null;setCanCancel(false);setParseProgress(null)}
- const graph=withAssetCandidates(scopeSourceEntities(parsed.entities,digest));const zGraph=enrichZCandidates(graph);nextEntities=[...nextEntities,...zGraph];sf={...sf,discipline:parsed.disciplines.length>1?'Multi-discipline':parsed.disciplines[0]||discipline,state:'parsed',floor:[...new Set(graph.map(e=>e.floor))].join(', ')||'UNRESOLVED',summary:`${parsed.summary} · elevations and cross-sheet alignment unverified · ${graph.filter(x=>x.layer==='L4').length} L4 candidates`,entities:zGraph.length,pages:parsed.pages,vectors:parsed.vectors,textItems:parsed.textItems,sldPages:parsed.sldPages,nonSldPlanPages:parsed.nonSldPlanPages,planTypes:parsed.planTypes,setCompleteness:parsed.setCompleteness}}else if(ext==='dxf'){const parsed=parseDxf(file,await file.text(),level),graph=withAssetCandidates(scopeSourceEntities(parsed.entities,digest));nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:`${parsed.summary} · floor label ${level.floor}; Z remains source-driven/reviewed · ${graph.filter(x=>x.layer==='L4').length} L4 candidates`,entities:graph.length,unitName:parsed.unitName,unitToMeters:parsed.unitToMeters}}else if(['png','jpg','jpeg'].includes(ext)){const parsed=await parseImage(file,level,discipline,message=>setMessage(`${file.name}: ${message}`)),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,discipline:parsed.planDiscipline||discipline,state:parsed.ocrSucceeded?'parsed':'review',summary:parsed.summary,entities:graph.length,nonSldPlanPages:parsed.planType?1:0,planTypes:parsed.planType?[parsed.planType]:[]}}else if(['csv','txt'].includes(ext)){const parsed=parseEquipmentScheduleText(await file.text(),file.name,discipline,level.floor),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:parsed.summary,entities:graph.length}}else if(ext==='xlsx'){const parsed=parseXlsxBytes(new Uint8Array(buf),file.name,discipline,level.floor),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:parsed.summary,entities:graph.length}}else if(ext==='docx'){const parsed=parseDocxBytes(new Uint8Array(buf),file.name,discipline,level.floor),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:parsed.summary,entities:graph.length}}else if(ext==='ifc'){const parsed=parseIfcText(await file.text(),file.name,discipline),graph=withAssetCandidates(scopeSourceEntities(parsed.entities,digest) as GraphEntity[]);nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',discipline:discipline==='Unclassified'?'BIM / Multi-discipline':discipline,summary:parsed.summary,entities:graph.length,unitName:parsed.unitName,unitToMeters:parsed.unitToMeters||undefined}}else if(ext==='glb'){const model=await parseGlb(file,buf,digest,level);const existing=nextEntities.filter(e=>e.meta?.nonSpatial!==true);if(existing.length){const xs=existing.flatMap(e=>[e.x,...(Number.isFinite(e.x2)?[e.x2!]:[])]);model.x=Math.max(...xs)+3;model.y=existing.reduce((sum,e)=>sum+e.y,0)/existing.length;}nextEntities=[...nextEntities,model];sf={...sf,state:'parsed',summary:'Renderable 3D geometry imported · placement unverified · no registered asset inferred',entities:1,unitName:'m',unitToMeters:1}}else if(ext==='gltf')sf={...sf,state:'adapter',summary:'Use a self-contained .glb export. Standalone .gltf may reference external textures or buffers and cannot be safely restored as one file.'};else if(ext==='xls')sf={...sf,state:'adapter',summary:'Legacy XLS fingerprinted. Binary BIFF adapter or conversion to XLSX is required; no structured engineering fields were invented.'};else if(NATIVE_ADAPTER.includes(ext))sf={...sf,state:'adapter',summary:`${ext.toUpperCase()} fingerprinted. Native adapter required before spatial claims.`};else sf={...sf,state:'review',summary:'Source preserved; format-specific extraction required.'}}catch(err){const failure=err instanceof Error?err.message:'Parser failed';fileFailures.push(`${file.name}: ${failure}`);if(replacementBackup){nextEntities=nextEntities.filter(entity=>String(entity.meta?.sourceSha256||'')!==digest&&entity.source!==replacementBackup!.source.name);nextEntities=[...nextEntities,...replacementBackup.entities];sf=replacementBackup.source;replacementSource=null;setMessage(`${file.name}: reprocess failed; the previous saved compilation was preserved. ${failure}`)}else sf={...sf,state:'failed',summary:failure}}nextFiles=[...nextFiles,sf];nextEntities=reconcileSpatialEquipmentIdentity(enrichZCandidates(nextEntities));setFiles(nextFiles);try{await saveGraph(nextFiles,nextEntities,replacementSource?[replacementSource]:[])}catch{setEntities(nextEntities);setBusy(false);setDragging(false);setMessage('Import could not be saved. Existing saved work is unchanged; imported objects remain in this session. Browser storage may be full or unavailable.');return}}setBusy(false);setDragging(false);setCanCancel(false);setParseProgress(null);parseAbortRef.current=null;const zoned=assignZones(nextEntities),links=buildLinks(zoned);setMessage(fileFailures.length?`Import finished with ${fileFailures.length} review exception${fileFailures.length===1?'':'s'}. ${fileFailures.join(' · ')} Retry is available without reloading.`:`Source compilation updated: ${nextFiles.filter(f=>f.state==='parsed').length}/${nextFiles.length} sources · ${new Set(zoned.map(e=>e.floor).filter(f=>f&&f!=='UNRESOLVED')).size} identified floor label(s) · ${zoned.filter(e=>e.kind==='room-boundary').length} reconstructed rooms · ${zoned.length} entities · ${links.length} relationships.`)}
+ const scoped=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];const graph=withAssetCandidates(scoped);const zGraph=enrichZCandidates(graph);nextEntities=[...nextEntities,...zGraph];sf={...sf,discipline:parsed.disciplines.length>1?'Multi-discipline':parsed.disciplines[0]||discipline,state:'parsed',floor:[...new Set(graph.map(e=>e.floor))].join(', ')||'UNRESOLVED',summary:`${parsed.summary} · elevations and cross-sheet alignment unverified · ${graph.filter(x=>x.layer==='L4').length} L4 candidates`,entities:zGraph.length,pages:parsed.pages,vectors:parsed.vectors,textItems:parsed.textItems,sldPages:parsed.sldPages,nonSldPlanPages:parsed.nonSldPlanPages,planTypes:parsed.planTypes,setCompleteness:parsed.setCompleteness}}else if(ext==='dxf'){const parsed=parseDxf(file,await file.text(),level),graph=withAssetCandidates(scopeSourceEntities(parsed.entities,digest));nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:`${parsed.summary} · floor label ${level.floor}; Z remains source-driven/reviewed · ${graph.filter(x=>x.layer==='L4').length} L4 candidates`,entities:graph.length,unitName:parsed.unitName,unitToMeters:parsed.unitToMeters}}else if(['png','jpg','jpeg'].includes(ext)){const parsed=await parseImage(file,level,discipline,message=>setMessage(`${file.name}: ${message}`)),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,discipline:parsed.planDiscipline||discipline,state:parsed.ocrSucceeded?'parsed':'review',summary:parsed.summary,entities:graph.length,nonSldPlanPages:parsed.planType?1:0,planTypes:parsed.planType?[parsed.planType]:[]}}else if(['csv','txt'].includes(ext)){const parsed=parseEquipmentScheduleText(await file.text(),file.name,discipline,level.floor),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:parsed.summary,entities:graph.length}}else if(ext==='xlsx'){const parsed=parseXlsxBytes(new Uint8Array(buf),file.name,discipline,level.floor),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:parsed.summary,entities:graph.length}}else if(ext==='docx'){const parsed=parseDocxBytes(new Uint8Array(buf),file.name,discipline,level.floor),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:parsed.summary,entities:graph.length}}else if(ext==='ifc'){const parsed=parseIfcText(await file.text(),file.name,discipline),graph=withAssetCandidates(scopeSourceEntities(parsed.entities,digest) as GraphEntity[]);nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',discipline:discipline==='Unclassified'?'BIM / Multi-discipline':discipline,summary:parsed.summary,entities:graph.length,unitName:parsed.unitName,unitToMeters:parsed.unitToMeters||undefined}}else if(ext==='glb'){const model=await parseGlb(file,buf,digest,level);const existing=nextEntities.filter(e=>e.meta?.nonSpatial!==true);if(existing.length){const xs=existing.flatMap(e=>[e.x,...(Number.isFinite(e.x2)?[e.x2!]:[])]);model.x=Math.max(...xs)+3;model.y=existing.reduce((sum,e)=>sum+e.y,0)/existing.length;}nextEntities=[...nextEntities,model];sf={...sf,state:'parsed',summary:'Renderable 3D geometry imported · placement unverified · no registered asset inferred',entities:1,unitName:'m',unitToMeters:1}}else if(ext==='gltf')sf={...sf,state:'adapter',summary:'Use a self-contained .glb export. Standalone .gltf may reference external textures or buffers and cannot be safely restored as one file.'};else if(ext==='xls')sf={...sf,state:'adapter',summary:'Legacy XLS fingerprinted. Binary BIFF adapter or conversion to XLSX is required; no structured engineering fields were invented.'};else if(NATIVE_ADAPTER.includes(ext))sf={...sf,state:'adapter',summary:`${ext.toUpperCase()} fingerprinted. Native adapter required before spatial claims.`};else sf={...sf,state:'review',summary:'Source preserved; format-specific extraction required.'}}catch(err){const failure=err instanceof Error?err.message:'Parser failed';fileFailures.push(`${file.name}: ${failure}`);if(replacementBackup){nextEntities=nextEntities.filter(entity=>String(entity.meta?.sourceSha256||'')!==digest&&entity.source!==replacementBackup!.source.name);nextEntities=[...nextEntities,...replacementBackup.entities];sf=replacementBackup.source;replacementSource=null;setMessage(`${file.name}: reprocess failed; the previous saved compilation was preserved. ${failure}`)}else sf={...sf,state:'failed',summary:failure}}nextFiles=[...nextFiles,sf];nextEntities=reconcileSpatialEquipmentIdentity(enrichZCandidates(nextEntities));setFiles(nextFiles);try{await saveGraph(nextFiles,nextEntities,replacementSource?[replacementSource]:[])}catch{setEntities(nextEntities);setBusy(false);setDragging(false);setMessage('Import could not be saved. Existing saved work is unchanged; imported objects remain in this session. Browser storage may be full or unavailable.');return}}setBusy(false);setDragging(false);setCanCancel(false);setParseProgress(null);parseAbortRef.current=null;const zoned=assignZones(nextEntities),links=buildLinks(zoned);setMessage(fileFailures.length?`Import finished with ${fileFailures.length} review exception${fileFailures.length===1?'':'s'}. ${fileFailures.join(' · ')} Retry is available without reloading.`:`Source compilation updated: ${nextFiles.filter(f=>f.state==='parsed').length}/${nextFiles.length} sources · ${new Set(zoned.map(e=>e.floor).filter(f=>f&&f!=='UNRESOLVED')).size} identified floor label(s) · ${zoned.filter(e=>e.kind==='room-boundary').length} reconstructed rooms · ${zoned.length} entities · ${links.length} relationships.`)}
  async function renderSpatial(){
   if(busy||!entities.length)return;
   setMessage('Preparing the latest compiled graph for Spatial…');
