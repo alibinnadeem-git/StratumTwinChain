@@ -33,6 +33,7 @@ import {enrichSupportBaseOffsets,extractSupportOffsetEvidence,type SupportOffset
 import {analyzeDrawingSetCompleteness,type DrawingSetCompleteness} from '../lib/drawing-set-completeness';
 import {pdfIngestionProfile} from '../lib/pdf-ingestion-profile';
 import {applyAutomaticPdfMetricFrame,derivePdfMetricFrameCandidates} from '../lib/pdf-metric-frame';
+import {enrichZRecovery} from '../lib/z-recovery';
 import {ChangeEvent,DragEvent,useEffect,useMemo,useRef,useState} from 'react';
 
 type Layer='L0'|'L1'|'L2'|'L3'|'L4';
@@ -306,15 +307,20 @@ function withZConstraintGraph(entity:GraphEntity){
 function enrichZCandidates(parsed:GraphEntity[]){
  const evidence=parsed.flatMap(entity=>entity.meta?.zEvidence?[entity.meta.zEvidence as ZEvidence]:[]);
  const surfaces=buildProjectDatumSurfaces(evidence);
- const index=buildZResolutionIndex(parsed,evidence);
- return parsed.map(entity=>{
+ const recovered=enrichZRecovery(parsed,evidence,surfaces);
+ const index=buildZResolutionIndex(recovered,evidence);
+ return recovered.map(entity=>{
   const resolution=index.get(entity.id);
   const surface=projectDatumSurfaceForEntity(entity,surfaces);
   const surfaceMeta=datumSurfaceMetadata(surface);
   const xyzGuide=Number.isFinite(Number(entity.meta?.unitToMeters))&&String(entity.meta?.unitName||'')!=='unitless'
    ?{zScaleGuideMetersPerSourceUnit:Number(entity.meta?.unitToMeters),zScaleGuideAuthority:'XY_AND_Z_SHARE_SOURCE_UNITS'}
    :{};
-  if(!resolution||resolution.status==='UNRESOLVED')return withZConstraintGraph({...entity,meta:{...entity.meta,...surfaceMeta,...xyzGuide,zResolutionStatus:'UNRESOLVED',physicalElevationKnown:false,elevationKnown:false}});
+  if(!resolution||resolution.status==='UNRESOLVED'){
+   const inferred=Number.isFinite(Number(entity.meta?.inferredProjectDatumZ));
+   const relative=Number.isFinite(Number(entity.meta?.relativeReviewSurfaceZ));
+   return withZConstraintGraph({...entity,meta:{...entity.meta,...surfaceMeta,...xyzGuide,zResolutionStatus:inferred?'INFERRED_PROJECT_DATUM_CANDIDATE':relative?'RELATIVE_VISUALIZATION_ONLY':'UNRESOLVED',zResolutionConfidence:inferred?Number(entity.meta?.inferredProjectDatumConfidence||0):relative?Number(entity.meta?.relativeReviewSurfaceConfidence||0):0,zResolutionAuthority:inferred?String(entity.meta?.inferredProjectDatumAuthority||'PROJECT_STORY_INTERVAL_EXTRAPOLATION'):relative?String(entity.meta?.relativeReviewSurfaceAuthority||'VISUALIZATION_STORY_STACK_ONLY'):'UNRESOLVED',physicalElevationKnown:false,elevationKnown:false,reviewRequired:true}});
+  }
   if(resolution.status==='RESOLVED_DESIGN_CANDIDATE'&&resolution.zMeters!==null){
    return withZConstraintGraph({...entity,meta:{...entity.meta,...surfaceMeta,...xyzGuide,zCandidateMeters:resolution.zMeters,zCandidateReferencePoint:resolution.referencePoint,zResolutionStatus:resolution.status,zResolutionConfidence:resolution.confidence,zResolutionAuthority:resolution.authority,zResolutionEvidence:resolution.evidence,physicalElevationKnown:false,elevationKnown:false,reviewRequired:true}});
   }
