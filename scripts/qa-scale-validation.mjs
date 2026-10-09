@@ -25,6 +25,29 @@ assert.ok(close(corroborated.corroboratedMetersPerNormalizedSheetUnit,expected,.
 assert.equal(corroborated.autoApply,false);
 assert.equal(corroborated.geometryScaleAuthority,false);
 assert.equal(corroborated.reviewRequired,true);
+assert.equal(corroborated.automationEligible,false,'one witness is reviewable but must not auto-apply metric XY');
+
+const autoCorroborated=validateIndependentScale({
+  declaredScale:'1" = 20\'-0"',
+  pageMaxDimensionPoints:pageMax,
+  normalizedSheetSpan:20,
+  coordinateSpan:20,
+  items:[
+    {text:"20'-0\"",x:segmentLength/2,y:.04},
+    {text:"20'-0\"",x:segmentLength/2,y:.34},
+    {text:"20'-0\"",x:segmentLength/2,y:.64}
+  ],
+  segments:[
+    {x:0,y:0,x2:segmentLength,y2:0},
+    {x:0,y:.3,x2:segmentLength,y2:.3},
+    {x:0,y:.6,x2:segmentLength,y2:.6}
+  ]
+});
+assert.equal(autoCorroborated.status,'CORROBORATED');
+assert.equal(autoCorroborated.automationEligible,true);
+assert.equal(autoCorroborated.independentWitnessCount,3);
+assert.equal(autoCorroborated.witnessTypeCount,1);
+assert.match(autoCorroborated.automationReason,/strict 3% automation envelope/);
 
 const mismatch=validateIndependentScale({
   declaredScale:'1" = 20\'-0"',
@@ -80,4 +103,4 @@ const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
 assert.match(viewer,/SCALE \{String\(activeScaleValidation\.status/);
 assert.match(viewer,/never auto-applied/);
 
-console.log('Independent scale validation passed: dimension witness, graphic scale, mismatch detection, raster review-only fallback, and fail-closed geometry authority.');
+console.log('Independent scale validation passed: dimension/graphic witnesses, strict redundant-evidence automation eligibility, mismatch detection, raster review-only fallback, and fail-closed physical-position authority.');
