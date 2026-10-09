@@ -29,6 +29,28 @@ function syntheticVectorPdf(pageCount=9,linesPerPage=1000){
  return Buffer.from(pdf);
 }
 
+function largePdfBeyondLegacyLimit(){
+ const base=syntheticVectorPdf(1,25);
+ const target=65*1024*1024+1024;
+ const padding=Buffer.alloc(Math.max(0,target-base.length),0x20);
+ return Buffer.concat([base,Buffer.from('\n% LARGE SOURCE TEST PADDING\n'),padding]);
+}
+
+test('valid PDF beyond the legacy 64 MB ceiling enters LARGE_SOURCE parsing instead of failing on size',async({page},testInfo)=>{
+ test.setTimeout(120000);
+ if(testInfo.project.name!=='desktop-chromium')return;
+ await page.goto('/import');
+ const pdf=largePdfBeyondLegacyLimit();
+ expect(pdf.byteLength).toBeGreaterThan(64*1024*1024);
+ expect(pdf.byteLength).toBeLessThan(250*1024*1024);
+ const input=page.locator('section.import-primary input[type=file][accept*=".pdf"]');
+ await input.setInputFiles({name:'large-source-over-64mb.pdf',mimeType:'application/pdf',buffer:pdf});
+ await expect(page.getByText('large-source-over-64mb.pdf',{exact:true})).toBeVisible({timeout:15000});
+ await expect(page.getByText(/large-source bounded parse off the UI thread/i)).toBeVisible({timeout:90000});
+ await expect(page.getByText('PARSED',{exact:true})).toBeVisible();
+ await expect(page.getByRole('status')).not.toContainText(/browser parser limit is 64|split the set/i);
+});
+
 test('native PDF worker stays responsive, can cancel, and retries the same file without reload',async({page},testInfo)=>{
  test.setTimeout(75000);
  if(testInfo.project.name!=='desktop-chromium')return;
