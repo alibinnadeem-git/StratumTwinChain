@@ -16,8 +16,14 @@ for(const project of fixture.projects){
  assert.equal(profile.mode,project.source.expectedIngestionMode,`${project.fixtureId} ingestion mode drifted`);
  modes.add(profile.mode);
  assert.match(project.source.sha256,/^[a-f0-9]{64}$/,'real-source fixture must be hash locked');
+ assert.ok(Number.isInteger(project.source.pageCount)&&project.source.pageCount>0,'real-source fixture must lock observed page count');
+ assert.ok(project.source.pageCount<=profile.maxPages,`${project.fixtureId} observed page count must fit its bounded ingestion profile`);
+ assert.ok(Number.isInteger(project.source.lowNativeTextPageCount)&&project.source.lowNativeTextPageCount>=0&&project.source.lowNativeTextPageCount<=project.source.pageCount,'real-source fixture must lock observed low-native-text page count');
 }
 assert.deepEqual(modes,new Set(['STANDARD','LARGE_SOURCE']),'real-project breadth must exercise both standard and large-source ingestion');
+const scannedLarge=fixture.projects.find(project=>project.source.expectedIngestionMode==='LARGE_SOURCE'&&project.source.lowNativeTextPageCount>0);
+assert.ok(scannedLarge,'breadth gate must include a genuinely hybrid/scanned large-source file');
+assert.ok(scannedLarge.source.lowNativeTextPageCount>=100,'hybrid large-source regression must remain substantial, not synthetic');
 
 const architectural=fixture.projects.find(project=>project.fixtureId==='REAL-BRYNHURST-ARCHITECTURAL');
 const architecturalEvidence=extractZEvidenceFromText(
@@ -71,4 +77,4 @@ for(const dimension of industrial.semanticContract.dimensionStrings){
  assert.ok(Number.isFinite(Number(meters))&&Number(meters)>0,`dimension must be measurable: ${dimension}`);
 }
 
-console.log('Real-project breadth passed: exact hash/size contracts span residential and industrial sources, both ingestion modes are exercised, source story datums generalize, Camarillo-style AFF/NEMA shorthand is parsed, and multiple architectural scale syntaxes remain measurable without project-specific runtime logic.');
+console.log('Real-project breadth passed: exact hash/size/page contracts span residential and industrial sources, both ingestion modes and a 100+ scanned-page hybrid source are exercised, source story datums generalize, Camarillo-style AFF/NEMA shorthand is parsed, and multiple architectural scale syntaxes remain measurable without project-specific runtime logic.');
