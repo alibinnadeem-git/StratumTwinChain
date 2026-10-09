@@ -350,7 +350,7 @@ async function parsePdfSelectedOcrPages(
  const ocrWorker=await mod.createWorker('eng',mod.OEM.LSTM_ONLY);
  const entities:GraphEntity[]=[],supportOffsets:SupportOffsetEvidence[]=[];
  const planTypes=new Set<string>(),disciplines=new Set<string>();
- const failedPages:number[]=[];let textChars=0,ocrPages=0;
+ const failedPages:number[]=[];let textChars=0,ocrPages=0,nonSldPlanPages=0;
  try{
   for(let index=0;index<wanted.length;index++){
    if(signal.aborted)throw new PdfParseError('PDF_PARSE_CANCELLED','Selective scanned-page OCR was canceled. Native parsed content remains retryable.');
@@ -382,7 +382,7 @@ async function parsePdfSelectedOcrPages(
     });
     const positioned=geometryItems.map(item=>({text:item.text,x:(Number(item.x)-.5)*planeWidth,y:(.5-Number(item.y))*planeHeight}));
     const recognition=resolveDrawingPageRecognition(lines,0);
-    if(recognition.plan.isPlan&&recognition.plan.planType)planTypes.add(String(recognition.plan.planType));
+    if(recognition.plan.isPlan){nonSldPlanPages++;if(recognition.plan.planType)planTypes.add(String(recognition.plan.planType));}
     if(recognition.plan.isPlan&&recognition.plan.discipline)disciplines.add(String(recognition.plan.discipline));
     const frames=detectPlanFrames(positioned,recognition.plan);
     const frameAt=(x:number,y:number)=>resolvePlanFrameAtPoint(frames,x,y);
@@ -421,7 +421,7 @@ async function parsePdfSelectedOcrPages(
     failedPages.push(pageNumber);
    }finally{page?.cleanup?.()}
   }
-  return{entities:enrichSupportBaseOffsets(entities,supportOffsets),ocrPages,textChars,nonSldPlanPages:planTypes.size?wanted.length-failedPages.length:0,planTypes:[...planTypes],disciplines:[...disciplines],failedPages};
+  return{entities:enrichSupportBaseOffsets(entities,supportOffsets),ocrPages,textChars,nonSldPlanPages,planTypes:[...planTypes],disciplines:[...disciplines],failedPages};
  }finally{
   await ocrWorker.terminate().catch(()=>{});
   await doc.destroy().catch(()=>{});
