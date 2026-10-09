@@ -44,10 +44,10 @@ const autoCorroborated=validateIndependentScale({
   ]
 });
 assert.equal(autoCorroborated.status,'CORROBORATED');
-assert.equal(autoCorroborated.automationEligible,true);
+assert.equal(autoCorroborated.automationEligible,false,'even redundant witnesses cannot authorize automatic XY');
 assert.equal(autoCorroborated.independentWitnessCount,3);
 assert.equal(autoCorroborated.witnessTypeCount,1);
-assert.match(autoCorroborated.automationReason,/strict 3% automation envelope/);
+assert.match(autoCorroborated.automationReason,/Human-confirm manual XY pairs/);
 
 const mismatch=validateIndependentScale({
   declaredScale:'1" = 20\'-0"',
@@ -103,4 +103,4 @@ const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
 assert.match(viewer,/SCALE \{String\(activeScaleValidation\.status/);
 assert.match(viewer,/never auto-applied/);
 
-console.log('Independent scale validation passed: dimension/graphic witnesses, strict redundant-evidence automation eligibility, mismatch detection, raster review-only fallback, and fail-closed physical-position authority.');
+console.log('Independent scale validation passed: dimension/graphic witnesses, redundant-evidence review without auto-application, mismatch detection, raster review-only fallback, and fail-closed physical-position authority.');

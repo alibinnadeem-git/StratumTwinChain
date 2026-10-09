@@ -38,14 +38,8 @@ const autoValidation={...validation,
  ]
 };
 const autoCandidate=derivePdfMetricFrameCandidates([{...entities[0],meta:{...entities[0].meta,scaleValidationEvidence:autoValidation}}])[0];
-assert.equal(autoCandidate.autoApplyEligible,true);
-const autoScaled=applyAutomaticPdfMetricFrame(entities[0],autoCandidate,'2026-10-09T00:00:00.000Z');
-assert.equal(autoScaled.x,1);
-assert.equal(autoScaled.meta?.coordinateUnits,'m_auto_corroborated_pdf');
-assert.equal(autoScaled.meta?.metricFrameAuthority,'AUTO_CORROBORATED_PDF_SCALE');
-assert.equal(autoScaled.meta?.metricFrameAutoApplied,true);
-assert.equal(autoScaled.meta?.metricFramePhysicalPositionVerified,false);
-assert.equal(autoScaled.z,12.345);
+assert.equal(autoCandidate.autoApplyEligible,false,'corroborated scale still needs human-reviewed calibration');
+assert.throws(()=>applyAutomaticPdfMetricFrame(entities[0],autoCandidate,'2026-10-09T00:00:00.000Z'),/Automatic PDF metric-frame application is prohibited/);
 
 const scaled=applyReviewedPdfMetricFrame(entities[0],candidates[0],'2026-10-05T00:00:00.000Z');
 assert.equal(scaled.x,1);
@@ -99,4 +93,4 @@ const page=fs.readFileSync('app/compiler/page.tsx','utf8');
 assert.ok(page.indexOf('<PdfMetricFrameReview/>')<page.indexOf('<AutoSheetAlignmentReview/>'),'metric frame review must precede automatic cross-sheet alignment');
 assert.ok(page.indexOf('<PdfMetricFrameReview/>')<page.indexOf('<ManualSheetXYCalibrationReview/>'),'metric frame review must precede manual XY calibration');
 
-console.log('PDF metric frame passed: reviewable corroboration remains reversible, strict redundant evidence can auto-convert X/Y to meters, Z is never rescaled, and physical-position truth remains false.');
+console.log('PDF metric frame passed: reviewable corroboration remains reversible, even redundant scale evidence cannot auto-convert X/Y to meters, Z is never rescaled, and physical-position truth remains false.');

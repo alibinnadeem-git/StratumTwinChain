@@ -5,7 +5,6 @@ export type ZRecoveryMode=
  |'SOURCE_STORY_INTERVAL'
  |'EXPLICIT_STORY_HEIGHT'
  |'RELATIVE_EXPLICIT_STORY_HEIGHT'
- |'RELATIVE_VISUALIZATION_STACK'
  |'NONE';
 
 export type ZRecoverySummary={
@@ -20,8 +19,6 @@ export type ZRecoverySummary={
 };
 
 type RecoveryEntity=ZEntityLike&{meta?:Record<string,unknown>};
-
-const DEFAULT_VISUALIZATION_STORY_SPACING_METERS=3;
 
 function floorOrdinal(value:string|undefined|null){
  const floor=String(value||'').trim().toUpperCase();
@@ -81,7 +78,7 @@ export function summarizeZRecovery(evidence:ZEvidence[],surfaces:ProjectDatumSur
    physicalTruth:false,reviewRequired:true
   };
  }
- return{mode:'RELATIVE_VISUALIZATION_STACK',storyIntervalMeters:DEFAULT_VISUALIZATION_STORY_SPACING_METERS,confidence:.18,anchorFloor:null,anchorZMeters:null,source:['NO_ABSOLUTE_Z_EVIDENCE','VISUALIZATION_STACK_ONLY'],physicalTruth:false,reviewRequired:true};
+ return{mode:'NONE',storyIntervalMeters:null,confidence:0,anchorFloor:null,anchorZMeters:null,source:[],physicalTruth:false,reviewRequired:true};
 }
 
 export function enrichZRecovery<T extends RecoveryEntity>(entities:T[],evidence:ZEvidence[],surfaces:ProjectDatumSurface[]):T[]{
@@ -91,8 +88,11 @@ export function enrichZRecovery<T extends RecoveryEntity>(entities:T[],evidence:
   const ordinal=floorOrdinal(entity.floor);
   if(ordinal===null||entity.meta?.nonSpatial===true)return entity;
   const meta={...(entity.meta||{})};
+  // Drop any persisted heuristic stack from earlier compilations; no source means no Z.
+  for(const key of ['relativeReviewSurfaceZ','relativeReviewSurfaceFloor','relativeReviewSurfaceAuthority','relativeReviewSurfaceConfidence','relativeReviewSurfaceEvidence','inferredProjectDatumZ','inferredProjectDatumFloor','inferredProjectDatumAuthority','inferredProjectDatumConfidence','inferredProjectDatumEvidence'])delete meta[key];
   const alreadyAbsolute=Number.isFinite(Number(meta.localReviewSurfaceZ))||Number.isFinite(Number(meta.crossSheetReviewSurfaceZ))||Number.isFinite(Number(meta.floorDatumMeters))||Number.isFinite(Number(meta.reviewSurfaceZ))||meta.sourceDesignElevationKnown===true;
-  if(alreadyAbsolute)return entity;
+  if(alreadyAbsolute)return {...entity,meta} as T;
+  if(summary.mode==='NONE')return {...entity,meta:{...meta,zRecoveryMode:'NONE',zRecoveryAbsoluteCandidate:false,physicalTruth:false,reviewRequired:true}} as T;
 
   if(summary.anchorZMeters!==null&&anchorOrdinal!==null&&summary.storyIntervalMeters!==null){
    const inferred=summary.anchorZMeters+(ordinal-anchorOrdinal)*summary.storyIntervalMeters;
@@ -110,18 +110,7 @@ export function enrichZRecovery<T extends RecoveryEntity>(entities:T[],evidence:
    }} as T;
   }
 
-  const relative=(ordinal)*Number(summary.storyIntervalMeters||DEFAULT_VISUALIZATION_STORY_SPACING_METERS);
-  return{...entity,meta:{
-   ...meta,
-   relativeReviewSurfaceZ:relative,
-   relativeReviewSurfaceFloor:entity.floor,
-   relativeReviewSurfaceAuthority:summary.mode==='RELATIVE_EXPLICIT_STORY_HEIGHT'?'SOURCE_STORY_HEIGHT_RELATIVE_STACK':'VISUALIZATION_STORY_STACK_ONLY',
-   relativeReviewSurfaceConfidence:summary.confidence,
-   relativeReviewSurfaceEvidence:summary.source,
-   zRecoveryMode:summary.mode,
-   zRecoveryAbsoluteCandidate:false,
-   physicalTruth:false,
-   reviewRequired:true
-  }} as T;
+  // A story-height note without a grade/floor control establishes an interval, not Z.
+  return {...entity,meta:{...meta,zRecoveryMode:summary.mode,zRecoveryAbsoluteCandidate:false,physicalTruth:false,reviewRequired:true}} as T;
  });
 }

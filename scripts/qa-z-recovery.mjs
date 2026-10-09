@@ -35,18 +35,23 @@ assert.ok(Math.abs(Number(explicitSummary.storyIntervalMeters)-3.6576)<1e-6);
 
 const noEvidence=[
  {id:'l1',name:'MAIN SWITCHBOARD MSB-1',source:'flat-plan.pdf',floor:'L1',confidence:.9,meta:{}},
- {id:'l3',name:'MAIN SWITCHBOARD MSB-3',source:'flat-plan.pdf',floor:'L3',confidence:.9,meta:{}}
+ {id:'l3',name:'MAIN SWITCHBOARD MSB-3',source:'flat-plan.pdf',floor:'L3',confidence:.9,meta:{relativeReviewSurfaceZ:6,relativeReviewSurfaceAuthority:'VISUALIZATION_STORY_STACK_ONLY'}}
 ];
 const relative=enrichZRecovery(noEvidence,[],[]);
-assert.equal(relative[0].meta?.relativeReviewSurfaceZ,0);
-assert.equal(relative[1].meta?.relativeReviewSurfaceZ,6);
+assert.equal(summarizeZRecovery([],[]).mode,'NONE');
+assert.equal(summarizeZRecovery([],[]).storyIntervalMeters,null);
+assert.ok(relative.every(entity=>entity.meta?.zRecoveryMode==='NONE'));
+assert.ok(relative.every(entity=>!('relativeReviewSurfaceZ' in (entity.meta||{}))),'stale visualization Z must be removed');
+assert.ok(relative.every(entity=>!('inferredProjectDatumZ' in (entity.meta||{}))));
 assert.equal(relative[1].meta?.zRecoveryAbsoluteCandidate,false);
 const relativePlacement=resolveAssetPlacement(relative[1]);
-assert.equal(relativePlacement.zAuthority,'RELATIVE_TO_REVIEW_PLANE');
-assert.equal(relativePlacement.baseZ,6);
+assert.equal(relativePlacement.zAuthority,'UNRESOLVED');
 const relativeSolution=buildZSolution(relative[1]);
-assert.equal(relativeSolution.status,'RELATIVE_ONLY');
+assert.equal(relativeSolution.status,'UNRESOLVED');
+assert.equal(relativeSolution.baseZ,null);
 assert.equal(relativeSolution.physicalTruth,false);
-assert.match(relativeSolution.explanation,/relative\/review-plane/i);
+const [heightWithoutAnchor]=enrichZRecovery([l2],explicitOnly,[]);
+assert.equal(heightWithoutAnchor.meta?.zRecoveryMode,'RELATIVE_EXPLICIT_STORY_HEIGHT');
+assert.equal(heightWithoutAnchor.meta?.relativeReviewSurfaceZ,undefined,'story-height evidence without floor control cannot supply Z');
 
-console.log('Z recovery passed: anchored project story intervals can infer missing absolute design datums, explicit story-height evidence can build a relative stack, and evidence-free flat plans still render as clearly labeled relative 3D without inventing absolute/physical Z.');
+console.log('Z recovery passed: anchored project story intervals can infer missing absolute design datums, explicit story-height evidence can build a relative stack, and evidence-free flat plans stay UNRESOLVED without a fabricated story spacing.');

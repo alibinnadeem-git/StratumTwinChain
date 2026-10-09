@@ -93,7 +93,7 @@ export function derivePdfMetricFrameCandidates(entities:MetricFrameEntity[]):Pdf
    confidence:Math.max(0,Math.min(1,Number(validation.confidence||0))),
    witnessCount:Array.isArray(validation.witnesses)?validation.witnesses.length:0,
    eligible:reasons.length===0,
-   autoApplyEligible:reasons.length===0&&validation.automationEligible===true,
+   autoApplyEligible:false, // No witness score can authorize automatic metric coordinates.
    reasons,
    reviewRequired:true,
    autoApply:false,
@@ -111,6 +111,7 @@ function applyPdfMetricFrame<T extends MetricFrameEntity>(
  authority:'HUMAN_REVIEWED_CORROBORATED_PDF_SCALE'|'AUTO_CORROBORATED_PDF_SCALE',
  autoApplied:boolean
 ):T{
+ if(autoApplied)throw new Error('Automatic PDF metric-frame application is prohibited; human-confirm manual XY calibration and witness corroboration.');
  if(pdfMetricFrameKey(entity)!==candidate.frameKey)return entity;
  if(!candidate.eligible||candidate.metersPerSheetUnit===null)throw new Error('This PDF metric-frame candidate is not eligible for application.');
  if(autoApplied&&!candidate.autoApplyEligible)throw new Error('This PDF metric-frame candidate does not have redundant evidence for automatic application.');
