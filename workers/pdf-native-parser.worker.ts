@@ -18,7 +18,7 @@ type RawText={key:string;str:string;x:number;y:number;page:number};
 type Segment={x:number;y:number;x2:number;y2:number;page:number};
 type Polygon={vertices:XY[];page:number;confidence:number};
 type Level={floor:string;elevation:number};
-type ParseResult={entities:GraphEntity[];summary:string;pages:number;vectors:number;textItems:number;sldPages:number;nonSldPlanPages:number;planTypes:string[];disciplines:string[];setCompleteness:DrawingSetCompleteness};
+type ParseResult={entities:GraphEntity[];summary:string;pages:number;vectors:number;textItems:number;sldPages:number;nonSldPlanPages:number;planTypes:string[];disciplines:string[];setCompleteness:DrawingSetCompleteness;ocrRequiredPages:number[]};
 
 
 function fail(code:string,message:string,page?:number):never{
@@ -50,7 +50,7 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
  const pageGeometryByPage=new Map<number,{width:number;height:number;max:number}>();
  const pageEvidence=new Map<number,ReturnType<typeof resolveDrawingPageRecognition>['sld']>();
  const planEvidence=new Map<number,ReturnType<typeof resolveDrawingPageRecognition>['plan']>();
- let vectors=0,totalOps=0;
+ let vectors=0,totalOps=0;const ocrRequiredPages:number[]=[];
 
  try{
   for(let p=1;p<=doc.numPages;p++){
@@ -62,10 +62,7 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
    pageGeometryByPage.set(p,{width:viewport.width,height:viewport.height,max:Math.max(viewport.width,viewport.height)});
    const items=Array.isArray(text.items)?text.items:[];
    const nativeText=items.map((item:any)=>String(item?.str||'').trim()).filter(Boolean);
-   if(nativeText.length<3){
-    page.cleanup();
-    fail('OCR_FALLBACK_REQUIRED',`Page ${p} has too little native text for the off-thread vector parser. STRATUM will use the scanned/OCR review path instead.`,p);
-   }
+   if(nativeText.length<3)ocrRequiredPages.push(p);
    pageFloors.set(p,inferPdfPageFloor(nativeText));
    for(const item of items){
     if(!item?.str?.trim())continue;
@@ -202,7 +199,7 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
   const pageLabels=Array.from({length:doc.numPages},(_,index)=>raw.filter(item=>item.page===index+1).map(item=>item.str));
   const setCompleteness=analyzeDrawingSetCompleteness({pageLabels,sheetNumbers:Array.from({length:doc.numPages},(_,index)=>sheetNumbersByPage.get(index+1)||null)});
   const setSummary=setCompleteness.status==='PARTIAL'?` · partial drawing set · missing ${setCompleteness.missingSheets.join(', ')}`:setCompleteness.status==='COMPLETE'?' · indexed drawing set complete':' · drawing-set completeness unresolved';
-  return{entities:supportEnriched,summary:`${doc.numPages} page${doc.numPages===1?'':'s'} · ${raw.length} positioned text objects · ${vectors} PDF drawing operators · ${nonSldPlanPages} non-SLD plan page${nonSldPlanPages===1?'':'s'} recognized${planTypes.length?` (${planTypes.join(', ')})`:''} · ${sourcePlanSegments} retained source-plan vector segment${sourcePlanSegments===1?'':'s'} · 0 raster OCR fallback pages · ${sldPages} SLD page${sldPages===1?'':'s'} recognized from content/topology · ${vectorFeederSegments} source-vector feeder segment${vectorFeederSegments===1?'':'s'} · ${supportEnriched.length} spatial/review candidates${setSummary} · ${ingestion.mode==='LARGE_SOURCE'?'large-source bounded parse':'standard parse'} off the UI thread`,pages:doc.numPages,vectors,textItems:raw.length,sldPages,nonSldPlanPages,planTypes,disciplines:uniqueDisciplines,setCompleteness};
+  return{entities:supportEnriched,summary:`${doc.numPages} page${doc.numPages===1?'':'s'} · ${raw.length} positioned text objects · ${vectors} PDF drawing operators · ${nonSldPlanPages} non-SLD plan page${nonSldPlanPages===1?'':'s'} recognized${planTypes.length?` (${planTypes.join(', ')})`:''} · ${sourcePlanSegments} retained source-plan vector segment${sourcePlanSegments===1?'':'s'} · 0 raster OCR fallback pages · ${sldPages} SLD page${sldPages===1?'':'s'} recognized from content/topology · ${vectorFeederSegments} source-vector feeder segment${vectorFeederSegments===1?'':'s'} · ${supportEnriched.length} spatial/review candidates${setSummary} · ${ocrRequiredPages.length} low-text/scanned page${ocrRequiredPages.length===1?'':'s'} queued for selective OCR · ${ingestion.mode==='LARGE_SOURCE'?'large-source bounded parse':'standard parse'} off the UI thread`,pages:doc.numPages,vectors,textItems:raw.length,sldPages,nonSldPlanPages,planTypes,disciplines:uniqueDisciplines,setCompleteness,ocrRequiredPages};
  }finally{await doc.destroy()}
 }
 
