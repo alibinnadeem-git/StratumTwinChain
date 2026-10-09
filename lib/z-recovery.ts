@@ -19,8 +19,7 @@ export type ZRecoverySummary={
  reviewRequired:true;
 };
 
-type Entity=TEntity;
-type TEntity=ZEntityLike&{meta?:Record<string,unknown>};
+type RecoveryEntity=ZEntityLike&{meta?:Record<string,unknown>};
 
 const DEFAULT_VISUALIZATION_STORY_SPACING_METERS=3;
 
@@ -85,7 +84,7 @@ export function summarizeZRecovery(evidence:ZEvidence[],surfaces:ProjectDatumSur
  return{mode:'RELATIVE_VISUALIZATION_STACK',storyIntervalMeters:DEFAULT_VISUALIZATION_STORY_SPACING_METERS,confidence:.18,anchorFloor:null,anchorZMeters:null,source:['NO_ABSOLUTE_Z_EVIDENCE','VISUALIZATION_STACK_ONLY'],physicalTruth:false,reviewRequired:true};
 }
 
-export function enrichZRecovery<T extends Entity>(entities:T[],evidence:ZEvidence[],surfaces:ProjectDatumSurface[]):T[]{
+export function enrichZRecovery<T extends RecoveryEntity>(entities:T[],evidence:ZEvidence[],surfaces:ProjectDatumSurface[]):T[]{
  const summary=summarizeZRecovery(evidence,surfaces);
  const anchorOrdinal=floorOrdinal(summary.anchorFloor);
  return entities.map(entity=>{
