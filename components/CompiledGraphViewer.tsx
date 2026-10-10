@@ -4,6 +4,7 @@ import Link from "next/link";
 import {useEffect,useMemo,useRef,useState} from "react";
 import {resolveElectricalComponent} from "@/lib/electrical-component-library";
 import {resolveSpatialModel} from "@/lib/spatial-model-resolution";
+import {unresolvedAssetVisual} from "@/lib/unresolved-asset-visual";
 import {deriveSpatialEvidenceEnvelope} from "@/lib/spatial-evidence-envelope";
 import {deriveDigitalTwinProjectReadiness} from "@/lib/digital-twin-readiness";
 import {deriveRenderLocalOrigin} from "@/lib/render-local-origin";
@@ -355,9 +356,41 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
         attachSpatialEvidence(root,e,modelResolution);
         interactionProxy(root,target);tag(root,e);groups[e.layer==="L4"?"L4":"L2"].add(root);label(e.name,e.x,placement.baseZ,e.y,isSld(e)?"#8fcfff":"#ffd08a",e);
       };
+      // UI-only review geometry: never enters the source graph, canonical XYZ,
+      // quantities, measurements, compliance or exports. No default story spacing.
+      const renderProvisionalMarker=(e:Entity,kind:'GHOST_MARKER'|'SHEET_PIN')=>{
+        if(!Number.isFinite(e.x)||!Number.isFinite(e.y))return; // inspector list remains selectable
+        const pin=kind==='SHEET_PIN';
+        const color=pin?0xffca76:0x8bbcff;
+        const root=new THREE.Group();
+        // Scene zero is an explicitly non-spatial drawing/review plane, NOT asset Z.
+        root.position.set(e.x,0,e.y);
+        const sphere=new THREE.Mesh(new THREE.SphereGeometry(pin?.12:.29,16,12),
+          new THREE.MeshBasicMaterial({color,transparent:true,opacity:pin?.52:.24,depthTest:false,depthWrite:false}));
+        sphere.position.y=pin?.13:.30;
+        const ring=new THREE.Mesh(new THREE.TorusGeometry(pin?.21:.43,.025,8,28),
+          new THREE.MeshBasicMaterial({color,transparent:true,opacity:.85,depthTest:false,depthWrite:false}));
+        ring.rotation.x=Math.PI/2;ring.position.y=.09;
+        root.add(sphere,ring);
+        root.userData.provisionalOnly=true;
+        root.userData.placeholder=kind;
+        root.userData.canonicalZ=null;
+        root.userData.takeoffEligible=false;
+        root.userData.measurementEligible=false;
+        root.userData.exportEligible=false;
+        root.userData.spatialPlacementAuthority='REVIEW_UI_ONLY';
+        tag(root,e);clickable.push(sphere,ring);
+        groups[e.layer].add(root);
+        label(pin?'SHEET PIN · XYZ UNRESOLVED':'GHOST · Z UNRESOLVED',e.x,0,e.y,pin?'#ffca76':'#8bbcff',e);
+      };
       const loader=new GLTFLoader();
       const equipment=(e:Entity)=>{
         if(!isVisible(e))return;
+        const provisional=unresolvedAssetVisual(e);
+        if(provisional.kind!=='NONE'&&!isSld(e)){
+          renderProvisionalMarker(e,provisional.kind);
+          return;
+        }
         if(e.kind==="imported-3d-model"){
           try{
             const encoded=e.meta?.embeddedGlb;
@@ -647,6 +680,12 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       <aside style={{padding:15,borderLeft:"1px solid #17334a",overflow:"auto"}}>
         <label>Imported object<select aria-label="Imported object" value={selected?.id||""} onChange={e=>setSelected(graph.entities.find(x=>x.id===e.target.value)||null)} style={{width:"100%"}}><option value="">{matching.length?'Select an object':'No selectable objects in this view'}</option>{matching.map(e=><option key={e.id} value={e.id}>{e.name} · {e.floor||"UNRESOLVED"}</option>)}</select></label>
         <SpatialAssetInspector selected={selected} registeredAssets={projectAssets} modelRegistry={registry} onEntityUpdated={entity=>setSelected(entity as Entity)}/>
+        {selected&&unresolvedAssetVisual(selected).kind!=='NONE'&&!isSld(selected)&&<div className="notice" role="status" aria-label="Provisional asset placeholder" style={{marginTop:12}}>
+          <strong>{unresolvedAssetVisual(selected).label}</strong>
+          <span>Selectable source evidence only. The displayed marker is not canonical Z, a verified object, a quantity-takeoff item, measurable geometry or an exportable 3D asset. Review the digital record and obtain: {unresolvedAssetVisual(selected).missingInputs.join(' · ')}.</span>
+          <a className="ghost" href="#z-resolution-review" style={{display:'inline-block',marginTop:8}}>Review elevation evidence</a>
+        </div>}
+
         {selected&&findingsForEntity(coordinationSnapshot,selected.id).length>0&&<div className="card" style={{marginTop:10,padding:12}} aria-label="Selected asset coordination review">
           <div className="eyebrow">Coordination review</div>
           <strong>{findingsForEntity(coordinationSnapshot,selected.id).length} open source conflict{findingsForEntity(coordinationSnapshot,selected.id).length===1?"":"s"}</strong>
