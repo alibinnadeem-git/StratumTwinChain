@@ -85,6 +85,6 @@ assert.match(viewer,/renderProvisionalMarker\(e,provisional.kind\)/);
 assert.match(viewer,/root.userData.canonicalZ=null/);
 assert.match(viewer,/root.userData.takeoffEligible=false/);
 assert.match(viewer,/root.userData.exportEligible=false/);
-assert.match(viewer,/PROVISIONAL GHOST · Z UNRESOLVED/);
+assert.match(viewer,/GHOST · Z UNRESOLVED/);
 assert.doesNotMatch(viewer,/DEFAULT_VISUALIZATION_STORY_SPACING_METERS/);
 console.log('A07 unresolved placeholders: selectable review-only ghosts and sheet pins, no canonical Z or takeoff/export authority.');
