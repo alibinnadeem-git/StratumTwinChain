@@ -88,3 +88,29 @@ for(const component of ACTIVATED_OEM_COMPONENTS){
  assert.equal(restored.find(model=>model.componentKey===component.key)?.modelUrl,DEFAULT_ELECTRICAL_MODEL_REGISTRY.find(model=>model.componentKey===component.key)?.modelUrl,'Old browser registries must receive new model defaults');
 }
 console.log(`Loaded and measured ${approved.length} approved GLBs with Three.js; exact aliases and existing-browser hydration passed.`);
+
+// P0-03: 100-source-class intake packet is separate from the currently activated registry.
+const {SPATIAL_COMPONENT_TAXONOMY,findSpatialTaxonomyEntry}=await import('../lib/spatial-component-taxonomy.ts');
+const {evaluateComponentIntake}=await import('../lib/component-intake-gate.ts');
+assert.equal(SPATIAL_COMPONENT_TAXONOMY.length,100);
+assert.equal(SPATIAL_COMPONENT_TAXONOMY.filter(row=>row.discipline==='ELE').length,62);
+assert.equal(new Set(SPATIAL_COMPONENT_TAXONOMY.map(row=>row.id)).size,100);
+assert.equal(findSpatialTaxonomyEntry('E-04')?.name,'Main switchboard');
+assert.equal(findSpatialTaxonomyEntry('FP-06')?.discipline,'FPR');
+const intakePacket={typeId:'E-04',licenceTier:'T1',licenceBasis:'INHOUSE',licenceEvidenceRef:'internal/author-attestation',
+ glbUri:'/models/equipment/main-switchboard.glb',glbSha256:'a'.repeat(64),binaryInspectionRef:'reports/binary/main-switchboard',
+ normalization:{units:'m',upAxis:'Y',frontAxis:'+Z',origin:'HOST_CONTACT'},normalizationEvidenceRef:'reports/orientation',
+ anchors:['mount_floor','power_in'],anchorEvidenceRef:'reports/anchors',triangles:3800,compression:'meshopt',optimizationEvidenceRef:'reports/optimization',
+ validatorErrors:0,validatorReportRef:'reports/khronos',registry:{typeId:'E-04',ifcClass:'IfcElectricDistributionBoard (SWITCHBOARD)',source:'STRATUM in-house generic',licenceTier:'T1',sha256:'a'.repeat(64),dimensionsMeters:[2,2,1],scaleRule:'FIXED'}};
+const intakeReady=evaluateComponentIntake(intakePacket);
+assert.equal(intakeReady.checks.length,7);
+assert.equal(intakeReady.metadataReady,true,'complete independent evidence packet may proceed to binary audit');
+assert.equal(intakeReady.registryWriteAuthorized,false,'metadata review never auto-activates a GLB');
+assert.equal(intakeReady.requiresIndependentBinaryAudit,true);
+assert.equal(evaluateComponentIntake({...intakePacket,licenceTier:'T3',licenceBasis:'LINK_OUT'}).metadataReady,false);
+assert.equal(evaluateComponentIntake({...intakePacket,licenceTier:'T2',licenceBasis:'OEM_WRITTEN_PERMISSION',permissionRef:null}).metadataReady,false);
+assert.equal(evaluateComponentIntake({...intakePacket,glbSha256:null}).metadataReady,false);
+assert.equal(evaluateComponentIntake({...intakePacket,validatorErrors:1}).metadataReady,false);
+assert.equal(evaluateComponentIntake({...intakePacket,anchors:[]}).metadataReady,false);
+assert.equal(evaluateComponentIntake({...intakePacket,typeId:'UNKNOWN'}).metadataReady,false);
+console.log('A10 P0-03: taxonomy 100/62, seven-check intake metadata and fail-closed registry activation passed.');
