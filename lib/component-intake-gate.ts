@@ -52,7 +52,7 @@ export function evaluateComponentIntake(candidate:ModelIntakeCandidate):IntakeEv
   (candidate.licenceTier==='T2'&&candidate.licenceBasis==='OEM_WRITTEN_PERMISSION'&&present(candidate.permissionRef));
  add('LICENCE',licenceAllowed&&present(candidate.licenceEvidenceRef),
   'Only CC0/in-house or OEM with documented written permission is eligible; link-out/CC-BY remains blocked.');
- add('GLB',Boolean(candidate.glbUri&&/\\.glb(?:[?#]|$)/i.test(candidate.glbUri)&&digest(candidate.glbSha256)&&present(candidate.binaryInspectionRef)),
+ add('GLB',Boolean(candidate.glbUri&&/\.glb(?:[?#]|$)/i.test(candidate.glbUri)&&digest(candidate.glbSha256)&&present(candidate.binaryInspectionRef)),
   'Verified GLB URL, SHA-256 and binary inspection evidence are required.');
  add('NORMALIZATION',Boolean(candidate.normalization&&candidate.normalization.units==='m'&&candidate.normalization.upAxis==='Y'&&candidate.normalization.frontAxis==='+Z'&&candidate.normalization.origin==='HOST_CONTACT'&&present(candidate.normalizationEvidenceRef)),
   'GLB requires metre units, Y-up, +Z front, a host-contact origin and a normalization report.');
