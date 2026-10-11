@@ -187,3 +187,73 @@ test('saved drawing REPROCESS queues visibly behind an active worker parse',asyn
    Boolean((graph.entities||[]).some((entity:any)=>entity.id==='legacy-callout'));
  }),{timeout:30000}).toBe(true);
 });
+
+test('archived plan REPROCESS retains a source basemap and explicitly reports unresolved downstream stages',async({page},testInfo)=>{
+ test.setTimeout(60000);
+ if(testInfo.project.name!=='desktop-chromium')return;
+ const drawing='E-4 Synthetic First Floor Plan.pdf';
+ const buffer=syntheticVectorPdf(1,1500);
+ const sha=createHash('sha256').update(buffer).digest('hex');
+ await page.goto('/compiler');
+ await page.evaluate(async({drawing,sha,bytes})=>{
+   const graph={
+     version:'1.1',createdAt:new Date().toISOString(),reviewState:'REVIEW_REQUIRED',
+     sources:[{name:drawing,ext:'pdf',sha256:sha,discipline:'Electrical',floor:'L1',
+       elevation:0,state:'parsed',entities:1,vectors:1300,textItems:6,
+       nonSldPlanPages:1,planTypes:['ELECTRICAL_POWER_PLAN'],sldPages:0,
+       size:bytes.length,summary:'Recognized historical plan metadata; source basemap absent'}],
+     entities:[{id:'legacy-sheet-label',source:drawing,layer:'L2',kind:'text-asset-candidate',
+       name:'PANEL LP-1',x:1,y:1,z:0,floor:'L1',confidence:.7,
+       meta:{sourceSha256:sha,physicalTruth:false,reviewRequired:true}}],
+     links:[],stats:{L0:1,L1:0,L2:1,L3:0,L4:0}
+   };
+   localStorage.setItem('stratum_compiled_graph',JSON.stringify(graph));
+   const db=await new Promise<IDBDatabase>((resolve,reject)=>{
+     const r=indexedDB.open('stratum-spatial-recovery-v1',1);
+     r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains('graphs'))r.result.createObjectStore('graphs')};
+     r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);
+   });
+   await new Promise<void>((resolve,reject)=>{
+     const tx=db.transaction('graphs','readwrite'),store=tx.objectStore('graphs');
+     store.put(graph,'current');store.put(graph,'latest');
+     tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);
+   });
+   db.close();
+   const archive=await new Promise<IDBDatabase>((resolve,reject)=>{
+     const r=indexedDB.open('stratum-source-archive-v1',1);
+     r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains('sources'))r.result.createObjectStore('sources',{keyPath:'sha256'})};
+     r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);
+   });
+   await new Promise<void>((resolve,reject)=>{
+     const tx=archive.transaction('sources','readwrite');
+     tx.objectStore('sources').put({sha256:sha,name:drawing,mimeType:'application/pdf',
+       size:bytes.length,ext:'pdf',archivedAt:new Date().toISOString(),bytes:new Uint8Array(bytes).buffer});
+     tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);
+   });
+   archive.close();
+ },{drawing,sha,bytes:Array.from(buffer)});
+ await page.reload();
+ const row=page.getByRole('button',{name:`Reprocess ${drawing}`});
+ await expect(row).toBeEnabled();
+ await row.click();
+ await expect(page.getByRole('status').filter({hasText:'LOCAL SOURCE ARCHIVE'}))
+   .toContainText(/REPROCESS QUEUED|Reprocessing|REPROCESS ATTEMPT FINISHED/);
+ await expect.poll(()=>page.evaluate(({sha})=>{
+   const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
+   const source=(graph.sources||[]).find((s:any)=>s.sha256===sha);
+   const entities=(graph.entities||[]).filter((e:any)=>e.meta?.sourceSha256===sha);
+   return{
+     plans:Number(source?.nonSldPlanPages||0),
+     basemap:entities.some((e:any)=>e.meta?.drawingBasemap===true),
+     sourceStillThere:Boolean(source),
+     sourceState:source?.state||'unknown',
+     summary:String(source?.summary||'')
+   };
+ },{sha}),{timeout:45000}).toMatchObject({sourceStillThere:true,sourceState:'parsed',basemap:true,plans:1});
+ const status=await page.evaluate(({sha})=>{
+   const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
+   return String((graph.sources||[]).find((s:any)=>s.sha256===sha)?.summary||'');
+ },{sha});
+ expect(status).toContain('REPROCESS AUDIT');
+ expect(status).toContain('PARSER CAPABILITY GAP');
+});
