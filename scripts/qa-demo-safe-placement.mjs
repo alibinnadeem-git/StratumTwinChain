@@ -94,7 +94,7 @@ const demoEntities=PREVIEW_DEMO_GRAPH.entities.filter(isPreviewDemoEntity).filte
 assert.equal(demoEntities.length,6,'three tiers have two representative assets each');
 for(const tier of ['STATED_Z','DERIVED_Z_CANDIDATE','UNRESOLVED_Z'])
  assert.equal(demoEntities.filter(e=>e.meta.demoPlacementTier===tier).length,2);
-assert.ok(demoEntities.every(e=>e.id.startsWith('DEMO-SYNTHETIC-')));
+assert.ok(demoEntities.every(e=>e.id.startsWith('demo_')));
 assert.ok(demoEntities.every(e=>['UNRESOLVED','INFERRED_PREDICTED'].includes(e.meta.status)));
 assert.ok(demoEntities.filter(e=>e.meta.demoPlacementTier==='UNRESOLVED_Z').every(e=>e.meta.status==='UNRESOLVED'));
 assert.ok(demoEntities.filter(e=>e.meta.demoPlacementTier!=='UNRESOLVED_Z').every(e=>e.meta.status==='INFERRED_PREDICTED'));
