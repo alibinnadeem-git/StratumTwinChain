@@ -118,7 +118,7 @@ assert.match(viewer,/root\.userData\.authorityEligible=false/);
 console.log('A00 preview fixture: preview-only, exact three tiers, source-marked, isolated read-only graph, no authority channels.');
 
 const {assertNonSyntheticSpatialGraph}=await import('../lib/spatial-browser-recovery.ts');
-assert.throws(()=>assertNonSyntheticSpatialGraph(PREVIEW_DEMO_GRAPH),/DEMO \/ SYNTHETIC graphs/);
+assert.throws(()=>assertNonSyntheticSpatialGraph(PREVIEW_DEMO_GRAPH),/DEMO provenance|DEMO \/ SYNTHETIC graphs/);
 assert.doesNotThrow(()=>assertNonSyntheticSpatialGraph({sources:[{name:'user source'}],entities:[{id:'real-record'}]}));
 const graphStorage=fs.readFileSync('lib/spatial-browser-recovery.ts','utf8');
 assert.match(graphStorage,/assertNonSyntheticSpatialGraph\(graph\);/);

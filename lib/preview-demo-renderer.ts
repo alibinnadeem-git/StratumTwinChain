@@ -9,7 +9,7 @@ export function makePreviewEquipmentRenderer(ctx:any):(entity:any)=>void{
         const sheetPin=unresolvedAssetVisual(e).kind==='SHEET_PIN';
         if(sheetPin){renderProvisionalMarker(e,'SHEET_PIN');return}
         const key=String(e.meta?.demoComponentKey||'');
-        const cfg=registry.find(item=>item.componentKey===key);
+        const cfg=registry.find((item:any)=>item.componentKey===key);
         const validLibraryGeometry=Boolean(cfg &&
           ['GLB','GLTF'].includes(cfg.format) &&
           cfg.modelUrl.startsWith('/models/equipment/') &&
@@ -19,7 +19,7 @@ export function makePreviewEquipmentRenderer(ctx:any):(entity:any)=>void{
           cfg.dimensionsMeters?.length===3 &&
           cfg.dimensionsMeters.every((size:number)=>Number.isFinite(size)&&size>0));
         if(!validLibraryGeometry||!cfg){
-          setModelLoadErrors(errors=>errors.includes(e.id)?errors:[...errors,e.id]);
+          setModelLoadErrors((errors:string[])=>errors.includes(e.id)?errors:[...errors,e.id]);
           renderProvisionalMarker(e,'GHOST_MARKER');
           return;
         }
@@ -28,16 +28,16 @@ export function makePreviewEquipmentRenderer(ctx:any):(entity:any)=>void{
         // UI-only visualization plane when Z is missing; no canonical datum is assigned.
         const reviewDisplayZ=unresolved?0:derived?Number(e.meta?.zCandidateMeters):Number(e.z);
         if(!Number.isFinite(reviewDisplayZ)){
-          setModelLoadErrors(errors=>errors.includes(e.id)?errors:[...errors,e.id]);
+          setModelLoadErrors((errors:string[])=>errors.includes(e.id)?errors:[...errors,e.id]);
           renderProvisionalMarker(e,'GHOST_MARKER');
           return;
         }
-        loader.load(cfg.modelUrl,gltf=>{
+        loader.load(cfg.modelUrl,(gltf:any)=>{
           if(isDisposed())return;
           try{
             const target=cfg.dimensionsMeters!;
             const model=gltf.scene;
-            model.rotation.set(...cfg.rotation.map(value=>THREE.MathUtils.degToRad(value)) as [number,number,number]);
+            model.rotation.set(...cfg.rotation.map((value:number)=>THREE.MathUtils.degToRad(value)) as [number,number,number]);
             // Same library normalization boundary as the production viewer.
             const normalized=normalizeObjectToMeters(model,target,.05);
             const root=new THREE.Group();
@@ -89,12 +89,12 @@ export function makePreviewEquipmentRenderer(ctx:any):(entity:any)=>void{
             runtime.current?.fit?.();
           }catch(error){
             console.warn('Synthetic demo model unavailable; retaining unplaced review marker',key,error);
-            setModelLoadErrors(errors=>errors.includes(e.id)?errors:[...errors,e.id]);
+            setModelLoadErrors((errors:string[])=>errors.includes(e.id)?errors:[...errors,e.id]);
             renderProvisionalMarker(e,'GHOST_MARKER');
           }
         },undefined,()=>{
           if(isDisposed())return;
-          setModelLoadErrors(errors=>errors.includes(e.id)?errors:[...errors,e.id]);
+          setModelLoadErrors((errors:string[])=>errors.includes(e.id)?errors:[...errors,e.id]);
           renderProvisionalMarker(e,'GHOST_MARKER');
         });
       };

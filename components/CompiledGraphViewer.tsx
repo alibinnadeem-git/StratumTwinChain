@@ -398,6 +398,7 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
       // DEMO-only: the library GLB/GLTF is the visible geometry. Unknown class
       // remains a sheet pin; a known class with unresolved Z is a ghosted model.
       // Never write these display transforms or fixture identities to a source graph.
+      const bounds=new THREE.Box3();
       const loader=new GLTFLoader();
       const previewFixtureEquipment=makePreviewEquipmentRenderer({
         THREE,loader,registry,unresolvedAssetVisual,renderProvisionalMarker,setModelLoadErrors,
@@ -522,7 +523,7 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
         const pts=[new THREE.Vector3(a.x-renderOrigin.x,height(a)+.65,a.y-renderOrigin.y),new THREE.Vector3(b.x-renderOrigin.x,height(b)+.65,b.y-renderOrigin.y)];const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineDashedMaterial({color:link.type==="SLD_FEEDS"?0x56b9ff:0xa57cff,dashSize:.28,gapSize:.14,transparent:true,opacity:.78}));line.position.set(renderOrigin.x,0,renderOrigin.y);line.computeLineDistances();groups.L3.add(line);
       }
       const visiblePoints=visible.flatMap(e=>[{x:e.x,y:height(e),z:e.y},...(Number.isFinite(e.x2)&&Number.isFinite(e.y2)?[{x:e.x2!,y:n(e.z2,e.z)+extra(e),z:e.y2!}]:[])]);
-      const bounds=new THREE.Box3();visiblePoints.forEach(p=>bounds.expandByPoint(new THREE.Vector3(p.x,p.y,p.z)));
+      visiblePoints.forEach(p=>bounds.expandByPoint(new THREE.Vector3(p.x,p.y,p.z)));
       if(bounds.isEmpty())bounds.expandByPoint(new THREE.Vector3(-5,0,-5)).expandByPoint(new THREE.Vector3(5,5,5));
       const center=bounds.getCenter(new THREE.Vector3()),size=bounds.getSize(new THREE.Vector3()),span=Math.max(size.x,size.y,size.z,8);
       const minX=bounds.min.x-2,minZ=bounds.min.z-2,minY=Math.min(bounds.min.y,0),maxY=Math.max(bounds.max.y+3,4);
