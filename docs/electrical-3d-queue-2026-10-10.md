@@ -1,6 +1,6 @@
 # STRATUM Spatial Verified — Oct 10 electrical 3D modeling queue (review-only)
 
-Source: Claude's 20-item attached 3D library audit (Oct 10 ~20:42 PT). This is a **modeling-only Tier-1** slice, never a source fact or installation/verification, geometry approval or Intake-Gate completion. Existing STRATUM app and registry reused. No OEM-derived geometry, no external geometry. No production deployment/merge.
+Source: Claude's 20-item attached 3D library audit (Oct 10 ~20:42 PT). This is a **modeling-only Tier-1** slice, never a source fact or installation/verification, geometry approval or Intake-Gate completion. Existing STRATUM app and registry reused. No OEM-derived geometry, no external geometry. **New model binaries and taxonomy-class candidate mappings are NOT activated in the existing default runtime component registry pending the seven-check Intake Gate.** No production deployment/merge.
 
 ## Validated audit decisions
 

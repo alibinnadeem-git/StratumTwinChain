@@ -40,10 +40,11 @@ for(const entry of manifest){
 }
 for(const uri of SPATIAL_ELECTRICAL_CLASS_MODEL_VARIANTS['E-22'])assert.ok(fs.existsSync(path.resolve('public'+uri)));
 assert.ok(electricalClassModelBinding('E-10')?.modelUrl.endsWith('meter-ct-cabinet.glb'));
-for(const [key,suffix] of [['metering-cabinet','meter-ct-cabinet.glb'],['distribution-panel','panelboard-full.glb'],['vfd','vfd-starter.glb'],['fire-alarm','fire-alarm-control-panel.glb']]){
- const cfg=DEFAULT_ELECTRICAL_MODEL_REGISTRY.find(x=>x.componentKey===key);
- assert.ok(cfg?.modelUrl.endsWith(suffix),'legacy runtime registry family '+key);
- assert.match(cfg.license,/STRATUM-authored/);
-}
+// Seven-check Intake Gate remains the authority: candidates must not silently
+// mutate the active default registry simply because a binary is present.
+const activePanel=DEFAULT_ELECTRICAL_MODEL_REGISTRY.find(x=>x.componentKey==='distribution-panel');
+assert.ok(activePanel?.modelUrl.endsWith('panelboard-representative.gltf'),'candidate panelboard must remain unactivated');
+const activeMeterCabinet=DEFAULT_ELECTRICAL_MODEL_REGISTRY.find(x=>x.componentKey==='metering-cabinet');
+assert.ok(activeMeterCabinet?.modelUrl.endsWith('panelboard-representative.gltf'),'candidate E-10 cannot silently supplant active model');
 assert.ok(DEFAULT_ELECTRICAL_MODEL_REGISTRY.find(x=>x.componentKey==='power-meter')?.modelUrl.endsWith('power-meter-representative.gltf'),'standalone meter remains separate from E-10 cabinet');
 console.log('A10 queue: '+seen+' Tier-1 compact GLBs parsed in Three.js; exact-class distinct bindings, shared paths, GLB v2 structures, no authority assertions.');
