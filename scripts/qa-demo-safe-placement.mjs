@@ -88,3 +88,29 @@ assert.match(viewer,/root.userData.exportEligible=false/);
 assert.match(viewer,/GHOST · Z UNRESOLVED/);
 assert.doesNotMatch(viewer,/DEFAULT_VISUALIZATION_STORY_SPACING_METERS/);
 console.log('A07 unresolved placeholders: selectable review-only ghosts and sheet pins, no canonical Z or takeoff/export authority.');
+
+const {PREVIEW_DEMO_GRAPH,isPreviewDemoEntity}=await import('../lib/preview-synthetic-twin.ts');
+const demoEntities=PREVIEW_DEMO_GRAPH.entities.filter(isPreviewDemoEntity).filter(e=>e.layer==='L2');
+assert.equal(demoEntities.length,6,'three tiers have two representative assets each');
+for(const tier of ['STATED_Z','DERIVED_Z_CANDIDATE','UNRESOLVED_Z'])
+ assert.equal(demoEntities.filter(e=>e.meta.demoPlacementTier===tier).length,2);
+assert.ok(demoEntities.every(e=>e.id.startsWith('DEMO-SYNTHETIC-')));
+assert.ok(demoEntities.every(e=>e.meta.status==='INFERRED_PREDICTED'));
+assert.ok(demoEntities.every(e=>e.meta.authorityEligible===false&&e.meta.verificationPromotionEligible===false&&
+ e.meta.takeoffEligible===false&&e.meta.measurementEligible===false&&e.meta.exportEligible===false));
+assert.ok(demoEntities.every(e=>e.meta.physicalTruth===false&&e.meta.reviewRequired===true));
+assert.equal(demoEntities.filter(e=>e.meta.demoPlacementTier==='UNRESOLVED_Z').every(e=>e.z===undefined),true);
+assert.ok(demoEntities.filter(e=>e.meta.demoPlacementTier==='DERIVED_Z_CANDIDATE').every(e=>e.z===undefined));
+assert.ok(demoEntities.every(e=>e.meta.evidence[0].synthetic===true));
+const sourcePage=fs.readFileSync('app/spatial/page.tsx','utf8');
+assert.match(sourcePage,/process\.env\.VERCEL_ENV==='preview'/);
+const exp=fs.readFileSync('components/SpatialExperience.tsx','utf8');
+assert.match(exp,/demoGraph=\{PREVIEW_DEMO_GRAPH\}/);
+assert.doesNotMatch(exp,/replaceCurrentSpatialGraph\(PREVIEW_DEMO_GRAPH\)|writePrimarySpatialGraph\(PREVIEW_DEMO_GRAPH\)/);
+const demoInspector=fs.readFileSync('components/PreviewDemoAssetInspector.tsx','utf8');
+assert.match(demoInspector,/data-demo-readonly="true"/);
+assert.doesNotMatch(demoInspector,/onSubmit|fetch\(|POST|set.*Status|approveAsset/);
+assert.match(viewer,/if\(demoGraph\)\{setGraph\(demoGraph\);setActiveProjectId\(null\)/);
+assert.match(viewer,/demoMode\?<PreviewDemoAssetInspector selected=\{selected\}/);
+assert.match(viewer,/root\.userData\.authorityEligible=false/);
+console.log('A00 preview fixture: preview-only, exact three tiers, source-marked, isolated read-only graph, no authority channels.');

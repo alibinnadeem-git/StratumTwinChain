@@ -12,6 +12,7 @@ import {resolveReconciledAssetPlacement} from "@/lib/z-solution-chain";
 import {fitProceduralObjectToMeters,normalizeObjectToMeters} from "@/lib/three-model-normalization";
 import {decodeGlbBase64,inspectStandaloneGlb} from "@/lib/spatial-glb-import";
 import SpatialAssetInspector from "@/components/SpatialAssetInspector";
+import PreviewDemoAssetInspector from "@/components/PreviewDemoAssetInspector";
 import {readPrimarySpatialGraph} from "@/lib/spatial-browser-recovery";
 import {buildSpatialCoordinationReviewIndex,findingsForEntity} from "@/lib/spatial-coordination-review";
 import {buildCoordinationIntelligence,type CoordinationSnapshot} from "@/lib/coordination-intelligence";
@@ -95,9 +96,10 @@ function bounds2d(entities:Entity[]){
   return{minX,maxX,minY,maxY};
 }
 
-export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAssets?:RegisteredSpatialAsset[]}){
+export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}:{registeredAssets?:RegisteredSpatialAsset[];demoGraph?:Graph|null}){
+  const demoMode=demoGraph!==null;
   const mount=useRef<HTMLDivElement|null>(null),runtime=useRef<any>(null);
-  const [graph,setGraph]=useState<Graph|null>(null);
+  const [graph,setGraph]=useState<Graph|null>(demoGraph);
   const [registry,setRegistry]=useState<ElectricalModelConfig[]>(DEFAULT_ELECTRICAL_MODEL_REGISTRY);
   const [renderStatus,setRenderStatus]=useState<RenderStatus>("STARTING");
   const [mode,setMode]=useState<ViewMode>("MODEL");
@@ -118,6 +120,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
   const [modelLoadErrors,setModelLoadErrors]=useState<string[]>([]);
 
   useEffect(()=>{
+    if(demoGraph){setGraph(demoGraph);setActiveProjectId(null);setRegistry(DEFAULT_ELECTRICAL_MODEL_REGISTRY);return;}
     let active=true;
     const load=async()=>{
       try{
@@ -133,7 +136,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
     const refresh=()=>{void load()};
     window.addEventListener("stratum:graph-updated",refresh);window.addEventListener("storage",refresh);window.addEventListener("stratum:model-registry-updated",refresh);
     return()=>{active=false;window.removeEventListener("stratum:graph-updated",refresh);window.removeEventListener("storage",refresh);window.removeEventListener("stratum:model-registry-updated",refresh)};
-  },[]);
+  },[demoGraph]);
 
   const disciplines=useMemo(()=>graph?[...new Set([...graph.sources.map(source=>source.discipline||"Unclassified"),...graph.entities.map(entity=>String(entity.meta?.planDiscipline||entity.meta?.discipline||'')).filter(Boolean)])].sort():[],[graph]);
   const sourceLayers=useMemo(()=>graph?.sources||[],[graph]);
@@ -173,7 +176,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
     const candidates=graph.entities.filter(entity=>{if(!entity.meta?.scaleValidationEvidence)return false;if(!activeSheetFrame)return true;const pageKey=sheetPageKey(entity);return sheetFrameKey(entity)===activeSheetFrame||Boolean(pageKey&&(activeSheetFrame===pageKey||activeSheetFrame.startsWith(pageKey+':')))});
     return candidates[0]?.meta?.scaleValidationEvidence as Record<string,unknown>||null;
   },[graph,activeSheetFrame]);
-  const coordinationSnapshot=useMemo(()=>graph?.coordinationIntelligence||(graph?buildCoordinationIntelligence(graph):undefined),[graph]);
+  const coordinationSnapshot=useMemo(()=>demoMode?undefined:graph?.coordinationIntelligence||(graph?buildCoordinationIntelligence(graph):undefined),[graph,demoMode]);
   const coordinationReview=useMemo(()=>buildSpatialCoordinationReviewIndex(coordinationSnapshot),[coordinationSnapshot]);
   const levels=useMemo(()=>{
     if(!graph)return[] as [string,number][];
@@ -213,8 +216,8 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
     return Boolean(resolveSpatialModel(e,registry).model?.modelUrl.trim());
   }).length||0,[graph,registry]);
   const matching=useMemo(()=>inventory,[inventory]);
-  const projectAssets=useMemo(()=>activeProjectId?registeredAssets.filter(asset=>asset.project_id===activeProjectId&&!/^STR-UAT-/i.test(asset.asset_code)):[],[activeProjectId,registeredAssets]);
-  const twinReadiness=useMemo(()=>graph?deriveDigitalTwinProjectReadiness(graph.entities,projectAssets,registry):null,[graph,projectAssets,registry]);
+  const projectAssets=useMemo(()=>demoMode?[]:activeProjectId?registeredAssets.filter(asset=>asset.project_id===activeProjectId&&!/^STR-UAT-/i.test(asset.asset_code)):[],[activeProjectId,registeredAssets,demoMode]);
+  const twinReadiness=useMemo(()=>graph&&!demoMode?deriveDigitalTwinProjectReadiness(graph.entities,projectAssets,registry):null,[graph,projectAssets,registry,demoMode]);
   const fallbackBounds=useMemo(()=>bounds2d(visible),[visible]);
   const renderOrigin=useMemo(()=>deriveRenderLocalOrigin(visible),[visible]);
 
@@ -383,9 +386,49 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
         groups[e.layer].add(root);
         label(pin?'SHEET PIN · XYZ UNRESOLVED':'GHOST · Z UNRESOLVED',e.x,0,e.y,pin?'#ffca76':'#8bbcff',e);
       };
+      // This is a synthetic, non-spatial review fixture. All tiers (including the
+      // solid stated-Z illustration) are forbidden from authority and takeoff paths.
+      const previewFixtureEquipment=(e:Entity)=>{
+        const tier=String(e.meta?.demoPlacementTier||'');
+        const markerType=unresolvedAssetVisual(e).kind;
+        if(tier==='UNRESOLVED_Z'){
+          renderProvisionalMarker(e,markerType==='NONE'?'GHOST_MARKER':markerType);
+          return;
+        }
+        const derived=tier==='DERIVED_Z_CANDIDATE';
+        const root=new THREE.Group(),color=derived?0xffb74e:0x3ed5a9;
+        // Here Y is presentation height, never canonical Z or an asset fact.
+        root.position.set(e.x,derived?Number(e.meta?.zCandidateMeters||0):Number(e.z||0),e.y);
+        const mesh=new THREE.Mesh(new THREE.BoxGeometry(
+          e.name.includes('Switchboard')?1.9:1.1,
+          e.name.includes('Switchboard')?1.45:1.15,
+          e.name.includes('Transformer')?1.2:.75),
+          new THREE.MeshStandardMaterial({color,transparent:derived,opacity:derived?.52:1,metalness:.23,roughness:.52}));
+        mesh.position.y=.65;
+        root.add(mesh);
+        const ring=new THREE.Mesh(new THREE.TorusGeometry(.9,.025,8,36),
+          new THREE.MeshBasicMaterial({color,transparent:true,opacity:.84,depthTest:false}));
+        ring.rotation.x=Math.PI/2;ring.position.y=.04;root.add(ring);
+        root.userData.demo=true;
+        root.userData.synthetic=true;
+        root.userData.canonicalZ=null;
+        root.userData.physicalTruth=false;
+        root.userData.reviewRequired=true;
+        root.userData.authorityEligible=false;
+        root.userData.takeoffEligible=false;
+        root.userData.measurementEligible=false;
+        root.userData.exportEligible=false;
+        root.userData.status=String(e.meta?.status||'INFERRED_PREDICTED');
+        root.userData.visualTier=tier;
+        tag(root,e);clickable.push(ring);
+        groups.L2.add(root);
+        label(`DEMO · ${derived?'DERIVED Z · REVIEW':'STATED Z · SOURCE'}`,e.x,root.position.y,e.y,
+          derived?'#ffca81':'#8dffd5',e);
+      };
       const loader=new GLTFLoader();
       const equipment=(e:Entity)=>{
         if(!isVisible(e))return;
+        if(demoMode){previewFixtureEquipment(e);return;}
         const provisional=unresolvedAssetVisual(e);
         if(provisional.kind!=='NONE'&&!isSld(e)){
           renderProvisionalMarker(e,provisional.kind);
@@ -537,7 +580,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       cleanup=()=>{runtime.current=null;cancelAnimationFrame(frame);ro.disconnect();renderer.domElement.removeEventListener("pointerdown",pointerDown);renderer.domElement.removeEventListener("pointermove",pointerMove);renderer.domElement.removeEventListener("pointerup",pointerUp);renderer.domElement.removeEventListener("pointercancel",pointerCancel);renderer.domElement.removeEventListener("click",clickPick);controls.dispose();renderer.dispose();host.replaceChildren()};
     })();
     return()=>{disposed=true;cleanup()};
-  },[graph,registry,mode,environment,systemMode,floor,exploded,xray,labels,visible,levels,renderOrigin.x,renderOrigin.y]);
+  },[graph,registry,mode,environment,systemMode,floor,exploded,xray,labels,visible,levels,renderOrigin.x,renderOrigin.y,demoMode]);
 
   useEffect(()=>{
     const r=runtime.current;if(!r?.scene)return;
@@ -583,7 +626,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
   return <section style={{border:"1px solid #1b3a50",borderRadius:18,overflow:"hidden",background:"#07111b",marginBottom:18}} aria-label="Spatial viewer">
     <div style={{padding:"16px 18px",display:"flex",justifyContent:"space-between",gap:14,alignItems:"center",flexWrap:"wrap",borderBottom:"1px solid #17334a"}}>
       <div><div className="eyebrow">STRATUM Spatial Verified</div><h2 style={{margin:"3px 0"}}>Spatial model</h2><p className="muted" style={{margin:0}}>{plural(graph.sources.length,'source')} · {plural(sheetFrames.length,'drawing frame')} · {plural(nonSldPlanSheets,'non-SLD plan')} · {plural(levels.length,'level')} · {plural(rooms,'room')} · {plural(visibleLines,'drawing line')} · {plural(rasterUnderlays,'drawing underlay')} · {plural(sldObjects,'SLD object')}</p></div>
-      <div className="button-row"><Link className="ghost" href="/compiler">Edit sources</Link><Link className="ghost" href="/component-library">3D models</Link></div>
+      <div className="button-row">{demoMode?<Link className="action" href="/import">Upload real drawings</Link>:<><Link className="ghost" href="/compiler">Edit sources</Link><Link className="ghost" href="/component-library">3D models</Link></>}</div>
     </div>
 
     {twinReadiness&&twinReadiness.totalEquipment>0&&<details className="secondary-details" style={{margin:"12px 14px"}}>
@@ -679,8 +722,8 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
 
       <aside style={{padding:15,borderLeft:"1px solid #17334a",overflow:"auto"}}>
         <label>Imported object<select aria-label="Imported object" value={selected?.id||""} onChange={e=>setSelected(graph.entities.find(x=>x.id===e.target.value)||null)} style={{width:"100%"}}><option value="">{matching.length?'Select an object':'No selectable objects in this view'}</option>{matching.map(e=><option key={e.id} value={e.id}>{e.name} · {e.floor||"UNRESOLVED"}</option>)}</select></label>
-        <SpatialAssetInspector selected={selected} registeredAssets={projectAssets} modelRegistry={registry} onEntityUpdated={entity=>setSelected(entity as Entity)}/>
-        {selected&&unresolvedAssetVisual(selected).kind!=='NONE'&&!isSld(selected)&&<div className="notice" role="status" aria-label="Provisional asset placeholder" style={{marginTop:12}}>
+        {demoMode?<PreviewDemoAssetInspector selected={selected}/>:<SpatialAssetInspector selected={selected} registeredAssets={projectAssets} modelRegistry={registry} onEntityUpdated={entity=>setSelected(entity as Entity)}/>}
+        {!demoMode&&selected&&unresolvedAssetVisual(selected).kind!=='NONE'&&!isSld(selected)&&<div className="notice" role="status" aria-label="Provisional asset placeholder" style={{marginTop:12}}>
           <strong>{unresolvedAssetVisual(selected).label}</strong>
           <span>Selectable source evidence only. The displayed marker is not canonical Z, a verified object, a quantity-takeoff item, measurable geometry or an exportable 3D asset. Review the digital record and obtain: {unresolvedAssetVisual(selected).missingInputs.join(' · ')}.</span>
           <a className="ghost" href="#z-resolution-review" style={{display:'inline-block',marginTop:8}}>Review elevation evidence</a>
@@ -695,10 +738,10 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
           </ul>
         </div>}
         {selected&&isSld(selected)&&<div className="notice" style={{marginTop:12}}><strong>SLD → SPATIAL PROJECTION</strong><span>The vertical separation in Electrical mode expresses logical power hierarchy. It is not an as-built physical elevation until field/design evidence establishes Z.</span></div>}
-        {selected&&!physicalElevationKnown(selected)&&Number.isFinite(Number(selected.meta?.zCandidateMeters))&&<div className="notice" style={{marginTop:12}}><strong>Z REFERENCE CANDIDATE · REVIEW REQUIRED</strong><span>Source evidence places the {String(selected.meta?.zCandidateReferencePoint||'reference').replaceAll('_',' ').toLowerCase()} at {Number(selected.meta?.zCandidateMeters).toFixed(3)} m · {String(selected.meta?.zResolutionAuthority||'SOURCE Z EVIDENCE').replaceAll('_',' ')} · confidence {Math.round(Number(selected.meta?.zResolutionConfidence||0)*100)}%. The 3D base is derived separately from that reference and the current equipment height. This is design/drawing evidence, not field-verified physical elevation.</span></div>}
+        {!demoMode&&selected&&!physicalElevationKnown(selected)&&Number.isFinite(Number(selected.meta?.zCandidateMeters))&&<div className="notice" style={{marginTop:12}}><strong>Z REFERENCE CANDIDATE · REVIEW REQUIRED</strong><span>Source evidence places the {String(selected.meta?.zCandidateReferencePoint||'reference').replaceAll('_',' ').toLowerCase()} at {Number(selected.meta?.zCandidateMeters).toFixed(3)} m · {String(selected.meta?.zResolutionAuthority||'SOURCE Z EVIDENCE').replaceAll('_',' ')} · confidence {Math.round(Number(selected.meta?.zResolutionConfidence||0)*100)}%. The 3D base is derived separately from that reference and the current equipment height. This is design/drawing evidence, not field-verified physical elevation.</span></div>}
         {selected&&!physicalElevationKnown(selected)&&metaNumber(selected,'zCandidateMeters')===null&&metaNumber(selected,'localReviewSurfaceZ')===null&&metaNumber(selected,'crossSheetReviewSurfaceZ')!==null&&!isSld(selected)&&<div className="notice" style={{marginTop:12}}><strong>CROSS-SHEET Z REVIEW SURFACE</strong><span>{String(selected.meta?.crossSheetReviewSurfaceKind||'SOURCE SURFACE').replaceAll('_',' ')} = {metaNumber(selected,'crossSheetReviewSurfaceZ')!.toFixed(3)} m via reviewed sheet alignment · confidence {Math.round(Number(selected.meta?.crossSheetReviewSurfaceConfidence||0)*100)}%. This is coordination-derived design evidence, not field-verified physical elevation.</span></div>}
         {selected&&!physicalElevationKnown(selected)&&metaNumber(selected,'zCandidateMeters')===null&&metaNumber(selected,'localReviewSurfaceZ')===null&&metaNumber(selected,'crossSheetReviewSurfaceZ')===null&&metaNumber(selected,'reviewSurfaceZ')!==null&&!isSld(selected)&&<div className="notice" style={{marginTop:12}}><strong>PROJECT DATUM REVIEW SURFACE</strong><span>{String(selected.meta?.reviewSurfaceKind||'PROJECT DATUM').replaceAll('_',' ')} = {Number(selected.meta?.reviewSurfaceZ).toFixed(3)} m from source evidence. The object is displayed on that review surface, but its own physical Z remains unresolved until mounting/base/field evidence establishes it.</span></div>}
-        {selected&&!physicalElevationKnown(selected)&&metaNumber(selected,'zCandidateMeters')===null&&metaNumber(selected,'localReviewSurfaceZ')===null&&metaNumber(selected,'crossSheetReviewSurfaceZ')===null&&metaNumber(selected,'reviewSurfaceZ')===null&&!isSld(selected)&&<div className="notice" style={{marginTop:12}}><strong>Z NEEDS REVIEW</strong><span>This object has source placement, but physical elevation is not yet established. Review floor/elevation evidence before treating Z as physical placement.</span><a className="ghost" href="#z-resolution-review" style={{display:'inline-block',marginTop:8}}>Open Z resolution workflow</a></div>}
+        {!demoMode&&selected&&!physicalElevationKnown(selected)&&metaNumber(selected,'zCandidateMeters')===null&&metaNumber(selected,'localReviewSurfaceZ')===null&&metaNumber(selected,'crossSheetReviewSurfaceZ')===null&&metaNumber(selected,'reviewSurfaceZ')===null&&!isSld(selected)&&<div className="notice" style={{marginTop:12}}><strong>Z NEEDS REVIEW</strong><span>This object has source placement, but physical elevation is not yet established. Review floor/elevation evidence before treating Z as physical placement.</span><a className="ghost" href="#z-resolution-review" style={{display:'inline-block',marginTop:8}}>Open Z resolution workflow</a></div>}
         {selected&&<button className="ghost" style={{width:"100%",marginTop:12}} onClick={()=>setFitRevision(v=>v+1)}>Fit full model</button>}
         <div className="notice" style={{marginTop:14}}><strong>TRUTH BOUNDARY</strong><span>DIR finality secures the immutable record; it does not by itself establish physical truth. Observed/source-derived geometry never silently overwrites Verified infrastructure state.</span></div>
       </aside>

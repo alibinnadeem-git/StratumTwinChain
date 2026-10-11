@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {useEffect,useState} from "react";
 import CompiledGraphViewer from "@/components/CompiledGraphViewer";
+import {PREVIEW_DEMO_GRAPH} from "@/lib/preview-synthetic-twin";
 import {type RegisteredSpatialAsset} from "@/lib/spatial-asset-link";
 import {readPrimarySpatialGraph,replaceCurrentSpatialGraph,restoreBestSpatialGraph} from "@/lib/spatial-browser-recovery";
 import {stripLegacyAudiE4SourceReview} from "@/lib/audi-e4-source-review";
@@ -47,7 +48,7 @@ async function inspectCompiledGraph():Promise<ExperienceState>{
   }
 }
 
-export default function SpatialExperience({assets,authenticated=false}:{assets:RegisteredSpatialAsset[];authenticated?:boolean}){
+export default function SpatialExperience({assets,authenticated=false,previewDemoEnabled=false}:{assets:RegisteredSpatialAsset[];authenticated?:boolean;previewDemoEnabled?:boolean}){
   const [state,setState]=useState<ExperienceState>({ready:false,hasImportedModel:false,sourceCount:0,sourceSheetOnly:false,lineCount:0,spatialRecordCount:0,equipmentCount:0,handoffVerified:null});
   const [serverPending,setServerPending]=useState(false);
 
@@ -85,6 +86,18 @@ export default function SpatialExperience({assets,authenticated=false}:{assets:R
       window.removeEventListener(SERVER_HYDRATION_EVENT,onServerHydration);
     };
   },[authenticated]);
+
+  // Server-authorized Vercel Preview only. This graph exists in React props, never
+  // localStorage, IndexedDB, the project source vault or any authenticated API.
+  const showPreviewDemo=previewDemoEnabled&&!state.hasImportedModel;
+  if(showPreviewDemo)return <section id="spatial-demo-model" aria-label="DEMO synthetic preview twin">
+    <div className="notice" role="status" style={{marginBottom:12,borderColor:"#6d5795"}}>
+      <strong>DEMO / SYNTHETIC · PREVIEW ONLY · READ-ONLY</strong>
+      <span>A synthetic electrical drawing with three visual Z tiers. No installation, OEM identity, engineering approval, physical truth, takeoffs, measurements, exports or asset verification is represented. This data is not saved anywhere.</span>
+      <div className="button-row" style={{marginTop:10}}><Link className="action" href="/import">Upload real drawings</Link></div>
+    </div>
+    <CompiledGraphViewer registeredAssets={[]} demoGraph={PREVIEW_DEMO_GRAPH}/>
+  </section>;
 
   if(!state.ready)return <section className="card" aria-live="polite">
     <div className="eyebrow">Spatial workspace</div>

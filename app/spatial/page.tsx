@@ -45,7 +45,7 @@ export default async function SpatialPage(){
 
   <SpatialWorkspaceStatus compact authenticated={Boolean(session)}/>
 
-  <SpatialExperience assets={assets} authenticated={Boolean(session)}/>
+  <SpatialExperience assets={assets} authenticated={Boolean(session)} previewDemoEnabled={process.env.VERCEL_ENV==='preview'}/>
   <PowerIntelligencePanel/>
   <CoordinationFindingsPanel/>
 
