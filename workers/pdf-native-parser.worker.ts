@@ -125,6 +125,11 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
   }
 
   post({type:'progress',requestId,page:doc.numPages,total:doc.numPages,phase:'spatial semantics'});
+  const semanticsHeartbeat=async(processed:number,total:number)=>{
+   post({type:'heartbeat',requestId,page:doc.numPages,total:doc.numPages,
+     phase:'spatial semantics',processed,workTotal:total});
+   await new Promise<void>(resolve=>setTimeout(resolve,0));
+  };
   const planFramesByPage=new Map<number,ReturnType<typeof detectPlanFrames>>();
   for(let page=1;page<=doc.numPages;page++){
    const positioned=raw.filter(item=>item.page===page).map(item=>({text:item.str,x:item.x,y:item.y}));
@@ -180,6 +185,16 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
 
   const entities:GraphEntity[]=[...reviewEntities];let i=0;
   const seenPlanSegments=new Set<string>(),sourcePlanSegmentsByPage=new Map<number,number>();let sourcePlanSegments=0;
+  // DO NOT repeat the entire planFrames/scale witness arrays on 28k source
+  // lines. Large structuredClone payloads can freeze the receiving UI thread.
+  // The full independent evidence survives on per-page review entities.
+  const compactPlanLineMeta=(page:number,x:number,y:number)=>{
+   const evidence=planEvidence.get(page),frame=frameAt(page,x,y);
+   return {nonSldPlan:true,planType:evidence?.planType||'UNRESOLVED',
+     planRecognition:'CONTENT_PLAN_V2_FRAMES',planFrameId:frame?.id||null,
+     planFrameFloor:frame?.floor||pageFloors.get(page)||'UNRESOLVED',
+     planDiscipline:evidence?.discipline||'Unclassified',planReviewRequired:true};
+  };
   for(const segment of segments){
    if(pageEvidence.get(segment.page)?.isSld||!planEvidence.get(segment.page)?.isPlan)continue;
    if(Math.hypot(segment.x2-segment.x,segment.y2-segment.y)<.015)continue;
@@ -187,7 +202,8 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
    if(seenPlanSegments.has(key))continue;seenPlanSegments.add(key);
    const pageCount=sourcePlanSegmentsByPage.get(segment.page)||0;if(pageCount>=4000||sourcePlanSegments>=40000)continue;
    sourcePlanSegmentsByPage.set(segment.page,pageCount+1);sourcePlanSegments++;
-   entities.push({id:`pdf-plan-line-${segment.page}-${i++}`,source:fileName,layer:'L1',kind:'line',name:`Source plan line · page ${segment.page}`,x:segment.x,y:segment.y,z:0,x2:segment.x2,y2:segment.y2,z2:0,floor:floorAt(segment.page,(segment.x+segment.x2)/2,(segment.y+segment.y2)/2),confidence:.99,meta:{page:segment.page,floorInference:'plan-frame-or-sheet-title-candidate',coordinateUnits:'sheet',sourceType:'PDF source-plan vector line',drawingBasemap:true,pdfTransformsApplied:true,elevationKnown:false,physicalElevationKnown:false,zPlacementAuthority:'UNVERIFIED_DRAWING_PLANE',spatialPlacementAuthority:'SOURCE_SHEET_POSITION_ONLY',physicalTruth:false,reviewRequired:false,scaleValidationEvidence:scaleValidationByPage.get(segment.page),...planMeta(segment.page,(segment.x+segment.x2)/2,(segment.y+segment.y2)/2)}});
+   if((sourcePlanSegments&511)===0)await semanticsHeartbeat(sourcePlanSegments,segments.length);
+   entities.push({id:`pdf-plan-line-${segment.page}-${i++}`,source:fileName,layer:'L1',kind:'line',name:`Source plan line · page ${segment.page}`,x:segment.x,y:segment.y,z:0,x2:segment.x2,y2:segment.y2,z2:0,floor:floorAt(segment.page,(segment.x+segment.x2)/2,(segment.y+segment.y2)/2),confidence:.99,meta:{page:segment.page,floorInference:'plan-frame-or-sheet-title-candidate',coordinateUnits:'sheet',sourceType:'PDF source-plan vector line',drawingBasemap:true,pdfTransformsApplied:true,elevationKnown:false,physicalElevationKnown:false,zPlacementAuthority:'UNVERIFIED_DRAWING_PLANE',spatialPlacementAuthority:'SOURCE_SHEET_POSITION_ONLY',physicalTruth:false,reviewRequired:false,scaleValidationStatus:scaleValidationByPage.get(segment.page)?.status||'UNRESOLVED',...compactPlanLineMeta(segment.page,(segment.x+segment.x2)/2,(segment.y+segment.y2)/2)}});
   }
   for(const [page,topology] of vectorTopologyByPage)for(const segment of topology.segments)entities.push({id:`pdf-sld-feeder-${page}-${i++}`,source:fileName,layer:'L3',kind:'sld-feeder-candidate',name:`SLD feeder path · page ${page}`,x:segment.x,y:segment.y,z:0,x2:segment.x2,y2:segment.y2,z2:0,floor:pageFloors.get(page),confidence:.88,meta:{page,floorInference:'sheet-title-candidate',elevationKnown:false,coordinateUnits:'sheet',sourceType:'PDF vector electrical path',sldCandidate:true,sldFeederCandidate:true,sldVectorComponent:segment.component,sldVectorAuthority:'PDF_VECTOR_CONNECTED_COMPONENT',reviewRequired:true,physicalTruth:false}});
   for(const p of polygons){if(!pageEvidence.get(p.page)?.isSld&&!planEvidence.get(p.page)?.isPlan)continue;const area=Math.abs(p.vertices.reduce((s,v,j)=>{const n=p.vertices[(j+1)%p.vertices.length];return s+v.x*n.y-n.x*v.y},0))/2;if(area<.08||area>190)continue;const c=centroid(p.vertices);entities.push({id:`pdf-room-${p.page}-${i++}`,source:fileName,layer:'L1',kind:'vector-boundary-candidate',name:`PDF closed path · page ${p.page}`,x:c.x,y:c.y,z:0,vertices:p.vertices,floor:floorAt(p.page,c.x,c.y),confidence:p.confidence,meta:{page:p.page,floorInference:'plan-frame-or-sheet-title-candidate',elevationKnown:false,sourceType:'PDF vector path',reconstruction:'heuristic-closed-path',reviewRequired:true,coordinateUnits:'sheet',pdfTransformsApplied:true,geometryValidated:false,...sldMeta(p.page),...planMeta(p.page,c.x,c.y)}})}
@@ -204,7 +220,10 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
    if(local.status!=='RESOLVED_REVIEW_SURFACE'||local.zMeters===null)continue;
    entity.meta={...entity.meta,localReviewSurfaceZ:local.zMeters,localReviewSurfaceKind:local.kind,localReviewSurfaceAuthority:local.authority,localReviewSurfaceConfidence:local.confidence,localReviewSurfaceTriangleId:local.triangleId,localReviewSurfaceControlPointIds:local.controlPointIds,physicalTruth:false,reviewRequired:true};
   }
+  await semanticsHeartbeat(sourcePlanSegments,segments.length);
   const supportEnriched=enrichSupportBaseOffsets(entities,[...supportOffsetsByPage.values()].flat());
+  post({type:'heartbeat',requestId,page:doc.numPages,total:doc.numPages,
+    phase:'returning source graph',processed:supportEnriched.length,workTotal:supportEnriched.length});
   const pageLabels=Array.from({length:doc.numPages},(_,index)=>raw.filter(item=>item.page===index+1).map(item=>item.str));
   const setCompleteness=analyzeDrawingSetCompleteness({pageLabels,sheetNumbers:Array.from({length:doc.numPages},(_,index)=>sheetNumbersByPage.get(index+1)||null)});
   const setSummary=setCompleteness.status==='PARTIAL'?` · partial drawing set · missing ${setCompleteness.missingSheets.join(', ')}`:setCompleteness.status==='COMPLETE'?' · indexed drawing set complete':' · drawing-set completeness unresolved';
