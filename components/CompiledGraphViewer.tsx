@@ -143,6 +143,16 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
   const sheetFrames=useMemo(()=>{
     if(!graph)return[] as {key:string;source:string;page:number;planType:string;discipline:string;aligned:boolean;count:number;title:string;floor:string|null}[];
     const map=new Map<string,{key:string;source:string;page:number;planType:string;discipline:string;aligned:boolean;count:number;title:string;floor:string|null}>();
+    // Compact drawing lines intentionally omit repeated titles. Rejoin exact
+    // source-title evidence once per viewport, without bloating 28k entities.
+    const frameTitles=new Map<string,string>();
+    for(const evidence of graph.entities){
+      if(evidence.kind!=='plan-frame-candidate')continue;
+      const frame=evidence.meta?.planFrame as {id?:string;title?:string}|undefined;
+      const pageKey=sheetPageKey(evidence),id=String(frame?.id||'').trim();
+      const title=String(frame?.title||evidence.name||'').trim();
+      if(pageKey&&id&&title)frameTitles.set(`${pageKey}:${id}`,title);
+    }
     for(const entity of graph.entities){
       if(entity.meta?.nonSpatial===true)continue;
       const key=sheetFrameKey(entity);if(!key)continue;
@@ -151,7 +161,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       const page=Number(entity.meta?.page),prior=map.get(key),planType=plan?String(entity.meta?.planType||"PLAN_VIEW_UNCLASSIFIED"):sld?"SLD":String(entity.meta?.planType||"RASTER_DRAWING");
       const entityDiscipline=String(entity.meta?.planDiscipline||entity.meta?.discipline||sourceDisciplines.get(entity.source)||"Unclassified");
       const aligned=Boolean(entity.meta?.planXYValidated===true||entity.meta?.sheetXYTransform||entity.meta?.autoSheetAlignmentCandidateId||entity.meta?.sheetTransform);
-      const title=String(entity.meta?.planFrameTitle||entity.meta?.sheetTitle||planTypeLabel(planType));
+      const title=String(frameTitles.get(key)||entity.meta?.planFrameTitle||entity.meta?.sheetTitle||planTypeLabel(planType));
       const frameFloor=String(entity.meta?.planFrameFloor||entity.floor||'').trim()||null;
       map.set(key,{key,source:entity.source,page,planType:prior?.planType&&prior.planType!=="RASTER_DRAWING"?prior.planType:planType,discipline:prior?.discipline&&prior.discipline!=="Unclassified"?prior.discipline:entityDiscipline,aligned:Boolean(prior?.aligned||aligned),count:(prior?.count||0)+1,title:prior?.title||title,floor:prior?.floor||frameFloor});
     }
