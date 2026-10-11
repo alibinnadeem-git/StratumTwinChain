@@ -26,7 +26,7 @@ for(const entry of manifest){
  assert.equal(bytes.toString('ascii',16,20),'JSON');
  const json=JSON.parse(bytes.toString('utf8',20,20+jsonLength));
  const binOffset=20+jsonLength;
- assert.equal(bytes.toString('ascii',binOffset+4,binOffset+8),'BIN\\0');
+ assert.equal(bytes.readUInt32LE(binOffset+4),0x004e4942,'GLB binary chunk type');
  const byteLength=bytes.readUInt32LE(binOffset);
  assert.ok(json.bufferViews.every(view=>view.byteOffset+view.byteLength<=byteLength));
  assert.ok(json.nodes.some(node=>node.name===entry.modelAnchor),'named mounting origin expected');
