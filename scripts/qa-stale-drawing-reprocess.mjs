@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {drawingSourceReprocessReason,findDrawingSourcesNeedingReprocess} from '../lib/spatial-source-reprocess.ts';
+import {drawingSourceReprocessReason,findDrawingSourcesNeedingReprocess,inspectDrawingReprocessOutput} from '../lib/spatial-source-reprocess.ts';
 
 const stalePdf={name:'G101 Site Plan.pdf',ext:'pdf',sha256:'a'.repeat(64),state:'parsed',entities:12,vectors:900,textItems:120,sldPages:0};
 const staleEntities=[{source:'G101 Site Plan.pdf',kind:'text-asset-candidate',layer:'L2',meta:{sourceSha256:'a'.repeat(64),physicalTruth:false}}];
@@ -57,3 +57,20 @@ assert.doesNotMatch(compiler,/disabled=\{busy\} onClick=\{\(\)=>void reprocessAr
 console.log('Busy reprocess queue contract passed: button wired, SHA requests deduplicated, deferred drain, status feedback, and old graph protected.');
 
 console.log('Stale drawing reprocess contract passed: pre-basemap PDF/image graphs are detected, same-SHA re-import replaces the old source compilation, modern basemaps and valid SLDs are not falsely flagged.');
+
+const reviewed=inspectDrawingReprocessOutput([
+ {kind:'line',layer:'L1',floor:'L1',meta:{drawingBasemap:true,sourceType:'PDF source-plan vector line'}},
+ ...Array.from({length:46},(_,i)=>({kind:'asset-candidate',layer:'L4',floor:'L1',meta:{index:i}})),
+ {kind:'vector-boundary-candidate',layer:'L1',floor:'L2',meta:{}}
+]);
+assert.equal(reviewed.basemaps,1,'retained basemap independent of reconstructed rooms');
+assert.equal(reviewed.equipmentCandidates,46);
+assert.equal(reviewed.modeledRooms,0);
+assert.equal(reviewed.modeledEquipment,0);
+assert.equal(reviewed.physicallyEstablishedLevels,0,'floor labels cannot assert metric Z');
+assert.match(reviewed.summary,/PARSER CAPABILITY GAP/);
+assert.equal(inspectDrawingReprocessOutput([{kind:'room-label',layer:'L1',floor:'L1',meta:{}}]).basemaps,0);
+assert.match(compiler,/DRAWING_BASEMAP_NOT_RETAINED/,'a basemap-free recognized plan cannot count as a successful reprocess');
+assert.match(compiler,/reprocessAudit\.summary/,'source row must retain downstream zero-stage diagnostic');
+assert.match(compiler,/REPROCESS ATTEMPT FINISHED/,'UI must clear stale active status');
+console.log('Reprocess acceptance audit: basemap present/absent, 46 L4 still unverified and downstream zeros labeled as capability gaps.');
