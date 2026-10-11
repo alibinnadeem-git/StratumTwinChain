@@ -81,7 +81,8 @@ assert.equal(unscaled.kind,'SHEET_PIN','unapproved sheet coordinates must not be
 assert.equal(unresolvedAssetVisual({layer:'L2',kind:'sheet-callout-candidate',x:1,y:2,meta:{}}).kind,'SHEET_PIN');
 assert.equal(unresolvedAssetVisual({layer:'L2',kind:'equipment',x:1,y:2,meta:{physicalElevationKnown:true}}).kind,'NONE');
 assert.equal(unresolvedAssetVisual({layer:'L1',kind:'room',x:1,y:2,meta:{}}).kind,'NONE');
-assert.match(viewer,/renderProvisionalMarker\(e,provisional.kind\)/);
+assert.match(viewer,/renderProvisionalMarker\(e,'GHOST_MARKER'\)/);
+assert.match(viewer,/renderProvisionalMarker\(e,'SHEET_PIN'\)/);
 assert.match(viewer,/root.userData.canonicalZ=null/);
 assert.match(viewer,/root.userData.takeoffEligible=false/);
 assert.match(viewer,/root.userData.exportEligible=false/);
