@@ -39,7 +39,13 @@ test('graph updates create a protected last-good browser copy',async({page})=>{
  },graph('Protected panel'));
  await expect.poll(()=>page.evaluate(async()=>{
   const db=await new Promise<IDBDatabase>((resolve,reject)=>{const request=indexedDB.open('stratum-spatial-recovery-v1',1);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});
-  return new Promise<string|null>((resolve)=>{const request=db.transaction('graphs','readonly').objectStore('graphs').get('latest');request.onsuccess=()=>resolve(request.result?.entities?.[0]?.name||null);request.onerror=()=>resolve(null)});
+  if(!db.objectStoreNames.contains('graphs')){db.close();return null;}
+   return new Promise<string|null>((resolve)=>{
+    const tx=db.transaction('graphs','readonly'),request=tx.objectStore('graphs').get('latest');
+    request.onsuccess=()=>resolve(request.result?.entities?.[0]?.name||null);
+    request.onerror=()=>resolve(null);
+    tx.oncomplete=()=>db.close();
+   });
  }),{timeout:20000,intervals:[250,500,1000,2000]}).toBe('Protected panel');
 });
 

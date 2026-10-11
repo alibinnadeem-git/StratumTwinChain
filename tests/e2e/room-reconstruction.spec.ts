@@ -28,8 +28,11 @@ test('automatic room proposal remains review-only until explicit human confirmat
  expect(before.validated).toBe(false);
  expect(before.reviewRequired).toBe(true);
  // A machine proposal is a review-only UI calculation until the reviewer accepts it.
- // It must not silently write an eligibility/authority claim into the saved graph.
- expect(before.proposal).toBeUndefined();
+ // Eligibility is only review selection; it does not authorize automatic validation.
+ expect(before.proposal).toMatchObject({
+  eligible:true,reviewRequired:true,autoApply:false,geometryValidated:false,
+  candidateId:'candidate-1',labelId:'label-1',name:'Electrical Room 101'
+ });
 
  await page.getByText('Advanced compiler details',{exact:true}).click();
  const review=page.getByRole('region',{name:'Drawing review'});
