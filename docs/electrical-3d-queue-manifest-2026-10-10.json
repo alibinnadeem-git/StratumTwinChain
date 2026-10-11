@@ -1,0 +1,356 @@
+[
+  {
+    "name": "panelboard-full",
+    "uri": "/models/equipment/panelboard-full.glb",
+    "sha_git_blob": "7699c258858ddcf8b018c0112e80d0cea43be736",
+    "size_bytes": 39612,
+    "bounds_description_m": [
+      0.74,
+      1.44,
+      0.24
+    ],
+    "modelAnchor": "mount_floor",
+    "source": "STRATUM in-house parametric generic",
+    "licenceTier": "T1",
+    "geometryAuthority": "VISUALIZATION_ONLY",
+    "intakeGateStatus": "BINARY_QA_PENDING",
+    "type_ids": [
+      "E-05",
+      "E-06",
+      "E-42"
+    ]
+  },
+  {
+    "name": "lv-switchgear-lineup",
+    "uri": "/models/equipment/lv-switchgear-lineup.glb",
+    "sha_git_blob": "4c824a05d8a6103c5051dcddae55d2e7ed4429ec",
+    "size_bytes": 37460,
+    "bounds_description_m": [
+      2.9,
+      2.2,
+      1.05
+    ],
+    "modelAnchor": "mount_floor",
+    "source": "STRATUM in-house parametric generic",
+    "licenceTier": "T1",
+    "geometryAuthority": "VISUALIZATION_ONLY",
+    "intakeGateStatus": "BINARY_QA_PENDING",
+    "type_ids": [
+      "E-03"
+    ]
+  },
+  {
+    "name": "mv-switchgear-lineup",
+    "uri": "/models/equipment/mv-switchgear-lineup.glb",
+    "sha_git_blob": "2c1d786df7f043a6a4edebe32c27082a22955bf3",
+    "size_bytes": 32124,
+    "bounds_description_m": [
+      3.3,
+      2.55,
+      1.38
+    ],
+    "modelAnchor": "mount_floor",
+    "source": "STRATUM in-house parametric generic",
+    "licenceTier": "T1",
+    "geometryAuthority": "VISUALIZATION_ONLY",
+    "intakeGateStatus": "BINARY_QA_PENDING",
+    "type_ids": [
+      "E-02"
+    ]
+  },
+  {
+    "name": "disconnect-breaker-generic",
+    "uri": "/models/equipment/disconnect-breaker-generic.glb",
+    "sha_git_blob": "63a192c26722f92d6d3e4e994a4e80740696995c",
+    "size_bytes": 11556,
+    "bounds_description_m": [
+      0.49,
+      0.78,
+      0.25
+    ],
+    "modelAnchor": "mount_face",
+    "source": "STRATUM in-house parametric generic",
+    "licenceTier": "T1",
+    "geometryAuthority": "VISUALIZATION_ONLY",
+    "intakeGateStatus": "BINARY_QA_PENDING",
+    "type_ids": [
+      "E-11",
+      "E-12"
+    ]
+  },
+  {
+    "name": "cable-tray-straight",
+    "uri": "/models/equipment/cable-tray-straight.glb",
+    "sha_git_blob": "bdaed53e0928925034895bceba57d14c7c150e67",
+    "size_bytes": 15844,
+    "bounds_description_m": [
+      2.4,
+      0.2,
+      0.52
+    ],
+    "modelAnchor": "mount_ceiling",
+    "source": "STRATUM in-house parametric generic",
+    "licenceTier": "T1",
+    "geometryAuthority": "VISUALIZATION_ONLY",
+    "intakeGateStatus": "BINARY_QA_PENDING",
+    "type_ids": [
+      "E-21"
+    ]
+  },
+  {
+    "name": "cable-tray-elbow",
+    "uri": "/models/equipment/cable-tray-elbow.glb",
+    "sha_git_blob": "22a3935221d85b98ccab66006245bf9c1f8a430c",
+    "size_bytes": 16540,
+    "bounds_description_m": [
+      1.28,
+      0.2,
+      1.28
+    ],
+    "modelAnchor": "mount_ceiling",
+    "source": "STRATUM in-house parametric generic",
+    "licenceTier": "T1",
+    "geometryAuthority": "VISUALIZATION_ONLY",
+    "intakeGateStatus": "BINARY_QA_PENDING",
+    "type_ids": [
+      "E-22"
+    ]
+  },
+  {
+    "name": "cable-tray-tee",
+    "uri": "/models/equipment/cable-tray-tee.glb",
+    "sha_git_blob": "8787b382de01f515a09557db0019a60f5e802b28",
+    "size_bytes": 17820,
+    "bounds_description_m": [
+      1.55,
+      0.2,
+      1.55
+    ],
+    "modelAnchor": "mount_ceiling",
+    "source": "STRATUM in-house parametric generic",
+    "licenceTier": "T1",
+    "geometryAuthority": "VISUALIZATION_ONLY",
+    "intakeGateStatus": "BINARY_QA_PENDING",
+    "type_ids": []
+  },
+  {
+    "name": "wire-basket-tray",
+    "uri": "/models/equipment/wire-basket-tray.glb",
+    "sha_git_blob": "f67b98c08f7e942467904d9844308395fa85d216",
+    "size_bytes": 28540,
+    "bounds_description_m": [
+      2,
+      0.21,
+      0.5
+    ],
+    "modelAnchor": "mount_ceiling",
+    "source": "STRATUM in-house parametric generic",
+    "licenceTier": "T1",
+    "geometryAuthority": "VISUALIZATION_ONLY",
+    "intakeGateStatus": "BINARY_QA_PENDING",
+    "type_ids": [
+      "E-23"
+    ]
+  },
+  {
+    "name": "wireway",
+    "uri": "/models/equipment/wireway.glb",
+    "sha_git_blob": "60fe8a4407907ff45f82d9275de0d993e0645ad2",
+    "size_bytes": 11296,
+    "bounds_description_m": [
+      2.1,
+      0.22,
+      0.38
+    ],
+    "modelAnchor": "mount_ceiling",
+    "source": "STRATUM in-house parametric generic",
+    "licenceTier": "T1",
+    "geometryAuthority": "VISUALIZATION_ONLY",
+    "intakeGateStatus": "BINARY_QA_PENDING",
+    "type_ids": [
+      "E-24"
+    ]
+  },
+  {
+    "name": "vfd-starter",
+    "uri": "/models/equipment/vfd-starter.glb",
+    "sha_git_blob": "604430beab8383afd3987c7132514c4c7ae0b820",
+    "size_bytes": 18404,
+    "bounds_description_m": [
+      0.62,
+      1.12,
+      0.31
+    ],
+    "modelAnchor": "mount_face",
+    "source": "STRATUM in-house parametric generic",
+    "licenceTier": "T1",
+    "geometryAuthority": "VISUALIZATION_ONLY",
+    "intakeGateStatus": "BINARY_QA_PENDING",
+    "type_ids": [
+      "E-19"
+    ]
+  },
+  {
+    "name": "meter-ct-cabinet",
+    "uri": "/models/equipment/meter-ct-cabinet.glb",
+    "sha_git_blob": "ca60dd8289ef882e788bab3a53d0b62a6fc8f126",
+    "size_bytes": 26036,
+    "bounds_description_m": [
+      1.05,
+      1.55,
+      0.42
+    ],
+    "modelAnchor": "mount_face",
+    "source": "STRATUM in-house parametric generic",
+    "licenceTier": "T1",
+    "geometryAuthority": "VISUALIZATION_ONLY",
+    "intakeGateStatus": "BINARY_QA_PENDING",
+    "type_ids": [
+      "E-10"
+    ]
+  },
+  {
+    "name": "troffer-luminaire",
+    "uri": "/models/equipment/troffer-luminaire.glb",
+    "sha_git_blob": "7f00b4f4e025b2e218b2146fad14226b0ef84d5b",
+    "size_bytes": 6964,
+    "bounds_description_m": [
+      1.2,
+      0.09,
+      0.6
+    ],
+    "modelAnchor": "mount_ceiling",
+    "source": "STRATUM in-house parametric generic",
+    "licenceTier": "T1",
+    "geometryAuthority": "VISUALIZATION_ONLY",
+    "intakeGateStatus": "BINARY_QA_PENDING",
+    "type_ids": [
+      "E-50"
+    ]
+  },
+  {
+    "name": "recessed-luminaire",
+    "uri": "/models/equipment/recessed-luminaire.glb",
+    "sha_git_blob": "1ae94f413d5b0aa43aa3afe94124600c85da0403",
+    "size_bytes": 11552,
+    "bounds_description_m": [
+      0.29,
+      0.075,
+      0.29
+    ],
+    "modelAnchor": "mount_ceiling",
+    "source": "STRATUM in-house parametric generic",
+    "licenceTier": "T1",
+    "geometryAuthority": "VISUALIZATION_ONLY",
+    "intakeGateStatus": "BINARY_QA_PENDING",
+    "type_ids": [
+      "E-49"
+    ]
+  },
+  {
+    "name": "linear-luminaire",
+    "uri": "/models/equipment/linear-luminaire.glb",
+    "sha_git_blob": "0b80f992365f0dce2c36ff7547882482626d0d0a",
+    "size_bytes": 6152,
+    "bounds_description_m": [
+      1.4,
+      0.085,
+      0.17
+    ],
+    "modelAnchor": "mount_ceiling",
+    "source": "STRATUM in-house parametric generic",
+    "licenceTier": "T1",
+    "geometryAuthority": "VISUALIZATION_ONLY",
+    "intakeGateStatus": "BINARY_QA_PENDING",
+    "type_ids": [
+      "E-51"
+    ]
+  },
+  {
+    "name": "busway-tapoffs",
+    "uri": "/models/equipment/busway-tapoffs.glb",
+    "sha_git_blob": "3570665eb207f734d418873063df6188f08d099c",
+    "size_bytes": 15556,
+    "bounds_description_m": [
+      2.6,
+      0.3,
+      0.36
+    ],
+    "modelAnchor": "mount_ceiling",
+    "source": "STRATUM in-house parametric generic",
+    "licenceTier": "T1",
+    "geometryAuthority": "VISUALIZATION_ONLY",
+    "intakeGateStatus": "BINARY_QA_PENDING",
+    "type_ids": [
+      "E-08"
+    ]
+  },
+  {
+    "name": "wall-device-plate",
+    "uri": "/models/equipment/wall-device-plate.glb",
+    "sha_git_blob": "70fdff278f20f9ead3047f83f1eeefb06a638a24",
+    "size_bytes": 7436,
+    "bounds_description_m": [
+      0.11,
+      0.17,
+      0.025
+    ],
+    "modelAnchor": "mount_face",
+    "source": "STRATUM in-house parametric generic",
+    "licenceTier": "T1",
+    "geometryAuthority": "VISUALIZATION_ONLY",
+    "intakeGateStatus": "BINARY_QA_PENDING",
+    "type_ids": [
+      "E-34",
+      "E-35",
+      "E-36",
+      "E-38",
+      "E-39",
+      "E-44",
+      "E-48"
+    ]
+  },
+  {
+    "name": "ceiling-device-puck",
+    "uri": "/models/equipment/ceiling-device-puck.glb",
+    "sha_git_blob": "2fcadfeb994ed380e6b7ce044035b22595c24a20",
+    "size_bytes": 13832,
+    "bounds_description_m": [
+      0.25,
+      0.078,
+      0.25
+    ],
+    "modelAnchor": "mount_ceiling",
+    "source": "STRATUM in-house parametric generic",
+    "licenceTier": "T1",
+    "geometryAuthority": "VISUALIZATION_ONLY",
+    "intakeGateStatus": "BINARY_QA_PENDING",
+    "type_ids": [
+      "E-40",
+      "E-41",
+      "E-46",
+      "E-47",
+      "E-59",
+      "E-60"
+    ]
+  },
+  {
+    "name": "fire-alarm-control-panel",
+    "uri": "/models/equipment/fire-alarm-control-panel.glb",
+    "sha_git_blob": "d3323437024863ac415aed64787ee2a7b34bc08e",
+    "size_bytes": 19864,
+    "bounds_description_m": [
+      0.65,
+      1,
+      0.24
+    ],
+    "modelAnchor": "mount_face",
+    "source": "STRATUM in-house parametric generic",
+    "licenceTier": "T1",
+    "geometryAuthority": "VISUALIZATION_ONLY",
+    "intakeGateStatus": "BINARY_QA_PENDING",
+    "type_ids": [
+      "E-58"
+    ]
+  }
+]
