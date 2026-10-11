@@ -12,7 +12,7 @@ export default function PreviewDemoAssetInspector({selected}:{selected:Synthetic
    <div className="eyebrow">DEMO / SYNTHETIC · READ-ONLY RECORD</div>
    <h3 style={{margin:"8px 0"}}>{selected.name}</h3>
    <div className="notice" role="status">
-     <strong>{tier.replaceAll('_',' ')} · INFERRED_PREDICTED</strong>
+     <strong>{tier.replaceAll('_',' ')} · {String(m.status||'UNRESOLVED')}</strong>
      <span>physicalTruth:false · reviewRequired:true · No human verification, commissioning or installed asset is asserted.</span>
    </div>
    <dl>

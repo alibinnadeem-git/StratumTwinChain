@@ -23,7 +23,7 @@ function asset(id:string,name:string,x:number,y:number,tier:'STATED_Z'|'DERIVED_
   id:`DEMO-SYNTHETIC-${id}`,source,layer:'L2' as const,kind:extra.kind==='sheet-callout-candidate'?'sheet-callout-candidate':'equipment',
   name:`DEMO · ${name}`,x,y,...(tier==='STATED_Z'?{z}:{}),
   floor:'DEMO E-101',confidence:tier==='STATED_Z'?.92:tier==='DERIVED_Z_CANDIDATE'?.8:.56,
-  meta:{...baseMeta,...extra,demoPlacementTier:tier,status:'INFERRED_PREDICTED' as const,
+  meta:{...baseMeta,...extra,demoPlacementTier:tier,status:(tier==='UNRESOLVED_Z'?'UNRESOLVED':'INFERRED_PREDICTED') as 'UNRESOLVED'|'INFERRED_PREDICTED',
    evidence:[evidence('DEMO E-101',tier==='STATED_Z'
      ?'Synthetic elevation note; source-stated within fixture, not field-verified'
      :tier==='DERIVED_Z_CANDIDATE'

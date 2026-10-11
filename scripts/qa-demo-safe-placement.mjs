@@ -95,7 +95,9 @@ assert.equal(demoEntities.length,6,'three tiers have two representative assets e
 for(const tier of ['STATED_Z','DERIVED_Z_CANDIDATE','UNRESOLVED_Z'])
  assert.equal(demoEntities.filter(e=>e.meta.demoPlacementTier===tier).length,2);
 assert.ok(demoEntities.every(e=>e.id.startsWith('DEMO-SYNTHETIC-')));
-assert.ok(demoEntities.every(e=>e.meta.status==='INFERRED_PREDICTED'));
+assert.ok(demoEntities.every(e=>['UNRESOLVED','INFERRED_PREDICTED'].includes(e.meta.status)));
+assert.ok(demoEntities.filter(e=>e.meta.demoPlacementTier==='UNRESOLVED_Z').every(e=>e.meta.status==='UNRESOLVED'));
+assert.ok(demoEntities.filter(e=>e.meta.demoPlacementTier!=='UNRESOLVED_Z').every(e=>e.meta.status==='INFERRED_PREDICTED'));
 assert.ok(demoEntities.every(e=>e.meta.authorityEligible===false&&e.meta.verificationPromotionEligible===false&&
  e.meta.takeoffEligible===false&&e.meta.measurementEligible===false&&e.meta.exportEligible===false));
 assert.ok(demoEntities.every(e=>e.meta.physicalTruth===false&&e.meta.reviewRequired===true));
