@@ -11,13 +11,14 @@ BEGIN
  IF TG_OP='UPDATE' AND NEW.provenance_class IS DISTINCT FROM OLD.provenance_class THEN
   RAISE EXCEPTION 'provenance_class is immutable';
  END IF;
- IF TG_TABLE_NAME='spatial_compilations' AND
-  (NEW.graph_json->>'provenance_class'='DEMO' OR EXISTS(
+ IF TG_TABLE_NAME='spatial_compilations' THEN
+  IF NEW.graph_json->>'provenance_class'='DEMO' OR EXISTS(
    SELECT 1 FROM jsonb_array_elements(COALESCE(NEW.graph_json->'entities','[]'::jsonb)) asset
    WHERE asset->>'provenance_class'='DEMO' OR asset->'meta'->>'provenance_class'='DEMO'
       OR asset->>'id' LIKE 'demo_%'
-  )) THEN
-  RAISE EXCEPTION 'DEMO or mixed twin cannot be written';
+  ) THEN
+   RAISE EXCEPTION 'DEMO or mixed twin cannot be written';
+  END IF;
  END IF;
  RETURN NEW;
 END $$;
