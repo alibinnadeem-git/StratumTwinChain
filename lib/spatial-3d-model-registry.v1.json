@@ -1,0 +1,879 @@
+{
+  "schema_version": 1,
+  "governance": {
+    "namespace": "stlib-",
+    "immutable_after_publication": true,
+    "oem_reserved_pattern": "oem-{mfr}-{mfr_model_id}-v{n}",
+    "oem_requires": [
+      "license_ref",
+      "license_expiry"
+    ],
+    "publication_state": "REVIEW_ONLY_UNMERGED",
+    "class_authority": "ONE_MODEl_ID_PER_CLASS_WHEN_APPROVED",
+    "unmapped_policy": "UNRESOLVED_NEVER_GUESS"
+  },
+  "models": [
+    {
+      "model_id": "stlib-ele-automatic-transfer-switch-v1",
+      "serves_classes": [
+        "E-13"
+      ],
+      "tier": "hero",
+      "source": {
+        "type": "in-house",
+        "url": null
+      },
+      "license": "STRATUM-authored in-house generic visualization; NO OEM geometry or identity",
+      "file": {
+        "path": "/models/equipment/stlib-ele-automatic-transfer-switch-v1.glb",
+        "sha256": "2a56d0faffa6b0fffef7d810a3f4aa303150ece905005e28ccbcb09554e0b850",
+        "git_blob_sha": "290e124a9e15bcd435dd8a687a3aaea5419c015a"
+      },
+      "dims_w_h_d": {
+        "w": 0.82,
+        "h": 1.42,
+        "d": 0.425
+      },
+      "dimensions_basis": "existing approximate registry envelope; not actual-source or field verification",
+      "version": 1,
+      "supersedes": null,
+      "status": "LEGACY_GENERIC_VISUALIZATION",
+      "legacy_file": "/models/equipment/automatic-transfer-switch.glb",
+      "variant_by_class": {}
+    },
+    {
+      "model_id": "stlib-ele-battery-storage-cabinet-v1",
+      "serves_classes": [
+        "E-17"
+      ],
+      "tier": "hero",
+      "source": {
+        "type": "in-house",
+        "url": null
+      },
+      "license": "STRATUM-authored in-house generic visualization; NO OEM geometry or identity",
+      "file": {
+        "path": "/models/equipment/stlib-ele-battery-storage-cabinet-v1.glb",
+        "sha256": "90ea91fddd171be8281e620714cc5568724bed1830fa3113e3979a152fe736a2",
+        "git_blob_sha": "af8b040d508e749cedd590d58336349c6665c92f"
+      },
+      "dims_w_h_d": {
+        "w": 1,
+        "h": 1.86,
+        "d": 0.936
+      },
+      "dimensions_basis": "existing approximate registry envelope; not actual-source or field verification",
+      "version": 1,
+      "supersedes": null,
+      "status": "LEGACY_GENERIC_VISUALIZATION",
+      "legacy_file": "/models/equipment/battery-cabinet.glb",
+      "variant_by_class": {}
+    },
+    {
+      "model_id": "stlib-ele-breaker-enclosure-representative-v1",
+      "serves_classes": [],
+      "tier": "instanced",
+      "source": {
+        "type": "in-house",
+        "url": null
+      },
+      "license": "STRATUM-authored in-house generic visualization; NO OEM geometry or identity",
+      "file": {
+        "path": "/models/equipment/stlib-ele-breaker-enclosure-representative-v1.gltf",
+        "sha256": "d261997f7612858a41d927ba866801c79b017e0e02713f72c89b60e871d7f709",
+        "git_blob_sha": "8b0adb02acf459d3b8ee19db063a022adaafffd1"
+      },
+      "dims_w_h_d": {
+        "w": 0.45,
+        "h": 0.75,
+        "d": 0.22
+      },
+      "dimensions_basis": "existing approximate registry envelope; not actual-source or field verification",
+      "version": 1,
+      "supersedes": null,
+      "status": "LEGACY_GENERIC_VISUALIZATION",
+      "legacy_file": "/models/equipment/breaker-enclosure-representative.gltf",
+      "variant_by_class": {}
+    },
+    {
+      "model_id": "stlib-ele-busway-representative-v1",
+      "serves_classes": [],
+      "tier": "instanced",
+      "source": {
+        "type": "in-house",
+        "url": null
+      },
+      "license": "STRATUM-authored in-house generic visualization; NO OEM geometry or identity",
+      "file": {
+        "path": "/models/equipment/stlib-ele-busway-representative-v1.gltf",
+        "sha256": "13c0a439c68627c19c5cd64524c68d67b226cadf2b332d2d3672cadccabc03d8",
+        "git_blob_sha": "69bc673f9f0a2209387d30c41f7c436d642476af"
+      },
+      "dims_w_h_d": {
+        "w": 3,
+        "h": 0.9,
+        "d": 0.85
+      },
+      "dimensions_basis": "existing approximate registry envelope; not actual-source or field verification",
+      "version": 1,
+      "supersedes": null,
+      "status": "LEGACY_GENERIC_VISUALIZATION",
+      "legacy_file": "/models/equipment/busway-representative.gltf",
+      "variant_by_class": {}
+    },
+    {
+      "model_id": "stlib-ele-network-rack-v1",
+      "serves_classes": [
+        "E-45"
+      ],
+      "tier": "instanced",
+      "source": {
+        "type": "in-house",
+        "url": null
+      },
+      "license": "STRATUM-authored in-house generic visualization; NO OEM geometry or identity",
+      "file": {
+        "path": "/models/equipment/stlib-ele-network-rack-v1.gltf",
+        "sha256": "47ab60752646e456f0b0121ec02a2f7546212c379f098252ed8c256fd12eb8e7",
+        "git_blob_sha": "ba49c0ef0a27486fab50af3c09a0c6f41e0e4662"
+      },
+      "dims_w_h_d": {
+        "w": 0.8,
+        "h": 2,
+        "d": 1
+      },
+      "dimensions_basis": "existing approximate registry envelope; not actual-source or field verification",
+      "version": 1,
+      "supersedes": null,
+      "status": "LEGACY_GENERIC_VISUALIZATION",
+      "legacy_file": "/models/equipment/data-rack-representative.gltf",
+      "variant_by_class": {}
+    },
+    {
+      "model_id": "stlib-ele-dry-type-transformer-v1",
+      "serves_classes": [
+        "E-09"
+      ],
+      "tier": "hero",
+      "source": {
+        "type": "in-house",
+        "url": null
+      },
+      "license": "STRATUM-authored in-house generic visualization; NO OEM geometry or identity",
+      "file": {
+        "path": "/models/equipment/stlib-ele-dry-type-transformer-v1.glb",
+        "sha256": "afa99a05f99fe4958f3dc7d7846009ee0d6cf29c677c564534a3390dc7817374",
+        "git_blob_sha": "c6db3c1dbb03f60d4592d1658f4b4b52b135541b"
+      },
+      "dims_w_h_d": {
+        "w": 1.35,
+        "h": 1.485,
+        "d": 0.882
+      },
+      "dimensions_basis": "existing approximate registry envelope; not actual-source or field verification",
+      "version": 1,
+      "supersedes": null,
+      "status": "LEGACY_GENERIC_VISUALIZATION",
+      "legacy_file": "/models/equipment/dry-type-transformer.glb",
+      "variant_by_class": {}
+    },
+    {
+      "model_id": "stlib-ele-standby-generator-v1",
+      "serves_classes": [
+        "E-15"
+      ],
+      "tier": "hero",
+      "source": {
+        "type": "in-house",
+        "url": null
+      },
+      "license": "STRATUM-authored in-house generic visualization; NO OEM geometry or identity",
+      "file": {
+        "path": "/models/equipment/stlib-ele-standby-generator-v1.glb",
+        "sha256": "0556bb26fe52dacbc01eaec5b181a8a7d2c62d2c237b90ee9fb74b8adb51b4d5",
+        "git_blob_sha": "ab69dde99f0fd0e4e762ca062aade01fb67236bf"
+      },
+      "dims_w_h_d": {
+        "w": 3.02,
+        "h": 1.99,
+        "d": 1.2
+      },
+      "dimensions_basis": "existing approximate registry envelope; not actual-source or field verification",
+      "version": 1,
+      "supersedes": null,
+      "status": "LEGACY_GENERIC_VISUALIZATION",
+      "legacy_file": "/models/equipment/enclosed-diesel-generator.glb",
+      "variant_by_class": {}
+    },
+    {
+      "model_id": "stlib-ele-industrial-electric-motor-v1",
+      "serves_classes": [],
+      "tier": "hero",
+      "source": {
+        "type": "in-house",
+        "url": null
+      },
+      "license": "STRATUM-authored in-house generic visualization; NO OEM geometry or identity",
+      "file": {
+        "path": "/models/equipment/stlib-ele-industrial-electric-motor-v1.glb",
+        "sha256": "89c88f20d38d24f64d4792df45d0c7d728d2f3a4443ed10bc68e6be72ffcfa24",
+        "git_blob_sha": "5a814501ee2435a764699799beb2a98c87d3bdce"
+      },
+      "dims_w_h_d": {
+        "w": 1.49,
+        "h": 1.16,
+        "d": 0.96
+      },
+      "dimensions_basis": "existing approximate registry envelope; not actual-source or field verification",
+      "version": 1,
+      "supersedes": null,
+      "status": "LEGACY_GENERIC_VISUALIZATION",
+      "legacy_file": "/models/equipment/industrial-electric-motor.glb",
+      "variant_by_class": {}
+    },
+    {
+      "model_id": "stlib-ele-solar-inverter-v1",
+      "serves_classes": [
+        "E-18"
+      ],
+      "tier": "instanced",
+      "source": {
+        "type": "in-house",
+        "url": null
+      },
+      "license": "STRATUM-authored in-house generic visualization; NO OEM geometry or identity",
+      "file": {
+        "path": "/models/equipment/stlib-ele-solar-inverter-v1.gltf",
+        "sha256": "6a6ad931811b924249aa929d59f63aff503125f88660b0bb482f6bc44e7ff423",
+        "git_blob_sha": "36add711070829490b2036057236309aa81a2dc2"
+      },
+      "dims_w_h_d": {
+        "w": 0.55,
+        "h": 0.85,
+        "d": 0.25
+      },
+      "dimensions_basis": "existing approximate registry envelope; not actual-source or field verification",
+      "version": 1,
+      "supersedes": null,
+      "status": "LEGACY_GENERIC_VISUALIZATION",
+      "legacy_file": "/models/equipment/inverter-representative.gltf",
+      "variant_by_class": {}
+    },
+    {
+      "model_id": "stlib-ele-main-switchboard-v1",
+      "serves_classes": [
+        "E-04"
+      ],
+      "tier": "hero",
+      "source": {
+        "type": "in-house",
+        "url": null
+      },
+      "license": "STRATUM-authored in-house generic visualization; NO OEM geometry or identity",
+      "file": {
+        "path": "/models/equipment/stlib-ele-main-switchboard-v1.glb",
+        "sha256": "39a55191ed57f8d3029f3837c878dbc807ac9a9737e606712abe032ffbe44642",
+        "git_blob_sha": "8e893921d67e3a6a1dc3a13f64176159d829171f"
+      },
+      "dims_w_h_d": {
+        "w": 2.4,
+        "h": 2.12,
+        "d": 0.72
+      },
+      "dimensions_basis": "existing approximate registry envelope; not actual-source or field verification",
+      "version": 1,
+      "supersedes": null,
+      "status": "LEGACY_GENERIC_VISUALIZATION",
+      "legacy_file": "/models/equipment/main-switchboard.glb",
+      "variant_by_class": {}
+    },
+    {
+      "model_id": "stlib-ele-motor-control-center-v1",
+      "serves_classes": [
+        "E-07"
+      ],
+      "tier": "hero",
+      "source": {
+        "type": "in-house",
+        "url": null
+      },
+      "license": "STRATUM-authored in-house generic visualization; NO OEM geometry or identity",
+      "file": {
+        "path": "/models/equipment/stlib-ele-motor-control-center-v1.glb",
+        "sha256": "58b9933ca535ba5e1f89e1ad575ead0e13af01f035267e8cc7b7aada90aff7fd",
+        "git_blob_sha": "fa42c74e6451e46e331e88ed8380374daed6c778"
+      },
+      "dims_w_h_d": {
+        "w": 2.08,
+        "h": 2.1,
+        "d": 0.64
+      },
+      "dimensions_basis": "existing approximate registry envelope; not actual-source or field verification",
+      "version": 1,
+      "supersedes": null,
+      "status": "LEGACY_GENERIC_VISUALIZATION",
+      "legacy_file": "/models/equipment/motor-control-center.glb",
+      "variant_by_class": {}
+    },
+    {
+      "model_id": "stlib-ele-oil-filled-transformer-v1",
+      "serves_classes": [],
+      "tier": "hero",
+      "source": {
+        "type": "in-house",
+        "url": null
+      },
+      "license": "STRATUM-authored in-house generic visualization; NO OEM geometry or identity",
+      "file": {
+        "path": "/models/equipment/stlib-ele-oil-filled-transformer-v1.glb",
+        "sha256": "10b35de39ca272d12702bafd3ffa30e44698dafc5deffd46e8b3acd54430467f",
+        "git_blob_sha": "b5ee0fdd5bfe82c73bd08d5718c71bbec49016c0"
+      },
+      "dims_w_h_d": {
+        "w": 1.55,
+        "h": 1.97,
+        "d": 1.28
+      },
+      "dimensions_basis": "existing approximate registry envelope; not actual-source or field verification",
+      "version": 1,
+      "supersedes": null,
+      "status": "LEGACY_GENERIC_VISUALIZATION",
+      "legacy_file": "/models/equipment/oil-filled-transformer.glb",
+      "variant_by_class": {}
+    },
+    {
+      "model_id": "stlib-ele-pad-mount-transformer-v1",
+      "serves_classes": [
+        "E-01"
+      ],
+      "tier": "hero",
+      "source": {
+        "type": "in-house",
+        "url": null
+      },
+      "license": "STRATUM-authored in-house generic visualization; NO OEM geometry or identity",
+      "file": {
+        "path": "/models/equipment/stlib-ele-pad-mount-transformer-v1.glb",
+        "sha256": "379f891c8613d55365cc7ef6149dc80aac526bc1a5ce9195b042189a7f80d48e",
+        "git_blob_sha": "6566bf67f118a082f8bac7c7f14484dd2e04f87b"
+      },
+      "dims_w_h_d": {
+        "w": 1.45,
+        "h": 1.54,
+        "d": 1.391
+      },
+      "dimensions_basis": "existing approximate registry envelope; not actual-source or field verification",
+      "version": 1,
+      "supersedes": null,
+      "status": "LEGACY_GENERIC_VISUALIZATION",
+      "legacy_file": "/models/equipment/pad-mount-transformer.glb",
+      "variant_by_class": {}
+    },
+    {
+      "model_id": "stlib-ele-panelboard-representative-v1",
+      "serves_classes": [],
+      "tier": "instanced",
+      "source": {
+        "type": "in-house",
+        "url": null
+      },
+      "license": "STRATUM-authored in-house generic visualization; NO OEM geometry or identity",
+      "file": {
+        "path": "/models/equipment/stlib-ele-panelboard-representative-v1.gltf",
+        "sha256": "4daba5134286dee42a5f693ec92921a2eb46841188879e4fe6ed6ffa014a86f7",
+        "git_blob_sha": "51955322e0e4b20f2a15c0494ba75c86e27948c0"
+      },
+      "dims_w_h_d": {
+        "w": 0.65,
+        "h": 1.2,
+        "d": 0.22
+      },
+      "dimensions_basis": "existing approximate registry envelope; not actual-source or field verification",
+      "version": 1,
+      "supersedes": null,
+      "status": "LEGACY_GENERIC_VISUALIZATION",
+      "legacy_file": "/models/equipment/panelboard-representative.gltf",
+      "variant_by_class": {}
+    },
+    {
+      "model_id": "stlib-ele-power-meter-standalone-v1",
+      "serves_classes": [],
+      "tier": "instanced",
+      "source": {
+        "type": "in-house",
+        "url": null
+      },
+      "license": "STRATUM-authored in-house generic visualization; NO OEM geometry or identity",
+      "file": {
+        "path": "/models/equipment/stlib-ele-power-meter-standalone-v1.gltf",
+        "sha256": "aaf290ed8e78f17a5ae060b9e654b9ca60518595f5e26955c34cf7d91965c86a",
+        "git_blob_sha": "52e0b7dd42c1d372e65be22019176ce9bd23b5fe"
+      },
+      "dims_w_h_d": {
+        "w": 0.24,
+        "h": 0.32,
+        "d": 0.14
+      },
+      "dimensions_basis": "existing approximate registry envelope; not actual-source or field verification",
+      "version": 1,
+      "supersedes": null,
+      "status": "LEGACY_GENERIC_VISUALIZATION",
+      "legacy_file": "/models/equipment/power-meter-representative.gltf",
+      "variant_by_class": {}
+    },
+    {
+      "model_id": "stlib-ele-pv-array-representative-v1",
+      "serves_classes": [],
+      "tier": "instanced",
+      "source": {
+        "type": "in-house",
+        "url": null
+      },
+      "license": "STRATUM-authored in-house generic visualization; NO OEM geometry or identity",
+      "file": {
+        "path": "/models/equipment/stlib-ele-pv-array-representative-v1.gltf",
+        "sha256": "5289aaca92d0c02960686bbcde284a13dbd689a82709d1bcd06aba93e0a620db",
+        "git_blob_sha": "6233228ec735f09aa871b3cad2e158e695d936c4"
+      },
+      "dims_w_h_d": {
+        "w": 3.4,
+        "h": 2.1,
+        "d": 2.1
+      },
+      "dimensions_basis": "existing approximate registry envelope; not actual-source or field verification",
+      "version": 1,
+      "supersedes": null,
+      "status": "LEGACY_GENERIC_VISUALIZATION",
+      "legacy_file": "/models/equipment/pv-array-representative.gltf",
+      "variant_by_class": {}
+    },
+    {
+      "model_id": "stlib-ele-ups-cabinet-v1",
+      "serves_classes": [
+        "E-16"
+      ],
+      "tier": "hero",
+      "source": {
+        "type": "in-house",
+        "url": null
+      },
+      "license": "STRATUM-authored in-house generic visualization; NO OEM geometry or identity",
+      "file": {
+        "path": "/models/equipment/stlib-ele-ups-cabinet-v1.glb",
+        "sha256": "0b28d952697d77ffff75e178fde45df3f6a4d7db902d73727860e68411a9aa10",
+        "git_blob_sha": "564346c7f8381481449fc23522d27e055ed7ba98"
+      },
+      "dims_w_h_d": {
+        "w": 0.96,
+        "h": 1.84,
+        "d": 0.793
+      },
+      "dimensions_basis": "existing approximate registry envelope; not actual-source or field verification",
+      "version": 1,
+      "supersedes": null,
+      "status": "LEGACY_GENERIC_VISUALIZATION",
+      "legacy_file": "/models/equipment/uninterruptible-power-supply.glb",
+      "variant_by_class": {}
+    },
+    {
+      "model_id": "stlib-ele-busway-tapoff-v1",
+      "serves_classes": [
+        "E-08"
+      ],
+      "tier": "hero",
+      "source": {
+        "type": "in-house",
+        "url": null
+      },
+      "license": "STRATUM-authored in-house generic visualization; NO OEM geometry or identity",
+      "file": {
+        "path": "/models/equipment/stlib-ele-busway-tapoff-v1.glb",
+        "sha256": "dfc5622a9e637eee82d1c32ff43e9d0438454409aa9dd874f62efc1a1457d93f",
+        "git_blob_sha": "35fb60e2a3cda3a099ebfbef6c4a5ae7e1286c8f"
+      },
+      "dims_w_h_d": {
+        "w": 3.05,
+        "h": 0.69,
+        "d": 0.405
+      },
+      "dimensions_basis": "A10 parametric nominal family envelope; variants may differ",
+      "version": 1,
+      "supersedes": null,
+      "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
+      "legacy_file": "/models/equipment/busway-tapoffs.glb",
+      "variant_by_class": {
+        "E-08": "E-08"
+      }
+    },
+    {
+      "model_id": "stlib-ele-tray-ladder-v1",
+      "serves_classes": [
+        "E-21",
+        "E-22",
+        "E-23",
+        "E-24"
+      ],
+      "tier": "hero",
+      "source": {
+        "type": "in-house",
+        "url": null
+      },
+      "license": "STRATUM-authored in-house generic visualization; NO OEM geometry or identity",
+      "file": {
+        "path": "/models/equipment/stlib-ele-tray-ladder-v1.glb",
+        "sha256": "f78d23026a5486a39fff0687d42ba5a06ee14a1b91796c89918be3ff0933f75b",
+        "git_blob_sha": "937dc2b92edd71115e1a924cfe7d442af11e71eb"
+      },
+      "dims_w_h_d": {
+        "w": 3.05,
+        "h": 0.1,
+        "d": 0.3
+      },
+      "dimensions_basis": "A10 parametric nominal family envelope; variants may differ",
+      "version": 1,
+      "supersedes": null,
+      "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
+      "legacy_file": "/models/equipment/cable-tray-family.glb",
+      "variant_by_class": {
+        "E-21": "E-21",
+        "E-22": "E-22-ELBOW",
+        "E-23": "E-23",
+        "E-24": "E-24"
+      }
+    },
+    {
+      "model_id": "stlib-ele-ceiling-device-v1",
+      "serves_classes": [
+        "E-40",
+        "E-41",
+        "E-46",
+        "E-47",
+        "E-59",
+        "E-60"
+      ],
+      "tier": "instanced",
+      "source": {
+        "type": "in-house",
+        "url": null
+      },
+      "license": "STRATUM-authored in-house generic visualization; NO OEM geometry or identity",
+      "file": {
+        "path": "/models/equipment/stlib-ele-ceiling-device-v1.glb",
+        "sha256": "449dba52622e1276fc47bf1bc6aeb1c8898e95d5c6ac2b3d20fed98ad0d137a4",
+        "git_blob_sha": "4bdc29ffe1a9dfceae026fd8241512d757b2c9ad"
+      },
+      "dims_w_h_d": {
+        "w": 0.2,
+        "h": 0.1,
+        "d": 0.2
+      },
+      "dimensions_basis": "A10 parametric nominal family envelope; variants may differ",
+      "version": 1,
+      "supersedes": null,
+      "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
+      "legacy_file": "/models/equipment/ceiling-device-puck.glb",
+      "variant_by_class": {
+        "E-40": "E-40",
+        "E-41": "E-41",
+        "E-46": "E-46",
+        "E-47": "E-47",
+        "E-59": "E-59",
+        "E-60": "E-60"
+      }
+    },
+    {
+      "model_id": "stlib-ele-disconnect-enclosure-v1",
+      "serves_classes": [
+        "E-11",
+        "E-12"
+      ],
+      "tier": "hero",
+      "source": {
+        "type": "in-house",
+        "url": null
+      },
+      "license": "STRATUM-authored in-house generic visualization; NO OEM geometry or identity",
+      "file": {
+        "path": "/models/equipment/stlib-ele-disconnect-enclosure-v1.glb",
+        "sha256": "332096c27db5d5d4d239bc64f0e7eff3f6a662742c5ec7697efc8894bbec7bb1",
+        "git_blob_sha": "9f7e111779705d9bb4b57ee7068ce3cd29022c7a"
+      },
+      "dims_w_h_d": {
+        "w": 0.3,
+        "h": 0.76,
+        "d": 0.18
+      },
+      "dimensions_basis": "A10 parametric nominal family envelope; variants may differ",
+      "version": 1,
+      "supersedes": null,
+      "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
+      "legacy_file": "/models/equipment/disconnect-breaker-generic.glb",
+      "variant_by_class": {
+        "E-11": "E-11",
+        "E-12": "E-12"
+      }
+    },
+    {
+      "model_id": "stlib-ele-fire-alarm-control-panel-v1",
+      "serves_classes": [
+        "E-58"
+      ],
+      "tier": "hero",
+      "source": {
+        "type": "in-house",
+        "url": null
+      },
+      "license": "STRATUM-authored in-house generic visualization; NO OEM geometry or identity",
+      "file": {
+        "path": "/models/equipment/stlib-ele-fire-alarm-control-panel-v1.glb",
+        "sha256": "d9a7db0285f3346e263140da343e625bef840163761d4d952dbba7d2c615c3e9",
+        "git_blob_sha": "ea199b50eba77f2da50d70ca3b7a75bbbdf74a2a"
+      },
+      "dims_w_h_d": {
+        "w": 0.5,
+        "h": 0.6,
+        "d": 0.15
+      },
+      "dimensions_basis": "A10 parametric nominal family envelope; variants may differ",
+      "version": 1,
+      "supersedes": null,
+      "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
+      "legacy_file": "/models/equipment/fire-alarm-control-panel.glb",
+      "variant_by_class": {
+        "E-58": "E-58"
+      }
+    },
+    {
+      "model_id": "stlib-ele-luminaire-family-v1",
+      "serves_classes": [
+        "E-49",
+        "E-50",
+        "E-51"
+      ],
+      "tier": "hero",
+      "source": {
+        "type": "in-house",
+        "url": null
+      },
+      "license": "STRATUM-authored in-house generic visualization; NO OEM geometry or identity",
+      "file": {
+        "path": "/models/equipment/stlib-ele-luminaire-family-v1.glb",
+        "sha256": "e96128d8457070ca536d6f9f4ca4249cdf4a4de437f00b045fe3ddde43bcd05b",
+        "git_blob_sha": "e125f5a2dc846f80f06717916535d27a002c58c6"
+      },
+      "dims_w_h_d": {
+        "w": 1.22,
+        "h": 0.09,
+        "d": 0.61
+      },
+      "dimensions_basis": "A10 parametric nominal family envelope; variants may differ",
+      "version": 1,
+      "supersedes": null,
+      "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
+      "legacy_file": "/models/equipment/luminaire-family.glb",
+      "variant_by_class": {
+        "E-49": "E-49",
+        "E-50": "E-50",
+        "E-51": "E-51"
+      }
+    },
+    {
+      "model_id": "stlib-ele-lv-switchgear-lineup-v1",
+      "serves_classes": [
+        "E-03"
+      ],
+      "tier": "hero",
+      "source": {
+        "type": "in-house",
+        "url": null
+      },
+      "license": "STRATUM-authored in-house generic visualization; NO OEM geometry or identity",
+      "file": {
+        "path": "/models/equipment/stlib-ele-lv-switchgear-lineup-v1.glb",
+        "sha256": "058c557b1df8a863501d76be7a9f05ba90cd9f403f7e12ecd3bf3abd753b6150",
+        "git_blob_sha": "580e62593a97d5dee75df22147d1fb9873f0bfba"
+      },
+      "dims_w_h_d": {
+        "w": 2.7,
+        "h": 2.3,
+        "d": 1
+      },
+      "dimensions_basis": "A10 parametric nominal family envelope; variants may differ",
+      "version": 1,
+      "supersedes": null,
+      "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
+      "legacy_file": "/models/equipment/lv-switchgear-lineup.glb",
+      "variant_by_class": {
+        "E-03": "E-03"
+      }
+    },
+    {
+      "model_id": "stlib-ele-meter-ct-cabinet-v1",
+      "serves_classes": [
+        "E-10",
+        "E-27"
+      ],
+      "tier": "hero",
+      "source": {
+        "type": "in-house",
+        "url": null
+      },
+      "license": "STRATUM-authored in-house generic visualization; NO OEM geometry or identity",
+      "file": {
+        "path": "/models/equipment/stlib-ele-meter-ct-cabinet-v1.glb",
+        "sha256": "2cd008c760e3cdd256a7418614081e36a899611ab0c1307c1469cc7362b01e05",
+        "git_blob_sha": "73062e72d85c21e54455f6bfb67e8bc65ddb854b"
+      },
+      "dims_w_h_d": {
+        "w": 0.96,
+        "h": 0.91,
+        "d": 0.25
+      },
+      "dimensions_basis": "A10 parametric nominal family envelope; variants may differ",
+      "version": 1,
+      "supersedes": null,
+      "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
+      "legacy_file": "/models/equipment/meter-ct-cabinet.glb",
+      "variant_by_class": {
+        "E-10": "E-10",
+        "E-27": "E-27"
+      }
+    },
+    {
+      "model_id": "stlib-ele-mv-switchgear-lineup-v1",
+      "serves_classes": [
+        "E-02"
+      ],
+      "tier": "hero",
+      "source": {
+        "type": "in-house",
+        "url": null
+      },
+      "license": "STRATUM-authored in-house generic visualization; NO OEM geometry or identity",
+      "file": {
+        "path": "/models/equipment/stlib-ele-mv-switchgear-lineup-v1.glb",
+        "sha256": "ece1d756b429895c0db278668545018f04c9c1e7574406190830ed31e59439dd",
+        "git_blob_sha": "5726d9f5a64b957f031f815f64765563864aed88"
+      },
+      "dims_w_h_d": {
+        "w": 2.7,
+        "h": 2.4,
+        "d": 2.3
+      },
+      "dimensions_basis": "A10 parametric nominal family envelope; variants may differ",
+      "version": 1,
+      "supersedes": null,
+      "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
+      "legacy_file": "/models/equipment/mv-switchgear-lineup.glb",
+      "variant_by_class": {
+        "E-02": "E-02"
+      }
+    },
+    {
+      "model_id": "stlib-ele-panelboard-surface-v1",
+      "serves_classes": [
+        "E-05",
+        "E-06",
+        "E-42"
+      ],
+      "tier": "hero",
+      "source": {
+        "type": "in-house",
+        "url": null
+      },
+      "license": "STRATUM-authored in-house generic visualization; NO OEM geometry or identity",
+      "file": {
+        "path": "/models/equipment/stlib-ele-panelboard-surface-v1.glb",
+        "sha256": "d5cafc236393ec444bc25b8ffb197624f8b217d9ad7adf50f6c7cdee139b01cb",
+        "git_blob_sha": "bc856a21fad5a5b6096cde93427e6e7652f56afe"
+      },
+      "dims_w_h_d": {
+        "w": 0.51,
+        "h": 1.22,
+        "d": 0.15
+      },
+      "dimensions_basis": "A10 parametric nominal family envelope; variants may differ",
+      "version": 1,
+      "supersedes": null,
+      "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
+      "legacy_file": "/models/equipment/panelboard-full.glb",
+      "variant_by_class": {
+        "E-05": "E-05",
+        "E-06": "E-06",
+        "E-42": "E-42"
+      }
+    },
+    {
+      "model_id": "stlib-ele-vfd-starter-v1",
+      "serves_classes": [
+        "E-19"
+      ],
+      "tier": "hero",
+      "source": {
+        "type": "in-house",
+        "url": null
+      },
+      "license": "STRATUM-authored in-house generic visualization; NO OEM geometry or identity",
+      "file": {
+        "path": "/models/equipment/stlib-ele-vfd-starter-v1.glb",
+        "sha256": "a6e9398feb1665163c1c006596cbad8336c3f65d9dcb480c83a996aa156ce2bd",
+        "git_blob_sha": "5f388836def4f4cd91ae106a5ee48d09db8036bf"
+      },
+      "dims_w_h_d": {
+        "w": 0.4,
+        "h": 0.8,
+        "d": 0.3
+      },
+      "dimensions_basis": "A10 parametric nominal family envelope; variants may differ",
+      "version": 1,
+      "supersedes": null,
+      "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
+      "legacy_file": "/models/equipment/vfd-starter.glb",
+      "variant_by_class": {
+        "E-19": "E-19"
+      }
+    },
+    {
+      "model_id": "stlib-ele-wall-device-plate-v1",
+      "serves_classes": [
+        "E-34",
+        "E-35",
+        "E-36",
+        "E-38",
+        "E-39",
+        "E-44",
+        "E-48"
+      ],
+      "tier": "instanced",
+      "source": {
+        "type": "in-house",
+        "url": null
+      },
+      "license": "STRATUM-authored in-house generic visualization; NO OEM geometry or identity",
+      "file": {
+        "path": "/models/equipment/stlib-ele-wall-device-plate-v1.glb",
+        "sha256": "5d747a731c9fac9e339e027eaa62300a61a5c18ea29ad3c61297be5d19bc5c80",
+        "git_blob_sha": "ca2caa22d273c34e3784571d264fefcc6bf65959"
+      },
+      "dims_w_h_d": {
+        "w": 0.07,
+        "h": 0.115,
+        "d": 0.02
+      },
+      "dimensions_basis": "A10 parametric nominal family envelope; variants may differ",
+      "version": 1,
+      "supersedes": null,
+      "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
+      "legacy_file": "/models/equipment/wall-device-plate.glb",
+      "variant_by_class": {
+        "E-34": "E-34",
+        "E-35": "E-35",
+        "E-36": "E-36",
+        "E-38": "E-38",
+        "E-39": "E-39",
+        "E-44": "E-44",
+        "E-48": "E-48"
+      }
+    }
+  ]
+}

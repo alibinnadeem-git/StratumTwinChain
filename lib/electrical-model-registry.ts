@@ -1,10 +1,13 @@
 import {ACTIVATED_OEM_MODELS} from './oem-activated-models.ts';
 import {ELECTRICAL_COMPONENTS} from './electrical-component-library.ts';
 import {OEM_SOURCES} from './oem-source-catalog.ts';
+import {genericModelIdForPath} from './spatial-3d-model-registry.ts';
 
 export type ElectricalModelFormat='GLB'|'GLTF'|'USD'|'USDZ';
 export type ElectricalModelConfig={
   componentKey:string;
+  /** Immutable generic model identity; null for unsupported/OEM-specific URLs. */
+  modelId?:string|null;
   /** Relevant manufacturer research records. An association is not an OEM model license. */
   oemSourceIds?:string[];
   format:ElectricalModelFormat;
@@ -117,7 +120,7 @@ export const DEFAULT_ELECTRICAL_MODEL_REGISTRY:ElectricalModelConfig[]=ELECTRICA
   notes:'',
   ...(REPRESENTATIVE_FAMILY_DEFAULTS[component.key]||{}),
   ...(PRODUCTION_MODEL_DEFAULTS[component.key]||{}),
-}));
+})).map(entry=>({...entry,modelId:genericModelIdForPath(entry.modelUrl)}));
 
 function tuple(value:unknown):[number,number,number]{
   return Array.isArray(value)&&value.length===3?[Number(value[0])||0,Number(value[1])||0,Number(value[2])||0]:[0,0,0];
@@ -143,6 +146,7 @@ export function normalizeElectricalModelRegistry(input:unknown):ElectricalModelC
       ...base,
       format:['GLB','GLTF','USD','USDZ'].includes(value.format)?value.format:base.format,
       modelUrl:typeof value.modelUrl==='string'?value.modelUrl:base.modelUrl,
+      modelId:genericModelIdForPath(typeof value.modelUrl==='string'?value.modelUrl:base.modelUrl),
       scale:Number(value.scale)>0?Number(value.scale):base.scale,
       rotation:tuple(value.rotation),
       offset:tuple(value.offset),
