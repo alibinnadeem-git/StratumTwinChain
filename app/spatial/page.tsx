@@ -1,3 +1,4 @@
+import {assertDemoReadOnlyStartup} from '@/lib/server/preview-demo-startup';
 import SpatialExperience from '@/components/SpatialExperience';
 import SpatialProjectionEngine from '@/components/SpatialProjectionEngine';
 import SpatialReviewQueue from '@/components/SpatialReviewQueue';
@@ -13,8 +14,18 @@ import {liveAssets} from '@/lib/server/live-views';
 import {readSession} from '@/lib/server/auth';
 
 export const dynamic='force-dynamic';
+export const metadata={robots:{index:false,follow:false}};
 
 export default async function SpatialPage(){
+ // A demo preview never hydrates tenant assets or talks to a preview-configured DB.
+ // The real PDF upload/compiler route remains separately available in browser mode.
+ if(process.env.VERCEL_ENV==='preview'){
+  assertDemoReadOnlyStartup(process.env);
+  return <section aria-label="Preview-only synthetic spatial demonstration">
+   <SpatialExperience assets={[]} authenticated={false} previewDemoEnabled={true}/>
+  </section>;
+ }
+
  const session=await readSession();
  let assets:RegisteredSpatialAsset[]=[];let backendOnline=true;
  if(session)try{

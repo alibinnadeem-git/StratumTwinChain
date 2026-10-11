@@ -685,6 +685,14 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
 
     <div className="compiled-twin-grid" style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) minmax(270px,340px)"}}>
       <div className="spatial-viewer-stage" style={{position:"relative",minHeight:520,background:"#041019"}}>
+        {demoMode&&<div aria-label="DEMO watermark" style={{position:"absolute",top:14,left:14,zIndex:50,
+          pointerEvents:"none",border:"1px solid #f0a96c",borderRadius:8,background:"rgba(67,25,19,.84)",
+          color:"#ffe2b1",fontWeight:900,letterSpacing:".12em",padding:"7px 12px"}}>
+          DEMO · SYNTHETIC · NOT A PROJECT
+        </div>}
+        {demoMode&&<div role="note" aria-label="Demo placement legend" style={{position:"absolute",bottom:14,left:14,zIndex:50,
+          pointerEvents:"none",color:"#ffeccd",background:"rgba(9,21,35,.94)",padding:"9px 12px",borderRadius:8,
+          fontSize:12}}>DEMO LIBRARY MODELS · teal: synthetic note · amber: Z proposal · blue: Z unresolved</div>}
         {mode==="ELECTRICAL"&&sldObjects===0&&<div className="spatial-electrical-empty" role="status"><strong>No SLD topology in this project yet</strong><span>Import an SLD to populate Electrical. Your selected object remains available in the inspector.</span><div className="notice" style={{margin:'10px 0 0'}}><strong>REFERENCE EXAMPLE · NOT PROJECT DATA</strong><span>Utility / service → transformer → main switchboard → panel / feeder → connected load. Logical depth is not physical Z.</span></div><Link className="ghost" href="/docs#sld-example" style={{display:'inline-block',marginTop:10}}>Open bundled SLD example</Link></div>}
         {labels&&mode!=="ELECTRICAL"&&reviewPins.length>0&&<div className="spatial-pin-list" aria-label="Review pin labels"><strong>Review pins · {reviewPins.length}</strong>{reviewPins.map((item,index)=><button key={item.id} type="button" className={selected?.id===item.id?'active':''} onClick={()=>setSelected(item)} title={`Select ${item.name}`}><span>{index+1}. {item.name}</span><small>{physicalElevationKnown(item)?'Z reviewed':'Z unverified'}</small></button>)}</div>}
         {renderStatus!=="FALLBACK"&&<div ref={mount} style={{height:"100%",minHeight:520}}/>}

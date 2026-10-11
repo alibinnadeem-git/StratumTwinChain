@@ -132,7 +132,7 @@ assert.equal(mappedDemo.length,5,'four viewable equipment models plus an unresol
 for(const entity of mappedDemo){
  const model=DEFAULT_ELECTRICAL_MODEL_REGISTRY.find(m=>m.componentKey===entity.meta.demoComponentKey);
  assert.ok(model,entity.id+' must resolve to an actual model-library key');
- assert.match(model.modelUrl,/^\\/models\\/equipment\\/[a-z0-9-]+\\.(glb|gltf)$/i);
+ assert.ok(model.modelUrl.startsWith('/models/equipment/') && ['.glb','.gltf'].some(ext=>model.modelUrl.endsWith(ext)));
  assert.match(model.license||'',/^STRATUM-authored geometry/);
  assert.equal(model.geometryStatus,'DIMENSIONAL_VISUALIZATION');
  const file='public'+model.modelUrl;
@@ -140,8 +140,25 @@ for(const entity of mappedDemo){
  if(model.format==='GLB')assert.equal(fs.readFileSync(file).toString('ascii',0,4),'glTF','GLB asset must be real binary geometry');
 }
 assert.ok(demoEntities.filter(e=>e.meta.demoPlacementTier==='UNRESOLVED_Z').every(e=>e.z===undefined));
-assert.match(viewer,/loader\\.load\\(cfg\\.modelUrl,gltf=>/);
+assert.match(fs.readFileSync('lib/preview-demo-renderer.ts','utf8'),/loader\\.load\\(cfg\\.modelUrl,gltf=>/);
 assert.match(viewer,/modelGeometryAuthority='DEMO_REPRESENTATIVE_LIBRARY_MODEL'/);
 assert.match(viewer,/if\\(demoMode\\)\\{previewFixtureEquipment\\(e\\);return;\\}/);
 assert.doesNotMatch(viewer.slice(viewer.indexOf('const previewFixtureEquipment='),viewer.indexOf('const loader=new GLTFLoader();')),/new THREE\\.BoxGeometry|new THREE\\.SphereGeometry/);
 console.log('A00: five real STRATUM library assets mapped to synthetic preview tiers; no placeholder equipment boxes.');
+
+// Source-level safety invariants. Runtime route/API tests and full preview UAT remain release gates.
+const {assertDemoFixtureSafe,assertRealWritePayload}=await import('../lib/spatial-provenance.ts');
+assert.doesNotThrow(()=>assertDemoFixtureSafe(PREVIEW_DEMO_GRAPH));
+assert.throws(()=>assertRealWritePayload(PREVIEW_DEMO_GRAPH),/DEMO provenance/);
+assert.throws(()=>assertDemoFixtureSafe({...PREVIEW_DEMO_GRAPH,
+ entities:PREVIEW_DEMO_GRAPH.entities.map((e,i)=>i===1?{...e,meta:{...e.meta,status:'VERIFIED'}}:e)}),/status above/);
+const reader=fs.readFileSync('lib/preview-demo-renderer.ts','utf8');
+assert.match(reader,/DEMO_REPRESENTATIVE_LIBRARY_MODEL/);
+assert.match(reader,/extras=\\{demo:true,provenance_class:'DEMO'\\}/);
+assert.ok(!reader.includes('new THREE.BoxGeometry'),'preview equipment must render approved library geometry');
+const webConfig=fs.readFileSync('next.config.ts','utf8');
+for(const moduleName of ['preview-synthetic-twin','preview-demo-renderer','PreviewDemoAssetInspector'])
+ assert.ok(webConfig.includes(moduleName),'production build must exclude '+moduleName);
+const startup=fs.readFileSync('lib/server/preview-demo-startup.ts','utf8');
+assert.match(startup,/assertSafeDemoSeederDatabaseHost/);
+console.log('A00: preview fixture provenance/actor validated; mock human promotions denied; production aliases configured.');

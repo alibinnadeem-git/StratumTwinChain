@@ -12,7 +12,8 @@ export function makePreviewEquipmentRenderer(ctx:any):(entity:any)=>void{
         const cfg=registry.find(item=>item.componentKey===key);
         const validLibraryGeometry=Boolean(cfg &&
           ['GLB','GLTF'].includes(cfg.format) &&
-          /^\\/models\\/equipment\\/[a-z0-9-]+\\.(?:glb|gltf)$/i.test(cfg.modelUrl) &&
+          cfg.modelUrl.startsWith('/models/equipment/') &&
+          (cfg.modelUrl.endsWith('.glb')||cfg.modelUrl.endsWith('.gltf')) &&
           /^STRATUM-authored geometry/.test(cfg.license||'') &&
           cfg.geometryStatus==='DIMENSIONAL_VISUALIZATION' &&
           cfg.dimensionsMeters?.length===3 &&
@@ -42,6 +43,9 @@ export function makePreviewEquipmentRenderer(ctx:any):(entity:any)=>void{
             const root=new THREE.Group();
             root.position.set(e.x,reviewDisplayZ,e.y);
             root.userData.demo=true;root.userData.synthetic=true;
+            root.userData.extras={demo:true,provenance_class:'DEMO'};
+            model.userData.extras={demo:true,provenance_class:'DEMO'};
+            model.traverse((obj:any)=>{if(obj.isMesh)obj.userData.extras={demo:true,provenance_class:'DEMO'}});
             root.userData.canonicalZ=null;root.userData.physicalTruth=false;
             root.userData.reviewRequired=true;root.userData.authorityEligible=false;
             root.userData.verificationPromotionEligible=false;

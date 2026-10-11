@@ -1,3 +1,4 @@
+import {assertDemoFixtureSafe} from './spatial-provenance';
 /**
  * Explicitly synthetic, display-only input for the Vercel preview Spatial viewer.
  * Never feed this fixture to browser recovery, source vault, asset APIs, approval,
@@ -51,7 +52,7 @@ const entities=[
  asset('XFMR-01','Pad-mount Transformer',8.5,4.5,'STATED_Z',.25,{demoComponentKey:'pad-mount-transformer',sourceElevationNote:'DEMO E-101: BASE AT +0.25 m'}),
  asset('UPS-01','UPS Cabinet',12,5,'DERIVED_Z_CANDIDATE',.18,{demoComponentKey:'ups'}),
  asset('ATS-01','Automatic Transfer Switch',15,7.5,'DERIVED_Z_CANDIDATE',1.2,{demoComponentKey:'ats'}),
- asset('PANEL-01','Panelboard',5,10,'UNRESOLVED_Z',undefined,{location_state:'known',demoComponentKey:'panelboard'}),
+ asset('PANEL-01','Panelboard',5,10,'UNRESOLVED_Z',undefined,{location_state:'approximate',demoComponentKey:'panelboard'}),
  asset('SHEET-PIN-01','Unknown Device · source sheet pin',14,10,'UNRESOLVED_Z',undefined,{
   kind:'sheet-callout-candidate',coordinateUnits:'sheet',location_state:'unknown',
   reason_codes:['SCALE_UNKNOWN','LOCATION_AMBIGUOUS','Z_NOT_STATED'],
@@ -62,7 +63,8 @@ const room={
  id:'demo_room',source,provenance_class:'DEMO' as const,project_id:'demo',twin_id:demoTwinId,actor:'system:demo-seed',layer:'L1' as const,kind:'room-boundary',
  name:'DEMO · Electrical Room outline',x:1,y:2,floor:'DEMO E-101',confidence:1,
  vertices:[{x:1,y:2},{x:18,y:2},{x:18,y:12},{x:1,y:12}],
- meta:{...baseMeta,sourceGeometry:true,verified:false}
+ meta:{...baseMeta,sourceGeometry:true,verified:false,
+ evidence:[evidence('DEMO E-101','Synthetic electrical room boundary; not real project geometry')]}
 };
 export const PREVIEW_DEMO_GRAPH={
  version:'DEMO-SYNTHETIC-ONLY-v1',createdAt:'2026-10-10T00:00:00.000Z',
@@ -75,3 +77,5 @@ export function isPreviewDemoEntity(value:unknown):boolean{
  const e=value as {id?:string;meta?:Record<string,unknown>}|null;
  return Boolean(e&&e.id?.startsWith('demo_')&&e.meta?.provenance_class==='DEMO'&&e.meta?.synthetic===true);
 }
+
+assertDemoFixtureSafe(PREVIEW_DEMO_GRAPH);

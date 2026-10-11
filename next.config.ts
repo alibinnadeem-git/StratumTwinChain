@@ -5,6 +5,7 @@ const nextConfig:NextConfig={
  reactStrictMode:true,
  webpack(config){
   if(process.env.VERCEL_ENV!=='preview'){
+   config.resolve ??= {};
    config.resolve.alias={
     ...config.resolve.alias,
     '@/lib/preview-synthetic-twin$':path.resolve(process.cwd(),'lib/preview-disabled-fixture.ts'),
