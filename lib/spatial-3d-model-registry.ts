@@ -1,4 +1,4 @@
-import records from './spatial-3d-model-registry.v1.json';
+import records from './spatial-3d-model-registry.v1.json' with {type:'json'};
 export type GenericSource={type:'in-house'|'procedural'|'cc0';url:string|null};
 export type Generic3dModel={model_id:string;serves_classes:string[];tier:'hero'|'instanced';
  source:GenericSource;license:string;file:{path:string;sha256:string;git_blob_sha:string};
@@ -16,7 +16,7 @@ export function validateLicensedOemModel(model:LicensedOemModel):boolean{
   !Number.isNaN(Date.parse(model.license_expiry))&&
   /^\/models\/oem\//.test(model.file.path)&&/^[0-9a-f]{64}$/.test(model.file.sha256);
 }
-export const SPATIAL_GENERIC_3D_MODELS=records.models as Generic3dModel[];
+export const SPATIAL_GENERIC_3D_MODELS=records.models as unknown as Generic3dModel[];
 export const GENERIC_3D_MODEL_BY_ID=new Map(SPATIAL_GENERIC_3D_MODELS.map(m=>[m.model_id,m]));
 export const GENERIC_3D_MODEL_BY_CLASS=new Map(SPATIAL_GENERIC_3D_MODELS.flatMap(m=>m.serves_classes.map(c=>[c,m] as const)));
 const byPath=new Map(SPATIAL_GENERIC_3D_MODELS.flatMap(m=>[[m.file.path,m.model_id],[m.legacy_file,m.model_id]] as const));
