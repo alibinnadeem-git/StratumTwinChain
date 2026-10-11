@@ -25,7 +25,7 @@
     "qa:source-browser-archive": "node --experimental-strip-types scripts/qa-source-browser-archive.mjs",
     "qa:source-layer": "node --experimental-strip-types scripts/qa-spatial-source-layer.mjs",
     "qa:project-source-vault": "node --experimental-strip-types scripts/qa-project-source-vault.mjs",
-    "qa:oem-cad-registry": "node --experimental-strip-types scripts/qa-oem-cad-registry.mjs && node --experimental-strip-types scripts/qa-electrical-3d-model-queue.mjs",
+    "qa:oem-cad-registry": "node --experimental-strip-types scripts/qa-oem-cad-registry.mjs && node --experimental-strip-types scripts/qa-electrical-3d-model-queue.mjs && node --experimental-strip-types scripts/qa-electrical-reference-eight.mjs",
     "qa:oem-cad-verification": "node --experimental-strip-types scripts/qa-oem-cad-verification.mjs",
     "qa:power-intelligence": "node --experimental-strip-types scripts/qa-power-intelligence.mjs",
     "qa:equipment-schedule": "node --experimental-strip-types scripts/qa-equipment-schedule.mjs",
