@@ -21,7 +21,7 @@ function routeExists(href){
  // Standalone browser-rescue HTML is intentionally served from /public without
  // loading the App Router or graph hydration. Validate the actual static file.
  const assetRoot=path.resolve(root,'public');
- const assetPath=path.resolve(assetRoot,clean.replace(/^\\/+/,'')); 
+ const assetPath=path.resolve(assetRoot,clean.startsWith('/')?clean.slice(1):clean);
  const publicAsset=assetPath.startsWith(assetRoot+path.sep)&&fs.existsSync(assetPath)&&fs.statSync(assetPath).isFile();
  return publicAsset||routePatterns.some(r=>r.re.test(clean));
 }
