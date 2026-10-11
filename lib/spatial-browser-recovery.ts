@@ -84,7 +84,7 @@ export function readCurrentSpatialGraph(storage:Storage=localStorage){
   return parseSpatialGraph(storage.getItem(SPATIAL_GRAPH_KEY));
 }
 
-export async function readIndexedCurrentSpatialGraph(){
+export async function readIndexedCurrentSpatialGraph():Promise<SpatialGraphLike|null>{
   try{
     const chunked=await getChunkedGraph(PRIMARY_KEY);
     if(chunked)return chunked;
@@ -94,9 +94,11 @@ export async function readIndexedCurrentSpatialGraph(){
 
 const recoveryTick=()=>new Promise<void>(resolve=>setTimeout(resolve,25));
 
-export async function readPrimarySpatialGraph(storage:Storage=localStorage){
+export async function readPrimarySpatialGraph(storage:Storage=localStorage):Promise<SpatialGraphLike|null>{
   let indexed=await readIndexedCurrentSpatialGraph();
-  // Chunked or IndexedDB current is authoritative; do not synchronously parse a\n  // large legacy localStorage shadow when already hydrated from durable IDB.\n  const shadow=indexed?null:readCurrentSpatialGraph(storage);
+  // Chunked or IndexedDB current is authoritative: never parse a large
+  // compatibility shadow when durable IDB already contains the graph.
+  const shadow=indexed?null:readCurrentSpatialGraph(storage);
   // A navigation can begin while IndexedDB is finishing a prior transaction/open.
   // Retry briefly before trusting the compatibility shadow so authority cannot move backward.
   if(!indexed&&shadow){

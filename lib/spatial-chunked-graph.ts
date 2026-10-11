@@ -94,6 +94,6 @@ export async function getChunkedGraph(key:string,onProgress?:(loaded:number,tota
   }
   if(entities.length!==head.entityCount||links.length!==head.linkCount)
    throw new Error('Chunked graph item count mismatch; refusing incomplete revision');
-  return {...head.rest,entities,links};
+  return {...head.rest,entities,links} as SpatialGraphLike;
  }finally{db.close()}
 }
