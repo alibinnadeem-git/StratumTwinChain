@@ -6,7 +6,7 @@ assert.match(src,/CHUNKED_GRAPH_THRESHOLD=10_000/);
 assert.match(src,/CHUNKED_GRAPH_BATCH=256/);
 assert.match(src,/await yieldUi\(\)/);
 assert.match(src,/await putValue\(db,HEADS,key,head\)/);
-const writer=src.slice(src.indexOf('export async function putChunkedGraph'),src.indexOf('export async function getChunkedGraph'));
+const writer=src.slice(src.indexOf('export async function putChunkedGraph'),src.indexOf('export async function getChunkedGraph(key:string'));
 assert.ok(writer.indexOf('await putValue(db,HEADS,key,head)')>writer.indexOf('await putValue(db,CHUNKS'));
 assert.match(src,/Incomplete chunked graph/);
 assert.match(recovery,/await putChunkedGraph\(PRIMARY_KEY,graph\)/);
