@@ -1,0 +1,227 @@
+[
+  {
+    "name": "panelboard-full",
+    "uri": "/models/equipment/panelboard-full.glb",
+    "gitBlobSha": "bc856a21fad5a5b6096cde93427e6e7652f56afe",
+    "sizeBytes": 46884,
+    "triangles": 648,
+    "materials": 3,
+    "variants": [
+      "E-05",
+      "E-06",
+      "E-42"
+    ],
+    "mount": "wall_back_face",
+    "geometryAuthority": "VISUALIZATION_ONLY",
+    "tier": "T1",
+    "licence": "STRATUM_IN_HOUSE_GENERIC",
+    "intakeStatus": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
+    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md"
+  },
+  {
+    "name": "lv-switchgear-lineup",
+    "uri": "/models/equipment/lv-switchgear-lineup.glb",
+    "gitBlobSha": "580e62593a97d5dee75df22147d1fb9873f0bfba",
+    "sizeBytes": 54584,
+    "triangles": 888,
+    "materials": 4,
+    "variants": [
+      "E-03"
+    ],
+    "mount": "floor_center",
+    "geometryAuthority": "VISUALIZATION_ONLY",
+    "tier": "T1",
+    "licence": "STRATUM_IN_HOUSE_GENERIC",
+    "intakeStatus": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
+    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md"
+  },
+  {
+    "name": "mv-switchgear-lineup",
+    "uri": "/models/equipment/mv-switchgear-lineup.glb",
+    "gitBlobSha": "5726d9f5a64b957f031f815f64765563864aed88",
+    "sizeBytes": 35344,
+    "triangles": 564,
+    "materials": 4,
+    "variants": [
+      "E-02"
+    ],
+    "mount": "floor_center",
+    "geometryAuthority": "VISUALIZATION_ONLY",
+    "tier": "T1",
+    "licence": "STRATUM_IN_HOUSE_GENERIC",
+    "intakeStatus": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
+    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md"
+  },
+  {
+    "name": "disconnect-breaker-generic",
+    "uri": "/models/equipment/disconnect-breaker-generic.glb",
+    "gitBlobSha": "9f7e111779705d9bb4b57ee7068ce3cd29022c7a",
+    "sizeBytes": 21760,
+    "triangles": 216,
+    "materials": 4,
+    "variants": [
+      "E-11",
+      "E-12"
+    ],
+    "mount": "wall_back_face",
+    "geometryAuthority": "VISUALIZATION_ONLY",
+    "tier": "T1",
+    "licence": "STRATUM_IN_HOUSE_GENERIC",
+    "intakeStatus": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
+    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md"
+  },
+  {
+    "name": "cable-tray-family",
+    "uri": "/models/equipment/cable-tray-family.glb",
+    "gitBlobSha": "937dc2b92edd71115e1a924cfe7d442af11e71eb",
+    "sizeBytes": 58752,
+    "triangles": 900,
+    "materials": 2,
+    "variants": [
+      "E-21",
+      "E-22-ELBOW",
+      "E-22-TEE",
+      "E-23",
+      "E-24"
+    ],
+    "mount": "ceiling_plane",
+    "geometryAuthority": "VISUALIZATION_ONLY",
+    "tier": "T1",
+    "licence": "STRATUM_IN_HOUSE_GENERIC",
+    "intakeStatus": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
+    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md"
+  },
+  {
+    "name": "vfd-starter",
+    "uri": "/models/equipment/vfd-starter.glb",
+    "gitBlobSha": "5f388836def4f4cd91ae106a5ee48d09db8036bf",
+    "sizeBytes": 22328,
+    "triangles": 324,
+    "materials": 4,
+    "variants": [
+      "E-19"
+    ],
+    "mount": "wall_back_face",
+    "geometryAuthority": "VISUALIZATION_ONLY",
+    "tier": "T1",
+    "licence": "STRATUM_IN_HOUSE_GENERIC",
+    "intakeStatus": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
+    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md"
+  },
+  {
+    "name": "meter-ct-cabinet",
+    "uri": "/models/equipment/meter-ct-cabinet.glb",
+    "gitBlobSha": "73062e72d85c21e54455f6bfb67e8bc65ddb854b",
+    "sizeBytes": 25760,
+    "triangles": 312,
+    "materials": 4,
+    "variants": [
+      "E-10",
+      "E-27"
+    ],
+    "mount": "wall_back_face",
+    "geometryAuthority": "VISUALIZATION_ONLY",
+    "tier": "T1",
+    "licence": "STRATUM_IN_HOUSE_GENERIC",
+    "intakeStatus": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
+    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md"
+  },
+  {
+    "name": "luminaire-family",
+    "uri": "/models/equipment/luminaire-family.glb",
+    "gitBlobSha": "e125f5a2dc846f80f06717916535d27a002c58c6",
+    "sizeBytes": 16228,
+    "triangles": 168,
+    "materials": 3,
+    "variants": [
+      "E-49",
+      "E-50",
+      "E-51"
+    ],
+    "mount": "ceiling_plane",
+    "geometryAuthority": "VISUALIZATION_ONLY",
+    "tier": "T1",
+    "licence": "STRATUM_IN_HOUSE_GENERIC",
+    "intakeStatus": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
+    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md"
+  },
+  {
+    "name": "busway-tapoffs",
+    "uri": "/models/equipment/busway-tapoffs.glb",
+    "gitBlobSha": "35fb60e2a3cda3a099ebfbef6c4a5ae7e1286c8f",
+    "sizeBytes": 24800,
+    "triangles": 384,
+    "materials": 3,
+    "variants": [
+      "E-08"
+    ],
+    "mount": "ceiling_plane",
+    "geometryAuthority": "VISUALIZATION_ONLY",
+    "tier": "T1",
+    "licence": "STRATUM_IN_HOUSE_GENERIC",
+    "intakeStatus": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
+    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md"
+  },
+  {
+    "name": "wall-device-plate",
+    "uri": "/models/equipment/wall-device-plate.glb",
+    "gitBlobSha": "ca2caa22d273c34e3784571d264fefcc6bf65959",
+    "sizeBytes": 4776,
+    "triangles": 232,
+    "materials": 3,
+    "variants": [
+      "E-34",
+      "E-35",
+      "E-36",
+      "E-38",
+      "E-39",
+      "E-44",
+      "E-48"
+    ],
+    "mount": "wall_back_face",
+    "geometryAuthority": "VISUALIZATION_ONLY",
+    "tier": "T1",
+    "licence": "STRATUM_IN_HOUSE_GENERIC",
+    "intakeStatus": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
+    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md"
+  },
+  {
+    "name": "ceiling-device-puck",
+    "uri": "/models/equipment/ceiling-device-puck.glb",
+    "gitBlobSha": "4bdc29ffe1a9dfceae026fd8241512d757b2c9ad",
+    "sizeBytes": 4060,
+    "triangles": 192,
+    "materials": 3,
+    "variants": [
+      "E-40",
+      "E-41",
+      "E-46",
+      "E-47",
+      "E-59",
+      "E-60"
+    ],
+    "mount": "ceiling_plane",
+    "geometryAuthority": "VISUALIZATION_ONLY",
+    "tier": "T1",
+    "licence": "STRATUM_IN_HOUSE_GENERIC",
+    "intakeStatus": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
+    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md"
+  },
+  {
+    "name": "fire-alarm-control-panel",
+    "uri": "/models/equipment/fire-alarm-control-panel.glb",
+    "gitBlobSha": "ea199b50eba77f2da50d70ca3b7a75bbbdf74a2a",
+    "sizeBytes": 17116,
+    "triangles": 208,
+    "materials": 4,
+    "variants": [
+      "E-58"
+    ],
+    "mount": "wall_back_face",
+    "geometryAuthority": "VISUALIZATION_ONLY",
+    "tier": "T1",
+    "licence": "STRATUM_IN_HOUSE_GENERIC",
+    "intakeStatus": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
+    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md"
+  }
+]
