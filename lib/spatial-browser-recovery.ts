@@ -1,3 +1,4 @@
+import {requireExportAuthority} from './spatial-authority-io';
 import {assertRealWritePayload} from './spatial-provenance';
 export type SpatialGraphLike={
   version?:string;
@@ -263,6 +264,11 @@ export async function createSpatialRecoveryBundle(storage:Storage=localStorage):
   const indexedLatest=await readIndexedRecovery('latest');
   const indexedPrevious=await readIndexedRecovery('previous');
   const unique=distinctGraphs([current,lastGood,previous,indexedLatest,indexedPrevious,...sameOriginBackups.map(item=>item.graph)]);
+  // Browser recovery bundle is an export path; refuse mixed/demo source in every generation.
+  for(const candidate of unique){
+    if(candidate.provenance_class==='DEMO')throw Error('Synthetic recovery export prohibited');
+    assertRealWritePayload(candidate);
+  }
   return{
     format:SPATIAL_RECOVERY_BUNDLE_FORMAT,
     version:SPATIAL_RECOVERY_BUNDLE_VERSION,
