@@ -390,7 +390,7 @@ async function parseGlb(file:File,buf:ArrayBuffer,digest:string,level:{floor:str
      reviewRequired:true,physicalTruth:false,referenceOnly:true}};
 }
 
-export default function CompilerWorkspace(){
+export default function CompilerWorkspace({safeMode=false}:{safeMode?:boolean}){
  const [files,setFiles]=useState<SourceFile[]>([]),[entities,setEntities]=useState<GraphEntity[]>([]),[busy,setBusy]=useState(false),[dragging,setDragging]=useState(false),[message,setMessage]=useState('');
  const [parseProgress,setParseProgress]=useState<PdfParseProgress|null>(null),[canCancel,setCanCancel]=useState(false);
  const [workerHealth,setWorkerHealth]=useState<'IDLE'|'STARTING'|'RUNNING'|'STALLED'|'CANCELING'|'FINALIZING'|'TERMINATED'>('IDLE');
@@ -411,7 +411,9 @@ export default function CompilerWorkspace(){
  },[busy,canCancel]);
  const router=useRouter();
  const [archivedShas,setArchivedShas]=useState<Set<string>>(new Set()),[archiveNote,setArchiveNote]=useState('');
- useEffect(()=>{let active=true;const restore=async()=>{try{const graph=await readPrimarySpatialGraph();if(!active||!graph)return;if(!Array.isArray(graph.sources)||!Array.isArray(graph.entities))throw new Error();setEntities(graph.entities as GraphEntity[]);const restored=(graph.sources as CompiledGraph['sources']).map((source:CompiledGraph['sources'][number]&Partial<SourceFile>)=>({...source,size:source.size||0,state:(source.state||'review') as ParseState,summary:source.summary||'Restored saved source; extraction and alignment remain subject to review.',entities:Number.isFinite(Number(source.entities))?Number(source.entities):(graph.entities as GraphEntity[]).filter((e:GraphEntity)=>e.meta?.sourceSha256===source.sha256||e.source===source.name).length,floor:source.floor||'UNRESOLVED',elevation:source.elevation||0}));setFiles(current=>{const existing=new Map(current.map(item=>[item.sha256,item]));return restored.map((item:SourceFile)=>{const prior=existing.get(item.sha256);return prior?{...item,...prior}:item})});}catch{if(active)setMessage('Saved graph could not be read. Existing data has been preserved.');}};const refresh=()=>{void restore()};void restore();window.addEventListener('stratum:graph-updated',refresh);return()=>{active=false;window.removeEventListener('stratum:graph-updated',refresh)};},[]);
+ useEffect(()=>{
+  if(safeMode){setArchiveNote('SAFE MODE: saved graph hydration suspended; local archive preserved.');return}
+  let active=true;const restore=async()=>{try{const graph=await readPrimarySpatialGraph();if(!active||!graph)return;if(!Array.isArray(graph.sources)||!Array.isArray(graph.entities))throw new Error();setEntities(graph.entities as GraphEntity[]);const restored=(graph.sources as CompiledGraph['sources']).map((source:CompiledGraph['sources'][number]&Partial<SourceFile>)=>({...source,size:source.size||0,state:(source.state||'review') as ParseState,summary:source.summary||'Restored saved source; extraction and alignment remain subject to review.',entities:Number.isFinite(Number(source.entities))?Number(source.entities):(graph.entities as GraphEntity[]).filter((e:GraphEntity)=>e.meta?.sourceSha256===source.sha256||e.source===source.name).length,floor:source.floor||'UNRESOLVED',elevation:source.elevation||0}));setFiles(current=>{const existing=new Map(current.map(item=>[item.sha256,item]));return restored.map((item:SourceFile)=>{const prior=existing.get(item.sha256);return prior?{...item,...prior}:item})});}catch{if(active)setMessage('Saved graph could not be read. Existing data has been preserved.');}};const refresh=()=>{void restore()};void restore();window.addEventListener('stratum:graph-updated',refresh);return()=>{active=false;window.removeEventListener('stratum:graph-updated',refresh)};},[safeMode]);
  useEffect(()=>{let active=true;void listArchivedSourceMetadata().then(records=>{if(active)setArchivedShas(new Set(records.map(record=>record.sha256)))});return()=>{active=false}},[]);
  const staleDrawingSources=useMemo(()=>findDrawingSourcesNeedingReprocess(files,entities),[files,entities]);
  const staleBySha=useMemo(()=>new Map(staleDrawingSources.map(item=>[item.source.sha256,item.reason])),[staleDrawingSources]);
@@ -562,6 +564,12 @@ export default function CompilerWorkspace(){
  }
  return <div style={{marginTop:14}}>
   <section className="card import-primary">
+   <div className="button-row" style={{justifyContent:'flex-end'}}>
+    <a className="ghost" href="/recovery.html" style={{textDecoration:'none',padding:'8px 12px',borderRadius:7}}>Browser recovery / Safe mode</a>
+   </div>
+   {safeMode&&<div className="notice" role="alert"><strong>SAFE IMPORT MODE</strong>
+    <span>Saved graph hydration and background projection are suspended. Archived drawings and local recovery copies are preserved. <a href="/compiler">Return to normal import</a> only when ready.</span>
+   </div>}
    <div className="eyebrow">Engineering sources</div>
    <h2>Drop the project set</h2>
    <label className={`source-drop ${dragging?'dragging':''}`} onDragEnter={e=>{e.preventDefault();setDragging(true)}} onDragOver={e=>{e.preventDefault();setDragging(true)}} onDragLeave={()=>setDragging(false)} onDrop={drop}>

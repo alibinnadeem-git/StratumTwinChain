@@ -15,6 +15,8 @@ export default function SpatialPersistenceGuard(){
   const last=useRef<Awaited<ReturnType<typeof readPrimarySpatialGraph>>>(null);
 
   useEffect(()=>{
+    // Safe import recovery must bypass the application-wide graph restore.
+    if(window.location.pathname==='/compiler'&&new URLSearchParams(window.location.search).get('safe')==='1')return;
     let active=true;
 
     const initialize=async()=>{
