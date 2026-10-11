@@ -298,3 +298,16 @@ test('page-nine stalled worker reports its state and stops on watchdog timeout',
   .toContainText(/without a heartbeat|timeout/i);
  await page.evaluate(()=>(window as any).__restoreWorker());
 });
+
+test('recovery route bypasses local graph hydration without storage mutation',async({page},testInfo)=>{
+ if(testInfo.project.name!=='desktop-chromium')return;
+ await page.goto('/recovery.html');
+ await expect(page.getByRole('heading',{name:/Import stuck or page blank/})).toBeVisible();
+ await page.getByRole('link',{name:'Open safe import mode'}).click();
+ await expect(page.getByRole('heading',{name:'Safe import workspace'})).toBeVisible();
+ await page.evaluate(()=>localStorage.setItem('stratum_compiled_graph','sentinel-recovery-value'));
+ await page.reload();
+ await expect(page.getByText('SAFE IMPORT MODE')).toBeVisible();
+ expect(await page.evaluate(()=>localStorage.getItem('stratum_compiled_graph'))).toBe('sentinel-recovery-value');
+ await expect(page.locator('.import-results')).toHaveCount(0);
+});
