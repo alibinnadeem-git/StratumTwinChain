@@ -1,3 +1,4 @@
+import {assertRealWritePayload} from '@/lib/spatial-provenance';
 import {randomUUID} from 'crypto';
 import {NextResponse} from 'next/server';
 import {z} from 'zod';
@@ -29,7 +30,8 @@ function isLegacyEvent(value:string):value is LegacyLifecycleEventType{
 export async function POST(req:Request){
  try{
   const s=await requireSession(['SUPER_ADMIN','ORG_ADMIN','PROJECT_MANAGER','TECHNICIAN','INSPECTOR']);
-  const b=Body.parse(await req.json());
+  const raw=await req.json();assertRealWritePayload(raw);
+   const b=Body.parse(raw);
   return await tx(async client=>{
   const query = client.query.bind(client);
   const requestHash=canonicalHash(b);

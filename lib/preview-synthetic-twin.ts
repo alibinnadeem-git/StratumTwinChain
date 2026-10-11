@@ -5,12 +5,15 @@
  */
 const source='DEMO / SYNTHETIC E-101 — Electrical Room (NOT AN ACTUAL PDF)';
 const sourceHash='d'.repeat(64);
+const demoSourceRef='demo:synthetic:e101';
+const demoTwinId='demo_spatial_e101';
 const evidence=(sheet:string,note:string)=>({
- source_file_id:sourceHash,sheet_number:sheet,page_index:0,
+ source_file_id:demoSourceRef,sheet_number:sheet,page_index:0,actor:'system:demo-seed',
  bbox_page:[40,40,120,90],note,synthetic:true
 });
 const baseMeta={
- demo:true,synthetic:true,tenantData:false,authorityEligible:false,
+ demo:true,synthetic:true,provenance_class:'DEMO' as const,project_id:'demo',twin_id:demoTwinId,
+ actor:'system:demo-seed',review_task:null,tenantData:false,authorityEligible:false,
  verificationPromotionEligible:false,takeoffEligible:false,
  measurementEligible:false,exportEligible:false,
  physicalTruth:false,reviewRequired:true,
@@ -20,10 +23,13 @@ const baseMeta={
 function asset(id:string,name:string,x:number,y:number,tier:'STATED_Z'|'DERIVED_Z_CANDIDATE'|'UNRESOLVED_Z',
  z?:number,extra:Record<string,unknown>={}){
  return {
-  id:`DEMO-SYNTHETIC-${id}`,source,layer:'L2' as const,kind:extra.kind==='sheet-callout-candidate'?'sheet-callout-candidate':'equipment',
+  id:`demo_${id.toLowerCase()}`,provenance_class:'DEMO' as const,project_id:'demo',twin_id:demoTwinId,actor:'system:demo-seed',source,layer:'L2' as const,kind:extra.kind==='sheet-callout-candidate'?'sheet-callout-candidate':'equipment',
   name:`DEMO · ${name}`,x,y,...(tier==='STATED_Z'?{z}:{}),
   floor:'DEMO E-101',confidence:tier==='STATED_Z'?.92:tier==='DERIVED_Z_CANDIDATE'?.8:.56,
   meta:{...baseMeta,...extra,demoPlacementTier:tier,status:(tier==='UNRESOLVED_Z'?'UNRESOLVED':'INFERRED_PREDICTED') as 'UNRESOLVED'|'INFERRED_PREDICTED',
+   position_source:null,location_state:extra.kind==='sheet-callout-candidate'?'unknown':'approximate',
+   demo_illustrated_position_source:tier==='STATED_Z'?'dimensioned':tier==='DERIVED_Z_CANDIDATE'?'derived':null,
+   nulls:{position:'DEMO_NON_CANONICAL',position_source:'DEMO_SYNTHETIC',z:'Z_NOT_STATED'},
    evidence:[evidence('DEMO E-101',tier==='STATED_Z'
      ?'Synthetic elevation note; source-stated within fixture, not field-verified'
      :tier==='DERIVED_Z_CANDIDATE'
@@ -53,19 +59,19 @@ const entities=[
  })
 ];
 const room={
- id:'DEMO-SYNTHETIC-ROOM',source,layer:'L1' as const,kind:'room-boundary',
+ id:'demo_room',source,provenance_class:'DEMO' as const,project_id:'demo',twin_id:demoTwinId,actor:'system:demo-seed',layer:'L1' as const,kind:'room-boundary',
  name:'DEMO · Electrical Room outline',x:1,y:2,floor:'DEMO E-101',confidence:1,
  vertices:[{x:1,y:2},{x:18,y:2},{x:18,y:12},{x:1,y:12}],
  meta:{...baseMeta,sourceGeometry:true,verified:false}
 };
 export const PREVIEW_DEMO_GRAPH={
  version:'DEMO-SYNTHETIC-ONLY-v1',createdAt:'2026-10-10T00:00:00.000Z',
- demo:true,synthetic:true,persisted:false,authorityEligible:false,
- sources:[{name:source,ext:'pdf',sha256:sourceHash,discipline:'Electrical',floor:'DEMO E-101',entities:entities.length,vectors:8}],
+ demo:true,synthetic:true,provenance_class:'DEMO' as const,project_id:'demo',twin_id:demoTwinId,persisted:false,authorityEligible:false,
+ sources:[{name:source,provenance_class:'DEMO' as const,project_id:'demo',twin_id:demoTwinId,source_file_id:demoSourceRef,ext:'pdf',sha256:sourceHash,discipline:'Electrical',floor:'DEMO E-101',entities:entities.length,vectors:8}],
  entities:[room,...entities],links:[],
  stats:{L0:0,L1:1,L2:6,L3:0,L4:0}
 };
 export function isPreviewDemoEntity(value:unknown):boolean{
  const e=value as {id?:string;meta?:Record<string,unknown>}|null;
- return Boolean(e&&e.id?.startsWith('DEMO-SYNTHETIC-')&&e.meta?.demo===true&&e.meta?.synthetic===true);
+ return Boolean(e&&e.id?.startsWith('demo_')&&e.meta?.provenance_class==='DEMO'&&e.meta?.synthetic===true);
 }

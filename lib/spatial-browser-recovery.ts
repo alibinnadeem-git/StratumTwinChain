@@ -1,3 +1,4 @@
+import {assertRealWritePayload} from './spatial-provenance';
 export type SpatialGraphLike={
   version?:string;
   createdAt?:string;
@@ -117,6 +118,7 @@ export async function readPrimarySpatialGraph(storage:Storage=localStorage){
  * Authenticated/server source records must never be created from demo entities.
  */
 export function assertNonSyntheticSpatialGraph(graph:SpatialGraphLike):void{
+  assertRealWritePayload(graph);
   const isSynthetic=(item:unknown)=>{
     if(!item||typeof item!=='object')return false;
     const record=item as {id?:unknown;name?:unknown;synthetic?:unknown;demo?:unknown;meta?:unknown};

@@ -1,3 +1,4 @@
+import {assertRealWritePayload} from '@/lib/spatial-provenance';
 import {NextResponse} from 'next/server';
 import {z} from 'zod';
 import {requireSession} from '@/lib/server/auth';
@@ -119,7 +120,8 @@ export async function POST(req:Request){
   try{
     const session=await requireSession(['SUPER_ADMIN','ORG_ADMIN','PROJECT_MANAGER']);
     if(!await schemaReady())return NextResponse.json({error:'Spatial compilation persistence schema is not ready'},{status:503});
-    const body=SaveBody.parse(await req.json());
+    const raw=await req.json();assertRealWritePayload(raw);
+   const body=SaveBody.parse(raw);
     const graph=body.graph;
     for(const entity of graph.entities.filter(item=>item.kind==='imported-3d-model')){
       const encoded=entity.meta?.embeddedGlb;
@@ -211,7 +213,8 @@ export async function PATCH(req:Request){
   try{
     const session=await requireSession(['SUPER_ADMIN','ORG_ADMIN','PROJECT_MANAGER']);
     if(!await schemaReady())return NextResponse.json({error:'Spatial compilation persistence schema is not ready'},{status:503});
-    const body=ReviewBody.parse(await req.json());
+    const raw=await req.json();assertRealWritePayload(raw);
+   const body=ReviewBody.parse(raw);
     const result=await tx(async client=>{
       const compilation=await client.query<{id:string}>(`SELECT id::text FROM spatial_compilations
         WHERE id=$1 AND organization_id=$2 FOR UPDATE`,[body.compilationId,session.organizationId]);

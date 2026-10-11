@@ -1,3 +1,4 @@
+import {assertRealWritePayload} from '@/lib/spatial-provenance';
 import {NextResponse} from 'next/server';
 import {z} from 'zod';
 import {requireSession} from '@/lib/server/auth';
@@ -25,7 +26,8 @@ export async function GET(){
 export async function POST(req:Request){
  try{
   const s=await requireSession(['SUPER_ADMIN','ORG_ADMIN','PROJECT_MANAGER']);
-  const b=Asset.parse(await req.json());
+  const raw=await req.json();assertRealWritePayload(raw);
+   const b=Asset.parse(raw);
   const context=await query<{project_id:string;site_id:string}>(
    `SELECT p.id project_id,si.id site_id FROM projects p JOIN sites si ON si.id=$2 AND si.project_id=p.id AND si.organization_id=$3 WHERE p.id=$1 AND p.organization_id=$3 LIMIT 1`,
    [b.projectId,b.siteId,s.organizationId],
