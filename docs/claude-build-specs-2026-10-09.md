@@ -1,6 +1,6 @@
 # STRATUM Spatial Verified — Build Specs (FINALIZED)
 **Source:** Claude, Oct 9, 2026 · delivered by @Ali Bin Nadeem
-**Status:** FINAL — four locked decisions applied throughout. Replaces the draft version.
+**Status:** FINAL October 9 source; October 10 doctrine amendments APPROVED as an unmerged, separately reviewable proposal in this PR. The original finalized source is preserved in PRs #211/#212.
 
 ---
 
@@ -14,7 +14,7 @@ These three specs let the 32-agent team build the component library, the asset r
 1. Evidence or UNRESOLVED. Every asset record carries at least one evidence item (sheet, page, bounding box). No evidence, no record.
 2. AI proposes, humans promote. No agent may write a status of Verified or higher. Agents write only Inferred-Predicted or UNRESOLVED.
 3. Never fill a gap with a plausible default. A missing voltage, mounting height or drawing scale is stored as null plus a reason code, never as a guess.
-4. One coordinate frame per twin. Metres, right-handed, Z-up (the IFC/BIM convention). The viewer applies one Y-up conversion at its root, because glTF is Y-up. Every sheet gets a sheet-to-world transform with its residual error recorded.
+4. One coordinate frame per twin. Metres, right-handed, Z-up (IFC/BIM convention), with exactly one glTF +Y-up conversion at the viewer/model boundary. A sheet-to-world transform is a separately reviewed proposal, not an automatic operation; absence of a transform does not erase independently established metric coordinates.
 
 **What is not in the library.** Walls, slabs, roofs, columns and beams, plus the linear runs (conduit, cable, ground ring and bonding conductors, duct, pipe), are generated procedurally from extracted geometry. The library covers the discrete pieces on those runs: equipment, devices, boxes, bodies, fittings and tray sections. Grounding and bonding connections are stored as relations (bonded_to, grounded_by) rather than geometry.
 
@@ -277,15 +277,15 @@ Every detected asset gets one record, the "passport", built from eight field gro
 | Field | Type | Notes |
 |-------|------|-------|
 | frame_id | string | The twin's coordinate frame (metres, Z-up). |
-| position | {x, y, z} | Metres. Null when location is unknown. |
-| rotation | {yaw_deg, quat} | Yaw about Z, plus the full quaternion. |
+| position | {x, y, z} | Canonical metres. Z defaults to null/UNRESOLVED even with known XY; keep nulls.reason. Source-observed Z, review-only Z candidates, and human-confirmed position are separate provenance, not silently coalesced. |
+| rotation | {yaw_deg, quat} | Canonical right-handed Z-up; yaw_deg about +Z, quaternion component ordering (x,y,z,w), recorded source frame; apply the glTF Y-up conversion once at the loader/viewer boundary, never twice. |
 | bounds | {min, max} | Axis-aligned box in metres. |
 | level_id, level_elevation_m | string, number | |
 | room_id | string | Room or space number if resolvable. |
 | host_id | ref | Wall, ceiling or slab the asset is mounted on. |
 | mount_height_m | number | Only from a schedule, note or dimension, never assumed. |
-| position_source | enum | dimensioned, drawn, derived, scaled_from_sheet, human. |
-| sheet_transform_id | ref | Sheet-to-world transform used, with its recorded residual in millimetres. |
+| position_source | enum | dimensioned, drawn, derived, scaled_from_sheet, human. A source label describes evidence, not automatically applied authority. `derived` requires explicit source plane/datum/reference point, equations, witnesses and physicalTruth:false/reviewRequired:true until human confirmation. |
+| sheet_transform_id | ref | Nullable until an explicitly APPLIED transform. Each proposal records frame, manual XY correspondence pairs, independent printed-dimension/scale witnesses, residual_mm, proposed_by, reviewer, evidence and immutable application event; PROPOSED → HUMAN_CONFIRMED → APPLIED are distinct human-governed actions. No auto-apply; a missing transform does not invalidate separately corroborated native metric coordinates. |
 | position_confidence | number | 0 to 1. |
 
 **Resolution**
@@ -325,6 +325,24 @@ serial_number, installed_on, commissioned_on, commissioned_by, warranty_expires_
 
 Each event is { event_id, at, actor {type: human | agent | system, id, role, agent_version}, from_status, to_status, evidence_ids[], note, prev_hash, hash }. The hash chain makes tampering detectable.
 
+### 2.1A Approved positioning, authority, and provenance clarification (October 10)
+
+**P1 — Missing Z/scale are unresolved by default.** A source observation without a defensible datum/AFF note/grade/floor label/section has canonical Z null, reason Z_NOT_STATED; printed scale or X/Y alone never generates a height. Independent corroboration of metric X/Y uses manual pairs and printed dimensions/graphic-scale witnesses; proposed transforms never auto-apply. Existing corroborated native metric XY remains available when an unrelated sheet transform is missing.
+
+**P3 before P2 — Sheet transform lifecycle.** PROPOSED is a candidate only; HUMAN_CONFIRMED captures named reviewer, same-floor/discipline matching, original source points, metric witness pairs, residual_mm and source frames; APPLIED requires its own explicit human action and append-only application receipt. Disallow any use of unconfirmed proposals for physical measurements, exports, or canonical XY alignment.
+
+**P2 — Z provenance tiers.** Keep three disjoint records: `source_z_observation` (datum/control label, sheet/hash/page/bbox, datum value, unit, reference point), `derived_z_candidate` (named source controls, triangulation/barycentric interpolation within verified control envelope, host-contact conversion, equations, confidence, physicalTruth:false, reviewRequired:true), and `human_confirmed_position` (reviewer, evidentiary references, applied transform ID if used, audit event). Only defensible source evidence produces a candidate; no default story spacing, no generic OEM-model mounting height as evidence, no hidden persistence of UI-only offsets. Derived source candidate is **not** physical truth and does not automatically populate canonical Z.
+
+**P4 — Human-only lifecycle promotion.** VERIFIED, APPROVED, FINALIZED and LIVE require authenticated authorized humans; verification and approval by different people; all actions append-only with actor identity, role, UTC time, evidence and prior event hash. Field/telemetry integrations may propose LIVE and attach commissioning evidence, never execute a LIVE transition.
+
+**P5 — Binding and visualization.** Class identity, geometry availability, and status remain separate. RESOLVED-but-unverified displays licensed 3D model labeled UNVERIFIED; FALLBACK requires all three locked thresholds and an Intake-Gate-approved generic model of the **exact** type_id; unavailable or failed OEM model candidates are never substituted as asset geometry. Unknown or unsupported class remains visible as a ghost/sheet pin. No unverified rendering confers measurement/takeoff/export authority.
+
+**B6 — Electrical relations ownership.** Circuit and terminal IDs must be evidence-linked on `relations[]` with panel/feeder circuit identifiers and source evidence, not silently duplicated or inferred from a free-text `properties{}` field. Conflicts are review items; fed_from chains must not silently form cycles.
+
+**B7 — Axis/placement contract.** Canonical project frame is metres, right-handed Z-up. glTF geometry is Y-up and converted exactly once into that frame. A model's authored host-contact origin/anchor and `mount_face` (if applicable) must be validated during Intake. Yaw rotates around +Z and quaternions have explicitly defined order and reference frame. A license-verified model is not proof of real-world size, location, or physical installation.
+
+**B8 — Deferred SOP detail without blocking this cycle.** A00 may proceed only on expressly authorized reversible, low-risk slices. An unacknowledged grill-me question remains OPEN/ESCALATED, must not be inferred as consent, and stops dependent code or irreversible actions. A03 logs pending owner/ETA and carries it into the next human handoff. No timeout creates authority.
+
 ### 2.2 Status lifecycle
 
 An agent may write only the first two statuses. Every later status requires a named human with the right role, and the approver must be a different person from the verifier. No rule or automation may write VERIFIED, including a deterministic triple match of symbol, tag and schedule row: that result is written as INFERRED_PREDICTED and goes to human review like any other.
@@ -336,14 +354,14 @@ An agent may write only the first two statuses. Every later status requires a na
 | VERIFIED | A named human checked identity and location against the source drawing. | Human reviewer | Reviewer id, evidence ids viewed, optional correction | APPROVED, UNRESOLVED, REJECTED |
 | APPROVED | An authorised second person accepts the asset as design intent for the project. | Human approver (role: engineer, project manager or discipline lead) | Approver is not the verifier | FINALIZED, VERIFIED (approval withdrawn) |
 | FINALIZED | Frozen into a published model release. Immutable. | Human release manager | release_id; every required field present; zero open review tasks on the asset | LIVE, or a new version at VERIFIED after a change |
-| LIVE | Linked to a real installed, commissioned instance. | Human, or a verified integration with a field system | Passport fields filled; field evidence such as a commissioning record | A new version at VERIFIED after replacement or modification |
+| LIVE | Linked to a real installed, commissioned instance. | **Authorized authenticated human only**; integrations submit evidence and proposals, never transitions | Human actor/role, passport fields, reviewed field/commissioning evidence, append-only actor event | A new version at VERIFIED after replacement or modification |
 | REJECTED | False positive or duplicate. Kept for detector training, hidden from the twin. | Human reviewer | Reason code | Terminal |
 
-**Rendering rule.** The viewer must visibly distinguish every status. UNRESOLVED renders as a placeholder marker, INFERRED_PREDICTED with a distinct style and its confidence, and neither is counted in quantity takeoffs or compliance reports.
+**Rendering rule (approved October 10).** The viewer distinguishes authority from renderability. RESOLVED with lifecycle no higher than INFERRED_PREDICTED displays the approved class-specific 3D library geometry labeled **UNVERIFIED** both in viewport and inspector. FALLBACK displays a licensed Intake-Gate-approved generic class model, visibly labeled **FALLBACK · UNVERIFIED**, and never a failed/unlicensed OEM candidate. UNRESOLVED with a defensible class-matched generic model may show it as a non-authoritative translucent ghost, never as a resolved asset; without a model, use a ghost_marker at known XY or a source-sheet pin where XY is unknown. Every unverified, unresolved, fallback or review-only geometry is excluded from takeoffs, measurements, authoritative exports and compliance assertions until applicable human approval and scale/coordinate evidence. An unavailable model never makes the detected asset invisible.
 
 ### 2.3 What an UNRESOLVED record carries
 
-An UNRESOLVED record states what was seen, why it stopped, and what would unblock it. It never carries a model, a guessed tag or asserted properties.
+An UNRESOLVED record states what was seen, why it stopped, and what would unblock it. It never carries a selected model_ref, guessed tag or asserted properties; a separate display-only class-matched generic review ghost may be shown but is not a resolved model binding or canonical placement.
 
 | Field | Notes |
 |-------|-------|
@@ -364,7 +382,7 @@ Resolve to INFERRED_PREDICTED only when all three hold. Otherwise write UNRESOLV
 2. The margin over the second candidate is at least 0.15.
 3. At least two independent evidence kinds agree, for example symbol plus tag, or symbol plus schedule row.
 
-A component with a correct IFC class but no usable model may resolve to FALLBACK, using the generic model from the library, only when rule 3 holds. An OEM model without written permission on record is treated the same way. These thresholds are locked as starting values and are calibrated on 20 to 30 hand-labelled sheets. Changing them after calibration needs a logged decision.
+**FALLBACK is not a threshold waiver.** A fallback is permitted only when **all three** rules above hold (score ≥0.85, margin ≥0.15, two independent evidence kinds) **and** the generic model passes the seven-check Intake Gate with CC0/in-house licensing or documented OEM written permission, is of the same specific `type_id` (not merely a broad IFC family), and has immutable registry provenance. Mark resolution_state FALLBACK and viewport/inspector FALLBACK · UNVERIFIED; never present unauthorized/failed OEM geometry as installed equipment. If no qualified generic class model exists, remain UNRESOLVED with a review task. Machine-written status is at most INFERRED_PREDICTED. Thresholds are calibrated on 20–30 hand-labelled real sheets; changes need a logged decision.
 
 ### 2.5 Example: UNRESOLVED record
 
@@ -531,3 +549,7 @@ Assumptions made, traps found, things that look done but are not.
 - Verified: ...
 - Inferred: ...
 ```
+
+### 3.5 Demo and evidence separation (October 10)
+
+Synthetic demos use immutable provenance_class DEMO, reserved demo_ identifiers, fictional demo: source references and `system:demo-seed` only. Neither agents nor a human may promote demo evidence, save it to real tenant projects, export/measure/count it, or train/calibrate detectors from demo assets. DEMO records remain UNRESOLVED or INFERRED_PREDICTED, and no demo content is treated as a wiki fact. Demo facilities compile only for verified previews, never production. A demo may be viewed without sign-in, but never writes to production stores. This operational section is downstream of the lifecycle and transform contracts, not a new source of verification authority.
