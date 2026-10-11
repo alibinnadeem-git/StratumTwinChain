@@ -4,6 +4,7 @@ import Link from "next/link";
 import {useEffect,useMemo,useRef,useState} from "react";
 import {resolveElectricalComponent} from "@/lib/electrical-component-library";
 import {resolveSpatialModel} from "@/lib/spatial-model-resolution";
+import {decideSourceModelVisual} from "@/lib/spatial-viewer-geometry-policy";
 import {unresolvedAssetVisual} from "@/lib/unresolved-asset-visual";
 import {deriveSpatialEvidenceEnvelope} from "@/lib/spatial-evidence-envelope";
 import {deriveDigitalTwinProjectReadiness} from "@/lib/digital-twin-readiness";
@@ -346,15 +347,18 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
         const modelResolution=resolveSpatialModel(e,registry),def=modelResolution.component||resolveElectricalComponent(e.name),shape=def?.twinShape||"cabinet",cfg=modelResolution.model;
         const reconciled=resolveReconciledAssetPlacement({name:e.name,floor:e.floor,z:e.z,meta:e.meta},{registry:cfg}),placement=reconciled.placement;
         const target:[number,number,number]=[placement.dimensions.width,placement.dimensions.height,placement.dimensions.depth];
-        const root=new THREE.Group(),op=1;
+        const root=new THREE.Group(),op=.27;
         let geo:any;if(shape==="transformer")geo=new THREE.BoxGeometry(1.7,1.55,1.25);else if(shape==="generator")geo=new THREE.BoxGeometry(2.2,1.2,1.1);else if(shape==="motor")geo=new THREE.CylinderGeometry(.48,.48,1.15,20);else if(shape==="evse")geo=new THREE.BoxGeometry(.62,1.4,.44);else geo=new THREE.BoxGeometry(1.05,1.8,.62);
         const mesh=new THREE.Mesh(geo,material(colors.L2,op,0x211000));if(shape==="motor")mesh.rotation.z=Math.PI/2;root.add(mesh);
         try{fitProceduralObjectToMeters(root,target)}catch{}
         root.position.set(e.x,placement.baseZ,e.y);root.rotation.y=THREE.MathUtils.degToRad(-(e.rotation||0));
         root.userData.dimensionAuthority=placement.dimensions.authority;root.userData.targetDimensionsMeters=target;root.userData.zPlacementAuthority=placement.zAuthority;root.userData.zPlacementConfidence=placement.zConfidence;root.userData.zSolutionStatus=reconciled.solution.status;root.userData.zSolutionConflicts=reconciled.solution.conflicts.length;
         root.userData.modelResolutionTier=modelResolution.tier;root.userData.modelGeometryAuthority=modelResolution.geometryAuthority;root.userData.modelIdentityAuthority=modelResolution.identityAuthority;root.userData.exactProductIdentity=modelResolution.exactProductIdentity;root.userData.modelComponentKey=modelResolution.componentKey;root.userData.physicalIdentityVerified=false;
+        root.userData.visibleAuthorityLabel='UNVERIFIED · NO MODEL · PROXY';
+        root.userData.authorityEligible=false;root.userData.takeoffEligible=false;
+        root.userData.measurementEligible=false;root.userData.exportEligible=false;
         attachSpatialEvidence(root,e,modelResolution);
-        interactionProxy(root,target);tag(root,e);groups[e.layer==="L4"?"L4":"L2"].add(root);label(e.name,e.x,placement.baseZ,e.y,isSld(e)?"#8fcfff":"#ffd08a",e);
+        interactionProxy(root,target);tag(root,e);groups[e.layer==="L4"?"L4":"L2"].add(root);label(e.name+' · UNVERIFIED · PROXY',e.x,placement.baseZ,e.y,isSld(e)?"#8fcfff":"#ffd08a",e);
       };
       // UI-only review geometry: never enters the source graph, canonical XYZ,
       // quantities, measurements, compliance or exports. No default story spacing.
@@ -374,6 +378,8 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
         root.add(sphere,ring);
         root.userData.provisionalOnly=true;
         root.userData.placeholder=kind;
+        root.userData.visibleAuthorityLabel='UNVERIFIED · '+kind;
+        root.userData.authorityEligible=false;
         root.userData.canonicalZ=null;
         root.userData.takeoffEligible=false;
         root.userData.measurementEligible=false;
@@ -387,8 +393,13 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
       const equipment=(e:Entity)=>{
         if(!isVisible(e))return;
         const provisional=unresolvedAssetVisual(e);
-        if(provisional.kind!=='NONE'&&!isSld(e)){
-          renderProvisionalMarker(e,provisional.kind);
+        const visual=decideSourceModelVisual(e,registry);
+        if(provisional.kind==='SHEET_PIN'&&!isSld(e)){
+          renderProvisionalMarker(e,'SHEET_PIN');
+          return;
+        }
+        if(!visual.model&&provisional.kind!=='NONE'&&!isSld(e)){
+          renderProvisionalMarker(e,'GHOST_MARKER');
           return;
         }
         if(e.kind==="imported-3d-model"){
@@ -425,7 +436,7 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
           return;
         }
         if(e.kind==='sheet-callout-candidate'||e.kind==='annotated-asset-candidate'||(e.kind==='cad-text'&&e.meta?.cadPhysicalAnchor===false)){fallbackShape(e);return}
-        const modelResolution=resolveSpatialModel(e,registry),cfg=modelResolution.model;
+        const modelResolution=resolveSpatialModel(e,registry),cfg=visual.model;
         if(!cfg?.modelUrl.trim()||!["GLB","GLTF"].includes(cfg.format)){fallbackShape(e);return}
         const reconciled=resolveReconciledAssetPlacement({name:e.name,floor:e.floor,z:e.z,meta:e.meta},{registry:cfg}),placement=reconciled.placement;
         const target:[number,number,number]=[placement.dimensions.width,placement.dimensions.height,placement.dimensions.depth];
@@ -442,10 +453,31 @@ export default function CompiledGraphViewer({registeredAssets=[]}:{registeredAss
             root.userData.dimensionAuthority=placement.dimensions.authority;
             root.userData.targetDimensionsMeters=target;root.userData.zPlacementAuthority=placement.zAuthority;root.userData.zPlacementConfidence=placement.zConfidence;root.userData.zSolutionStatus=reconciled.solution.status;root.userData.zSolutionConflicts=reconciled.solution.conflicts.length;
             root.userData.modelResolutionTier=modelResolution.tier;root.userData.modelGeometryAuthority=modelResolution.geometryAuthority;root.userData.modelIdentityAuthority=modelResolution.identityAuthority;root.userData.exactProductIdentity=modelResolution.exactProductIdentity;root.userData.modelComponentKey=modelResolution.componentKey;root.userData.modelResolutionConfidence=modelResolution.confidence;root.userData.physicalIdentityVerified=false;
+            root.userData.visibleAuthorityLabel=visual.label;
+            root.userData.resolutionDisplayTier=visual.tier;
+            root.userData.canonicalZ=provisional.kind!=='NONE'?null:e.z??null;
+            root.userData.physicalTruth=false;
+            root.userData.reviewRequired=true;
+            root.userData.takeoffEligible=false;
+            root.userData.measurementEligible=false;
+            root.userData.exportEligible=false;
+            root.userData.authorityEligible=false;
+            root.userData.geometryIsRepresentative=true;
             attachSpatialEvidence(root,e,modelResolution);
             root.userData.normalization={scalar:normalized.scalar,ratioSpread:normalized.ratioSpread,reviewRequired:normalized.reviewRequired};
             if(normalized.reviewRequired)console.warn("STRATUM model dimension mismatch requires review",{component:e.name,target,intrinsic:normalized.intrinsic,ratios:normalized.ratios,ratioSpread:normalized.ratioSpread});
-            root.add(model);interactionProxy(root,target);tag(root,e);groups[e.layer==="L4"?"L4":"L2"].add(root);label(e.name,e.x,placement.baseZ,e.y,"#cfefff",e);
+            if(provisional.kind!=='NONE'||visual.tier==='UNRESOLVED_CLASS_PREVIEW'){
+              model.traverse((node:any)=>{
+                if(!node.isMesh)return;
+                const style=(mat:any)=>{const copy=mat.clone();copy.transparent=true;copy.opacity=.24;
+                  copy.depthWrite=false;if(copy.color)copy.color.lerp(new THREE.Color(0x8bbcff),.6);
+                  return copy};
+                node.material=Array.isArray(node.material)?node.material.map(style):style(node.material);
+              });
+            }
+            root.add(model);interactionProxy(root,target);tag(root,e);groups[e.layer==="L4"?"L4":"L2"].add(root);
+            label(e.name+' · '+visual.label,e.x,placement.baseZ,e.y,
+              visual.tier==='RESOLVED_UNVERIFIED'?'#b2ffe7':'#ffd08a',e);
             const renderedBox=new THREE.Box3().setFromObject(root);if(!renderedBox.isEmpty()){renderedBox.translate(new THREE.Vector3(renderOrigin.x,0,renderOrigin.y));bounds.union(renderedBox);}
             runtime.current?.fit?.();
           }catch(error){

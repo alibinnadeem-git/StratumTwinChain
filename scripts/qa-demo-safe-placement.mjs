@@ -88,3 +88,33 @@ assert.match(viewer,/root.userData.exportEligible=false/);
 assert.match(viewer,/GHOST · Z UNRESOLVED/);
 assert.doesNotMatch(viewer,/DEFAULT_VISUALIZATION_STORY_SPACING_METERS/);
 console.log('A07 unresolved placeholders: selectable review-only ghosts and sheet pins, no canonical Z or takeoff/export authority.');
+
+const {decideSourceModelVisual}=await import('../lib/spatial-viewer-geometry-policy.ts');
+const {DEFAULT_ELECTRICAL_MODEL_REGISTRY}=await import('../lib/electrical-model-registry.ts');
+const demoAsset={name:'MAIN SWITCHBOARD',meta:{componentKey:'main-switchboard',
+ resolution_state:'RESOLVED',resolutionScore:.92,resolutionMargin:.22,
+ resolutionEvidenceKinds:['symbol','schedule'],intakeGateStatus:'PASSED',
+ intakeGateBinaryVerified:true,intakeTypeId:'main-switchboard',intakeLicenceTier:'T1'}};
+const policyOk=decideSourceModelVisual(demoAsset,DEFAULT_ELECTRICAL_MODEL_REGISTRY);
+assert.equal(policyOk.tier,'RESOLVED_UNVERIFIED');
+assert.ok(policyOk.model?.modelUrl.endsWith('main-switchboard.glb'));
+assert.equal(policyOk.takeoffEligible,false);
+assert.equal(policyOk.measurementEligible,false);
+assert.equal(policyOk.exportEligible,false);
+assert.equal(decideSourceModelVisual({...demoAsset,meta:{...demoAsset.meta,resolution_state:'FALLBACK'}},
+ DEFAULT_ELECTRICAL_MODEL_REGISTRY).tier,'FALLBACK_UNVERIFIED');
+for(const altered of [
+ {resolutionScore:.84},{resolutionMargin:.14},{resolutionEvidenceKinds:['symbol']},
+ {intakeGateStatus:'PENDING'},{intakeGateBinaryVerified:false},{intakeTypeId:'ups'}
+]){
+ const p=decideSourceModelVisual({...demoAsset,meta:{...demoAsset.meta,...altered}},DEFAULT_ELECTRICAL_MODEL_REGISTRY);
+ assert.equal(p.tier,'UNRESOLVED_CLASS_PREVIEW','no threshold or Intake Gate waiver');
+}
+assert.equal(decideSourceModelVisual({name:'Unknown device',meta:{}},DEFAULT_ELECTRICAL_MODEL_REGISTRY).tier,'UNRESOLVED_NO_MODEL');
+const viewerCode=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
+const inspectorCode=fs.readFileSync('components/SpatialAssetInspector.tsx','utf8');
+assert.match(viewerCode,/visibleAuthorityLabel=visual.label/);
+assert.match(viewerCode,/takeoffEligible=false/);
+assert.match(viewerCode,/e.name\+' · '\+visual.label/);
+assert.match(inspectorCode,/data-authority="UNVERIFIED"/);
+console.log('A07 source-model visualization: existing Tier-1 GLBs for qualified class, all rendered states unverified; threshold/intake fails closed.');

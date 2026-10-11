@@ -6,6 +6,7 @@ import {readPrimarySpatialGraph,replaceCurrentSpatialGraph} from '@/lib/spatial-
 import {readSelectedSpatialProjectId} from '@/lib/spatial-project-selection';
 import {resolveReconciledAssetPlacement} from '@/lib/z-solution-chain';
 import {resolveSpatialModel} from '@/lib/spatial-model-resolution';
+import {decideSourceModelVisual} from '@/lib/spatial-viewer-geometry-policy';
 import {deriveSpatialEvidenceEnvelope} from '@/lib/spatial-evidence-envelope';
 import {deriveDigitalTwinComponentReadiness} from '@/lib/digital-twin-readiness';
 import type {ElectricalModelConfig} from '@/lib/electrical-model-registry';
@@ -56,6 +57,7 @@ export default function SpatialAssetInspector({
  const binding=useMemo(()=>resolveRegisteredSpatialAsset(selected,registeredAssets),[selected,registeredAssets]);
  const reconciliation=useMemo(()=>selected?resolveReconciledAssetPlacement({name:selected.name,floor:selected.floor,z:selected.z,meta:selected.meta}):null,[selected]);
  const modelResolution=useMemo(()=>selected?resolveSpatialModel(selected,modelRegistry):null,[selected,modelRegistry]);
+ const modelVisual=useMemo(()=>selected?decideSourceModelVisual(selected,modelRegistry):null,[selected,modelRegistry]);
  const evidenceEnvelope=useMemo(()=>selected?deriveSpatialEvidenceEnvelope(selected,modelResolution):null,[selected,modelResolution]);
  const twinReadiness=useMemo(()=>selected?deriveDigitalTwinComponentReadiness(selected,registeredAssets,modelRegistry):null,[selected,registeredAssets,modelRegistry]);
  const placement=reconciliation?.placement||null;
@@ -200,6 +202,10 @@ export default function SpatialAssetInspector({
    <span className={asset?(dir.finalized?'proof':'status-chip'):'pending'}>{asset?(dir.finalized?'DIR FINALIZED':'DIR PENDING'):'UNLINKED'}</span>
   </div>
 
+  {modelVisual&&<div className="notice" role="status" data-authority="UNVERIFIED" style={{borderColor:'#e4a85d'}}>
+    <strong>{modelVisual.label}</strong>
+    <span>{modelVisual.reason} This is display geometry, not installed/OEM verification. Excluded from physical measurements, takeoffs and authoritative exports.</span>
+  </div>}
   <div className={`placement-trust ${zReviewed?'reviewed':'needs-review'}`} role="status">
     <div><span>Z placement</span><strong>{zReviewed?'Measured / reviewed':zSolution?.status==='CONFLICT'?'Z CONFLICT · review required':zCandidate!==null?`${zCandidateReferencePoint} design Z reference · review required`:placement&& !['UNRESOLVED','RELATIVE_TO_REVIEW_PLANE'].includes(placement.zAuthority)?`${placement.baseZ.toFixed(2)} m placement candidate · review required`:localReviewSurfaceZ!==null?`${localReviewSurfaceLabel} local review surface · object Z unresolved`:crossSheetReviewSurfaceZ!==null?`${crossSheetReviewSurfaceLabel} cross-sheet review surface · object Z unresolved`:reviewSurfaceZ!==null?`${reviewSurfaceLabel} review surface · object Z unresolved`:'Review plane · physical Z unresolved'}</strong></div>
   </div>
