@@ -22,7 +22,7 @@ test('same-origin legacy Spatial graph is automatically recovered instead of sho
  const recovered=await page.evaluate(()=>JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}').entities?.[0]?.name);
  expect(recovered).toBe('Recovered panel');
  await expect.poll(()=>page.evaluate(async()=>{
-  const db=await new Promise<IDBDatabase>((resolve,reject)=>{const request=indexedDB.open('stratum-spatial-recovery-v1',1);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});
+  const db=await new Promise<IDBDatabase>((resolve,reject)=>{const request=indexedDB.open('stratum-spatial-recovery-v1',1);request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains('graphs'))request.result.createObjectStore('graphs')};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});
   return new Promise<string|null>(resolve=>{const request=db.transaction('graphs','readonly').objectStore('graphs').get('current');request.onsuccess=()=>resolve(request.result?.entities?.[0]?.name||null);request.onerror=()=>resolve(null)});
  })).toBe('Recovered panel');
  await page.goto('/spatial');
@@ -38,7 +38,7 @@ test('graph updates create a protected last-good browser copy',async({page})=>{
   window.dispatchEvent(new Event('stratum:graph-updated'));
  },graph('Protected panel'));
  await expect.poll(()=>page.evaluate(async()=>{
-  const db=await new Promise<IDBDatabase>((resolve,reject)=>{const request=indexedDB.open('stratum-spatial-recovery-v1',1);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});
+  const db=await new Promise<IDBDatabase>((resolve,reject)=>{const request=indexedDB.open('stratum-spatial-recovery-v1',1);request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains('graphs'))request.result.createObjectStore('graphs')};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});
   return new Promise<string|null>((resolve)=>{const request=db.transaction('graphs','readonly').objectStore('graphs').get('latest');request.onsuccess=()=>resolve(request.result?.entities?.[0]?.name||null);request.onerror=()=>resolve(null)});
  }),{timeout:20000,intervals:[250,500,1000,2000]}).toBe('Protected panel');
 });
@@ -125,7 +125,7 @@ test('IndexedDB current graph is authoritative over a stale localStorage compati
  await expect(imported).toContainText('IndexedDB primary panel',{timeout:15000});
  await imported.selectOption('panel-1');
  await expect.poll(()=>page.evaluate(async()=>{
-  const db=await new Promise<IDBDatabase>((resolve,reject)=>{const request=indexedDB.open('stratum-spatial-recovery-v1',1);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});
+  const db=await new Promise<IDBDatabase>((resolve,reject)=>{const request=indexedDB.open('stratum-spatial-recovery-v1',1);request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains('graphs'))request.result.createObjectStore('graphs')};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});
   return new Promise<string|null>(resolve=>{const request=db.transaction('graphs','readonly').objectStore('graphs').get('current');request.onsuccess=()=>resolve(request.result?.entities?.[0]?.name||null);request.onerror=()=>resolve(null)});
  })).toBe('IndexedDB primary panel');
  await expect.poll(()=>page.evaluate(()=>JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}').entities?.[0]?.name)).toBe('IndexedDB primary panel');

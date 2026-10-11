@@ -1073,7 +1073,12 @@ test('authenticated human Z review selects one preserved design chain without es
  const choose=supportCard.getByRole('button',{name:'Use this design chain for review placement'});
  await expect(choose).toBeEnabled();
  await choose.click();
- await expect(page.getByText(/Authenticated design Z review recorded/)).toBeVisible();
+ // Require an actual authenticated API receipt before accepting local review UI.
+ await expect.poll(()=>reviewRequest,{timeout:20000,intervals:[250,500,1000]}).toMatchObject({
+  projectId,compilationId,entityId:'xfmr-z-review',action:'ACCEPT_DESIGN_CHAIN',
+  candidateId:'support-chain',reason
+ });
+ await expect(page.getByText(/Authenticated design Z review recorded/)).toBeVisible({timeout:20000});
  await expect(page.getByText(/HUMAN REVIEW PLACEMENT · PHYSICAL Z UNVERIFIED/)).toBeVisible();
  expect(reviewRequest).toMatchObject({
   projectId,compilationId,entityId:'xfmr-z-review',action:'ACCEPT_DESIGN_CHAIN',candidateId:'support-chain',reason
