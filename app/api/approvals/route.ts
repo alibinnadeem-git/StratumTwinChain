@@ -1,3 +1,4 @@
+import {assertRealWritePayload} from '@/lib/spatial-provenance';
 import {NextResponse} from 'next/server';
 import {z} from 'zod';
 import {requireSession,type SessionRole} from '@/lib/server/auth';
@@ -32,7 +33,8 @@ function httpError(message:string,status:number){return Object.assign(new Error(
 export async function POST(req:Request){
  try{
   const session=await requireSession(['SUPER_ADMIN','ORG_ADMIN','PROJECT_MANAGER','INSPECTOR']);
-  const body=Body.parse(await req.json());
+  const raw=await req.json();assertRealWritePayload(raw);
+   const body=Body.parse(raw);
 
   const result=await tx(async client=>{
    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[body.lifecycleEventId]);
