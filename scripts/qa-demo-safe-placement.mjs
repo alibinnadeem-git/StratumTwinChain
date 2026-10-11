@@ -125,3 +125,23 @@ assert.match(graphStorage,/assertNonSyntheticSpatialGraph\(graph\);/);
 assert.match(graphStorage,/export async function writePrimarySpatialGraph/);
 assert.match(graphStorage,/export async function protectSpatialGraph/);
 console.log('Preview demo graph rejected by primary and recovery persistence interfaces.');
+
+const {DEFAULT_ELECTRICAL_MODEL_REGISTRY}=await import('../lib/electrical-model-registry.ts');
+const mappedDemo=demoEntities.filter(e=>typeof e.meta.demoComponentKey==='string');
+assert.equal(mappedDemo.length,5,'four viewable equipment models plus an unresolved panelboard silhouette');
+for(const entity of mappedDemo){
+ const model=DEFAULT_ELECTRICAL_MODEL_REGISTRY.find(m=>m.componentKey===entity.meta.demoComponentKey);
+ assert.ok(model,entity.id+' must resolve to an actual model-library key');
+ assert.match(model.modelUrl,/^\\/models\\/equipment\\/[a-z0-9-]+\\.(glb|gltf)$/i);
+ assert.match(model.license||'',/^STRATUM-authored geometry/);
+ assert.equal(model.geometryStatus,'DIMENSIONAL_VISUALIZATION');
+ const file='public'+model.modelUrl;
+ assert.ok(fs.existsSync(file),file+' must exist in the existing public component library');
+ if(model.format==='GLB')assert.equal(fs.readFileSync(file).toString('ascii',0,4),'glTF','GLB asset must be real binary geometry');
+}
+assert.ok(demoEntities.filter(e=>e.meta.demoPlacementTier==='UNRESOLVED_Z').every(e=>e.z===undefined));
+assert.match(viewer,/loader\\.load\\(cfg\\.modelUrl,gltf=>/);
+assert.match(viewer,/modelGeometryAuthority='DEMO_REPRESENTATIVE_LIBRARY_MODEL'/);
+assert.match(viewer,/if\\(demoMode\\)\\{previewFixtureEquipment\\(e\\);return;\\}/);
+assert.doesNotMatch(viewer.slice(viewer.indexOf('const previewFixtureEquipment='),viewer.indexOf('const loader=new GLTFLoader();')),/new THREE\\.BoxGeometry|new THREE\\.SphereGeometry/);
+console.log('A00: five real STRATUM library assets mapped to synthetic preview tiers; no placeholder equipment boxes.');

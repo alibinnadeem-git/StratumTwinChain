@@ -211,10 +211,15 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
   const unresolvedZ=useMemo(()=>graph?.entities.filter(e=>e.layer==="L2"&&!physicalElevationKnown(e)&&!isSld(e)).length||0,[graph]);
   const modelMapped=useMemo(()=>graph?.entities.filter(e=>{
     if(e.layer!=="L2"||e.kind==="line")return false;
+    if(demoMode){
+      const cfg=registry.find(item=>item.componentKey===e.meta?.demoComponentKey);
+      return Boolean(cfg?.modelUrl&&cfg.geometryStatus==='DIMENSIONAL_VISUALIZATION'&&
+        /^STRATUM-authored geometry/.test(cfg.license||''));
+    }
     if(e.kind==="cad-text"||e.meta?.cadPhysicalAnchor===false)return false;
     if(e.kind==="imported-3d-model")return typeof e.meta?.embeddedGlb==='string';
     return Boolean(resolveSpatialModel(e,registry).model?.modelUrl.trim());
-  }).length||0,[graph,registry]);
+  }).length||0,[graph,registry,demoMode]);
   const matching=useMemo(()=>inventory,[inventory]);
   const projectAssets=useMemo(()=>demoMode?[]:activeProjectId?registeredAssets.filter(asset=>asset.project_id===activeProjectId&&!/^STR-UAT-/i.test(asset.asset_code)):[],[activeProjectId,registeredAssets,demoMode]);
   const twinReadiness=useMemo(()=>graph&&!demoMode?deriveDigitalTwinProjectReadiness(graph.entities,projectAssets,registry):null,[graph,projectAssets,registry,demoMode]);
@@ -388,42 +393,98 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
       };
       // This is a synthetic, non-spatial review fixture. All tiers (including the
       // solid stated-Z illustration) are forbidden from authority and takeoff paths.
+      // DEMO-only: the library GLB/GLTF is the visible geometry. Unknown class
+      // remains a sheet pin; a known class with unresolved Z is a ghosted model.
+      // Never write these display transforms or fixture identities to a source graph.
       const previewFixtureEquipment=(e:Entity)=>{
         const tier=String(e.meta?.demoPlacementTier||'');
-        const markerType=unresolvedAssetVisual(e).kind;
-        if(tier==='UNRESOLVED_Z'){
-          renderProvisionalMarker(e,markerType==='NONE'?'GHOST_MARKER':markerType);
+        const sheetPin=unresolvedAssetVisual(e).kind==='SHEET_PIN';
+        if(sheetPin){renderProvisionalMarker(e,'SHEET_PIN');return}
+        const key=String(e.meta?.demoComponentKey||'');
+        const cfg=registry.find(item=>item.componentKey===key);
+        const validLibraryGeometry=Boolean(cfg &&
+          ['GLB','GLTF'].includes(cfg.format) &&
+          /^\\/models\\/equipment\\/[a-z0-9-]+\\.(?:glb|gltf)$/i.test(cfg.modelUrl) &&
+          /^STRATUM-authored geometry/.test(cfg.license||'') &&
+          cfg.geometryStatus==='DIMENSIONAL_VISUALIZATION' &&
+          cfg.dimensionsMeters?.length===3 &&
+          cfg.dimensionsMeters.every((size:number)=>Number.isFinite(size)&&size>0));
+        if(!validLibraryGeometry||!cfg){
+          setModelLoadErrors(errors=>errors.includes(e.id)?errors:[...errors,e.id]);
+          renderProvisionalMarker(e,'GHOST_MARKER');
           return;
         }
         const derived=tier==='DERIVED_Z_CANDIDATE';
-        const root=new THREE.Group(),color=derived?0xffb74e:0x3ed5a9;
-        // Here Y is presentation height, never canonical Z or an asset fact.
-        root.position.set(e.x,derived?Number(e.meta?.zCandidateMeters||0):Number(e.z||0),e.y);
-        const mesh=new THREE.Mesh(new THREE.BoxGeometry(
-          e.name.includes('Switchboard')?1.9:1.1,
-          e.name.includes('Switchboard')?1.45:1.15,
-          e.name.includes('Transformer')?1.2:.75),
-          new THREE.MeshStandardMaterial({color,transparent:derived,opacity:derived?.52:1,metalness:.23,roughness:.52}));
-        mesh.position.y=.65;
-        root.add(mesh);
-        const ring=new THREE.Mesh(new THREE.TorusGeometry(.9,.025,8,36),
-          new THREE.MeshBasicMaterial({color,transparent:true,opacity:.84,depthTest:false}));
-        ring.rotation.x=Math.PI/2;ring.position.y=.04;root.add(ring);
-        root.userData.demo=true;
-        root.userData.synthetic=true;
-        root.userData.canonicalZ=null;
-        root.userData.physicalTruth=false;
-        root.userData.reviewRequired=true;
-        root.userData.authorityEligible=false;
-        root.userData.takeoffEligible=false;
-        root.userData.measurementEligible=false;
-        root.userData.exportEligible=false;
-        root.userData.status=String(e.meta?.status||'INFERRED_PREDICTED');
-        root.userData.visualTier=tier;
-        tag(root,e);clickable.push(ring);
-        groups.L2.add(root);
-        label(`DEMO · ${derived?'DERIVED Z · REVIEW':'STATED Z · SOURCE'}`,e.x,root.position.y,e.y,
-          derived?'#ffca81':'#8dffd5',e);
+        const unresolved=tier==='UNRESOLVED_Z';
+        // UI-only visualization plane when Z is missing; no canonical datum is assigned.
+        const reviewDisplayZ=unresolved?0:derived?Number(e.meta?.zCandidateMeters):Number(e.z);
+        if(!Number.isFinite(reviewDisplayZ)){
+          setModelLoadErrors(errors=>errors.includes(e.id)?errors:[...errors,e.id]);
+          renderProvisionalMarker(e,'GHOST_MARKER');
+          return;
+        }
+        loader.load(cfg.modelUrl,gltf=>{
+          if(disposed)return;
+          try{
+            const target=cfg.dimensionsMeters!;
+            const model=gltf.scene;
+            model.rotation.set(...cfg.rotation.map(value=>THREE.MathUtils.degToRad(value)) as [number,number,number]);
+            // Same library normalization boundary as the production viewer.
+            const normalized=normalizeObjectToMeters(model,target,.05);
+            const root=new THREE.Group();
+            root.position.set(e.x,reviewDisplayZ,e.y);
+            root.userData.demo=true;root.userData.synthetic=true;
+            root.userData.canonicalZ=null;root.userData.physicalTruth=false;
+            root.userData.reviewRequired=true;root.userData.authorityEligible=false;
+            root.userData.verificationPromotionEligible=false;
+            root.userData.takeoffEligible=false;root.userData.measurementEligible=false;
+            root.userData.exportEligible=false;
+            root.userData.status=String(e.meta?.status||'UNRESOLVED');
+            root.userData.visualTier=tier;root.userData.modelComponentKey=key;
+            root.userData.modelUrl=cfg.modelUrl;
+            root.userData.modelGeometryAuthority='DEMO_REPRESENTATIVE_LIBRARY_MODEL';
+            root.userData.normalization={scalar:normalized.scalar,ratioSpread:normalized.ratioSpread,reviewRequired:true};
+            const color=unresolved?new THREE.Color(0x8bbcff):new THREE.Color(0xffb74e);
+            if(derived||unresolved){
+              model.traverse((obj:any)=>{
+                if(!obj.isMesh)return;
+                const style=(material:any)=>{
+                  const copy=material.clone();
+                  copy.transparent=true;copy.opacity=unresolved?.22:.5;copy.depthWrite=false;
+                  copy.side=THREE.DoubleSide;
+                  if(copy.color)copy.color.lerp(color,unresolved?.68:.34);
+                  return copy;
+                };
+                obj.material=Array.isArray(obj.material)?obj.material.map(style):style(obj.material);
+              });
+            }
+            root.add(model);
+            const ringColor=unresolved?0x8bbcff:derived?0xffb74e:0x3ed5a9;
+            const ring=new THREE.Mesh(new THREE.TorusGeometry(.65,.025,8,32),
+              new THREE.MeshBasicMaterial({color:ringColor,transparent:true,opacity:.78,depthTest:false,depthWrite:false}));
+            ring.rotation.x=Math.PI/2;ring.position.y=.045;root.add(ring);
+            interactionProxy(root,target);tag(root,e);clickable.push(ring);
+            groups.L2.add(root);
+            label(unresolved?'DEMO · LIBRARY GHOST · Z UNRESOLVED':
+              derived?'DEMO · LIBRARY MODEL · DERIVED Z':
+              'DEMO · LIBRARY MODEL · STATED Z',
+              e.x,reviewDisplayZ,e.y,unresolved?'#8bbcff':derived?'#ffca81':'#8dffd5',e);
+            const renderedBox=new THREE.Box3().setFromObject(root);
+            if(!renderedBox.isEmpty()){
+              renderedBox.translate(new THREE.Vector3(renderOrigin.x,0,renderOrigin.y));
+              bounds.union(renderedBox);
+            }
+            runtime.current?.fit?.();
+          }catch(error){
+            console.warn('Synthetic demo model unavailable; retaining unplaced review marker',key,error);
+            setModelLoadErrors(errors=>errors.includes(e.id)?errors:[...errors,e.id]);
+            renderProvisionalMarker(e,'GHOST_MARKER');
+          }
+        },undefined,()=>{
+          if(disposed)return;
+          setModelLoadErrors(errors=>errors.includes(e.id)?errors:[...errors,e.id]);
+          renderProvisionalMarker(e,'GHOST_MARKER');
+        });
       };
       const loader=new GLTFLoader();
       const equipment=(e:Entity)=>{

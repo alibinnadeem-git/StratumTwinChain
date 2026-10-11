@@ -41,11 +41,11 @@ function asset(id:string,name:string,x:number,y:number,tier:'STATED_Z'|'DERIVED_
  };
 }
 const entities=[
- asset('MSB-01','Main Switchboard',4,5,'STATED_Z',.1,{sourceElevationNote:'DEMO E-101: TOP OF CONCRETE PAD +0.10 m'}),
- asset('XFMR-01','Pad-mount Transformer',8.5,4.5,'STATED_Z',.25,{sourceElevationNote:'DEMO E-101: BASE AT +0.25 m'}),
- asset('UPS-01','UPS Cabinet',12,5,'DERIVED_Z_CANDIDATE',.18),
- asset('ATS-01','Automatic Transfer Switch',15,7.5,'DERIVED_Z_CANDIDATE',1.2),
- asset('PANEL-01','Panelboard',5,10,'UNRESOLVED_Z',undefined,{location_state:'known'}),
+ asset('MSB-01','Main Switchboard',4,5,'STATED_Z',.1,{demoComponentKey:'main-switchboard',sourceElevationNote:'DEMO E-101: TOP OF CONCRETE PAD +0.10 m'}),
+ asset('XFMR-01','Pad-mount Transformer',8.5,4.5,'STATED_Z',.25,{demoComponentKey:'pad-mount-transformer',sourceElevationNote:'DEMO E-101: BASE AT +0.25 m'}),
+ asset('UPS-01','UPS Cabinet',12,5,'DERIVED_Z_CANDIDATE',.18,{demoComponentKey:'ups'}),
+ asset('ATS-01','Automatic Transfer Switch',15,7.5,'DERIVED_Z_CANDIDATE',1.2,{demoComponentKey:'ats'}),
+ asset('PANEL-01','Panelboard',5,10,'UNRESOLVED_Z',undefined,{location_state:'known',demoComponentKey:'panelboard'}),
  asset('SHEET-PIN-01','Unknown Device · source sheet pin',14,10,'UNRESOLVED_Z',undefined,{
   kind:'sheet-callout-candidate',coordinateUnits:'sheet',location_state:'unknown',
   reason_codes:['SCALE_UNKNOWN','LOCATION_AMBIGUOUS','Z_NOT_STATED'],
