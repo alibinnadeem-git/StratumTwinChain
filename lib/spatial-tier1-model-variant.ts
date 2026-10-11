@@ -7,8 +7,16 @@ import type {Object3D} from "three";
  */
 export function selectTier1ModelVariant(scene:Object3D,variantId:string):boolean{
  const variants:Object3D[]=[];
- scene.traverse(node=>{if(typeof node.userData?.variantId==='string')variants.push(node);});
- const matching=variants.filter(node=>node.userData.variantId===variantId);
+ const isVariant=(node:Object3D)=>{
+  const id=node.userData?.variantId;
+  return typeof id==='string'||/variant[_:-]/i.test(node.name);
+ };
+ const id=(node:Object3D)=>{
+  if(typeof node.userData?.variantId==='string')return node.userData.variantId;
+  return node.name.replace(/^variant[_:-]/i,'');
+ };
+ scene.traverse(node=>{if(isVariant(node))variants.push(node);});
+ const matching=variants.filter(node=>id(node)===variantId);
  for(const node of variants)node.visible=matching.length===1&&node===matching[0];
  return matching.length===1;
 }

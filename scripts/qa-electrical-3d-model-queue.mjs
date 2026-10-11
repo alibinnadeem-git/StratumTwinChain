@@ -31,8 +31,8 @@ for(const item of manifest){
     'No OEM identifying information should be embedded in generic geometry');
  const scene=(await new GLTFLoader().parseAsync(binary.buffer.slice(binary.byteOffset,binary.byteOffset+binary.byteLength),'')).scene;
  for(const variant of item.variants){
-  assert.equal(selectTier1ModelVariant(scene,variant),true,item.name+' '+variant);
-  const nodes=[];scene.traverse(object=>{if(object.userData?.variantId===variant)nodes.push(object);});
+  assert.equal(selectTier1ModelVariant(scene,variant),true,item.name+' '+variant+' variants found: '+JSON.stringify((()=>{const ns=[];scene.traverse(n=>{if(/variant/i.test(n.name)||n.userData?.variantId)ns.push({name:n.name,extras:n.userData})});return ns})()));
+  const nodes=[];scene.traverse(object=>{if(object.userData?.variantId===variant||object.name.replace(/^variant[_:-]/i,'')===variant&&/variant[_:-]/i.test(object.name))nodes.push(object);});
   assert.equal(nodes.length,1);
   const v=nodes[0],bounds=new Box3().setFromObject(v),size=bounds.getSize(new Vector3());
   assert.ok(size.toArray().every(x=>Number.isFinite(x)&&x>0));
