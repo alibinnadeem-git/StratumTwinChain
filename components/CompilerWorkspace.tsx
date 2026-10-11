@@ -562,6 +562,13 @@ export default function CompilerWorkspace({safeMode=false}:{safeMode?:boolean}){
    await processFiles([file]);
   }catch(error){setMessage(error instanceof Error?error.message:'Tesla reference import failed.');}
  }
+ if(safeMode)return <section className="card import-primary" role="status">
+  <div className="eyebrow">Recovery</div>
+  <h2>SAFE IMPORT MODE</h2>
+  <p>Saved graph hydration, parsing, source uploads and automatic reprocessing are disabled in this rescue view. Browser-local source archives and previous graph versions remain untouched.</p>
+  <div className="button-row"><a className="ghost" href="/recovery.html">Recovery instructions</a>
+   <a className="action" href="/compiler">Return to normal import</a></div>
+ </section>;
  return <div style={{marginTop:14}}>
   <section className="card import-primary">
    <div className="button-row" style={{justifyContent:'flex-end'}}>
