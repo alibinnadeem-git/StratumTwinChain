@@ -116,3 +116,12 @@ assert.match(viewer,/if\(demoGraph\)\{setGraph\(demoGraph\);setActiveProjectId\(
 assert.match(viewer,/demoMode\?<PreviewDemoAssetInspector selected=\{selected\}/);
 assert.match(viewer,/root\.userData\.authorityEligible=false/);
 console.log('A00 preview fixture: preview-only, exact three tiers, source-marked, isolated read-only graph, no authority channels.');
+
+const {assertNonSyntheticSpatialGraph}=await import('../lib/spatial-browser-recovery.ts');
+assert.throws(()=>assertNonSyntheticSpatialGraph(PREVIEW_DEMO_GRAPH),/DEMO \/ SYNTHETIC graphs/);
+assert.doesNotThrow(()=>assertNonSyntheticSpatialGraph({sources:[{name:'user source'}],entities:[{id:'real-record'}]}));
+const graphStorage=fs.readFileSync('lib/spatial-browser-recovery.ts','utf8');
+assert.match(graphStorage,/assertNonSyntheticSpatialGraph\(graph\);/);
+assert.match(graphStorage,/export async function writePrimarySpatialGraph/);
+assert.match(graphStorage,/export async function protectSpatialGraph/);
+console.log('Preview demo graph rejected by primary and recovery persistence interfaces.');

@@ -112,8 +112,27 @@ export async function readPrimarySpatialGraph(storage:Storage=localStorage){
   return shadow;
 }
 
+/**
+ * Reject preview-only synthetic fixtures before browser or IndexedDB persistence.
+ * Authenticated/server source records must never be created from demo entities.
+ */
+export function assertNonSyntheticSpatialGraph(graph:SpatialGraphLike):void{
+  const isSynthetic=(item:unknown)=>{
+    if(!item||typeof item!=='object')return false;
+    const record=item as {id?:unknown;name?:unknown;synthetic?:unknown;demo?:unknown;meta?:unknown};
+    const meta=record.meta&&typeof record.meta==='object'?record.meta as Record<string,unknown>:{};
+    return record.synthetic===true||record.demo===true||meta.synthetic===true||meta.demo===true||
+      (typeof record.id==='string'&&record.id.startsWith('DEMO-SYNTHETIC-'))||
+      (typeof record.name==='string'&&record.name.startsWith('DEMO / SYNTHETIC'));
+  };
+  if(graph.synthetic===true||graph.demo===true||
+     graph.entities.some(isSynthetic)||graph.sources.some(isSynthetic))
+    throw new Error('DEMO / SYNTHETIC graphs are ineligible for persisted Spatial or authoritative source records.');
+}
+
 export async function writePrimarySpatialGraph(graph:SpatialGraphLike,storage:Storage=localStorage){
   if(!isSpatialGraph(graph))throw new Error('This file is not a valid STRATUM Spatial graph.');
+  assertNonSyntheticSpatialGraph(graph);
   let indexed=false;
   try{
     await idbPut(PRIMARY_KEY,graph);
@@ -194,6 +213,7 @@ export async function readIndexedRecovery(which:'latest'|'previous'){
 }
 
 export async function protectSpatialGraph(graph:SpatialGraphLike,previous:SpatialGraphLike|null){
+  assertNonSyntheticSpatialGraph(graph);
   try{
     if(previous)await idbPut('previous',previous);
     await idbPut('latest',graph);
