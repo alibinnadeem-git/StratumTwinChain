@@ -178,8 +178,10 @@ test('saved drawing REPROCESS queues visibly behind an active worker parse',asyn
  await expect(row).toBeEnabled();
  await row.click();
  await expect(row).toHaveText('QUEUED');
- await expect(page.getByRole('status').filter({hasText:'LOCAL SOURCE ARCHIVE'})).toContainText(/REPROCESS QUEUED:.*after the current parse/i);
- await cancel.click();
+ await expect(page.getByRole('status').filter({hasText:'LOCAL SOURCE ARCHIVE'}))
+  .toContainText(/REPROCESS QUEUED:.*Canceling active PDF worker|Reprocessing/i);
+ // REPROCESS itself must stop the active worker; no manual Cancel required.
+ await expect(cancel).toBeHidden({timeout:30000});
  await expect(page.getByRole('status').filter({hasText:'LOCAL SOURCE ARCHIVE'})).toContainText(/Reprocessing 1 protected browser-local drawing/,{timeout:30000});
  await expect.poll(()=>page.evaluate(()=>{
   const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
@@ -256,4 +258,43 @@ test('archived plan REPROCESS retains a source basemap and explicitly reports un
  },{sha});
  expect(status).toContain('REPROCESS AUDIT');
  expect(status).toContain('PARSER CAPABILITY GAP');
+});
+
+test('page-nine stalled worker reports its state and stops on watchdog timeout',async({page},testInfo)=>{
+ test.setTimeout(65000);
+ if(testInfo.project.name!=='desktop-chromium')return;
+ await page.goto('/compiler');
+ await page.evaluate(()=>{
+  const original=window.Worker;
+  let terminated=0;
+  class HungWorker {
+   onmessage:((e:any)=>void)|null=null;
+   onerror:((e:any)=>void)|null=null;
+   onmessageerror:((e:any)=>void)|null=null;
+   postMessage(data:any){
+    window.setTimeout(()=>this.onmessage?.({
+     data:{requestId:data.requestId,type:'progress',page:9,total:9,phase:'spatial semantics'}
+    }),0);
+   }
+   terminate(){terminated++}
+  }
+  (window as any).__hungWorkerTerminations=()=>terminated;
+  (window as any).Worker=HungWorker as unknown as typeof Worker;
+  (window as any).__restoreWorker=()=>{window.Worker=original};
+ });
+ await page.clock.install();
+ await sourceInput(page).setInputFiles({name:'Synthetic Nine-Page Slow.pdf',
+  mimeType:'application/pdf',buffer:syntheticVectorPdf(9,20)});
+ await expect(page.getByRole('status').filter({hasText:'PARSING'}))
+  .toContainText(/page 9 of 9.*spatial semantics/);
+ await expect(page.getByRole('status').filter({hasText:'PARSING'}))
+  .toContainText(/Worker: RUNNING/);
+ await page.clock.fastForward(16000);
+ await expect(page.getByRole('status').filter({hasText:'PARSING'}))
+  .toContainText(/Worker: STALLED/);
+ await page.clock.fastForward(30000);
+ await expect.poll(()=>page.evaluate(()=>(window as any).__hungWorkerTerminations())).toBe(1);
+ await expect(page.getByRole('status').filter({hasText:'IMPORT'}))
+  .toContainText(/without a heartbeat|timeout/i);
+ await page.evaluate(()=>(window as any).__restoreWorker());
 });
