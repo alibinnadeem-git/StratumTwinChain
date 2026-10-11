@@ -27,3 +27,5 @@
 - `end-suction-pump.glb` belongs to mechanical and is excluded from this **electrical** migration. Its future ID would require an explicitly scoped `stlib-mec-...` registration, not `stlib-ele-`.
 
 **Evidence and safety.** Each `file.sha256` was computed over actual binary bytes retrieved from the repository (not the 40-hex Git blob hash). The CI test independently computes `crypto.createHash('sha256')` from registered and legacy alias paths. Both must match the registry. Default-registry mapping still does not switch to candidates or confer verification. This is a stacked review PR on open #221; no production deploy, data migration, OEM promotions or merges.
+
+**CI routing note:** This draft is stacked on unmerged PR #221. Its test workflow only runs against PRs based on `main`; check evidence is obtained against main before restoring the stacked review base. No merge or production deploy is authorized.
