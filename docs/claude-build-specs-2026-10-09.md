@@ -1,6 +1,6 @@
 # STRATUM Spatial Verified — Build Specs (FINALIZED)
 **Source:** Claude, Oct 9, 2026 · delivered by @Ali Bin Nadeem
-**Status:** FINAL — four locked decisions applied throughout. Replaces the draft version.
+**Status:** FINALIZED OCT 9 BASE + ALI-APPROVED AMENDMENT BASELINE OCT 10 (proposed changes in this review PR; NOT merged). Original finalized baseline remains in held PRs #211/#212 until review.
 
 ---
 
@@ -13,8 +13,8 @@ These three specs let the 32-agent team build the component library, the asset r
 **Design rules taken from the doctrine** (every spec below is built on these):
 1. Evidence or UNRESOLVED. Every asset record carries at least one evidence item (sheet, page, bounding box). No evidence, no record.
 2. AI proposes, humans promote. No agent may write a status of Verified or higher. Agents write only Inferred-Predicted or UNRESOLVED.
-3. Never fill a gap with a plausible default. A missing voltage, mounting height or drawing scale is stored as null plus a reason code, never as a guess.
-4. One coordinate frame per twin. Metres, right-handed, Z-up (the IFC/BIM convention). The viewer applies one Y-up conversion at its root, because glTF is Y-up. Every sheet gets a sheet-to-world transform with its residual error recorded.
+3. Never fill a gap with a plausible default. A missing voltage, mounting height, drawing scale, absolute level/floor elevation, floor-to-floor height, ceiling height or plate height is stored as null plus a reason code, never as a guess. Every canonical vertical quantity, including `position.z`, `level_elevation_m` and `mount_height_m`, needs a source-backed or human-confirmed basis. Source-derived Z **candidates** are permitted only in the separate evidence/review lane with `physicalTruth:false`, `reviewRequired:true`, and nullable canonical Z.
+4. One coordinate frame per twin. Metres, right-handed, Z-up (the IFC/BIM convention). The viewer applies one Y-up conversion at its root, because glTF is Y-up. Sheet-to-world registration is optional and **never automatically applied**: candidate transform `PROPOSED` → human review `HUMAN_CONFIRMED` → explicitly invoked `APPLIED`, with distinct actor/time/evidence records and residual error. Missing transform cannot erase independently established native metric positions. Sheets may remain isolated source-sheet pins.
 
 **What is not in the library.** Walls, slabs, roofs, columns and beams, plus the linear runs (conduit, cable, ground ring and bonding conductors, duct, pipe), are generated procedurally from extracted geometry. The library covers the discrete pieces on those runs: equipment, devices, boxes, bodies, fittings and tray sections. Grounding and bonding connections are stored as relations (bonded_to, grounded_by) rather than geometry.
 
@@ -25,6 +25,8 @@ These three specs let the 32-agent team build the component library, the asset r
 2. No auto-verification. Even a deterministic triple match (symbol, tag and schedule row all agree) goes to human review. No rule or automation may write Verified or higher (Deliverable 2).
 3. Axis convention. Z-up metres is the canonical frame, with one Y-up conversion at the viewer root.
 4. Confidence thresholds. Starting values are a top candidate score of at least 0.85, a margin of at least 0.15 over the second candidate, and at least two independent evidence kinds agreeing. They are calibrated on 20 to 30 hand-labelled sheets.
+5. Z starts `UNRESOLVED`. No fabricated elevation, floor-to-floor spacing or mounting height. Source observations and mathematical Z proposals (including FFE/FF/FG/FS-backed Delaunay triangulation and barycentric interpolation **inside** the valid control envelope) are preserved separately; derived proposals must be `physicalTruth:false`, `reviewRequired:true` and cannot become canonical height without authorized review.
+6. Scale is proposal-only. Printed/manual XY witness pairs and independent dimensions corroborate a candidate; no agent may automatically apply any metric transform, even when confidence is high. A human must confirm, then explicitly apply it.
 
 ---
 
@@ -72,7 +74,7 @@ The library is 100 discrete components, weighted toward electrical: Electrical (
 **Intake Gate.** No model enters the registry until it passes all seven checks:
 1. Licence tier set to T1, T2 or T3 under the policy above. T2 needs the permission file reference. No file, no T2 entry.
 2. Converted to GLB. IFC and STEP go through IfcConvert (IfcOpenShell), FreeCAD or Blender. RVT goes through IFC export first.
-3. Normalised. Real-world metres, +Y up (glTF convention), origin at the host contact (floor for floor-standing, ceiling plane for ceiling-mounted, wall face for wall-mounted), front along +Z. The viewer root applies the single conversion from the canonical Z-up frame.
+3. Normalised. Real-world metres, +Y up (glTF convention), origin at the host contact (floor for floor-standing, ceiling plane for ceiling-mounted, wall face for wall-mounted), front along +Z. The viewer root applies the single conversion from the canonical Z-up frame. This model-space mounting origin is only a convention: it **does not imply that the host plane elevation is known**, and the viewer must never supply missing project Z from the GLB bounds, catalogue height, or assumed host geometry.
 4. Anchored. Named empty nodes for connection and mounting points, such as mount_face, power_in, ground_lug, conduit_entry, duct_supply, pipe_in.
 5. Optimised. At most 50,000 triangles for equipment and 5,000 for small devices (receptacles, detectors), compressed with glTF-Transform using meshopt or Draco.
 6. Validated. Zero errors from the Khronos glTF-Validator.
@@ -277,16 +279,23 @@ Every detected asset gets one record, the "passport", built from eight field gro
 | Field | Type | Notes |
 |-------|------|-------|
 | frame_id | string | The twin's coordinate frame (metres, Z-up). |
-| position | {x, y, z} | Metres. Null when location is unknown. |
+| position | {x, y, z} (nullable coordinates) | Canonical Z-up metres. `z` is the model host-contact origin's elevation; `z:null` unless independently source-supported and human-confirmed. X/Y may be known while Z remains null; source-sheet pixels are not metres. Never derive canonical Z from GLB bounding boxes, catalogue heights or implicit host elevation. |
 | rotation | {yaw_deg, quat} | Yaw about Z, plus the full quaternion. |
 | bounds | {min, max} | Axis-aligned box in metres. |
-| level_id, level_elevation_m | string, number | |
+| level_id, level_elevation_m | string, number | Nullable. Level elevation needs a named source datum, grade/floor control, or authorized human confirmation; no default storey height. |
 | room_id | string | Room or space number if resolvable. |
 | host_id | ref | Wall, ceiling or slab the asset is mounted on. |
-| mount_height_m | number | Only from a schedule, note or dimension, never assumed. |
-| position_source | enum | dimensioned, drawn, derived, scaled_from_sheet, human. |
-| sheet_transform_id | ref | Sheet-to-world transform used, with its recorded residual in millimetres. |
-| position_confidence | number | 0 to 1. |
+| mount_height_m | number | Nullable height of the same model host-contact origin above the named, source-evidenced host plane; only from schedule, note, dimension, section/elevation, or authorized human review. A nominal model height is never mounting evidence. |
+| position_source | enum | Nullable canonical location provenance: dimensioned, drawn, scaled_from_applied_transform, human. `derived` is a **candidate-only** provenance in `z_candidates[]`, never an assertion of canonical location. `scaled_from_applied_transform` requires an `APPLIED` transform event (not merely proposed/confirmed). |
+| sheet_transform_id | ref | Present only for a transform with explicit `APPLIED` event. A merely `PROPOSED`/`HUMAN_CONFIRMED` transform cannot write a metric position or cross-discipline/world-space overlap. Native independently established metric coordinates may exist without a sheet transform ID, with their separate provenance. |
+| position_confidence | number | 0–1, with evidence provenance; never substitutes for source witnesses or authorized transform application. |
+| z_source_observations[] | [] | Append-only raw source elevation/AFF/host datum notes and measurements with source evidence, reference point, frame and null reasons. |
+| z_candidates[] | [] | Separate review-only computed designs: method (FFE/FF/FG/FS control, triangle IDs, barycentric weights if applicable), source observations, candidate metres, confidence, datum and `physicalTruth:false`, `reviewRequired:true`. Only interpolate **within** a verified control envelope; no invented defaults. |
+| z_confirmed | {} | Nullable authorized human-confirmed Z/reference point, actor, role, evidence IDs and review event; only this or independently source-established authorized evidence may populate canonical `position.z`. |
+| sheet_transform_proposals[] | [] | Records of corroborating manual XY control pairs, independent witnesses, coordinate frames, residual_mm, reviewer identity and three immutable transition events `PROPOSED`, `HUMAN_CONFIRMED`, `APPLIED`. Confirming does not automatically apply. |
+
+
+**Sheet registration event contract (human-commanded).** A proposed sheet-to-world transform is an immutable record with `transform_id`, project/floor/discipline/source frame IDs, destination frame, source XY control pairs and their dimension/graphic-scale witnesses, `residual_mm`, method, timestamp, reviewer/approver identity and `events[]`. Events progress `PROPOSED → HUMAN_CONFIRMED → APPLIED`, each with an actor, time, evidence references and prev_hash/hash; each transition is a separate authenticated action. The confirmer cannot bypass explicit application. A pair of unrelated floors or unconfirmed discipline boundaries may not be registered automatically; failures stay source-sheet-local. The numerical residual acceptance policy is separately reviewed and must not be invented.
 
 **Resolution**
 
@@ -336,10 +345,10 @@ An agent may write only the first two statuses. Every later status requires a na
 | VERIFIED | A named human checked identity and location against the source drawing. | Human reviewer | Reviewer id, evidence ids viewed, optional correction | APPROVED, UNRESOLVED, REJECTED |
 | APPROVED | An authorised second person accepts the asset as design intent for the project. | Human approver (role: engineer, project manager or discipline lead) | Approver is not the verifier | FINALIZED, VERIFIED (approval withdrawn) |
 | FINALIZED | Frozen into a published model release. Immutable. | Human release manager | release_id; every required field present; zero open review tasks on the asset | LIVE, or a new version at VERIFIED after a change |
-| LIVE | Linked to a real installed, commissioned instance. | Human, or a verified integration with a field system | Passport fields filled; field evidence such as a commissioning record | A new version at VERIFIED after replacement or modification |
+| LIVE | Linked to a real installed, commissioned instance. | **Authorized human only** (commissioning authority/project manager with role) | Complete passport, source/commissioning field evidence, authenticated actor role and append-only actor/event provenance. Field integrations may attach evidence and request/propose LIVE, never execute the transition. | A new version at VERIFIED after replacement or modification |
 | REJECTED | False positive or duplicate. Kept for detector training, hidden from the twin. | Human reviewer | Reason code | Terminal |
 
-**Rendering rule.** The viewer must visibly distinguish every status. UNRESOLVED renders as a placeholder marker, INFERRED_PREDICTED with a distinct style and its confidence, and neither is counted in quantity takeoffs or compliance reports.
+**Rendering rule.** Viewing does not grant authority. A resolved model that passes all locked thresholds but remains `INFERRED_PREDICTED` renders as recognizable geometry with a persistent **UNVERIFIED** in-viewport and inspector label; `physicalTruth:false`, `reviewRequired:true` and excluded from takeoffs, measurements and exports. A model that is approved for generic class fallback is shown as **FALLBACK · UNVERIFIED**, never as an OEM product; no usable model results in the existing ghost/sheet-pin placeholder. `UNRESOLVED` identity or Z may render a translucent generic class silhouette only as a review-only ghost (if class evidence and licensed model exist), without silently resolving the asset. All preview demos are additionally DEMO/SYNTHETIC, read-only, excluded from all authority paths, and use in-house/CC0 Tier-1 models only. Neither UNRESOLVED nor INFERRED_PREDICTED is counted in quantity takeoffs, measurements, compliance, or authoritative exports.
 
 ### 2.3 What an UNRESOLVED record carries
 
@@ -349,10 +358,10 @@ An UNRESOLVED record states what was seen, why it stopped, and what would unbloc
 |-------|-------|
 | evidence[] | The detection crop, bounding box, OCR text and sheet reference. At least one item. |
 | detection | What the detector saw: class label and confidence. This is an observation, not a classification. |
-| reason_codes[] | One or more of: NO_LIBRARY_MATCH, LOW_CLASSIFICATION_MARGIN, SYMBOL_NOT_IN_LEGEND, TAG_UNREADABLE, TAG_SYMBOL_CONFLICT, SCALE_UNKNOWN, SCALE_CONFLICT, LOCATION_AMBIGUOUS, SCHEDULE_MISSING, SCHEDULE_AMBIGUOUS, CROSS_DISCIPLINE_CONFLICT, SHEET_ILLEGIBLE, OCCLUDED_BY_ANNOTATION, DUPLICATE_SUSPECT, OUT_OF_SCOPE_SYMBOL. |
+| reason_codes[] | One or more of: NO_LIBRARY_MATCH, LOW_CLASSIFICATION_MARGIN, SYMBOL_NOT_IN_LEGEND, TAG_UNREADABLE, TAG_SYMBOL_CONFLICT, SCALE_UNKNOWN, SCALE_CONFLICT, LOCATION_AMBIGUOUS, Z_NOT_STATED, Z_REFERENCE_UNKNOWN, SCHEDULE_MISSING, SCHEDULE_AMBIGUOUS, CROSS_DISCIPLINE_CONFLICT, SHEET_ILLEGIBLE, OCCLUDED_BY_ANNOTATION, DUPLICATE_SUSPECT, OUT_OF_SCOPE_SYMBOL. |
 | candidates[] | Closest library matches with scores, each flagged selected: false. Shown to the reviewer as hints only. |
 | missing_inputs[] | What would resolve it, such as the legend sheet, the equipment schedule, a scale bar or a higher-resolution scan. |
-| location_state | known, approximate or unknown. If known or approximate, position is set with its confidence; otherwise null. |
+| location_state | known, approximate or unknown. If independently source-supported, coordinate components may be known with confidence; canonical Z remains null absent evidence/authorized confirmation. Unapproved source-sheet coordinates are only `sheet_pin`, not world metres. |
 | placeholder | Viewer geometry: ghost_marker at the position, or sheet_pin (a pin on the source sheet only) when location is unknown. |
 | review_task | task_id, queue, priority, assigned_to, created_at, due_at. |
 | attempts[] | Each resolver run: version, timestamp, outcome and which signals were tried. |
@@ -364,7 +373,7 @@ Resolve to INFERRED_PREDICTED only when all three hold. Otherwise write UNRESOLV
 2. The margin over the second candidate is at least 0.15.
 3. At least two independent evidence kinds agree, for example symbol plus tag, or symbol plus schedule row.
 
-A component with a correct IFC class but no usable model may resolve to FALLBACK, using the generic model from the library, only when rule 3 holds. An OEM model without written permission on record is treated the same way. These thresholds are locked as starting values and are calibrated on 20 to 30 hand-labelled sheets. Changing them after calibration needs a logged decision.
+A class with no licensed usable exact model, including OEM geometry lacking written redistribution permission, may resolve to **FALLBACK** only if **all three** rules above pass (top ≥0.85, margin ≥0.15, two independent evidence kinds) **and** a Tier-1 CC0/in-house generic 3D model for the *specific taxonomy component class* has passed the seven-check Intake Gate. A broad IFC superclass or merely suggested candidate is not sufficient. Never load or display the unauthorized/failed OEM candidate as the asset's geometry. Mark the generic as `FALLBACK · UNVERIFIED` in the model and inspector, keep the exact OEM reference as untrusted context only, and cap machine-written lifecycle at `INFERRED_PREDICTED`. If any test fails, the asset is `UNRESOLVED` and the UI shows only a non-authoritative ghost/sheet pin or reviewed generic class ghost. These thresholds are locked starting values calibrated on 20–30 hand-labelled sheets; changing them requires a recorded human decision.
 
 ### 2.5 Example: UNRESOLVED record
 
@@ -403,7 +412,7 @@ A component with a correct IFC class but no usable model may resolve to FALLBACK
   "position": {"x": 18.42, "y": 7.15, "z": null},
   "placeholder": "ghost_marker",
   "review_task": {"task_id": "rt_0192", "queue": "ele-symbols", "priority": "normal"},
-  "nulls": {"tag": "TAG_UNREADABLE", "position.z": "MOUNT_HEIGHT_NOT_STATED"}
+  "nulls": {"tag": "TAG_UNREADABLE", "position.z": "Z_NOT_STATED"}
 }
 ```
 
