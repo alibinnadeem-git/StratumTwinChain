@@ -42,4 +42,18 @@ assert.match(viewer,/Refresh drawing source/);
 assert.match(viewer,/migration task, not a failed parse/i);
 
 
+
+assert.match(compiler,/aria-label=\{`Reprocess \$\{f\.name\}`\}/,'saved drawing row REPROCESS is a real button with accessible name');
+assert.match(compiler,/onClick=\{\(\)=>queueArchivedReprocess\(\[f\.sha256\]\)\}/,'row click must queue the right source SHA');
+assert.match(compiler,/function queueArchivedReprocess\(shas:string\[\]\)/,'request must be queued, not silently swallowed by a busy parser');
+assert.match(compiler,/REPROCESS QUEUED/,'queueing while a parse is active must give visible feedback');
+assert.match(compiler,/if\(busy\|\|parseBusyRef\.current\|\|reprocessDraining\|\|!queuedReprocessShas\.length\)return/,'queue must drain only when the current parse has finished');
+assert.match(compiler,/const pending=batch\.filter\(sha=>staleBySha\.has\(sha\)\)/,'completed parse must be allowed to clear a now-fresh reprocess request');
+assert.match(compiler,/setQueuedReprocessShas\(current=>\[\.\.\.new Set\(\[\.\.\.current,\.\.\.pending\.filter/,'racing archive lookup must requeue instead of dropping the request');
+assert.match(compiler,/parseBusyRef\.current=true;setBusy\(true\)/,'parse lock must exclude concurrent compiler invocation before render');
+assert.match(compiler,/parseBusyRef\.current=false;setBusy\(false\)/,'parse lock must release on completion');
+assert.doesNotMatch(compiler,/if\(busy\|\|!archivedStaleSources\.length\)return/,'old silent-busy guard must be removed');
+assert.doesNotMatch(compiler,/disabled=\{busy\} onClick=\{\(\)=>void reprocessArchivedDrawings\(\)\}/,'archived drawing button must be usable to queue during parse');
+console.log('Busy reprocess queue contract passed: button wired, SHA requests deduplicated, deferred drain, status feedback, and old graph protected.');
+
 console.log('Stale drawing reprocess contract passed: pre-basemap PDF/image graphs are detected, same-SHA re-import replaces the old source compilation, modern basemaps and valid SLDs are not falsely flagged.');

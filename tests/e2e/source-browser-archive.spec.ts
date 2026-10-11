@@ -79,7 +79,12 @@ test('stale drawing can use archived source and failed reprocess preserves previ
  await expect(warning).toContainText(/available in this browser's protected local archive/i);
  const button=warning.getByRole('button',{name:'Reprocess archived drawing'});
  await expect(button).toBeEnabled();
+ const row=page.getByRole('button',{name:`Reprocess ${drawing}`});
+ await expect(row).toBeEnabled();
+ await row.click();
+ await expect(page.getByRole('status').filter({hasText:'LOCAL SOURCE ARCHIVE'})).toContainText(/REPROCESS QUEUED|Reprocessing/i);
 
+ await expect(row).toBeEnabled({timeout:20000});
  await button.click();
  await expect(button).toBeEnabled({timeout:20000});
 
