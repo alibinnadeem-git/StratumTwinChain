@@ -96,7 +96,7 @@ const recoveryTick=()=>new Promise<void>(resolve=>setTimeout(resolve,25));
 
 export async function readPrimarySpatialGraph(storage:Storage=localStorage){
   let indexed=await readIndexedCurrentSpatialGraph();
-  const shadow=readCurrentSpatialGraph(storage);
+  // Chunked or IndexedDB current is authoritative; do not synchronously parse a\n  // large legacy localStorage shadow when already hydrated from durable IDB.\n  const shadow=indexed?null:readCurrentSpatialGraph(storage);
   // A navigation can begin while IndexedDB is finishing a prior transaction/open.
   // Retry briefly before trusting the compatibility shadow so authority cannot move backward.
   if(!indexed&&shadow){
