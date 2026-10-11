@@ -111,6 +111,12 @@ for(const altered of [
  assert.equal(p.tier,'UNRESOLVED_CLASS_PREVIEW','no threshold or Intake Gate waiver');
 }
 assert.equal(decideSourceModelVisual({name:'Unknown device',meta:{}},DEFAULT_ELECTRICAL_MODEL_REGISTRY).tier,'UNRESOLVED_NO_MODEL');
+const unauthorized=decideSourceModelVisual({name:'Tesla Supercharger V3',meta:{componentKey:'evse-tesla-supercharger-v3',
+ resolution_state:'FALLBACK',resolutionScore:.99,resolutionMargin:.5,
+ resolutionEvidenceKinds:['symbol','schedule'],intakeGateStatus:'PASSED',
+ intakeGateBinaryVerified:true,intakeTypeId:'evse-tesla-supercharger-v3',intakeLicenceTier:'T1'}},DEFAULT_ELECTRICAL_MODEL_REGISTRY);
+assert.equal(unauthorized.tier,'UNRESOLVED_NO_MODEL','unlicensed OEM/community geometry cannot be FALLBACK');
+
 const viewerCode=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
 const inspectorCode=fs.readFileSync('components/SpatialAssetInspector.tsx','utf8');
 assert.match(viewerCode,/visibleAuthorityLabel=visual.label/);
