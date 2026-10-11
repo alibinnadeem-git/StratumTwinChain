@@ -56,29 +56,44 @@ function assignZones(entities:GraphEntity[]){const rooms=entities.filter(e=>e.ki
 function buildLinks(entities:GraphEntity[]){const links:GraphLink[]=[];const seen=new Map<string,GraphEntity[]>();for(const e of entities.filter(x=>x.layer==='L2'||x.layer==='L3')){const key=cleanTag(e.name);if(key.length<2)continue;const arr=seen.get(key)||[];arr.push(e);seen.set(key,arr)}for(const [key,arr] of seen){if(arr.length<2)continue;for(let i=1;i<arr.length;i++)links.push({id:`tag-${key}-${i}`,from:arr[0].id,to:arr[i].id,type:'SAME_TAG',confidence:.82})}for(const e of entities.filter(x=>x.layer==='L4')){const from=String(e.meta?.derivedFrom||'');if(from)links.push({id:`asset-${e.id}`,from,to:e.id,type:'DERIVED_ASSET',confidence:.99})}return links}
 
 type PdfParseResult={entities:GraphEntity[];summary:string;pages:number;vectors:number;textItems:number;sldPages:number;nonSldPlanPages:number;planTypes:string[];disciplines:string[];setCompleteness:DrawingSetCompleteness};
-type PdfParseProgress={page:number;total:number;phase:string;elapsedMs?:number};
+type PdfParseProgress={page:number;total:number;phase:string;elapsedMs?:number;processed?:number;workTotal?:number};
+const PDF_WORKER_IDLE_TIMEOUT_MS=45000;
+const PDF_WORKER_HARD_TIMEOUT_MS=300000;
 class PdfParseError extends Error{code:string;page:number|null;constructor(code:string,message:string,page:number|null=null){super(message);this.name='PdfParseError';this.code=code;this.page=page}}
 
 async function parsePdfOffThread(fileName:string,buffer:ArrayBuffer,level:{floor:string;elevation:number},discipline:string,onProgress:(progress:PdfParseProgress)=>void,signal:AbortSignal):Promise<PdfParseResult>{
  if(typeof Worker==='undefined')throw new PdfParseError('WORKER_UNAVAILABLE','This browser cannot start the protected PDF parser worker.');
  const requestId=crypto.randomUUID(),worker=new Worker(new URL('../workers/pdf-native-parser.worker.ts',import.meta.url),{type:'module'});
  return await new Promise<PdfParseResult>((resolve,reject)=>{
-  let settled=false,watchdog:number|undefined;
-  const cleanup=()=>{if(watchdog!==undefined)window.clearTimeout(watchdog);signal.removeEventListener('abort',onAbort);worker.terminate()};
+  let settled=false,watchdog:number|undefined,hardDeadline:number|undefined;
+  const cleanup=()=>{if(watchdog!==undefined)window.clearTimeout(watchdog);if(hardDeadline!==undefined)window.clearTimeout(hardDeadline);signal.removeEventListener('abort',onAbort);worker.terminate()};
   const finish=(fn:()=>void)=>{if(settled)return;settled=true;cleanup();fn()};
-  const armWatchdog=(page:number,phase:string)=>{if(watchdog!==undefined)window.clearTimeout(watchdog);watchdog=window.setTimeout(()=>finish(()=>reject(new PdfParseError('PDF_PARSE_TIMEOUT',`Page ${page||'?'} stopped responding during ${phase}. The parser worker was stopped safely; split/flatten the sheet or retry.`,page||null))),35000)};
-  const onAbort=()=>finish(()=>reject(new PdfParseError('PDF_PARSE_CANCELLED','PDF parsing was canceled. No parsed result was accepted; retry without reloading.')));
+  const armWatchdog=(page:number,phase:string)=>{if(watchdog!==undefined)window.clearTimeout(watchdog);watchdog=window.setTimeout(()=>finish(()=>reject(new PdfParseError('PDF_PARSE_TIMEOUT',`Page ${page||'?'} stopped responding during ${phase}. The worker was stopped after 45 seconds without a heartbeat; earlier saved data remains unchanged.`,page||null))),PDF_WORKER_IDLE_TIMEOUT_MS)};
+  const onAbort=()=>finish(()=>reject(new PdfParseError('PDF_PARSE_CANCELLED','PDF worker was canceled or superseded by REPROCESS. No partial result was accepted.')));
   signal.addEventListener('abort',onAbort,{once:true});
   worker.onmessage=(event:MessageEvent)=>{
    const message=event.data||{};if(message.requestId!==requestId)return;
-   if(message.type==='progress'){const progress={page:Number(message.page||0),total:Number(message.total||0),phase:String(message.phase||'working'),elapsedMs:Number.isFinite(Number(message.elapsedMs))?Number(message.elapsedMs):undefined};onProgress(progress);armWatchdog(progress.page,progress.phase);return}
+   if(message.type==='progress'||message.type==='heartbeat'){
+    const progress:PdfParseProgress={page:Number(message.page||0),total:Number(message.total||0),
+      phase:String(message.phase||'working'),
+      elapsedMs:Number.isFinite(Number(message.elapsedMs))?Number(message.elapsedMs):undefined,
+      processed:Number.isFinite(Number(message.processed))?Number(message.processed):undefined,
+      workTotal:Number.isFinite(Number(message.workTotal))?Number(message.workTotal):undefined};
+    onProgress(progress);armWatchdog(progress.page,progress.phase);return;
+   }
    if(message.type==='result')finish(()=>resolve(message.result as PdfParseResult));
    if(message.type==='error')finish(()=>reject(new PdfParseError(String(message.code||'PDF_PARSE_FAILED'),String(message.message||'PDF parsing failed.'),Number.isFinite(Number(message.page))?Number(message.page):null)));
   };
-  worker.onerror=(event:ErrorEvent)=>finish(()=>reject(new PdfParseError('PDF_WORKER_FAILED',event.message||'The PDF parser worker stopped unexpectedly. Retry the file.')));
+  worker.onerror=(event:ErrorEvent)=>finish(()=>reject(new PdfParseError('PDF_WORKER_FAILED',event.message||'PDF worker failed; saved compilation unchanged.')));
+  worker.onmessageerror=()=>finish(()=>reject(new PdfParseError('PDF_WORKER_MESSAGE_ERROR','The browser could not transfer the worker result. Saved graph unchanged.')));
+  if(signal.aborted){onAbort();return}
   armWatchdog(0,'startup');
+  hardDeadline=window.setTimeout(()=>finish(()=>reject(new PdfParseError('PDF_PARSE_HARD_TIMEOUT',
+   'PDF worker exceeded the five-minute total safety budget. Previous compilation preserved. Retry or split the sheet.'))),PDF_WORKER_HARD_TIMEOUT_MS);
   const transferable=buffer.slice(0);
-  worker.postMessage({type:'parse',requestId,fileName,buffer:transferable,level,discipline},[transferable]);
+  try{worker.postMessage({type:'parse',requestId,fileName,buffer:transferable,level,discipline},[transferable])}
+  catch(error){finish(()=>reject(new PdfParseError('PDF_WORKER_START_FAILED',
+   error instanceof Error?error.message:'Could not start PDF worker.')));}
  });
 }
 
