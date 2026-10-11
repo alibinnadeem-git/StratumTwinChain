@@ -106,7 +106,7 @@ const REPRESENTATIVE_FAMILY_DEFAULTS:Record<string,Partial<ElectricalModelConfig
  'energy-meter':representative('/models/equipment/power-meter-representative.gltf',[.24,.32,.14],'Representative energy meter envelope; replace with OEM data','Detailed meter face with display and controls.'),
 };
 
-export const DEFAULT_ELECTRICAL_MODEL_REGISTRY:ElectricalModelConfig[]=ELECTRICAL_COMPONENTS.map(component=>({
+export const DEFAULT_ELECTRICAL_MODEL_REGISTRY:ElectricalModelConfig[]=ELECTRICAL_COMPONENTS.map<ElectricalModelConfig>(component=>({
   componentKey:component.key,
   oemSourceIds:OEM_SOURCES.filter(source=>source.componentKeys.includes(component.key)).map(source=>source.id),
   format:'GLB',
