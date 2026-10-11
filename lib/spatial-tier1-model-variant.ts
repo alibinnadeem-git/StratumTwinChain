@@ -7,8 +7,8 @@ import type {Object3D} from "three";
  */
 export function selectTier1ModelVariant(scene:Object3D,variantId:string):boolean{
  const variants:Object3D[]=[];
- scene.traverse(node=>{if(node.name.startsWith('variant:'))variants.push(node);});
- const matching=variants.filter(node=>node.name==='variant:'+variantId);
+ scene.traverse(node=>{if(typeof node.userData?.variantId==='string')variants.push(node);});
+ const matching=variants.filter(node=>node.userData.variantId===variantId);
  for(const node of variants)node.visible=matching.length===1&&node===matching[0];
  return matching.length===1;
 }

@@ -32,7 +32,7 @@ for(const item of manifest){
  const scene=(await new GLTFLoader().parseAsync(binary.buffer.slice(binary.byteOffset,binary.byteOffset+binary.byteLength),'')).scene;
  for(const variant of item.variants){
   assert.equal(selectTier1ModelVariant(scene,variant),true,item.name+' '+variant);
-  const nodes=[];scene.traverse(object=>{if(object.name==='variant:'+variant)nodes.push(object);});
+  const nodes=[];scene.traverse(object=>{if(object.userData?.variantId===variant)nodes.push(object);});
   assert.equal(nodes.length,1);
   const v=nodes[0],bounds=new Box3().setFromObject(v),size=bounds.getSize(new Vector3());
   assert.ok(size.toArray().every(x=>Number.isFinite(x)&&x>0));
@@ -50,7 +50,7 @@ for(const item of manifest){
  assert.ok(item.triangles <= (item.name==='wall-device-plate'||item.name==='ceiling-device-puck'?300:3000));
  const max=item.name==='wall-device-plate'||item.name==='ceiling-device-puck'?5000:90000;
  assert.ok(binary.length<=max,item.name+' under size budget');
- assert.ok(json.nodes.some(n=>String(n.name).startsWith('variant:')),'variant groups must be named');
+ assert.ok(json.nodes.some(n=>typeof n.extras?.variantId==='string'),'variant groups must be named');
  console.log('TIER1-QA '+JSON.stringify({file:item.name,bytes:binary.length,tris:item.triangles,materials:item.materials,variants:item.variants,mount:item.mount}));
 }
 assert.equal(DEFAULT_ELECTRICAL_MODEL_REGISTRY.find(x=>x.componentKey==='distribution-panel').modelUrl.endsWith('panelboard-representative.gltf'),true,
