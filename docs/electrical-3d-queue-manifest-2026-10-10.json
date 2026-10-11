@@ -148,8 +148,8 @@
   {
     "name": "busway-tapoffs",
     "uri": "/models/equipment/busway-tapoffs.glb",
-    "gitBlobSha": "c7ea6e26dfed79bd28689a6cc5729c0a8abe9892",
-    "sizeBytes": 24836,
+    "gitBlobSha": "35fb60e2a3cda3a099ebfbef6c4a5ae7e1286c8f",
+    "sizeBytes": 24800,
     "triangles": 384,
     "materials": 3,
     "variants": [
