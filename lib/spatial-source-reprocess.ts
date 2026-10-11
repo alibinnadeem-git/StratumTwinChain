@@ -15,6 +15,7 @@ export type ReprocessEntityLike={
  source?:string;
  kind?:string;
  layer?:string;
+ floor?:string;
  meta?:Record<string,unknown>;
 };
 
@@ -69,4 +70,30 @@ export function findDrawingSourcesNeedingReprocess(sources:ReprocessSourceLike[]
   const reason=drawingSourceReprocessReason(source,entities);
   return reason?[{source,reason}]:[];
  });
+}
+
+/**
+ * Post-reprocess diagnostic only. Detection does not mean an approved room,
+ * installed asset or metric floor datum. Never creates or promotes geometry.
+ */
+export function inspectDrawingReprocessOutput(items:ReprocessEntityLike[]){
+ const basemaps=items.filter(x=>x.meta?.drawingBasemap===true||x.meta?.sourceType==='PDF source-plan vector line'||x.kind==='source-raster-underlay').length;
+ const candidateRooms=items.filter(x=>x.kind==='vector-boundary-candidate').length;
+ const modeledRooms=items.filter(x=>x.kind==='room-boundary').length;
+ const equipmentCandidates=items.filter(x=>x.layer==='L4').length;
+ const modeledEquipment=items.filter(x=>x.layer==='L4'&&
+  (x.meta?.resolution_state==='RESOLVED'||x.meta?.resolutionState==='RESOLVED')&&
+  Boolean(x.meta?.model_ref||x.meta?.modelRef)).length;
+ const floors=[...new Set(items.map(x=>String(x.floor||'UNRESOLVED')).filter(x=>x!=='UNRESOLVED'&&x.trim()))];
+ // Floor text/plan-frame labels are not independently established Z levels.
+ const physicallyEstablishedLevels=items.filter(x=>x.kind==='spatial-level'&&x.meta?.physicalTruth===true).length;
+ const gaps=[
+   ...(!basemaps?['drawing basemap absent']:[]),
+   ...(!modeledRooms?[`0 modeled rooms (${candidateRooms} boundary proposals)`]:[]),
+   ...(!modeledEquipment?[`0 confirmed model-linked assets (${equipmentCandidates} L4 candidates)`]:[]),
+   ...(!physicallyEstablishedLevels?[`0 physical elevation levels (${floors.length} floor labels)`]:[])
+ ];
+ return {basemaps,candidateRooms,modeledRooms,equipmentCandidates,modeledEquipment,
+  floors,physicallyEstablishedLevels,gaps,
+  summary:`REPROCESS AUDIT: ${basemaps} retained source basemap elements; ${modeledRooms} modeled rooms / ${candidateRooms} boundary proposals; ${modeledEquipment} confirmed model-linked assets / ${equipmentCandidates} L4 candidates; ${physicallyEstablishedLevels} physical elevation levels / ${floors.length} floor labels.${gaps.length?' PARSER CAPABILITY GAP: '+gaps.join('; ')+'.':''}`};
 }

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {drawingSourceReprocessReason,findDrawingSourcesNeedingReprocess} from '../lib/spatial-source-reprocess.ts';
+import {drawingSourceReprocessReason,findDrawingSourcesNeedingReprocess,inspectDrawingReprocessOutput} from '../lib/spatial-source-reprocess.ts';
 
 const stalePdf={name:'G101 Site Plan.pdf',ext:'pdf',sha256:'a'.repeat(64),state:'parsed',entities:12,vectors:900,textItems:120,sldPages:0};
 const staleEntities=[{source:'G101 Site Plan.pdf',kind:'text-asset-candidate',layer:'L2',meta:{sourceSha256:'a'.repeat(64),physicalTruth:false}}];
@@ -34,7 +34,7 @@ assert.match(compiler,/version:'1\.2'/,'fresh compilation must advance graph sch
 assert.match(compiler,/coordinationIntelligence:undefined/,'authoritative source saves must discard stale derived coordination before recomputation');
 assert.match(compiler,/enrichCoordinationIntelligence\(base as any\)/,'coordination intelligence must be rebuilt from the exact graph being committed without legacy demo injection');
 assert.match(compiler,/REPROCESS SAVED DRAWING/,'Import UI must tell the user why the original file is needed');
-assert.match(compiler,/REPROCESS':f\.state\.toUpperCase/,'stale source row must not present as ordinary parsed state');
+assert.match(compiler,/staleReason&&archivedShas\.has\(f\.sha256\)/,'stale source row must only offer reprocess when source bytes are archived');
 
 assert.match(viewer,/findDrawingSourcesNeedingReprocess/);
 assert.match(viewer,/Legacy drawing frame/,'legacy parser state must remain visible without opening the demo in a fatal red state');
@@ -42,4 +42,35 @@ assert.match(viewer,/Refresh drawing source/);
 assert.match(viewer,/migration task, not a failed parse/i);
 
 
+
+assert.match(compiler,/aria-label=\{`Reprocess \$\{f\.name\}`\}/,'saved drawing row REPROCESS is a real button with accessible name');
+assert.match(compiler,/onClick=\{\(\)=>queueArchivedReprocess\(\[f\.sha256\]\)\}/,'row click must queue the right source SHA');
+assert.match(compiler,/function queueArchivedReprocess\(shas:string\[\]\)/,'request must be queued, not silently swallowed by a busy parser');
+assert.match(compiler,/REPROCESS QUEUED/,'queueing while a parse is active must give visible feedback');
+assert.match(compiler,/if\(busy\|\|parseBusyRef\.current\|\|reprocessDraining\|\|!queuedReprocessShas\.length\)return/,'queue must drain only when the current parse has finished');
+assert.match(compiler,/const pending=batch\.filter\(sha=>staleBySha\.has\(sha\)\)/,'completed parse must be allowed to clear a now-fresh reprocess request');
+assert.match(compiler,/setQueuedReprocessShas\(current=>\[\.\.\.new Set\(\[\.\.\.current,\.\.\.pending\.filter/,'racing archive lookup must requeue instead of dropping the request');
+assert.match(compiler,/parseBusyRef\.current=true;setBusy\(true\)/,'parse lock must exclude concurrent compiler invocation before render');
+assert.match(compiler,/parseBusyRef\.current=false;setBusy\(false\)/,'parse lock must release on completion');
+assert.doesNotMatch(compiler,/if\(busy\|\|!archivedStaleSources\.length\)return/,'old silent-busy guard must be removed');
+assert.doesNotMatch(compiler,/disabled=\{busy\} onClick=\{\(\)=>void reprocessArchivedDrawings\(\)\}/,'archived drawing button must be usable to queue during parse');
+console.log('Busy reprocess queue contract passed: button wired, SHA requests deduplicated, deferred drain, status feedback, and old graph protected.');
+
 console.log('Stale drawing reprocess contract passed: pre-basemap PDF/image graphs are detected, same-SHA re-import replaces the old source compilation, modern basemaps and valid SLDs are not falsely flagged.');
+
+const reviewed=inspectDrawingReprocessOutput([
+ {kind:'line',layer:'L1',floor:'L1',meta:{drawingBasemap:true,sourceType:'PDF source-plan vector line'}},
+ ...Array.from({length:46},(_,i)=>({kind:'asset-candidate',layer:'L4',floor:'L1',meta:{index:i}})),
+ {kind:'vector-boundary-candidate',layer:'L1',floor:'L2',meta:{}}
+]);
+assert.equal(reviewed.basemaps,1,'retained basemap independent of reconstructed rooms');
+assert.equal(reviewed.equipmentCandidates,46);
+assert.equal(reviewed.modeledRooms,0);
+assert.equal(reviewed.modeledEquipment,0);
+assert.equal(reviewed.physicallyEstablishedLevels,0,'floor labels cannot assert metric Z');
+assert.match(reviewed.summary,/PARSER CAPABILITY GAP/);
+assert.equal(inspectDrawingReprocessOutput([{kind:'room-label',layer:'L1',floor:'L1',meta:{}}]).basemaps,0);
+assert.match(compiler,/DRAWING_BASEMAP_NOT_RETAINED/,'a basemap-free recognized plan cannot count as a successful reprocess');
+assert.match(compiler,/reprocessAudit\.summary/,'source row must retain downstream zero-stage diagnostic');
+assert.match(compiler,/REPROCESS ATTEMPT FINISHED/,'UI must clear stale active status');
+console.log('Reprocess acceptance audit: basemap present/absent, 46 L4 still unverified and downstream zeros labeled as capability gaps.');
