@@ -14,7 +14,7 @@ import {liveAssets} from '@/lib/server/live-views';
 import {readSession} from '@/lib/server/auth';
 
 export const dynamic='force-dynamic';
-export const metadata={robots:{index:false,follow:false}};
+export const metadata=process.env.VERCEL_ENV==='preview'?{robots:{index:false,follow:false}}:{};
 
 export default async function SpatialPage(){
  // A demo preview never hydrates tenant assets or talks to a preview-configured DB.

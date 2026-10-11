@@ -10,7 +10,22 @@ const nextConfig:NextConfig={
     ...config.resolve.alias,
     '@/lib/preview-synthetic-twin$':path.resolve(process.cwd(),'lib/preview-disabled-fixture.ts'),
     '@/lib/preview-demo-renderer$':path.resolve(process.cwd(),'lib/preview-disabled-renderer.ts'),
-    '@/components/PreviewDemoAssetInspector$':path.resolve(process.cwd(),'components/PreviewDemoAssetInspectorDisabled.tsx')
+    '@/components/PreviewDemoAssetInspector
+   };
+  }
+  return config;
+ }
+};
+export default nextConfig;
+:path.resolve(process.cwd(),'components/PreviewDemoAssetInspectorDisabled.tsx'),
+    '@/components/PreviewDemoExperience
+   };
+  }
+  return config;
+ }
+};
+export default nextConfig;
+:path.resolve(process.cwd(),'components/PreviewDemoExperienceDisabled.tsx')
    };
   }
   return config;

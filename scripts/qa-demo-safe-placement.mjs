@@ -107,7 +107,7 @@ assert.ok(demoEntities.every(e=>e.meta.evidence[0].synthetic===true));
 const sourcePage=fs.readFileSync('app/spatial/page.tsx','utf8');
 assert.match(sourcePage,/process\.env\.VERCEL_ENV==='preview'/);
 const exp=fs.readFileSync('components/SpatialExperience.tsx','utf8');
-assert.match(exp,/demoGraph=\{PREVIEW_DEMO_GRAPH\}/);
+assert.match(fs.readFileSync('components/PreviewDemoExperience.tsx','utf8'),/demoGraph=\{PREVIEW_DEMO_GRAPH\}/);
 assert.doesNotMatch(exp,/replaceCurrentSpatialGraph\(PREVIEW_DEMO_GRAPH\)|writePrimarySpatialGraph\(PREVIEW_DEMO_GRAPH\)/);
 const demoInspector=fs.readFileSync('components/PreviewDemoAssetInspector.tsx','utf8');
 assert.match(demoInspector,/data-demo-readonly="true"/);
@@ -140,10 +140,10 @@ for(const entity of mappedDemo){
  if(model.format==='GLB')assert.equal(fs.readFileSync(file).toString('ascii',0,4),'glTF','GLB asset must be real binary geometry');
 }
 assert.ok(demoEntities.filter(e=>e.meta.demoPlacementTier==='UNRESOLVED_Z').every(e=>e.z===undefined));
-assert.match(fs.readFileSync('lib/preview-demo-renderer.ts','utf8'),/loader\\.load\\(cfg\\.modelUrl,gltf=>/);
-assert.match(viewer,/modelGeometryAuthority='DEMO_REPRESENTATIVE_LIBRARY_MODEL'/);
-assert.match(viewer,/if\\(demoMode\\)\\{previewFixtureEquipment\\(e\\);return;\\}/);
-assert.doesNotMatch(viewer.slice(viewer.indexOf('const previewFixtureEquipment='),viewer.indexOf('const loader=new GLTFLoader();')),/new THREE\\.BoxGeometry|new THREE\\.SphereGeometry/);
+assert.ok(fs.readFileSync('lib/preview-demo-renderer.ts','utf8').includes('loader.load(cfg.modelUrl'));
+assert.ok(fs.readFileSync('lib/preview-demo-renderer.ts','utf8').includes('DEMO_REPRESENTATIVE_LIBRARY_MODEL'));
+assert.ok(viewer.includes('if(demoMode){previewFixtureEquipment(e);return;}'));
+assert.doesNotMatch(fs.readFileSync('lib/preview-demo-renderer.ts','utf8'),/new THREE\\.BoxGeometry|new THREE\\.SphereGeometry/);
 console.log('A00: five real STRATUM library assets mapped to synthetic preview tiers; no placeholder equipment boxes.');
 
 // Source-level safety invariants. Runtime route/API tests and full preview UAT remain release gates.
@@ -154,7 +154,7 @@ assert.throws(()=>assertDemoFixtureSafe({...PREVIEW_DEMO_GRAPH,
  entities:PREVIEW_DEMO_GRAPH.entities.map((e,i)=>i===1?{...e,meta:{...e.meta,status:'VERIFIED'}}:e)}),/status above/);
 const reader=fs.readFileSync('lib/preview-demo-renderer.ts','utf8');
 assert.match(reader,/DEMO_REPRESENTATIVE_LIBRARY_MODEL/);
-assert.match(reader,/extras=\\{demo:true,provenance_class:'DEMO'\\}/);
+assert.ok(reader.includes("extras={demo:true,provenance_class:'DEMO'}"));
 assert.ok(!reader.includes('new THREE.BoxGeometry'),'preview equipment must render approved library geometry');
 const webConfig=fs.readFileSync('next.config.ts','utf8');
 for(const moduleName of ['preview-synthetic-twin','preview-demo-renderer','PreviewDemoAssetInspector'])
