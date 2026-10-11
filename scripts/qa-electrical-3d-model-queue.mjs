@@ -36,10 +36,11 @@ for(const item of manifest){
   assert.equal(nodes.length,1);
   const v=nodes[0],bounds=new Box3().setFromObject(v),size=bounds.getSize(new Vector3());
   assert.ok(size.toArray().every(x=>Number.isFinite(x)&&x>0));
-  const anchors=[];v.traverse(object=>{if(['mount_face','power_in','ground_lug','conduit_entry'].includes(object.name))anchors.push(object.name);});
-  assert.ok(anchors.includes('mount_face'));
+  const canonicalName=(value)=>String(value||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+  const anchors=[];v.traverse(object=>{const name=canonicalName(object.userData?.role||object.userData?.name||object.name);if(['mountface','powerin','groundlug','conduitentry'].includes(name))anchors.push(name);});
+  assert.ok(anchors.includes('mountface'),item.name+' '+variant+' anchors: '+anchors.join(','));
   if(!['luminaire-family','wall-device-plate','ceiling-device-puck'].includes(item.name))
-   for(const a of ['power_in','ground_lug','conduit_entry'])assert.ok(anchors.includes(a),item.name+' missing '+a);
+   for(const a of ['powerin','groundlug','conduitentry'])assert.ok(anchors.includes(a),item.name+' missing '+a);
   const approx=.05;
   if(item.mount==='wall_back_face')assert.ok(bounds.min.z>=-approx,item.name+' wall mount must not protrude behind back plane');
   if(item.mount==='ceiling_plane')assert.ok(bounds.max.y<=approx,item.name+' cannot float above ceiling');
