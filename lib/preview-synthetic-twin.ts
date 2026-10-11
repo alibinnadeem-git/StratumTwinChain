@@ -1,4 +1,4 @@
-import {assertDemoFixtureSafe} from './spatial-provenance';
+import {assertDemoFixtureSafe} from './spatial-provenance.ts';
 /**
  * Explicitly synthetic, display-only input for the Vercel preview Spatial viewer.
  * Never feed this fixture to browser recovery, source vault, asset APIs, approval,

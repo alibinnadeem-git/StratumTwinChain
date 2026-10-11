@@ -1,4 +1,4 @@
-import {assertRealWritePayload,containsDemoProvenance} from './spatial-provenance';
+import {assertRealWritePayload,containsDemoProvenance} from './spatial-provenance.ts';
 type Shape={provenance_class?:string;entities?:unknown[];sources?:unknown[];[key:string]:unknown};
 const deny=(why:string)=>{throw Object.assign(Error(why),{status:403})};
 /** One default-deny guard for API exports, JSON backups, glTF/IFC and print/share flows. */

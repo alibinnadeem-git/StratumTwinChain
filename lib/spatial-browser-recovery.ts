@@ -1,5 +1,5 @@
-import {requireExportAuthority} from './spatial-authority-io';
-import {assertRealWritePayload} from './spatial-provenance';
+import {requireExportAuthority} from './spatial-authority-io.ts';
+import {assertRealWritePayload} from './spatial-provenance.ts';
 export type SpatialGraphLike={
   version?:string;
   createdAt?:string;
