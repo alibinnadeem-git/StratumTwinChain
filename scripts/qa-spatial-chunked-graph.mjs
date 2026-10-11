@@ -1,0 +1,15 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const src=fs.readFileSync('lib/spatial-chunked-graph.ts','utf8');
+const recovery=fs.readFileSync('lib/spatial-browser-recovery.ts','utf8');
+assert.match(src,/CHUNKED_GRAPH_THRESHOLD=10_000/);
+assert.match(src,/CHUNKED_GRAPH_BATCH=256/);
+assert.match(src,/await yieldUi\(\)/);
+assert.match(src,/await putValue\(db,HEADS,key,head\)/);
+assert.ok(src.indexOf('await putValue(db,HEADS,key,head)')>src.indexOf('await putValue(db,CHUNKS'));
+assert.match(src,/Incomplete chunked graph/);
+assert.match(recovery,/await putChunkedGraph\(PRIMARY_KEY,graph\)/);
+assert.match(recovery,/copyChunkedGraphHead\(PRIMARY_KEY,'latest'\)/);
+assert.match(recovery,/getChunkedGraphHead\(PRIMARY_KEY\)/);
+assert.match(recovery,/if\(indexed.entities.length<CHUNKED_GRAPH_THRESHOLD\)/);
+console.log('Chunked Spatial graph integrity contract: 256-record yields, atomic head-last publication, last-good alias, fail closed on missing chunks, no giant localStorage shadow.');

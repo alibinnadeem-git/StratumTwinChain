@@ -1,3 +1,5 @@
+import {CHUNKED_GRAPH_THRESHOLD,getChunkedGraph,getChunkedGraphHead,putChunkedGraph,setChunkedGraphHead,copyChunkedGraphHead} from './spatial-chunked-graph';
+
 export type SpatialGraphLike={
   version?:string;
   createdAt?:string;
@@ -83,6 +85,10 @@ export function readCurrentSpatialGraph(storage:Storage=localStorage){
 }
 
 export async function readIndexedCurrentSpatialGraph(){
+  try{
+    const chunked=await getChunkedGraph(PRIMARY_KEY);
+    if(chunked)return chunked;
+  }catch{return null}
   try{return await idbGet(PRIMARY_KEY)}catch{return null}
 }
 
@@ -104,8 +110,10 @@ export async function readPrimarySpatialGraph(storage:Storage=localStorage){
   if(indexed){
     // IndexedDB is authoritative. Heal any stale compatibility shadow immediately.
     try{
-      const serialized=JSON.stringify(indexed);
-      if(storage.getItem(SPATIAL_GRAPH_KEY)!==serialized)storage.setItem(SPATIAL_GRAPH_KEY,serialized);
+      if(indexed.entities.length<CHUNKED_GRAPH_THRESHOLD){
+        const serialized=JSON.stringify(indexed);
+        if(storage.getItem(SPATIAL_GRAPH_KEY)!==serialized)storage.setItem(SPATIAL_GRAPH_KEY,serialized);
+      }
     }catch{}
     return indexed;
   }
@@ -114,12 +122,18 @@ export async function readPrimarySpatialGraph(storage:Storage=localStorage){
 
 export async function writePrimarySpatialGraph(graph:SpatialGraphLike,storage:Storage=localStorage){
   if(!isSpatialGraph(graph))throw new Error('This file is not a valid STRATUM Spatial graph.');
+  if(graph.entities.length>=CHUNKED_GRAPH_THRESHOLD){
+    // Failure is fail-closed: never fall back to one giant synchronous
+    // structuredClone/localStorage.stringify on the UI thread.
+    await putChunkedGraph(PRIMARY_KEY,graph);
+    return {indexed:true,shadowed:false};
+  }
   let indexed=false;
   try{
     await idbPut(PRIMARY_KEY,graph);
+    await setChunkedGraphHead(PRIMARY_KEY,null);
     indexed=true;
   }catch{}
-  // Compatibility shadow only. IndexedDB is authoritative when available.
   try{storage.setItem(SPATIAL_GRAPH_KEY,JSON.stringify(graph));}catch{
     if(!indexed)throw new Error('Browser storage is full and IndexedDB is unavailable. Export your model backup before importing more sources.');
   }
@@ -190,17 +204,24 @@ async function idbPut(key:string,graph:SpatialGraphLike){
 }
 
 export async function readIndexedRecovery(which:'latest'|'previous'){
+  try{const value=await getChunkedGraph(which);if(value)return value}catch{return null}
   try{return await idbGet(which)}catch{return null}
 }
 
-export async function protectSpatialGraph(graph:SpatialGraphLike,previous:SpatialGraphLike|null){
+export async function protectSpatialGraph(graph:SpatialGraphLike,previous:SpatialGraphLike|null,previousChunkHead?:Awaited<ReturnType<typeof getChunkedGraphHead>>){
   try{
-    if(previous)await idbPut('previous',previous);
-    await idbPut('latest',graph);
-    // Remove legacy duplicate snapshots only after durable IndexedDB writes succeed.
+    if(previous){
+      if(previousChunkHead)await setChunkedGraphHead('previous',previousChunkHead);
+      else if(previous.entities.length>=CHUNKED_GRAPH_THRESHOLD)await putChunkedGraph('previous',previous);
+      else {await idbPut('previous',previous);await setChunkedGraphHead('previous',null);}
+    }
+    if(graph.entities.length>=CHUNKED_GRAPH_THRESHOLD){
+      // The same durable chunks are re-used by the last-good recovery pointer.
+      if(!await copyChunkedGraphHead(PRIMARY_KEY,'latest'))await putChunkedGraph('latest',graph);
+    }else{await idbPut('latest',graph);await setChunkedGraphHead('latest',null)}
     localStorage.removeItem(SPATIAL_LAST_GOOD_KEY);
     if(previous)localStorage.removeItem(SPATIAL_PREVIOUS_KEY);
-  }catch{/* Keep the legacy recovery copies if IndexedDB is unavailable. */}
+  }catch{/* Keep legacy recovery copies if IndexedDB is unavailable. */}
   window.dispatchEvent(new Event(SPATIAL_RECOVERY_EVENT));
 }
 
@@ -290,9 +311,10 @@ export async function restoreSpatialRecoveryBundle(value:unknown,storage:Storage
 
 export async function replaceCurrentSpatialGraph(graph:SpatialGraphLike){
   if(!isSpatialGraph(graph))throw new Error('This file is not a valid STRATUM Spatial graph.');
+  const previousChunkHead=await getChunkedGraphHead(PRIMARY_KEY).catch(()=>null);
   const current=await readPrimarySpatialGraph();
   await writePrimarySpatialGraph(graph);
-  await protectSpatialGraph(graph,current);
+  await protectSpatialGraph(graph,current,previousChunkHead);
   window.dispatchEvent(new Event('stratum:graph-updated'));
   window.dispatchEvent(new Event(SPATIAL_RECOVERY_EVENT));
 }
