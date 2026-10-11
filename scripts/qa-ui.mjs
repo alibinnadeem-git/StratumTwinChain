@@ -16,7 +16,15 @@ const routePatterns=pageFiles.map(file=>{
 });
 
 const errors=[];const warnings=[];
-function routeExists(href){const clean=href.split(/[?#]/)[0]||'/';return routePatterns.some(r=>r.re.test(clean));}
+function routeExists(href){
+ const clean=href.split(/[?#]/)[0]||'/';
+ // Standalone browser-rescue HTML is intentionally served from /public without
+ // loading the App Router or graph hydration. Validate the actual static file.
+ const assetRoot=path.resolve(root,'public');
+ const assetPath=path.resolve(assetRoot,clean.replace(/^\\/+/,'')); 
+ const publicAsset=assetPath.startsWith(assetRoot+path.sep)&&fs.existsSync(assetPath)&&fs.statSync(assetPath).isFile();
+ return publicAsset||routePatterns.some(r=>r.re.test(clean));
+}
 
 for(const file of sourceFiles){
  const rel=path.relative(root,file).replaceAll(path.sep,'/');
