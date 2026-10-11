@@ -34,7 +34,7 @@ assert.match(compiler,/version:'1\.2'/,'fresh compilation must advance graph sch
 assert.match(compiler,/coordinationIntelligence:undefined/,'authoritative source saves must discard stale derived coordination before recomputation');
 assert.match(compiler,/enrichCoordinationIntelligence\(base as any\)/,'coordination intelligence must be rebuilt from the exact graph being committed without legacy demo injection');
 assert.match(compiler,/REPROCESS SAVED DRAWING/,'Import UI must tell the user why the original file is needed');
-assert.match(compiler,/REPROCESS':f\.state\.toUpperCase/,'stale source row must not present as ordinary parsed state');
+assert.match(compiler,/staleReason&&archivedShas\.has\(f\.sha256\)/,'stale source row must only offer reprocess when source bytes are archived');
 
 assert.match(viewer,/findDrawingSourcesNeedingReprocess/);
 assert.match(viewer,/Legacy drawing frame/,'legacy parser state must remain visible without opening the demo in a fatal red state');
