@@ -57,7 +57,7 @@ import struct
 
 import numpy as np
 
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 GENERATOR = "enclosure_family.py v%s" % VERSION
 
 # glTF constants
@@ -121,16 +121,17 @@ class Geo:
 
 # ---------------------------------------------------------------------------
 # Material palette per finish. Keys are (name, rgb) tuples used as group keys.
+# Spec budget is 4 materials per model, so detail features reuse the same four:
+#   body, door, steel (handles+hinges+nameplates), dark (plinth+ribs+louvers).
+# `plate` aliases `steel` and `vent` aliases `dark` so no extra group is made.
 # ---------------------------------------------------------------------------
 def _mats(finish):
-    return {
-        "body": ("body", finish),
-        "door": ("door", tuple(c * 0.93 for c in finish)),
-        "hw": ("hw", (0.46, 0.47, 0.49)),       # handles / hinges: brushed steel
-        "base": ("base", (0.19, 0.19, 0.21)),    # plinth / divider ribs: dark
-        "vent": ("vent", (0.10, 0.10, 0.11)),    # louver slots: near-black recess
-        "plate": ("plate", (0.80, 0.80, 0.82)),  # nameplate: light metal
-    }
+    body = ("body", finish)
+    door = ("door", tuple(c * 0.93 for c in finish))
+    steel = ("hw", (0.46, 0.47, 0.49))      # handles / hinges / nameplates
+    dark = ("base", (0.17, 0.17, 0.19))     # plinth / divider ribs / louvers
+    return {"body": body, "door": door, "hw": steel, "base": dark,
+            "vent": dark, "plate": steel}
 
 
 # ---------------------------------------------------------------------------
@@ -354,8 +355,7 @@ def build_enclosed_breaker(p):
     zf = D
     geo.add_box(m["door"], (-W / 2 + inset, inset, zf), (W / 2 - inset, H - inset, zf + 0.014))
     _add_nameplate(geo, m, -W / 2 + inset, W / 2 - inset, H - inset, zf + 0.014)
-    mat_toggle = ("vent", (0.10, 0.10, 0.11))
-    geo.add_box(mat_toggle, (-0.03, H / 2 - 0.05, zf + 0.014), (0.03, H / 2 + 0.05, zf + 0.05))
+    geo.add_box(m["base"], (-0.03, H / 2 - 0.05, zf + 0.014), (0.03, H / 2 + 0.05, zf + 0.05))
     anchors = {
         "mount_face": (0.0, H / 2, 0.0),
         "power_in": (0.0, H, D / 2),
@@ -396,13 +396,9 @@ def _material(name_rgb):
     name, rgb = name_rgb
     metallic, rough = 0.0, 0.8            # painted steel default (matte)
     if name == "hw":
-        metallic, rough = 0.6, 0.45
+        metallic, rough = 0.6, 0.45       # steel: handles, hinges, nameplates
     elif name == "base":
-        metallic, rough = 0.2, 0.75
-    elif name == "vent":
-        metallic, rough = 0.3, 0.6
-    elif name == "plate":
-        metallic, rough = 0.7, 0.3
+        metallic, rough = 0.2, 0.7        # dark: plinth, ribs, louvers, toggle
     return {
         "name": name,
         "doubleSided": True,

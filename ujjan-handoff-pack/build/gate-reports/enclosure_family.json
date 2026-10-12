@@ -1,7 +1,11 @@
 {
-  "generator": "enclosure_family.py v0.2.0",
-  "gate": "intake_gate.py (7 checks)",
-  "validator": "Khronos gltf-validator 2.0.0-dev.3.10 (ran, not skipped)",
+  "generator": "enclosure_family.py v0.2.1",
+  "gate": "intake_gate.py (STRATUM Intake Gate, 7 checks)",
+  "validator": "Khronos gltf-validator 2.0.0-dev.3.10 (ran, not skipped): 0 errors / 0 warnings on all",
+  "material_budget": {
+    "limit": 4,
+    "max_used": 4
+  },
   "summary": {
     "models": 8,
     "all_pass": true
@@ -9,7 +13,7 @@
   "reports": [
     {
       "model": "assets/library/models/E-02/mv_switchgear_2section.glb",
-      "sha256": "77c543926f3544f609c03a50c8948d2f1cf1d42103f32c9dbd4f0c155c58179d",
+      "sha256": "5fa66140b1deee9bebfe78dadb8f64b36c198550276971bf6425a9ee5e5e197f",
       "budget": "equipment/50000",
       "checks": [
         {
@@ -52,14 +56,15 @@
           "id": 7,
           "name": "registration",
           "result": "pass",
-          "detail": "extras.sha256 matches masked file hash 77c543926f3544f6...; all registration fields present; sha256 field itself excluded from the hash (detached-signature pattern)"
+          "detail": "extras.sha256 matches masked file hash 5fa66140b1deee9b...; all registration fields present; sha256 field itself excluded from the hash (detached-signature pattern)"
         }
       ],
-      "overall": "pass"
+      "overall": "pass",
+      "materials": 4
     },
     {
       "model": "assets/library/models/E-03/lv_switchgear_3section.glb",
-      "sha256": "1dc8be6f5e613410146cd04a50a1f8c2319f0bdcf4e449886f41a01cba0b5cad",
+      "sha256": "1eeff7ee0a586a400b604f4636c94ecc5150c903a8a73e954b942d681334ece8",
       "budget": "equipment/50000",
       "checks": [
         {
@@ -102,14 +107,15 @@
           "id": 7,
           "name": "registration",
           "result": "pass",
-          "detail": "extras.sha256 matches masked file hash 1dc8be6f5e613410...; all registration fields present; sha256 field itself excluded from the hash (detached-signature pattern)"
+          "detail": "extras.sha256 matches masked file hash 1eeff7ee0a586a40...; all registration fields present; sha256 field itself excluded from the hash (detached-signature pattern)"
         }
       ],
-      "overall": "pass"
+      "overall": "pass",
+      "materials": 4
     },
     {
       "model": "assets/library/models/E-04/main_switchboard_2section.glb",
-      "sha256": "9ee0c9bbe1f8f736b40bebf129658b86eb145878f71e8af1a7669fe4f230d795",
+      "sha256": "9e54e93e2b4e93981dab681042d70e31313a82240e12e0e06e8112ef32da567e",
       "budget": "equipment/50000",
       "checks": [
         {
@@ -152,14 +158,15 @@
           "id": 7,
           "name": "registration",
           "result": "pass",
-          "detail": "extras.sha256 matches masked file hash 9ee0c9bbe1f8f736...; all registration fields present; sha256 field itself excluded from the hash (detached-signature pattern)"
+          "detail": "extras.sha256 matches masked file hash 9e54e93e2b4e9398...; all registration fields present; sha256 field itself excluded from the hash (detached-signature pattern)"
         }
       ],
-      "overall": "pass"
+      "overall": "pass",
+      "materials": 4
     },
     {
       "model": "assets/library/models/E-05/distribution_panelboard_600x1800.glb",
-      "sha256": "f4b885c016c5124deac15f79d4630c03c4e0752744d1b0ad078077d153ed469d",
+      "sha256": "95383dd6b5723956529b6254dc6bc8484daae4b29254c959bcac76ce2ae374d5",
       "budget": "equipment/50000",
       "checks": [
         {
@@ -202,14 +209,15 @@
           "id": 7,
           "name": "registration",
           "result": "pass",
-          "detail": "extras.sha256 matches masked file hash f4b885c016c5124d...; all registration fields present; sha256 field itself excluded from the hash (detached-signature pattern)"
+          "detail": "extras.sha256 matches masked file hash 95383dd6b5723956...; all registration fields present; sha256 field itself excluded from the hash (detached-signature pattern)"
         }
       ],
-      "overall": "pass"
+      "overall": "pass",
+      "materials": 3
     },
     {
       "model": "assets/library/models/E-06/branch_panelboard_500x1000.glb",
-      "sha256": "77cb3a3da7779f09d04ed2dda5767834f7511aa425b351b838923c9db8241400",
+      "sha256": "8b5f787d42ce792144e224e5326f4c8480b808345c0923dfb50b7cc8e8921eb1",
       "budget": "equipment/50000",
       "checks": [
         {
@@ -252,14 +260,15 @@
           "id": 7,
           "name": "registration",
           "result": "pass",
-          "detail": "extras.sha256 matches masked file hash 77cb3a3da7779f09...; all registration fields present; sha256 field itself excluded from the hash (detached-signature pattern)"
+          "detail": "extras.sha256 matches masked file hash 8b5f787d42ce7921...; all registration fields present; sha256 field itself excluded from the hash (detached-signature pattern)"
         }
       ],
-      "overall": "pass"
+      "overall": "pass",
+      "materials": 3
     },
     {
       "model": "assets/library/models/E-07/mcc_2section_5bucket.glb",
-      "sha256": "029cf128d921ce8ae54e27bcc521e00aaaa837f0a526e76b9744137e3fb91b4b",
+      "sha256": "18fa85ed26821a06c28a1d12605e6138762ead1ee2ac8321ef1fa3a0f2f67bbb",
       "budget": "equipment/50000",
       "checks": [
         {
@@ -302,14 +311,15 @@
           "id": 7,
           "name": "registration",
           "result": "pass",
-          "detail": "extras.sha256 matches masked file hash 029cf128d921ce8a...; all registration fields present; sha256 field itself excluded from the hash (detached-signature pattern)"
+          "detail": "extras.sha256 matches masked file hash 18fa85ed26821a06...; all registration fields present; sha256 field itself excluded from the hash (detached-signature pattern)"
         }
       ],
-      "overall": "pass"
+      "overall": "pass",
+      "materials": 4
     },
     {
       "model": "assets/library/models/E-11/disconnect_switch_60a.glb",
-      "sha256": "ff22fe04c6be699bb3043465c59abb44d6af3cd8dc226bd700e28cad676a7a36",
+      "sha256": "920725870f4a839ff4eb2ebc324ef4db8425b8ebeaf1eca3a1a0e5391203c8d1",
       "budget": "equipment/50000",
       "checks": [
         {
@@ -352,14 +362,15 @@
           "id": 7,
           "name": "registration",
           "result": "pass",
-          "detail": "extras.sha256 matches masked file hash ff22fe04c6be699b...; all registration fields present; sha256 field itself excluded from the hash (detached-signature pattern)"
+          "detail": "extras.sha256 matches masked file hash 920725870f4a839f...; all registration fields present; sha256 field itself excluded from the hash (detached-signature pattern)"
         }
       ],
-      "overall": "pass"
+      "overall": "pass",
+      "materials": 3
     },
     {
       "model": "assets/library/models/E-12/enclosed_breaker_100a.glb",
-      "sha256": "7223252d069471fefdf7163847e5943d92f540928a0bc9f8df250baafc6c49a3",
+      "sha256": "6e3b52d265ae18ede090de51fa8fdf4c224ddc66f4439b7727bdfa56c37d0274",
       "budget": "equipment/50000",
       "checks": [
         {
@@ -402,10 +413,11 @@
           "id": 7,
           "name": "registration",
           "result": "pass",
-          "detail": "extras.sha256 matches masked file hash 7223252d069471fe...; all registration fields present; sha256 field itself excluded from the hash (detached-signature pattern)"
+          "detail": "extras.sha256 matches masked file hash 6e3b52d265ae18ed...; all registration fields present; sha256 field itself excluded from the hash (detached-signature pattern)"
         }
       ],
-      "overall": "pass"
+      "overall": "pass",
+      "materials": 4
     }
   ]
 }

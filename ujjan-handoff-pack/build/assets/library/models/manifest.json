@@ -1,60 +1,60 @@
 {
   "delivery": "v2",
-  "generator": "enclosure_family.py v0.2.0",
+  "generator": "enclosure_family.py v0.2.1",
   "models": [
     {
       "type_id": "E-02",
       "path": "assets/library/models/E-02/mv_switchgear_2section.glb",
-      "sha256": "77c543926f3544f609c03a50c8948d2f1cf1d42103f32c9dbd4f0c155c58179d",
+      "sha256": "5fa66140b1deee9bebfe78dadb8f64b36c198550276971bf6425a9ee5e5e197f",
       "licence_tier": "T1",
       "gate": "7/7 pass"
     },
     {
       "type_id": "E-03",
       "path": "assets/library/models/E-03/lv_switchgear_3section.glb",
-      "sha256": "1dc8be6f5e613410146cd04a50a1f8c2319f0bdcf4e449886f41a01cba0b5cad",
+      "sha256": "1eeff7ee0a586a400b604f4636c94ecc5150c903a8a73e954b942d681334ece8",
       "licence_tier": "T1",
       "gate": "7/7 pass"
     },
     {
       "type_id": "E-04",
       "path": "assets/library/models/E-04/main_switchboard_2section.glb",
-      "sha256": "9ee0c9bbe1f8f736b40bebf129658b86eb145878f71e8af1a7669fe4f230d795",
+      "sha256": "9e54e93e2b4e93981dab681042d70e31313a82240e12e0e06e8112ef32da567e",
       "licence_tier": "T1",
       "gate": "7/7 pass"
     },
     {
       "type_id": "E-05",
       "path": "assets/library/models/E-05/distribution_panelboard_600x1800.glb",
-      "sha256": "f4b885c016c5124deac15f79d4630c03c4e0752744d1b0ad078077d153ed469d",
+      "sha256": "95383dd6b5723956529b6254dc6bc8484daae4b29254c959bcac76ce2ae374d5",
       "licence_tier": "T1",
       "gate": "7/7 pass"
     },
     {
       "type_id": "E-06",
       "path": "assets/library/models/E-06/branch_panelboard_500x1000.glb",
-      "sha256": "77cb3a3da7779f09d04ed2dda5767834f7511aa425b351b838923c9db8241400",
+      "sha256": "8b5f787d42ce792144e224e5326f4c8480b808345c0923dfb50b7cc8e8921eb1",
       "licence_tier": "T1",
       "gate": "7/7 pass"
     },
     {
       "type_id": "E-07",
       "path": "assets/library/models/E-07/mcc_2section_5bucket.glb",
-      "sha256": "029cf128d921ce8ae54e27bcc521e00aaaa837f0a526e76b9744137e3fb91b4b",
+      "sha256": "18fa85ed26821a06c28a1d12605e6138762ead1ee2ac8321ef1fa3a0f2f67bbb",
       "licence_tier": "T1",
       "gate": "7/7 pass"
     },
     {
       "type_id": "E-11",
       "path": "assets/library/models/E-11/disconnect_switch_60a.glb",
-      "sha256": "ff22fe04c6be699bb3043465c59abb44d6af3cd8dc226bd700e28cad676a7a36",
+      "sha256": "920725870f4a839ff4eb2ebc324ef4db8425b8ebeaf1eca3a1a0e5391203c8d1",
       "licence_tier": "T1",
       "gate": "7/7 pass"
     },
     {
       "type_id": "E-12",
       "path": "assets/library/models/E-12/enclosed_breaker_100a.glb",
-      "sha256": "7223252d069471fefdf7163847e5943d92f540928a0bc9f8df250baafc6c49a3",
+      "sha256": "6e3b52d265ae18ede090de51fa8fdf4c224ddc66f4439b7727bdfa56c37d0274",
       "licence_tier": "T1",
       "gate": "7/7 pass"
     }

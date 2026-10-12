@@ -1,0 +1,87 @@
+{
+  "source_registry": "lib/electrical-component-library.ts (ELECTRICAL_COMPONENTS[].key)",
+  "spec_taxonomy": "BUILD-SPECS-REFERENCE.md Electrical (E-01..E-62)",
+  "note": "Maps each delivered GLB to its spec taxonomy id and the code-side registry key the viewer's ModelRegistryManager resolves. 'approximate' rows need a registry key decision before wiring into the viewer.",
+  "mappings": [
+    {
+      "file": "mv_switchgear_2section.glb",
+      "path": "assets/library/models/E-02/mv_switchgear_2section.glb",
+      "taxonomy_id": "E-02",
+      "registry_key": "utility-switchgear",
+      "key_exists_in_registry": true,
+      "confidence": "approximate",
+      "sha256": "5fa66140b1deee9bebfe78dadb8f64b36c198550276971bf6425a9ee5e5e197f",
+      "note": "Registry has no MV-switchgear class; utility/service switchgear is the closest 'cabinet'. Recommend adding 'mv-switchgear'."
+    },
+    {
+      "file": "lv_switchgear_3section.glb",
+      "path": "assets/library/models/E-03/lv_switchgear_3section.glb",
+      "taxonomy_id": "E-03",
+      "registry_key": "lv-switchboard",
+      "key_exists_in_registry": true,
+      "confidence": "approximate",
+      "sha256": "1eeff7ee0a586a400b604f4636c94ecc5150c903a8a73e954b942d681334ece8",
+      "note": "Registry models LV switchgear line-ups as 'lv-switchboard' (cabinet)."
+    },
+    {
+      "file": "main_switchboard_2section.glb",
+      "path": "assets/library/models/E-04/main_switchboard_2section.glb",
+      "taxonomy_id": "E-04",
+      "registry_key": "main-switchboard",
+      "key_exists_in_registry": true,
+      "confidence": "exact",
+      "sha256": "9e54e93e2b4e93981dab681042d70e31313a82240e12e0e06e8112ef32da567e",
+      "note": ""
+    },
+    {
+      "file": "distribution_panelboard_600x1800.glb",
+      "path": "assets/library/models/E-05/distribution_panelboard_600x1800.glb",
+      "taxonomy_id": "E-05",
+      "registry_key": "distribution-panel",
+      "key_exists_in_registry": true,
+      "confidence": "exact",
+      "sha256": "95383dd6b5723956529b6254dc6bc8484daae4b29254c959bcac76ce2ae374d5",
+      "note": ""
+    },
+    {
+      "file": "branch_panelboard_500x1000.glb",
+      "path": "assets/library/models/E-06/branch_panelboard_500x1000.glb",
+      "taxonomy_id": "E-06",
+      "registry_key": "panelboard",
+      "key_exists_in_registry": true,
+      "confidence": "exact",
+      "sha256": "8b5f787d42ce792144e224e5326f4c8480b808345c0923dfb50b7cc8e8921eb1",
+      "note": "Alt registry key for load-centre builds: 'load-center'."
+    },
+    {
+      "file": "mcc_2section_5bucket.glb",
+      "path": "assets/library/models/E-07/mcc_2section_5bucket.glb",
+      "taxonomy_id": "E-07",
+      "registry_key": "mcc",
+      "key_exists_in_registry": true,
+      "confidence": "exact",
+      "sha256": "18fa85ed26821a06c28a1d12605e6138762ead1ee2ac8321ef1fa3a0f2f67bbb",
+      "note": ""
+    },
+    {
+      "file": "disconnect_switch_60a.glb",
+      "path": "assets/library/models/E-11/disconnect_switch_60a.glb",
+      "taxonomy_id": "E-11",
+      "registry_key": "disconnect",
+      "key_exists_in_registry": true,
+      "confidence": "exact",
+      "sha256": "920725870f4a839ff4eb2ebc324ef4db8425b8ebeaf1eca3a1a0e5391203c8d1",
+      "note": "Registry name: 'Safety Switch / Disconnect'."
+    },
+    {
+      "file": "enclosed_breaker_100a.glb",
+      "path": "assets/library/models/E-12/enclosed_breaker_100a.glb",
+      "taxonomy_id": "E-12",
+      "registry_key": "mccb",
+      "key_exists_in_registry": true,
+      "confidence": "approximate",
+      "sha256": "6e3b52d265ae18ede090de51fa8fdf4c224ddc66f4439b7727bdfa56c37d0274",
+      "note": "Enclosed circuit breaker = enclosed MCCB; registry has no 'enclosed-breaker' class. Alt: 'acb'."
+    }
+  ]
+}

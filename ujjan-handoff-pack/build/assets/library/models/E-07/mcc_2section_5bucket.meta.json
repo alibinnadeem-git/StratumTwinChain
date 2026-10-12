@@ -10,7 +10,7 @@
   "declared_up": "+Y",
   "declared_origin": "floor",
   "declared_front": "+Z",
-  "generator": "enclosure_family.py v0.2.0",
+  "generator": "enclosure_family.py v0.2.1",
   "params": {
     "width_m": 1.0,
     "height_m": 2.286,

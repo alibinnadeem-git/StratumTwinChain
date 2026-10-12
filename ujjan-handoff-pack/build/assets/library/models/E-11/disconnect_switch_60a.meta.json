@@ -11,7 +11,7 @@
   "declared_up": "+Y",
   "declared_origin": "wall face",
   "declared_front": "+Z",
-  "generator": "enclosure_family.py v0.2.0",
+  "generator": "enclosure_family.py v0.2.1",
   "params": {
     "width_m": 0.3,
     "height_m": 0.45,
