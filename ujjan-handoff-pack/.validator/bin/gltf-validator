@@ -1,0 +1,32 @@
+#!/usr/bin/env node
+// Minimal CLI shim exposing the Khronos `gltf-validator` npm library as the
+// `gltf-validator` command intake_gate.py expects.
+//   gltf-validator --version         -> prints version, exit 0 (gate probe)
+//   gltf-validator -o REPORT MODEL    -> writes Khronos JSON report, exit 0
+// The library is resolved by normal upward node resolution from this file.
+const fs = require("fs");
+const path = require("path");
+const validator = require("gltf-validator");
+
+const argv = process.argv.slice(2);
+if (argv.includes("--version")) {
+  const v = validator.version;
+  console.log(typeof v === "function" ? v() : v);
+  process.exit(0);
+}
+let out = null;
+const positional = [];
+for (let i = 0; i < argv.length; i++) {
+  if (argv[i] === "-o") { out = argv[++i]; } else { positional.push(argv[i]); }
+}
+const model = positional[positional.length - 1];
+if (!model) { console.error("no model path given"); process.exit(2); }
+
+const bytes = new Uint8Array(fs.readFileSync(model));
+validator.validateBytes(bytes, { uri: path.basename(model) })
+  .then((report) => {
+    if (out) fs.writeFileSync(out, JSON.stringify(report, null, 2));
+    else console.log(JSON.stringify(report, null, 2));
+    process.exit(0);
+  })
+  .catch((err) => { console.error("validator error:", err); process.exit(2); });

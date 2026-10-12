@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>STRATUM — Enclosure Family v1 (local preview)</title>
+<script type="module"
+  src="https://unpkg.com/@google/model-viewer@4.0.0/dist/model-viewer.min.js"></script>
+<style>
+  body{margin:0;background:#15171c;color:#e7e9ee;font:14px/1.4 system-ui,sans-serif}
+  header{padding:16px 20px;border-bottom:1px solid #2a2e37}
+  header h1{margin:0 0 4px;font-size:17px}
+  header p{margin:0;color:#9aa1ad}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;padding:16px}
+  .card{background:#1d2027;border:1px solid #2a2e37;border-radius:10px;overflow:hidden}
+  .card h2{margin:0;padding:10px 12px;font-size:14px;border-bottom:1px solid #2a2e37}
+  .card h2 small{color:#8b93a1;font-weight:400}
+  model-viewer{width:100%;height:300px;background:#0e1013}
+  .meta{padding:8px 12px;color:#9aa1ad;font-size:12px}
+  .tag{display:inline-block;background:#2a2e37;border-radius:4px;padding:1px 6px;margin-right:4px;color:#cfd4dd}
+</style>
+</head>
+<body>
+<header>
+  <h1>STRATUM Enclosure Family — v1 local preview</h1>
+  <p>Front faces <b>+Z</b> (toward you at default camera), <b>+Y</b> up, metres.
+     Drag to orbit · scroll to zoom. Check proportions, doors/handles, base, and that the front reads correctly.</p>
+</header>
+<div class="grid" id="grid"></div>
+<script type="module">
+const MODELS = [
+  {id:"E-02", name:"mv_switchgear_2section",            v:"switchgear",       d:"1.8 × 2.3 × 1.5",  origin:"floor"},
+  {id:"E-03", name:"lv_switchgear_3section",            v:"switchgear",       d:"2.4 × 2.3 × 1.5",  origin:"floor"},
+  {id:"E-04", name:"main_switchboard_2section",         v:"switchboard",      d:"1.5 × 2.28 × 0.9", origin:"floor"},
+  {id:"E-05", name:"distribution_panelboard_600x1800",  v:"panelboard",       d:"0.6 × 1.8 × 0.25", origin:"wall face"},
+  {id:"E-06", name:"branch_panelboard_500x1000",        v:"panelboard",       d:"0.5 × 1.0 × 0.15", origin:"wall face"},
+  {id:"E-07", name:"mcc_2section_5bucket",              v:"mcc",              d:"1.0 × 2.286 × 0.5",origin:"floor"},
+  {id:"E-11", name:"disconnect_switch_60a",            v:"disconnect",       d:"0.3 × 0.45 × 0.18",origin:"wall face"},
+  {id:"E-12", name:"enclosed_breaker_100a",            v:"enclosed_breaker", d:"0.3 × 0.5 × 0.2",  origin:"wall face"},
+];
+const grid = document.getElementById("grid");
+for (const m of MODELS){
+  const card = document.createElement("div");
+  card.className = "card";
+  card.innerHTML = `
+    <h2>${m.id} <small>· ${m.v}</small></h2>
+    <model-viewer src="build/assets/library/models/${m.id}/${m.name}.glb"
+      camera-controls auto-rotate shadow-intensity="1" exposure="1.1"
+      environment-image="neutral" camera-orbit="25deg 72deg auto"
+      ar-status="not-presenting"></model-viewer>
+    <div class="meta">
+      <span class="tag">${m.d} m</span>
+      <span class="tag">origin: ${m.origin}</span>
+      <span class="tag">+Z front</span>
+      <div style="margin-top:4px">${m.name}.glb</div>
+    </div>`;
+  grid.appendChild(card);
+}
+</script>
+</body>
+</html>

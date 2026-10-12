@@ -1,0 +1,411 @@
+{
+  "generator": "enclosure_family.py v0.2.0",
+  "gate": "intake_gate.py (7 checks)",
+  "validator": "Khronos gltf-validator 2.0.0-dev.3.10 (ran, not skipped)",
+  "summary": {
+    "models": 8,
+    "all_pass": true
+  },
+  "reports": [
+    {
+      "model": "assets/library/models/E-02/mv_switchgear_2section.glb",
+      "sha256": "77c543926f3544f609c03a50c8948d2f1cf1d42103f32c9dbd4f0c155c58179d",
+      "budget": "equipment/50000",
+      "checks": [
+        {
+          "id": 1,
+          "name": "licence",
+          "result": "pass",
+          "detail": "tier T1 (CC0 or in-house) -- ships by default"
+        },
+        {
+          "id": 2,
+          "name": "glb_parse",
+          "result": "pass",
+          "detail": "valid GLB: magic b'glTF', version 2, JSON chunk parses, declared length matches file"
+        },
+        {
+          "id": 3,
+          "name": "normalization",
+          "result": "pass",
+          "detail": "bbox diagonal 3.3578 m (bounds [0.0001, 1000.0]); declared_up=+Y matches; note: true orientation cannot be proven from bytes alone -- pass is on declared values + sane bounds"
+        },
+        {
+          "id": 4,
+          "name": "anchors",
+          "result": "pass",
+          "detail": "all 3 expected anchor(s) present: mount_face, power_in, ground_lug"
+        },
+        {
+          "id": 5,
+          "name": "triangle_budget",
+          "result": "pass",
+          "detail": "576 triangles total (budget 50000); no KHR_draco_mesh_compression / EXT_meshopt_compression extension declared"
+        },
+        {
+          "id": 6,
+          "name": "validator",
+          "result": "pass",
+          "detail": "gltf-validator reported no errors"
+        },
+        {
+          "id": 7,
+          "name": "registration",
+          "result": "pass",
+          "detail": "extras.sha256 matches masked file hash 77c543926f3544f6...; all registration fields present; sha256 field itself excluded from the hash (detached-signature pattern)"
+        }
+      ],
+      "overall": "pass"
+    },
+    {
+      "model": "assets/library/models/E-03/lv_switchgear_3section.glb",
+      "sha256": "1dc8be6f5e613410146cd04a50a1f8c2319f0bdcf4e449886f41a01cba0b5cad",
+      "budget": "equipment/50000",
+      "checks": [
+        {
+          "id": 1,
+          "name": "licence",
+          "result": "pass",
+          "detail": "tier T1 (CC0 or in-house) -- ships by default"
+        },
+        {
+          "id": 2,
+          "name": "glb_parse",
+          "result": "pass",
+          "detail": "valid GLB: magic b'glTF', version 2, JSON chunk parses, declared length matches file"
+        },
+        {
+          "id": 3,
+          "name": "normalization",
+          "result": "pass",
+          "detail": "bbox diagonal 3.7206 m (bounds [0.0001, 1000.0]); declared_up=+Y matches; note: true orientation cannot be proven from bytes alone -- pass is on declared values + sane bounds"
+        },
+        {
+          "id": 4,
+          "name": "anchors",
+          "result": "pass",
+          "detail": "all 3 expected anchor(s) present: mount_face, power_in, ground_lug"
+        },
+        {
+          "id": 5,
+          "name": "triangle_budget",
+          "result": "pass",
+          "detail": "924 triangles total (budget 50000); no KHR_draco_mesh_compression / EXT_meshopt_compression extension declared"
+        },
+        {
+          "id": 6,
+          "name": "validator",
+          "result": "pass",
+          "detail": "gltf-validator reported no errors"
+        },
+        {
+          "id": 7,
+          "name": "registration",
+          "result": "pass",
+          "detail": "extras.sha256 matches masked file hash 1dc8be6f5e613410...; all registration fields present; sha256 field itself excluded from the hash (detached-signature pattern)"
+        }
+      ],
+      "overall": "pass"
+    },
+    {
+      "model": "assets/library/models/E-04/main_switchboard_2section.glb",
+      "sha256": "9ee0c9bbe1f8f736b40bebf129658b86eb145878f71e8af1a7669fe4f230d795",
+      "budget": "equipment/50000",
+      "checks": [
+        {
+          "id": 1,
+          "name": "licence",
+          "result": "pass",
+          "detail": "tier T1 (CC0 or in-house) -- ships by default"
+        },
+        {
+          "id": 2,
+          "name": "glb_parse",
+          "result": "pass",
+          "detail": "valid GLB: magic b'glTF', version 2, JSON chunk parses, declared length matches file"
+        },
+        {
+          "id": 3,
+          "name": "normalization",
+          "result": "pass",
+          "detail": "bbox diagonal 2.9418 m (bounds [0.0001, 1000.0]); declared_up=+Y matches; note: true orientation cannot be proven from bytes alone -- pass is on declared values + sane bounds"
+        },
+        {
+          "id": 4,
+          "name": "anchors",
+          "result": "pass",
+          "detail": "all 3 expected anchor(s) present: mount_face, power_in, ground_lug"
+        },
+        {
+          "id": 5,
+          "name": "triangle_budget",
+          "result": "pass",
+          "detail": "336 triangles total (budget 50000); no KHR_draco_mesh_compression / EXT_meshopt_compression extension declared"
+        },
+        {
+          "id": 6,
+          "name": "validator",
+          "result": "pass",
+          "detail": "gltf-validator reported no errors"
+        },
+        {
+          "id": 7,
+          "name": "registration",
+          "result": "pass",
+          "detail": "extras.sha256 matches masked file hash 9ee0c9bbe1f8f736...; all registration fields present; sha256 field itself excluded from the hash (detached-signature pattern)"
+        }
+      ],
+      "overall": "pass"
+    },
+    {
+      "model": "assets/library/models/E-05/distribution_panelboard_600x1800.glb",
+      "sha256": "f4b885c016c5124deac15f79d4630c03c4e0752744d1b0ad078077d153ed469d",
+      "budget": "equipment/50000",
+      "checks": [
+        {
+          "id": 1,
+          "name": "licence",
+          "result": "pass",
+          "detail": "tier T1 (CC0 or in-house) -- ships by default"
+        },
+        {
+          "id": 2,
+          "name": "glb_parse",
+          "result": "pass",
+          "detail": "valid GLB: magic b'glTF', version 2, JSON chunk parses, declared length matches file"
+        },
+        {
+          "id": 3,
+          "name": "normalization",
+          "result": "pass",
+          "detail": "bbox diagonal 1.9196 m (bounds [0.0001, 1000.0]); declared_up=+Y matches; note: true orientation cannot be proven from bytes alone -- pass is on declared values + sane bounds"
+        },
+        {
+          "id": 4,
+          "name": "anchors",
+          "result": "pass",
+          "detail": "all 4 expected anchor(s) present: mount_face, power_in, conduit_entry, ground_lug"
+        },
+        {
+          "id": 5,
+          "name": "triangle_budget",
+          "result": "pass",
+          "detail": "72 triangles total (budget 50000); no KHR_draco_mesh_compression / EXT_meshopt_compression extension declared"
+        },
+        {
+          "id": 6,
+          "name": "validator",
+          "result": "pass",
+          "detail": "gltf-validator reported no errors"
+        },
+        {
+          "id": 7,
+          "name": "registration",
+          "result": "pass",
+          "detail": "extras.sha256 matches masked file hash f4b885c016c5124d...; all registration fields present; sha256 field itself excluded from the hash (detached-signature pattern)"
+        }
+      ],
+      "overall": "pass"
+    },
+    {
+      "model": "assets/library/models/E-06/branch_panelboard_500x1000.glb",
+      "sha256": "77cb3a3da7779f09d04ed2dda5767834f7511aa425b351b838923c9db8241400",
+      "budget": "equipment/50000",
+      "checks": [
+        {
+          "id": 1,
+          "name": "licence",
+          "result": "pass",
+          "detail": "tier T1 (CC0 or in-house) -- ships by default"
+        },
+        {
+          "id": 2,
+          "name": "glb_parse",
+          "result": "pass",
+          "detail": "valid GLB: magic b'glTF', version 2, JSON chunk parses, declared length matches file"
+        },
+        {
+          "id": 3,
+          "name": "normalization",
+          "result": "pass",
+          "detail": "bbox diagonal 1.1342 m (bounds [0.0001, 1000.0]); declared_up=+Y matches; note: true orientation cannot be proven from bytes alone -- pass is on declared values + sane bounds"
+        },
+        {
+          "id": 4,
+          "name": "anchors",
+          "result": "pass",
+          "detail": "all 4 expected anchor(s) present: mount_face, power_in, conduit_entry, ground_lug"
+        },
+        {
+          "id": 5,
+          "name": "triangle_budget",
+          "result": "pass",
+          "detail": "72 triangles total (budget 50000); no KHR_draco_mesh_compression / EXT_meshopt_compression extension declared"
+        },
+        {
+          "id": 6,
+          "name": "validator",
+          "result": "pass",
+          "detail": "gltf-validator reported no errors"
+        },
+        {
+          "id": 7,
+          "name": "registration",
+          "result": "pass",
+          "detail": "extras.sha256 matches masked file hash 77cb3a3da7779f09...; all registration fields present; sha256 field itself excluded from the hash (detached-signature pattern)"
+        }
+      ],
+      "overall": "pass"
+    },
+    {
+      "model": "assets/library/models/E-07/mcc_2section_5bucket.glb",
+      "sha256": "029cf128d921ce8ae54e27bcc521e00aaaa837f0a526e76b9744137e3fb91b4b",
+      "budget": "equipment/50000",
+      "checks": [
+        {
+          "id": 1,
+          "name": "licence",
+          "result": "pass",
+          "detail": "tier T1 (CC0 or in-house) -- ships by default"
+        },
+        {
+          "id": 2,
+          "name": "glb_parse",
+          "result": "pass",
+          "detail": "valid GLB: magic b'glTF', version 2, JSON chunk parses, declared length matches file"
+        },
+        {
+          "id": 3,
+          "name": "normalization",
+          "result": "pass",
+          "detail": "bbox diagonal 2.6045 m (bounds [0.0001, 1000.0]); declared_up=+Y matches; note: true orientation cannot be proven from bytes alone -- pass is on declared values + sane bounds"
+        },
+        {
+          "id": 4,
+          "name": "anchors",
+          "result": "pass",
+          "detail": "all 3 expected anchor(s) present: mount_face, power_in, ground_lug"
+        },
+        {
+          "id": 5,
+          "name": "triangle_budget",
+          "result": "pass",
+          "detail": "744 triangles total (budget 50000); no KHR_draco_mesh_compression / EXT_meshopt_compression extension declared"
+        },
+        {
+          "id": 6,
+          "name": "validator",
+          "result": "pass",
+          "detail": "gltf-validator reported no errors"
+        },
+        {
+          "id": 7,
+          "name": "registration",
+          "result": "pass",
+          "detail": "extras.sha256 matches masked file hash 029cf128d921ce8a...; all registration fields present; sha256 field itself excluded from the hash (detached-signature pattern)"
+        }
+      ],
+      "overall": "pass"
+    },
+    {
+      "model": "assets/library/models/E-11/disconnect_switch_60a.glb",
+      "sha256": "ff22fe04c6be699bb3043465c59abb44d6af3cd8dc226bd700e28cad676a7a36",
+      "budget": "equipment/50000",
+      "checks": [
+        {
+          "id": 1,
+          "name": "licence",
+          "result": "pass",
+          "detail": "tier T1 (CC0 or in-house) -- ships by default"
+        },
+        {
+          "id": 2,
+          "name": "glb_parse",
+          "result": "pass",
+          "detail": "valid GLB: magic b'glTF', version 2, JSON chunk parses, declared length matches file"
+        },
+        {
+          "id": 3,
+          "name": "normalization",
+          "result": "pass",
+          "detail": "bbox diagonal 0.6241 m (bounds [0.0001, 1000.0]); declared_up=+Y matches; note: true orientation cannot be proven from bytes alone -- pass is on declared values + sane bounds"
+        },
+        {
+          "id": 4,
+          "name": "anchors",
+          "result": "pass",
+          "detail": "all 4 expected anchor(s) present: mount_face, power_in, conduit_entry, ground_lug"
+        },
+        {
+          "id": 5,
+          "name": "triangle_budget",
+          "result": "pass",
+          "detail": "60 triangles total (budget 50000); no KHR_draco_mesh_compression / EXT_meshopt_compression extension declared"
+        },
+        {
+          "id": 6,
+          "name": "validator",
+          "result": "pass",
+          "detail": "gltf-validator reported no errors"
+        },
+        {
+          "id": 7,
+          "name": "registration",
+          "result": "pass",
+          "detail": "extras.sha256 matches masked file hash ff22fe04c6be699b...; all registration fields present; sha256 field itself excluded from the hash (detached-signature pattern)"
+        }
+      ],
+      "overall": "pass"
+    },
+    {
+      "model": "assets/library/models/E-12/enclosed_breaker_100a.glb",
+      "sha256": "7223252d069471fefdf7163847e5943d92f540928a0bc9f8df250baafc6c49a3",
+      "budget": "equipment/50000",
+      "checks": [
+        {
+          "id": 1,
+          "name": "licence",
+          "result": "pass",
+          "detail": "tier T1 (CC0 or in-house) -- ships by default"
+        },
+        {
+          "id": 2,
+          "name": "glb_parse",
+          "result": "pass",
+          "detail": "valid GLB: magic b'glTF', version 2, JSON chunk parses, declared length matches file"
+        },
+        {
+          "id": 3,
+          "name": "normalization",
+          "result": "pass",
+          "detail": "bbox diagonal 0.6344 m (bounds [0.0001, 1000.0]); declared_up=+Y matches; note: true orientation cannot be proven from bytes alone -- pass is on declared values + sane bounds"
+        },
+        {
+          "id": 4,
+          "name": "anchors",
+          "result": "pass",
+          "detail": "all 4 expected anchor(s) present: mount_face, power_in, conduit_entry, ground_lug"
+        },
+        {
+          "id": 5,
+          "name": "triangle_budget",
+          "result": "pass",
+          "detail": "48 triangles total (budget 50000); no KHR_draco_mesh_compression / EXT_meshopt_compression extension declared"
+        },
+        {
+          "id": 6,
+          "name": "validator",
+          "result": "pass",
+          "detail": "gltf-validator reported no errors"
+        },
+        {
+          "id": 7,
+          "name": "registration",
+          "result": "pass",
+          "detail": "extras.sha256 matches masked file hash 7223252d069471fe...; all registration fields present; sha256 field itself excluded from the hash (detached-signature pattern)"
+        }
+      ],
+      "overall": "pass"
+    }
+  ]
+}

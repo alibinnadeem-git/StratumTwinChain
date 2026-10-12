@@ -1,0 +1,23 @@
+{
+  "type_id": "E-03",
+  "licence_tier": "T1",
+  "permission_ref": null,
+  "expected_anchors": [
+    "mount_face",
+    "power_in",
+    "ground_lug"
+  ],
+  "declared_up": "+Y",
+  "declared_origin": "floor",
+  "declared_front": "+Z",
+  "generator": "enclosure_family.py v0.2.0",
+  "params": {
+    "width_m": 2.4,
+    "height_m": 2.3,
+    "depth_m": 1.5,
+    "sections": 3,
+    "style": "lv",
+    "cells_per_section": 4,
+    "finish": "ansi-61-grey"
+  }
+}

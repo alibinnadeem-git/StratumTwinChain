@@ -1,0 +1,21 @@
+{
+  "type_id": "E-06",
+  "licence_tier": "T1",
+  "permission_ref": null,
+  "expected_anchors": [
+    "mount_face",
+    "power_in",
+    "conduit_entry",
+    "ground_lug"
+  ],
+  "declared_up": "+Y",
+  "declared_origin": "wall face",
+  "declared_front": "+Z",
+  "generator": "enclosure_family.py v0.2.0",
+  "params": {
+    "width_m": 0.5,
+    "height_m": 1.0,
+    "depth_m": 0.15,
+    "finish": "ansi-61-grey"
+  }
+}

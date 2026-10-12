@@ -1,0 +1,22 @@
+{
+  "type_id": "E-04",
+  "licence_tier": "T1",
+  "permission_ref": null,
+  "expected_anchors": [
+    "mount_face",
+    "power_in",
+    "ground_lug"
+  ],
+  "declared_up": "+Y",
+  "declared_origin": "floor",
+  "declared_front": "+Z",
+  "generator": "enclosure_family.py v0.2.0",
+  "params": {
+    "width_m": 1.5,
+    "height_m": 2.28,
+    "depth_m": 0.9,
+    "sections": 2,
+    "style": "switchboard",
+    "finish": "ansi-61-grey"
+  }
+}
