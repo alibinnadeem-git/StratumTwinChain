@@ -581,7 +581,7 @@ export default function CompilerWorkspace({safeMode=false}:{safeMode?:boolean}){
    <h2>Drop the project set</h2>
    <label className={`source-drop ${dragging?'dragging':''}`} onDragEnter={e=>{e.preventDefault();setDragging(true)}} onDragOver={e=>{e.preventDefault();setDragging(true)}} onDragLeave={()=>setDragging(false)} onDrop={drop}>
     <div><div className="source-drop-icon">⌁</div><b>{busy?'Parsing engineering sources…':dragging?'Release to import':'Drag files here or choose files'}</b><p className="muted">PDF · DXF/DWG · IFC/RVT · self-contained GLB · images · schedules/spec files</p></div>
-    <input hidden multiple disabled={busy} type="file" accept=".pdf,.dwg,.dxf,.ifc,.rvt,.glb,.gltf,.png,.jpg,.jpeg,.csv,.xlsx,.xls,.docx,.txt" onChange={addFiles}/>
+    <input className="visually-hidden" multiple disabled={busy} type="file" accept=".pdf,.dwg,.dxf,.ifc,.rvt,.glb,.gltf,.png,.jpg,.jpeg,.csv,.xlsx,.xls,.docx,.txt" onChange={addFiles}/>
    </label>
    <div className="button-row" style={{marginTop:12}}><button className="ghost" type="button" onClick={()=>void addTeslaReference()} disabled={busy}>Add Tesla 3D reference to this project</button>{busy&&<button className="ghost" type="button" onClick={cancelActiveParse} disabled={!canCancel}>Cancel current PDF parse</button>}</div>
    <p className="muted">The bundled Tesla model is a licensed community visualization. Adding it creates a selectable, unregistered reference with unverified placement; it does not identify equipment on your drawings.</p>

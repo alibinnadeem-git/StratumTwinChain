@@ -87,7 +87,7 @@ export default function SpatialPortableRecovery(){
       <button className="action" type="button" onClick={exportBundle} disabled={busy||!summary.entities}>Export recovery bundle</button>
       <label className="ghost" style={{cursor:busy?'not-allowed':'pointer'}}>
         Import recovery bundle
-        <input hidden type="file" accept=".json,application/json" onChange={importBundle} disabled={busy}/>
+        <input className="visually-hidden" type="file" accept=".json,application/json" onChange={importBundle} disabled={busy}/>
       </label>
     </div>
     <div className="notice" role="status" style={{marginTop:12}}><strong>RECOVERY</strong><span>{message}</span></div>
