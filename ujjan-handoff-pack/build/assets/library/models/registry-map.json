@@ -10,8 +10,8 @@
       "registry_key": "utility-switchgear",
       "key_exists_in_registry": true,
       "confidence": "approximate",
-      "sha256": "5fa66140b1deee9bebfe78dadb8f64b36c198550276971bf6425a9ee5e5e197f",
-      "note": "Registry has no MV-switchgear class; utility/service switchgear is the closest 'cabinet'. Recommend adding 'mv-switchgear'."
+      "sha256": "ac6dabd3c4ddec2db28db799755f0460a38d8a0e387d091169d4ab462a3b5b88",
+      "note": "Registry has no MV-switchgear class; utility/service switchgear is closest. Recommend adding 'mv-switchgear'."
     },
     {
       "file": "lv_switchgear_3section.glb",
@@ -20,8 +20,8 @@
       "registry_key": "lv-switchboard",
       "key_exists_in_registry": true,
       "confidence": "approximate",
-      "sha256": "1eeff7ee0a586a400b604f4636c94ecc5150c903a8a73e954b942d681334ece8",
-      "note": "Registry models LV switchgear line-ups as 'lv-switchboard' (cabinet)."
+      "sha256": "80442e525e4c750500bd9d7df4a778103c4f7db47ce2d29bedab2fc34ec6c764",
+      "note": "Registry models LV switchgear line-ups as 'lv-switchboard'."
     },
     {
       "file": "main_switchboard_2section.glb",
@@ -30,7 +30,7 @@
       "registry_key": "main-switchboard",
       "key_exists_in_registry": true,
       "confidence": "exact",
-      "sha256": "9e54e93e2b4e93981dab681042d70e31313a82240e12e0e06e8112ef32da567e",
+      "sha256": "36ddd87e549b4b30c97cb7f36e1650c12577f1c1e669cfe0caa93710e3a00873",
       "note": ""
     },
     {
@@ -51,7 +51,7 @@
       "key_exists_in_registry": true,
       "confidence": "exact",
       "sha256": "8b5f787d42ce792144e224e5326f4c8480b808345c0923dfb50b7cc8e8921eb1",
-      "note": "Alt registry key for load-centre builds: 'load-center'."
+      "note": "Alt for load-centre builds: 'load-center'."
     },
     {
       "file": "mcc_2section_5bucket.glb",
@@ -60,7 +60,7 @@
       "registry_key": "mcc",
       "key_exists_in_registry": true,
       "confidence": "exact",
-      "sha256": "18fa85ed26821a06c28a1d12605e6138762ead1ee2ac8321ef1fa3a0f2f67bbb",
+      "sha256": "37bf64504fae0495e7e2d2d18b16e4c625ea2e9615b459ba13b943870200e65e",
       "note": ""
     },
     {
@@ -81,7 +81,7 @@
       "key_exists_in_registry": true,
       "confidence": "approximate",
       "sha256": "6e3b52d265ae18ede090de51fa8fdf4c224ddc66f4439b7727bdfa56c37d0274",
-      "note": "Enclosed circuit breaker = enclosed MCCB; registry has no 'enclosed-breaker' class. Alt: 'acb'."
+      "note": "Enclosed MCCB; registry has no 'enclosed-breaker' class. Alt: 'acb'."
     }
   ]
 }

@@ -1,7 +1,13 @@
 {
   "generator": "enclosure_family.py v0.2.1",
-  "gate": "intake_gate.py (STRATUM Intake Gate, 7 checks)",
-  "validator": "Khronos gltf-validator 2.0.0-dev.3.10 (ran, not skipped): 0 errors / 0 warnings on all",
+  "gate": "intake_gate.py (7 checks)",
+  "validator": "Khronos gltf-validator 2.0.0-dev.3.10 (ran): 0 errors / 0 warnings on all",
+  "anchors_per_model": [
+    "conduit_entry",
+    "ground_lug",
+    "mount_face",
+    "power_in"
+  ],
   "material_budget": {
     "limit": 4,
     "max_used": 4
@@ -13,7 +19,7 @@
   "reports": [
     {
       "model": "assets/library/models/E-02/mv_switchgear_2section.glb",
-      "sha256": "5fa66140b1deee9bebfe78dadb8f64b36c198550276971bf6425a9ee5e5e197f",
+      "sha256": "ac6dabd3c4ddec2db28db799755f0460a38d8a0e387d091169d4ab462a3b5b88",
       "budget": "equipment/50000",
       "checks": [
         {
@@ -38,7 +44,7 @@
           "id": 4,
           "name": "anchors",
           "result": "pass",
-          "detail": "all 3 expected anchor(s) present: mount_face, power_in, ground_lug"
+          "detail": "all 4 expected anchor(s) present: mount_face, power_in, conduit_entry, ground_lug"
         },
         {
           "id": 5,
@@ -56,7 +62,7 @@
           "id": 7,
           "name": "registration",
           "result": "pass",
-          "detail": "extras.sha256 matches masked file hash 5fa66140b1deee9b...; all registration fields present; sha256 field itself excluded from the hash (detached-signature pattern)"
+          "detail": "extras.sha256 matches masked file hash ac6dabd3c4ddec2d...; all registration fields present; sha256 field itself excluded from the hash (detached-signature pattern)"
         }
       ],
       "overall": "pass",
@@ -64,7 +70,7 @@
     },
     {
       "model": "assets/library/models/E-03/lv_switchgear_3section.glb",
-      "sha256": "1eeff7ee0a586a400b604f4636c94ecc5150c903a8a73e954b942d681334ece8",
+      "sha256": "80442e525e4c750500bd9d7df4a778103c4f7db47ce2d29bedab2fc34ec6c764",
       "budget": "equipment/50000",
       "checks": [
         {
@@ -89,7 +95,7 @@
           "id": 4,
           "name": "anchors",
           "result": "pass",
-          "detail": "all 3 expected anchor(s) present: mount_face, power_in, ground_lug"
+          "detail": "all 4 expected anchor(s) present: mount_face, power_in, conduit_entry, ground_lug"
         },
         {
           "id": 5,
@@ -107,7 +113,7 @@
           "id": 7,
           "name": "registration",
           "result": "pass",
-          "detail": "extras.sha256 matches masked file hash 1eeff7ee0a586a40...; all registration fields present; sha256 field itself excluded from the hash (detached-signature pattern)"
+          "detail": "extras.sha256 matches masked file hash 80442e525e4c7505...; all registration fields present; sha256 field itself excluded from the hash (detached-signature pattern)"
         }
       ],
       "overall": "pass",
@@ -115,7 +121,7 @@
     },
     {
       "model": "assets/library/models/E-04/main_switchboard_2section.glb",
-      "sha256": "9e54e93e2b4e93981dab681042d70e31313a82240e12e0e06e8112ef32da567e",
+      "sha256": "36ddd87e549b4b30c97cb7f36e1650c12577f1c1e669cfe0caa93710e3a00873",
       "budget": "equipment/50000",
       "checks": [
         {
@@ -140,7 +146,7 @@
           "id": 4,
           "name": "anchors",
           "result": "pass",
-          "detail": "all 3 expected anchor(s) present: mount_face, power_in, ground_lug"
+          "detail": "all 4 expected anchor(s) present: mount_face, power_in, conduit_entry, ground_lug"
         },
         {
           "id": 5,
@@ -158,7 +164,7 @@
           "id": 7,
           "name": "registration",
           "result": "pass",
-          "detail": "extras.sha256 matches masked file hash 9e54e93e2b4e9398...; all registration fields present; sha256 field itself excluded from the hash (detached-signature pattern)"
+          "detail": "extras.sha256 matches masked file hash 36ddd87e549b4b30...; all registration fields present; sha256 field itself excluded from the hash (detached-signature pattern)"
         }
       ],
       "overall": "pass",
@@ -268,7 +274,7 @@
     },
     {
       "model": "assets/library/models/E-07/mcc_2section_5bucket.glb",
-      "sha256": "18fa85ed26821a06c28a1d12605e6138762ead1ee2ac8321ef1fa3a0f2f67bbb",
+      "sha256": "37bf64504fae0495e7e2d2d18b16e4c625ea2e9615b459ba13b943870200e65e",
       "budget": "equipment/50000",
       "checks": [
         {
@@ -293,7 +299,7 @@
           "id": 4,
           "name": "anchors",
           "result": "pass",
-          "detail": "all 3 expected anchor(s) present: mount_face, power_in, ground_lug"
+          "detail": "all 4 expected anchor(s) present: mount_face, power_in, conduit_entry, ground_lug"
         },
         {
           "id": 5,
@@ -311,7 +317,7 @@
           "id": 7,
           "name": "registration",
           "result": "pass",
-          "detail": "extras.sha256 matches masked file hash 18fa85ed26821a06...; all registration fields present; sha256 field itself excluded from the hash (detached-signature pattern)"
+          "detail": "extras.sha256 matches masked file hash 37bf64504fae0495...; all registration fields present; sha256 field itself excluded from the hash (detached-signature pattern)"
         }
       ],
       "overall": "pass",

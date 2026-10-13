@@ -5,21 +5,21 @@
     {
       "type_id": "E-02",
       "path": "assets/library/models/E-02/mv_switchgear_2section.glb",
-      "sha256": "5fa66140b1deee9bebfe78dadb8f64b36c198550276971bf6425a9ee5e5e197f",
+      "sha256": "ac6dabd3c4ddec2db28db799755f0460a38d8a0e387d091169d4ab462a3b5b88",
       "licence_tier": "T1",
       "gate": "7/7 pass"
     },
     {
       "type_id": "E-03",
       "path": "assets/library/models/E-03/lv_switchgear_3section.glb",
-      "sha256": "1eeff7ee0a586a400b604f4636c94ecc5150c903a8a73e954b942d681334ece8",
+      "sha256": "80442e525e4c750500bd9d7df4a778103c4f7db47ce2d29bedab2fc34ec6c764",
       "licence_tier": "T1",
       "gate": "7/7 pass"
     },
     {
       "type_id": "E-04",
       "path": "assets/library/models/E-04/main_switchboard_2section.glb",
-      "sha256": "9e54e93e2b4e93981dab681042d70e31313a82240e12e0e06e8112ef32da567e",
+      "sha256": "36ddd87e549b4b30c97cb7f36e1650c12577f1c1e669cfe0caa93710e3a00873",
       "licence_tier": "T1",
       "gate": "7/7 pass"
     },
@@ -40,7 +40,7 @@
     {
       "type_id": "E-07",
       "path": "assets/library/models/E-07/mcc_2section_5bucket.glb",
-      "sha256": "18fa85ed26821a06c28a1d12605e6138762ead1ee2ac8321ef1fa3a0f2f67bbb",
+      "sha256": "37bf64504fae0495e7e2d2d18b16e4c625ea2e9615b459ba13b943870200e65e",
       "licence_tier": "T1",
       "gate": "7/7 pass"
     },

@@ -49,6 +49,11 @@ Usage:
         --out DIR
 """
 
+# Copyright (c) 2026 Stratum. All rights reserved.
+# Proprietary. Authored by Ujjan and assigned to Stratum; for internal Stratum
+# use. Not licensed for external distribution. The models this generator emits
+# are licence tier T1 (in-house, ships by default), likewise assigned to Stratum.
+
 import argparse
 import hashlib
 import json
@@ -281,8 +286,9 @@ def build_switchgear(p):
                      nameplate=True, vents=(j == 0))
 
     anchors = {
-        "mount_face": (0.0, 0.0, D / 2),
-        "power_in": (0.0, H, D * 0.25),
+        "mount_face": (0.0, 0.0, D / 2),          # floor contact
+        "power_in": (0.0, H, D * 0.25),           # top bus / incoming
+        "conduit_entry": (W * 0.3, H, D * 0.6),   # top conduit/cable entry
         "ground_lug": (0.0, base_h + 0.05, D * 0.9),
     }
     return geo, anchors, "floor"
@@ -316,7 +322,8 @@ def build_mcc(p):
                   nameplate=False, vents=False, hinges=True)
     anchors = {
         "mount_face": (0.0, 0.0, D / 2),
-        "power_in": (0.0, H, D * 0.3),
+        "power_in": (0.0, H, D * 0.3),            # top horizontal bus
+        "conduit_entry": (W * 0.3, H, D * 0.5),   # top conduit entry to buckets
         "ground_lug": (0.0, base_h + 0.05, D * 0.9),
     }
     return geo, anchors, "floor"
