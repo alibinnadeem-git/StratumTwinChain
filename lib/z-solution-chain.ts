@@ -6,6 +6,7 @@ export type ZSolutionCandidateKind=
   |'SOURCE_REFERENCE'
   |'SUPPORT_SURFACE_PLUS_OFFSET'
   |'SUPPORT_SURFACE_BASE'
+  |'INFERRED_PROJECT_DATUM'
   |'MOUNTING_GUIDANCE'
   |'RELATIVE_ONLY'
   |'UNRESOLVED';
@@ -81,11 +82,13 @@ function supportCoordinateFrame(entity:PlacementEntity){
   if(finite(meta.localReviewSurfaceZ)!==null)return String(meta.localReviewSurfaceCoordinateFrame||'PROJECT_REVIEW_DATUM');
   if(finite(meta.crossSheetReviewSurfaceZ)!==null)return String(meta.crossSheetReviewSurfaceCoordinateFrame||'PROJECT_REVIEW_DATUM');
   if(finite(meta.floorDatumMeters??meta.floorElevationMeters??meta.finishedFloorElevationMeters??meta.reviewSurfaceZ)!==null)return String(meta.reviewSurfaceCoordinateFrame||meta.projectDatumCoordinateFrame||'PROJECT_REVIEW_DATUM');
+  if(finite(meta.inferredProjectDatumZ)!==null)return String(meta.inferredProjectDatumCoordinateFrame||meta.projectDatumCoordinateFrame||'PROJECT_REVIEW_DATUM');
+  if(finite(meta.relativeReviewSurfaceZ)!==null)return 'RELATIVE_VISUALIZATION_FRAME';
   return 'UNRESOLVED';
 }
 function placementCoordinateFrame(entity:PlacementEntity,kind:ZSolutionCandidateKind){
   if(kind==='SOURCE_REFERENCE')return sourceCoordinateFrame(entity);
-  if(kind==='SUPPORT_SURFACE_PLUS_OFFSET'||kind==='SUPPORT_SURFACE_BASE'||kind==='MOUNTING_GUIDANCE'||kind==='RELATIVE_ONLY')return supportCoordinateFrame(entity);
+  if(kind==='SUPPORT_SURFACE_PLUS_OFFSET'||kind==='SUPPORT_SURFACE_BASE'||kind==='INFERRED_PROJECT_DATUM'||kind==='MOUNTING_GUIDANCE'||kind==='RELATIVE_ONLY')return supportCoordinateFrame(entity);
   if(kind==='REVIEWED_OR_MEASURED')return String(entity.meta?.zCoordinateFrame||entity.meta?.reviewedZCoordinateFrame||'PHYSICAL_PROJECT_FRAME');
   return 'UNRESOLVED';
 }
@@ -103,6 +106,7 @@ const WITHOUT_SUPPORT=[
   'localReviewSurfaceZ','localReviewSurfaceKind','localReviewSurfaceAuthority','localReviewSurfaceConfidence',
   'crossSheetReviewSurfaceZ','crossSheetReviewSurfaceKind','crossSheetReviewSurfaceAuthority','crossSheetReviewSurfaceConfidence',
   'floorDatumMeters','floorElevationMeters','finishedFloorElevationMeters','reviewSurfaceZ','reviewSurfaceKind','reviewSurfaceAuthority','reviewSurfaceConfidence',
+  'inferredProjectDatumZ','inferredProjectDatumAuthority','inferredProjectDatumConfidence','inferredProjectDatumEvidence','relativeReviewSurfaceZ','relativeReviewSurfaceAuthority','relativeReviewSurfaceConfidence','relativeReviewSurfaceEvidence',
   'supportBaseOffsetMeters','supportOffsetKind','supportOffsetAuthority','supportOffsetConfidence','supportOffsetEvidenceLabel',
   'mountingBaseFromFloorMeters','recommendedBaseFromFloorMeters','manufacturerMountingBaseMeters','installationBaseFromFloorMeters'
 ];
@@ -120,7 +124,9 @@ function absoluteAuthority(authority:string){
     'MEASURED_OR_REVIEWED',
     'SOURCE_DESIGN_CANDIDATE',
     'SUPPORT_SURFACE_PLUS_SOURCE_BASE_OFFSET',
-    'SOURCE_SUPPORT_SURFACE_CANDIDATE'
+    'SOURCE_SUPPORT_SURFACE_CANDIDATE',
+    'INFERRED_PROJECT_DATUM_CANDIDATE',
+    'INFERRED_PROJECT_DATUM_PLUS_SOURCE_OFFSET'
   ].includes(authority);
 }
 function classifyPlacement(placement:AssetPlacement):ZSolutionCandidateKind{
@@ -129,6 +135,8 @@ function classifyPlacement(placement:AssetPlacement):ZSolutionCandidateKind{
     case'SOURCE_DESIGN_CANDIDATE':return'SOURCE_REFERENCE';
     case'SUPPORT_SURFACE_PLUS_SOURCE_BASE_OFFSET':return'SUPPORT_SURFACE_PLUS_OFFSET';
     case'SOURCE_SUPPORT_SURFACE_CANDIDATE':return'SUPPORT_SURFACE_BASE';
+    case'INFERRED_PROJECT_DATUM_CANDIDATE':
+    case'INFERRED_PROJECT_DATUM_PLUS_SOURCE_OFFSET':return'INFERRED_PROJECT_DATUM';
     case'SUPPORT_SURFACE_PLUS_MOUNTING_GUIDANCE':
     case'HISTORICAL_RECOMMENDATION':
     case'FLOOR_STANDING_PROFILE':return'MOUNTING_GUIDANCE';
@@ -143,6 +151,8 @@ function baseSteps(entity:PlacementEntity,placement:AssetPlacement,kind:ZSolutio
   if(local!==null)steps.push({kind:'SUPPORT_SURFACE',label:String(meta.localReviewSurfaceKind||'LOCAL REVIEW SURFACE'),valueMeters:local,authority:String(meta.localReviewSurfaceAuthority||'SOURCE_ELEVATION_TRIANGLE'),confidence:confidence(meta.localReviewSurfaceConfidence,.6)});
   else if(cross!==null)steps.push({kind:'SUPPORT_SURFACE',label:String(meta.crossSheetReviewSurfaceKind||'CROSS SHEET SURFACE'),valueMeters:cross,authority:String(meta.crossSheetReviewSurfaceAuthority||'HUMAN_CONFIRMED_ALIGNMENT_PLUS_SOURCE_ELEVATION_TRIANGLE'),confidence:confidence(meta.crossSheetReviewSurfaceConfidence,.6)});
   else if(floor!==null)steps.push({kind:'SUPPORT_SURFACE',label:String(meta.reviewSurfaceKind||'PROJECT DATUM'),valueMeters:floor,authority:String(meta.reviewSurfaceAuthority||'SOURCE_PROJECT_DATUM'),confidence:confidence(meta.reviewSurfaceConfidence,.65)});
+  else if(finite(meta.inferredProjectDatumZ)!==null)steps.push({kind:'INFERRED_PROJECT_DATUM',label:String(meta.inferredProjectDatumFloor||'INFERRED PROJECT DATUM'),valueMeters:Number(meta.inferredProjectDatumZ),authority:String(meta.inferredProjectDatumAuthority||'PROJECT_STORY_INTERVAL_EXTRAPOLATION'),confidence:confidence(meta.inferredProjectDatumConfidence,.55),evidence:Array.isArray(meta.inferredProjectDatumEvidence)?meta.inferredProjectDatumEvidence.map(String):[]});
+  else if(finite(meta.relativeReviewSurfaceZ)!==null)steps.push({kind:'RELATIVE_VISUALIZATION_STACK',label:String(meta.relativeReviewSurfaceFloor||'RELATIVE STORY PLANE'),valueMeters:Number(meta.relativeReviewSurfaceZ),authority:String(meta.relativeReviewSurfaceAuthority||'VISUALIZATION_STORY_STACK_ONLY'),confidence:confidence(meta.relativeReviewSurfaceConfidence,.18),evidence:Array.isArray(meta.relativeReviewSurfaceEvidence)?meta.relativeReviewSurfaceEvidence.map(String):[]});
 
   const support=finite(meta.supportBaseOffsetMeters);
   if(support!==null)steps.push({kind:'SUPPORT_OFFSET',label:String(meta.supportOffsetKind||'SUPPORT BASE OFFSET'),valueMeters:support,authority:String(meta.supportOffsetAuthority||'SOURCE_SUPPORT_OFFSET'),confidence:confidence(meta.supportOffsetConfidence,.7),evidence:[String(meta.supportOffsetEvidenceLabel||'')].filter(Boolean)});
@@ -204,6 +214,7 @@ function priority(candidate:ZSolutionCandidate){
     case'SOURCE_REFERENCE':return 90;
     case'SUPPORT_SURFACE_PLUS_OFFSET':return 80;
     case'SUPPORT_SURFACE_BASE':return 70;
+    case'INFERRED_PROJECT_DATUM':return 60;
     case'MOUNTING_GUIDANCE':return 40;
     case'RELATIVE_ONLY':return 20;
     default:return 0;
