@@ -237,6 +237,12 @@ test('Tesla GLB import persists real geometry and makes it selectable in Spatial
   buffer:readFileSync('public/models/oem/tesla-supercharger-v3-community.glb')
  });
  await expect(page.getByText(/Renderable 3D geometry imported/)).toBeVisible();
+ // Persisted graph, not the transient completion UI, is the acceptance signal.
+ await expect.poll(()=>page.evaluate(()=>{
+  const saved=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
+  return (saved.entities||[]).some((e:any)=>e.id==='audi-line')&&
+   (saved.entities||[]).some((e:any)=>e.kind==='imported-3d-model'&&e.name==='Tesla Supercharger V3');
+ }),{timeout:30000,intervals:[250,500,1000,2000]}).toBe(true);
  const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}'));
  expect(saved.entities).toEqual(expect.arrayContaining([expect.objectContaining({id:'audi-line'}),expect.objectContaining({kind:'imported-3d-model',layer:'L2',name:'Tesla Supercharger V3'})]));
  expect(saved.entities.find((entity:any)=>entity.kind==='imported-3d-model').meta.embeddedGlb.length).toBeGreaterThan(100_000);

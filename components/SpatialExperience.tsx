@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {useEffect,useState} from "react";
 import CompiledGraphViewer from "@/components/CompiledGraphViewer";
+import PreviewDemoExperience from "@/components/PreviewDemoExperience";
 import {type RegisteredSpatialAsset} from "@/lib/spatial-asset-link";
 import {readPrimarySpatialGraph,replaceCurrentSpatialGraph,restoreBestSpatialGraph} from "@/lib/spatial-browser-recovery";
 import {stripLegacyAudiE4SourceReview} from "@/lib/audi-e4-source-review";
@@ -47,7 +48,7 @@ async function inspectCompiledGraph():Promise<ExperienceState>{
   }
 }
 
-export default function SpatialExperience({assets,authenticated=false}:{assets:RegisteredSpatialAsset[];authenticated?:boolean}){
+export default function SpatialExperience({assets,authenticated=false,previewDemoEnabled=false}:{assets:RegisteredSpatialAsset[];authenticated?:boolean;previewDemoEnabled?:boolean}){
   const [state,setState]=useState<ExperienceState>({ready:false,hasImportedModel:false,sourceCount:0,sourceSheetOnly:false,lineCount:0,spatialRecordCount:0,equipmentCount:0,handoffVerified:null});
   const [serverPending,setServerPending]=useState(false);
 
@@ -85,6 +86,11 @@ export default function SpatialExperience({assets,authenticated=false}:{assets:R
       window.removeEventListener(SERVER_HYDRATION_EVENT,onServerHydration);
     };
   },[authenticated]);
+
+  // Server-authorized Vercel Preview only. This graph exists in React props, never
+  // localStorage, IndexedDB, the project source vault or any authenticated API.
+  const showPreviewDemo=previewDemoEnabled&&!state.hasImportedModel;
+  if(showPreviewDemo)return <PreviewDemoExperience/>;
 
   if(!state.ready)return <section className="card" aria-live="polite">
     <div className="eyebrow">Spatial workspace</div>
