@@ -66,3 +66,29 @@ assert.match(approvals,/DIR_FINALITY_SECURES_THE_RECORD_AND_DOES_NOT_INDEPENDENT
 assert.match(printableQr,/window\.print\(\)/);assert.match(printableQr,/qrToken/);assert.match(printableQr,/Scan to open the asset verification record/);
 
 console.log('✓ spatial asset clicks bind exact tenant identities and preserve activity, governed approval, DIR finality and printable QR continuity');
+
+// A16 P0-04: immutable evidence-only observation boundary; deliberately no lifecycle/Z/model mutations.
+const {makeEvidenceOnlyAssetRecord,appendAssetSourceEvidence}=await import('../lib/asset-evidence-contract.ts');
+const e1={evidence_id:'ev1',source_file_id:'a'.repeat(64),sheet_number:'E-201',page_index:0,bbox_page:[10,20,25,35],
+ crop_ref:'vault/crops/ev1.webp',extraction_method:'vector',evidence_kind:'symbol',detector:{name:'sym-det',version:'1',class_label:'circle',detection_confidence:.9}};
+const initial=makeEvidenceOnlyAssetRecord({asset_id:'01'+'A'.repeat(24),project_id:'electrical-acceptance',discipline:'ELE',evidence:[e1]});
+assert.equal(initial.record_kind,'UNCLASSIFIED_SOURCE_OBSERVATION');
+assert.equal(initial.evidence_revision,1);
+assert.equal(initial.evidence[0].page_index,0);
+assert.equal(Object.isFrozen(initial),true);
+assert.equal(Object.isFrozen(initial.evidence[0]),true);
+assert.equal(Object.isFrozen(initial.evidence[0].bbox_page),true);
+assert.equal(Object.isFrozen(initial.evidence[0].detector),true);
+const second=appendAssetSourceEvidence(initial,[{...e1,evidence_id:'ev2',page_index:1}]);
+assert.equal(second.evidence_revision,2);
+assert.equal(second.evidence.length,2);
+assert.equal(initial.evidence.length,1,'previous version immutable');
+assert.throws(()=>appendAssetSourceEvidence(initial,[e1]),/Cannot overwrite or duplicate/);
+assert.throws(()=>makeEvidenceOnlyAssetRecord({asset_id:initial.asset_id,project_id:'P',discipline:'ELE',evidence:[]}),/at least one/);
+assert.throws(()=>makeEvidenceOnlyAssetRecord({asset_id:initial.asset_id,project_id:'P',discipline:'ELE',evidence:[{...e1,page_index:-1}]}),/zero-based/);
+assert.throws(()=>makeEvidenceOnlyAssetRecord({asset_id:initial.asset_id,project_id:'P',discipline:'ELE',evidence:[{...e1,bbox_page:[0,0,0,2]}]}),/bounding box/);
+assert.throws(()=>makeEvidenceOnlyAssetRecord({asset_id:initial.asset_id,project_id:'P',discipline:'ELE',evidence:[{...e1,source_file_id:'guess'}]}),/SHA-256/);
+assert.equal('position' in initial,false);
+assert.equal('status' in initial,false);
+assert.equal('model_ref' in initial,false);
+console.log('A16 P0-04: source-grounded immutable observation evidence and append-only revisions passed.');
