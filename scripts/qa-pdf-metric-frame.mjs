@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {applyReviewedPdfMetricFrame,derivePdfMetricFrameCandidates,restoreReviewedPdfMetricFrame} from '../lib/pdf-metric-frame.ts';
+import {applyAutomaticPdfMetricFrame,applyReviewedPdfMetricFrame,derivePdfMetricFrameCandidates,restoreReviewedPdfMetricFrame} from '../lib/pdf-metric-frame.ts';
 
 const sha='a'.repeat(64);
 const validation={
@@ -9,6 +9,7 @@ const validation={
  corroboratedMetersPerNormalizedSheetUnit:.5,
  confidence:.91,
  witnesses:[{type:'DIMENSION_STRING',label:'20\'-0"',observedMeters:6.096,sheetDistance:12.192,metersPerNormalizedSheetUnit:.5,deviationFactor:1.02,confidence:.9,evidence:['20\'-0"']}],
+ automationEligible:false,automationReason:'one witness only',independentWitnessCount:1,witnessTypeCount:1,
  reviewRequired:true,autoApply:false,geometryScaleAuthority:false,
  reason:'Declared scale and independent measured drawing evidence agree within 5%.'
 };
@@ -26,6 +27,19 @@ assert.equal(candidates[0].witnessCount,1);
 assert.equal(candidates[0].autoApply,false);
 assert.equal(candidates[0].physicalPositionVerified,false);
 assert.equal(candidates[0].zChanged,false);
+assert.equal(candidates[0].autoApplyEligible,false);
+
+const autoValidation={...validation,
+ automationEligible:true,automationReason:'redundant strict corroboration',independentWitnessCount:3,witnessTypeCount:1,
+ witnesses:[
+  validation.witnesses[0],
+  {...validation.witnesses[0],label:'20 FT DIM B',evidence:['20 FT DIM B']},
+  {...validation.witnesses[0],label:'20 FT DIM C',evidence:['20 FT DIM C']}
+ ]
+};
+const autoCandidate=derivePdfMetricFrameCandidates([{...entities[0],meta:{...entities[0].meta,scaleValidationEvidence:autoValidation}}])[0];
+assert.equal(autoCandidate.autoApplyEligible,false,'corroborated scale still needs human-reviewed calibration');
+assert.throws(()=>applyAutomaticPdfMetricFrame(entities[0],autoCandidate,'2026-10-09T00:00:00.000Z'),/Automatic PDF metric-frame application is prohibited/);
 
 const scaled=applyReviewedPdfMetricFrame(entities[0],candidates[0],'2026-10-05T00:00:00.000Z');
 assert.equal(scaled.x,1);
@@ -79,4 +93,4 @@ const page=fs.readFileSync('app/compiler/page.tsx','utf8');
 assert.ok(page.indexOf('<PdfMetricFrameReview/>')<page.indexOf('<AutoSheetAlignmentReview/>'),'metric frame review must precede automatic cross-sheet alignment');
 assert.ok(page.indexOf('<PdfMetricFrameReview/>')<page.indexOf('<ManualSheetXYCalibrationReview/>'),'metric frame review must precede manual XY calibration');
 
-console.log('Reviewed PDF metric frame passed: only corroborated scale creates a reviewable candidate; X/Y convert to meters while Z is unchanged; source coordinates restore exactly; and compounded XY transforms fail closed.');
+console.log('PDF metric frame passed: reviewable corroboration remains reversible, even redundant scale evidence cannot auto-convert X/Y to meters, Z is never rescaled, and physical-position truth remains false.');
