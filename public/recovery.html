@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>STRATUM — Browser recovery</title>
+<style>html{color-scheme:dark}body{background:#05131e;color:#e8f1f6;font:16px/1.55 system-ui,sans-serif;margin:0;padding:28px}main{max-width:680px;margin:7vh auto;border:1px solid #2a5262;background:#0b2030;border-radius:14px;padding:28px}h1{font-size:1.6rem}p{color:#b7cbd8}a{display:inline-block;background:#29d392;color:#061a21;text-decoration:none;font-weight:700;padding:13px 18px;margin:10px 10px 8px 0;border-radius:8px}a.secondary{background:transparent;color:#e9f6ff;border:1px solid #577685}.note{border-left:3px solid #f5b94f;padding-left:14px}code{color:#a7e9d3}small{display:block;color:#a2b9c7}</style>
+</head><body><main><small>STRATUM Spatial Verified — Independent recovery route</small>
+<h1>Import stuck or page blank?</h1><p>This standalone page does not load Next.js, the 3D viewer, the PDF worker, or your saved spatial graph. It should remain accessible when the interactive compiler is unresponsive.</p>
+<p class="note">Your locally archived drawing bytes and saved graph have <strong>not</strong> been deleted. Safe mode bypasses saved-graph hydration without clearing browser storage.</p>
+<a href="/compiler?safe=1">Open safe import mode</a>
+<a class="secondary" href="/compiler">Try normal import</a>
+<p>Safe mode displays an empty review workspace, suspending graph hydration, automatic projection and server sync. This does not mean your previous source files are gone. Do not start new imports before deciding how to recover the original saved state.</p>
+<p>If the tab itself crashed, open this page in a fresh tab on the same preview deployment. Closing a tab does not remove local archived source files.</p>
+<small>No verification promotion, geometry reauthoring, automatic XY/Z placement, saved-graph overwrite or IndexedDB deletion is performed by this page.</small>
+</main></body></html>

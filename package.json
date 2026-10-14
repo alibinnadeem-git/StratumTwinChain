@@ -18,7 +18,7 @@
     "qa:database-bootstrap": "node --experimental-strip-types scripts/qa-database-bootstrap.mjs",
     "qa:runtime-config": "node --experimental-strip-types scripts/qa-runtime-config.mjs",
     "qa:release-uat": "node scripts/qa-release-uat.mjs",
-    "qa:spatial-viewer": "node --experimental-strip-types scripts/qa-spatial-viewer.mjs",
+    "qa:spatial-viewer": "node --experimental-strip-types scripts/qa-spatial-viewer.mjs && npm run qa:spatial-chunked-graph",
     "qa:site-plan-basemap": "node scripts/qa-site-plan-basemap.mjs",
     "qa:non-sld-plans": "node --experimental-strip-types scripts/qa-non-sld-plan-recognition.mjs",
     "qa:stale-drawing-reprocess": "node --experimental-strip-types scripts/qa-stale-drawing-reprocess.mjs",
@@ -97,7 +97,8 @@
     "qa:spatial-evidence-envelope": "node --experimental-strip-types scripts/qa-spatial-evidence-envelope.mjs",
     "qa:project-xy-frame": "node --experimental-strip-types scripts/qa-project-xy-frame-registration.mjs",
     "qa:multidiscipline-project-frame": "node --experimental-strip-types scripts/qa-multidiscipline-project-frame.mjs",
-    "qa:render-local-origin": "node --experimental-strip-types scripts/qa-render-local-origin.mjs"
+    "qa:render-local-origin": "node --experimental-strip-types scripts/qa-render-local-origin.mjs",
+    "qa:spatial-chunked-graph": "node scripts/qa-spatial-chunked-graph.mjs"
   },
   "dependencies": {
     "@zxing/browser": "^0.2.1",

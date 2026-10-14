@@ -8,3 +8,4 @@ test-results/
 
 # Generated from the installed PDF.js dependency
 /public/pdfjs/wasm/
+.vercel

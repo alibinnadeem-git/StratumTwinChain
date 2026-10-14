@@ -21,7 +21,7 @@ import {parseIfcText} from '../lib/ifc-ingest';
 import {buildImageOcrEvidence} from '../lib/image-ocr-intelligence';
 import {readPrimarySpatialGraph,replaceCurrentSpatialGraph} from '../lib/spatial-browser-recovery';
 import {encodeGlbBase64,inspectStandaloneGlb} from '../lib/spatial-glb-import';
-import {drawingSourceReprocessReason,findDrawingSourcesNeedingReprocess} from '../lib/spatial-source-reprocess';
+import {drawingSourceReprocessReason,findDrawingSourcesNeedingReprocess,inspectDrawingReprocessOutput} from '../lib/spatial-source-reprocess';
 import {archiveSourceBytes,archivedSourceToFile,listArchivedSourceMetadata,readArchivedSource} from '../lib/source-browser-archive';
 import {enrichCoordinationIntelligence} from '../lib/coordination-intelligence';
 import {buildZResolutionIndex,extractZEvidenceFromText,type ZEvidence} from '../lib/z-resolver';
@@ -56,29 +56,44 @@ function assignZones(entities:GraphEntity[]){const rooms=entities.filter(e=>e.ki
 function buildLinks(entities:GraphEntity[]){const links:GraphLink[]=[];const seen=new Map<string,GraphEntity[]>();for(const e of entities.filter(x=>x.layer==='L2'||x.layer==='L3')){const key=cleanTag(e.name);if(key.length<2)continue;const arr=seen.get(key)||[];arr.push(e);seen.set(key,arr)}for(const [key,arr] of seen){if(arr.length<2)continue;for(let i=1;i<arr.length;i++)links.push({id:`tag-${key}-${i}`,from:arr[0].id,to:arr[i].id,type:'SAME_TAG',confidence:.82})}for(const e of entities.filter(x=>x.layer==='L4')){const from=String(e.meta?.derivedFrom||'');if(from)links.push({id:`asset-${e.id}`,from,to:e.id,type:'DERIVED_ASSET',confidence:.99})}return links}
 
 type PdfParseResult={entities:GraphEntity[];summary:string;pages:number;vectors:number;textItems:number;sldPages:number;nonSldPlanPages:number;planTypes:string[];disciplines:string[];setCompleteness:DrawingSetCompleteness};
-type PdfParseProgress={page:number;total:number;phase:string;elapsedMs?:number};
+type PdfParseProgress={page:number;total:number;phase:string;elapsedMs?:number;processed?:number;workTotal?:number};
+const PDF_WORKER_IDLE_TIMEOUT_MS=45000;
+const PDF_WORKER_HARD_TIMEOUT_MS=300000;
 class PdfParseError extends Error{code:string;page:number|null;constructor(code:string,message:string,page:number|null=null){super(message);this.name='PdfParseError';this.code=code;this.page=page}}
 
 async function parsePdfOffThread(fileName:string,buffer:ArrayBuffer,level:{floor:string;elevation:number},discipline:string,onProgress:(progress:PdfParseProgress)=>void,signal:AbortSignal):Promise<PdfParseResult>{
  if(typeof Worker==='undefined')throw new PdfParseError('WORKER_UNAVAILABLE','This browser cannot start the protected PDF parser worker.');
  const requestId=crypto.randomUUID(),worker=new Worker(new URL('../workers/pdf-native-parser.worker.ts',import.meta.url),{type:'module'});
  return await new Promise<PdfParseResult>((resolve,reject)=>{
-  let settled=false,watchdog:number|undefined;
-  const cleanup=()=>{if(watchdog!==undefined)window.clearTimeout(watchdog);signal.removeEventListener('abort',onAbort);worker.terminate()};
+  let settled=false,watchdog:number|undefined,hardDeadline:number|undefined;
+  const cleanup=()=>{if(watchdog!==undefined)window.clearTimeout(watchdog);if(hardDeadline!==undefined)window.clearTimeout(hardDeadline);signal.removeEventListener('abort',onAbort);worker.terminate()};
   const finish=(fn:()=>void)=>{if(settled)return;settled=true;cleanup();fn()};
-  const armWatchdog=(page:number,phase:string)=>{if(watchdog!==undefined)window.clearTimeout(watchdog);watchdog=window.setTimeout(()=>finish(()=>reject(new PdfParseError('PDF_PARSE_TIMEOUT',`Page ${page||'?'} stopped responding during ${phase}. The parser worker was stopped safely; split/flatten the sheet or retry.`,page||null))),35000)};
-  const onAbort=()=>finish(()=>reject(new PdfParseError('PDF_PARSE_CANCELLED','PDF parsing was canceled. No parsed result was accepted; retry without reloading.')));
+  const armWatchdog=(page:number,phase:string)=>{if(watchdog!==undefined)window.clearTimeout(watchdog);watchdog=window.setTimeout(()=>finish(()=>reject(new PdfParseError('PDF_PARSE_TIMEOUT',`Page ${page||'?'} stopped responding during ${phase}. The worker was stopped after 45 seconds without a heartbeat; earlier saved data remains unchanged.`,page||null))),PDF_WORKER_IDLE_TIMEOUT_MS)};
+  const onAbort=()=>finish(()=>reject(new PdfParseError('PDF_PARSE_CANCELLED','PDF worker was canceled or superseded by REPROCESS. No partial result was accepted.')));
   signal.addEventListener('abort',onAbort,{once:true});
   worker.onmessage=(event:MessageEvent)=>{
    const message=event.data||{};if(message.requestId!==requestId)return;
-   if(message.type==='progress'){const progress={page:Number(message.page||0),total:Number(message.total||0),phase:String(message.phase||'working'),elapsedMs:Number.isFinite(Number(message.elapsedMs))?Number(message.elapsedMs):undefined};onProgress(progress);armWatchdog(progress.page,progress.phase);return}
+   if(message.type==='progress'||message.type==='heartbeat'){
+    const progress:PdfParseProgress={page:Number(message.page||0),total:Number(message.total||0),
+      phase:String(message.phase||'working'),
+      elapsedMs:Number.isFinite(Number(message.elapsedMs))?Number(message.elapsedMs):undefined,
+      processed:Number.isFinite(Number(message.processed))?Number(message.processed):undefined,
+      workTotal:Number.isFinite(Number(message.workTotal))?Number(message.workTotal):undefined};
+    onProgress(progress);armWatchdog(progress.page,progress.phase);return;
+   }
    if(message.type==='result')finish(()=>resolve(message.result as PdfParseResult));
    if(message.type==='error')finish(()=>reject(new PdfParseError(String(message.code||'PDF_PARSE_FAILED'),String(message.message||'PDF parsing failed.'),Number.isFinite(Number(message.page))?Number(message.page):null)));
   };
-  worker.onerror=(event:ErrorEvent)=>finish(()=>reject(new PdfParseError('PDF_WORKER_FAILED',event.message||'The PDF parser worker stopped unexpectedly. Retry the file.')));
+  worker.onerror=(event:ErrorEvent)=>finish(()=>reject(new PdfParseError('PDF_WORKER_FAILED',event.message||'PDF worker failed; saved compilation unchanged.')));
+  worker.onmessageerror=()=>finish(()=>reject(new PdfParseError('PDF_WORKER_MESSAGE_ERROR','The browser could not transfer the worker result. Saved graph unchanged.')));
+  if(signal.aborted){onAbort();return}
   armWatchdog(0,'startup');
+  hardDeadline=window.setTimeout(()=>finish(()=>reject(new PdfParseError('PDF_PARSE_HARD_TIMEOUT',
+   'PDF worker exceeded the five-minute total safety budget. Previous compilation preserved. Retry or split the sheet.'))),PDF_WORKER_HARD_TIMEOUT_MS);
   const transferable=buffer.slice(0);
-  worker.postMessage({type:'parse',requestId,fileName,buffer:transferable,level,discipline},[transferable]);
+  try{worker.postMessage({type:'parse',requestId,fileName,buffer:transferable,level,discipline},[transferable])}
+  catch(error){finish(()=>reject(new PdfParseError('PDF_WORKER_START_FAILED',
+   error instanceof Error?error.message:'Could not start PDF worker.')));}
  });
 }
 
@@ -293,8 +308,17 @@ function withZConstraintGraph(entity:GraphEntity){
 function enrichZCandidates(parsed:GraphEntity[]){
  const evidence=parsed.flatMap(entity=>entity.meta?.zEvidence?[entity.meta.zEvidence as ZEvidence]:[]);
  const surfaces=buildProjectDatumSurfaces(evidence);
- const index=buildZResolutionIndex(parsed,evidence);
+ // Source sheet basemap lines are context, not Z-bearing assets. Excluding
+ // ~28k drawing segments from the per-asset Z solver avoids enormous
+ // main-thread work and does not infer a physical elevation.
+ const reviewable=parsed.filter(e=>!(e.kind==='line'&&e.meta?.drawingBasemap===true));
+ const index=buildZResolutionIndex(reviewable,evidence);
  return parsed.map(entity=>{
+  if(entity.kind==='line'&&entity.meta?.drawingBasemap===true){
+   return {...entity,meta:{...entity.meta,zResolutionStatus:'UNRESOLVED',
+    zPlacementAuthority:'UNVERIFIED_DRAWING_PLANE',physicalTruth:false,
+    elevationKnown:false,physicalElevationKnown:false}};
+  }
   const resolution=index.get(entity.id);
   const surface=projectDatumSurfaceForEntity(entity,surfaces);
   const surfaceMeta=datumSurfaceMetadata(surface);
@@ -366,17 +390,88 @@ async function parseGlb(file:File,buf:ArrayBuffer,digest:string,level:{floor:str
      reviewRequired:true,physicalTruth:false,referenceOnly:true}};
 }
 
-export default function CompilerWorkspace(){
+export default function CompilerWorkspace({safeMode=false}:{safeMode?:boolean}){
  const [files,setFiles]=useState<SourceFile[]>([]),[entities,setEntities]=useState<GraphEntity[]>([]),[busy,setBusy]=useState(false),[dragging,setDragging]=useState(false),[message,setMessage]=useState('');
  const [parseProgress,setParseProgress]=useState<PdfParseProgress|null>(null),[canCancel,setCanCancel]=useState(false);
+ const [workerHealth,setWorkerHealth]=useState<'IDLE'|'STARTING'|'RUNNING'|'STALLED'|'CANCELING'|'FINALIZING'|'TERMINATED'>('IDLE');
+ const lastWorkerHeartbeatRef=useRef(0);
  const parseAbortRef=useRef<AbortController|null>(null);
+ // Synchronous exclusion while React's busy state is still committing.
+ const parseBusyRef=useRef(false);
+ const [queuedReprocessShas,setQueuedReprocessShas]=useState<string[]>([]);
+ const [activeReprocessShas,setActiveReprocessShas]=useState<string[]>([]);
+ const [reprocessDraining,setReprocessDraining]=useState(false);
+ useEffect(()=>{
+  if(!busy||!canCancel)return;
+  const timer=window.setInterval(()=>{
+   if(parseAbortRef.current&&lastWorkerHeartbeatRef.current&&Date.now()-lastWorkerHeartbeatRef.current>15000)
+    setWorkerHealth(current=>current==='RUNNING'?'STALLED':current);
+  },1000);
+  return()=>window.clearInterval(timer);
+ },[busy,canCancel]);
  const router=useRouter();
  const [archivedShas,setArchivedShas]=useState<Set<string>>(new Set()),[archiveNote,setArchiveNote]=useState('');
- useEffect(()=>{let active=true;const restore=async()=>{try{const graph=await readPrimarySpatialGraph();if(!active||!graph)return;if(!Array.isArray(graph.sources)||!Array.isArray(graph.entities))throw new Error();setEntities(graph.entities as GraphEntity[]);const restored=(graph.sources as CompiledGraph['sources']).map((source:CompiledGraph['sources'][number]&Partial<SourceFile>)=>({...source,size:source.size||0,state:(source.state||'review') as ParseState,summary:source.summary||'Restored saved source; extraction and alignment remain subject to review.',entities:Number.isFinite(Number(source.entities))?Number(source.entities):(graph.entities as GraphEntity[]).filter((e:GraphEntity)=>e.meta?.sourceSha256===source.sha256||e.source===source.name).length,floor:source.floor||'UNRESOLVED',elevation:source.elevation||0}));setFiles(current=>{const existing=new Map(current.map(item=>[item.sha256,item]));return restored.map((item:SourceFile)=>{const prior=existing.get(item.sha256);return prior?{...item,...prior}:item})});}catch{if(active)setMessage('Saved graph could not be read. Existing data has been preserved.');}};const refresh=()=>{void restore()};void restore();window.addEventListener('stratum:graph-updated',refresh);return()=>{active=false;window.removeEventListener('stratum:graph-updated',refresh)};},[]);
+ useEffect(()=>{
+  if(safeMode){setArchiveNote('SAFE MODE: saved graph hydration suspended; local archive preserved.');return}
+  let active=true;const restore=async()=>{try{const graph=await readPrimarySpatialGraph();if(!active||!graph)return;if(!Array.isArray(graph.sources)||!Array.isArray(graph.entities))throw new Error();setEntities(graph.entities as GraphEntity[]);const restored=(graph.sources as CompiledGraph['sources']).map((source:CompiledGraph['sources'][number]&Partial<SourceFile>)=>({...source,size:source.size||0,state:(source.state||'review') as ParseState,summary:source.summary||'Restored saved source; extraction and alignment remain subject to review.',entities:Number.isFinite(Number(source.entities))?Number(source.entities):(graph.entities as GraphEntity[]).filter((e:GraphEntity)=>e.meta?.sourceSha256===source.sha256||e.source===source.name).length,floor:source.floor||'UNRESOLVED',elevation:source.elevation||0}));setFiles(current=>{const existing=new Map(current.map(item=>[item.sha256,item]));return restored.map((item:SourceFile)=>{const prior=existing.get(item.sha256);return prior?{...item,...prior}:item})});}catch{if(active)setMessage('Saved graph could not be read. Existing data has been preserved.');}};const refresh=()=>{void restore()};void restore();window.addEventListener('stratum:graph-updated',refresh);return()=>{active=false;window.removeEventListener('stratum:graph-updated',refresh)};},[safeMode]);
  useEffect(()=>{let active=true;void listArchivedSourceMetadata().then(records=>{if(active)setArchivedShas(new Set(records.map(record=>record.sha256)))});return()=>{active=false}},[]);
  const staleDrawingSources=useMemo(()=>findDrawingSourcesNeedingReprocess(files,entities),[files,entities]);
  const staleBySha=useMemo(()=>new Map(staleDrawingSources.map(item=>[item.source.sha256,item.reason])),[staleDrawingSources]);
  const archivedStaleSources=useMemo(()=>staleDrawingSources.filter(item=>archivedShas.has(String(item.source.sha256||''))),[staleDrawingSources,archivedShas]);
+ // Queue source SHA identities; defer archive reads until no parse is active.
+ function queueArchivedReprocess(shas:string[]){
+  const requested=[...new Set(shas.filter(sha=>staleBySha.has(sha)&&archivedShas.has(sha)))];
+  if(!requested.length){setArchiveNote('No archived stale drawing selected. Re-upload the original drawing if its local archive is missing.');return}
+  setQueuedReprocessShas(current=>[...new Set([...current,...requested])]);
+  if(parseBusyRef.current&&parseAbortRef.current&&!parseAbortRef.current.signal.aborted){
+   // A queued reprocess must not starve behind a stalled PDF worker.
+   setWorkerHealth('CANCELING');
+   setArchiveNote(`REPROCESS QUEUED: ${requested.length} archived drawing(s). Canceling active PDF worker first; previous saved graph protected.`);
+   parseAbortRef.current.abort();
+  }else{
+   setArchiveNote(busy||parseBusyRef.current||reprocessDraining
+    ?`REPROCESS QUEUED: ${requested.length} drawing(s) waiting for current finalization.`
+    :`REPROCESS QUEUED: preparing ${requested.length} archived drawing(s)…`);
+  }
+ }
+ // Do not consume a queued request against stale closure state during the busy
+ // parser. React commits the completed graph before this idle drain fires.
+ useEffect(()=>{
+  if(busy||parseBusyRef.current||reprocessDraining||!queuedReprocessShas.length)return;
+  const batch=[...queuedReprocessShas];
+  setQueuedReprocessShas(current=>current.filter(sha=>!batch.includes(sha)));
+  setReprocessDraining(true);
+  void (async()=>{
+   try{
+    const pending=batch.filter(sha=>staleBySha.has(sha));
+    if(!pending.length){setArchiveNote('Queued reprocess cleared: the finished parse already refreshed the saved drawing.');return}
+    const recovered:File[]=[],missing:string[]=[];
+    for(const sha of pending){
+     const record=await readArchivedSource(sha);
+     if(record)recovered.push(archivedSourceToFile(record));
+     else missing.push(sha);
+    }
+    if(missing.length)setArchiveNote(`Could not restore ${missing.length} archived drawing${missing.length===1?'':'s'}. Re-upload the original file. Existing compiled work has been preserved.`);
+    if(!recovered.length)return;
+    // Archive reads are asynchronous; requeue rather than race a new import.
+    if(parseBusyRef.current){
+     setQueuedReprocessShas(current=>[...new Set([...current,...pending.filter(sha=>!missing.includes(sha))])]);
+     setArchiveNote('REPROCESS QUEUED: another import began while restoring the archive. Waiting until it finishes.');
+     return;
+    }
+    setActiveReprocessShas(pending.filter(sha=>!missing.includes(sha)));
+    setArchiveNote(`Reprocessing ${recovered.length} protected browser-local drawing${recovered.length===1?'':'s'}…`);
+    await processFiles(recovered);
+    setArchiveNote('REPROCESS ATTEMPT FINISHED. Review the saved drawing row and import result for basemap retention and any room/equipment/level capability gaps.');
+   }catch(error){
+    setArchiveNote(`Reprocess could not start: ${error instanceof Error?error.message:'archive read failure'}. Your existing saved graph remains unchanged.`);
+   }finally{
+    setActiveReprocessShas([]);
+    setReprocessDraining(false);
+   }
+  })();
+ },[busy,queuedReprocessShas,reprocessDraining,staleBySha]);
+
  const totals=useMemo(()=>({files:files.length,parsed:files.filter(f=>f.state==='parsed').length,entities:entities.length,assets:entities.filter(e=>e.layer==='L4').length,levels:new Set(entities.map(e=>e.floor).filter(f=>f&&f!=='UNRESOLVED')).size,rooms:entities.filter(e=>e.kind==='room-boundary').length,nonSldPlanPages:files.reduce((sum,file)=>sum+(file.nonSldPlanPages||0),0),reprocess:staleDrawingSources.length}),[files,entities,staleDrawingSources.length]);
  const layerStats=useMemo(()=>['L0','L1','L2','L3','L4'].reduce((a,l)=>({...a,[l]:entities.filter(e=>e.layer===l).length}),{} as Record<string,number>),[entities]);
  async function saveGraph(nextFiles:SourceFile[],rawEntities:GraphEntity[],replaceSources:{sha256:string;name:string}[]=[]){
@@ -393,21 +488,39 @@ export default function CompilerWorkspace(){
   await replaceCurrentSpatialGraph(graph);
   setEntities(graph.entities as GraphEntity[]);
  }
- async function processFiles(incoming:File[]){if(busy||!incoming.length)return;setBusy(true);let nextFiles=[...files],nextEntities=[...entities],fileFailures:string[]=[];for(const file of incoming){const ext=(file.name.split('.').pop()||'').toLowerCase();if(!ACCEPTED.has(ext)){setMessage(`${file.name} skipped: unsupported source format.`);continue}let buf:ArrayBuffer;try{buf=await file.arrayBuffer()}catch{setMessage(`${file.name} could not be read.`);continue}let digest:string;try{digest=await sha(buf)}catch{setMessage(`${file.name}: fingerprint failed; retry the import.`);continue}const archiveResult=await archiveSourceBytes({sha256:digest,name:file.name,mimeType:file.type,size:file.size,ext,bytes:buf});if(archiveResult.archived)setArchivedShas(current=>{const next=new Set(current);next.add(digest);return next});else setArchiveNote(`${file.name} was parsed without a protected browser-local source copy: ${archiveResult.reason}`);const discipline=classify(file.name),level=inferLevel(file.name);let replacementSource:{sha256:string;name:string}|null=null,replacementBackup:{source:SourceFile;entities:GraphEntity[]}|null=null;
+ async function processFiles(incoming:File[]){if(parseBusyRef.current||busy||!incoming.length)return;parseBusyRef.current=true;setBusy(true);let nextFiles=[...files],nextEntities=[...entities],fileFailures:string[]=[];for(const file of incoming){const ext=(file.name.split('.').pop()||'').toLowerCase();if(!ACCEPTED.has(ext)){setMessage(`${file.name} skipped: unsupported source format.`);continue}let buf:ArrayBuffer;try{buf=await file.arrayBuffer()}catch{setMessage(`${file.name} could not be read.`);continue}let digest:string;try{digest=await sha(buf)}catch{setMessage(`${file.name}: fingerprint failed; retry the import.`);continue}const archiveResult=await archiveSourceBytes({sha256:digest,name:file.name,mimeType:file.type,size:file.size,ext,bytes:buf});if(archiveResult.archived)setArchivedShas(current=>{const next=new Set(current);next.add(digest);return next});else setArchiveNote(`${file.name} was parsed without a protected browser-local source copy: ${archiveResult.reason}`);const discipline=classify(file.name),level=inferLevel(file.name);let replacementSource:{sha256:string;name:string}|null=null,replacementBackup:{source:SourceFile;entities:GraphEntity[]}|null=null;
  const priorFailed=nextFiles.find(source=>source.sha256===digest&&source.state==='failed');
  if(priorFailed){nextFiles=nextFiles.filter(source=>source.sha256!==digest);nextEntities=nextEntities.filter(entity=>String(entity.meta?.sourceSha256||'')!==digest&&entity.source!==priorFailed.name)}
  const existing=nextFiles.find(source=>source.sha256===digest&&source.state!=='failed');if(existing){const reason=drawingSourceReprocessReason(existing,nextEntities);if(!reason)continue;replacementSource={sha256:digest,name:existing.name};replacementBackup={source:existing,entities:nextEntities.filter(entity=>String(entity.meta?.sourceSha256||'')===digest||entity.source===existing.name)};nextFiles=nextFiles.filter(source=>source.sha256!==digest);nextEntities=nextEntities.filter(entity=>String(entity.meta?.sourceSha256||'')!==digest&&entity.source!==existing.name);setMessage(`${file.name}: reprocessing saved drawing with the current basemap/non-SLD pipeline…`)}let sf:SourceFile={name:file.name,size:file.size,ext,discipline,sha256:digest,state:'review',summary:'Format requires review',entities:0,floor:level.floor,elevation:level.elevation};try{if(ext==='pdf'){
- const controller=new AbortController();parseAbortRef.current=controller;setCanCancel(true);setParseProgress({page:0,total:0,phase:'starting worker'});
+ const controller=new AbortController();parseAbortRef.current=controller;lastWorkerHeartbeatRef.current=Date.now();
+ setWorkerHealth('STARTING');setCanCancel(true);setParseProgress({page:0,total:0,phase:'starting worker'});
  let parsed:PdfParseResult;
  try{
-  parsed=await parsePdfOffThread(file.name,buf,level,discipline,progress=>{setParseProgress(progress);setMessage(`${file.name}: page ${progress.page||'?'}${progress.total?` of ${progress.total}`:''} · ${progress.phase}`)},controller.signal);
+  parsed=await parsePdfOffThread(file.name,buf,level,discipline,progress=>{
+   lastWorkerHeartbeatRef.current=Date.now();setWorkerHealth('RUNNING');
+   setParseProgress(progress);
+   setMessage(`${file.name}: page ${progress.page||'?'}${progress.total?` of ${progress.total}`:''} · ${progress.phase}${progress.processed!==undefined?` · ${progress.processed} source elements`:''}`);
+  },controller.signal);
  }catch(error){
   if(error instanceof PdfParseError&&error.code==='OCR_FALLBACK_REQUIRED'){
    setMessage(`${file.name}: low-text/scanned page detected; switching to the OCR review path…`);
    parsed=await parsePdfMainThreadFallback(file,level,discipline,(page,total)=>{setParseProgress({page,total,phase:'OCR review fallback'});setMessage(`${file.name}: OCR review page ${page} of ${total}`)});
   }else throw error;
- }finally{if(parseAbortRef.current===controller)parseAbortRef.current=null;setCanCancel(false);setParseProgress(null)}
- const graph=withAssetCandidates(scopeSourceEntities(parsed.entities,digest));const zGraph=enrichZCandidates(graph);nextEntities=[...nextEntities,...zGraph];sf={...sf,discipline:parsed.disciplines.length>1?'Multi-discipline':parsed.disciplines[0]||discipline,state:'parsed',floor:[...new Set(graph.map(e=>e.floor))].join(', ')||'UNRESOLVED',summary:`${parsed.summary} · elevations and cross-sheet alignment unverified · ${graph.filter(x=>x.layer==='L4').length} L4 candidates`,entities:zGraph.length,pages:parsed.pages,vectors:parsed.vectors,textItems:parsed.textItems,sldPages:parsed.sldPages,nonSldPlanPages:parsed.nonSldPlanPages,planTypes:parsed.planTypes,setCompleteness:parsed.setCompleteness}}else if(ext==='dxf'){const parsed=parseDxf(file,await file.text(),level),graph=withAssetCandidates(scopeSourceEntities(parsed.entities,digest));nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:`${parsed.summary} · floor label ${level.floor}; Z remains source-driven/reviewed · ${graph.filter(x=>x.layer==='L4').length} L4 candidates`,entities:graph.length,unitName:parsed.unitName,unitToMeters:parsed.unitToMeters}}else if(['png','jpg','jpeg'].includes(ext)){const parsed=await parseImage(file,level,discipline,message=>setMessage(`${file.name}: ${message}`)),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,discipline:parsed.planDiscipline||discipline,state:parsed.ocrSucceeded?'parsed':'review',summary:parsed.summary,entities:graph.length,nonSldPlanPages:parsed.planType?1:0,planTypes:parsed.planType?[parsed.planType]:[]}}else if(['csv','txt'].includes(ext)){const parsed=parseEquipmentScheduleText(await file.text(),file.name,discipline,level.floor),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:parsed.summary,entities:graph.length}}else if(ext==='xlsx'){const parsed=parseXlsxBytes(new Uint8Array(buf),file.name,discipline,level.floor),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:parsed.summary,entities:graph.length}}else if(ext==='docx'){const parsed=parseDocxBytes(new Uint8Array(buf),file.name,discipline,level.floor),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:parsed.summary,entities:graph.length}}else if(ext==='ifc'){const parsed=parseIfcText(await file.text(),file.name,discipline),graph=withAssetCandidates(scopeSourceEntities(parsed.entities,digest) as GraphEntity[]);nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',discipline:discipline==='Unclassified'?'BIM / Multi-discipline':discipline,summary:parsed.summary,entities:graph.length,unitName:parsed.unitName,unitToMeters:parsed.unitToMeters||undefined}}else if(ext==='glb'){const model=await parseGlb(file,buf,digest,level);const existing=nextEntities.filter(e=>e.meta?.nonSpatial!==true);if(existing.length){const xs=existing.flatMap(e=>[e.x,...(Number.isFinite(e.x2)?[e.x2!]:[])]);model.x=Math.max(...xs)+3;model.y=existing.reduce((sum,e)=>sum+e.y,0)/existing.length;}nextEntities=[...nextEntities,model];sf={...sf,state:'parsed',summary:'Renderable 3D geometry imported · placement unverified · no registered asset inferred',entities:1,unitName:'m',unitToMeters:1}}else if(ext==='gltf')sf={...sf,state:'adapter',summary:'Use a self-contained .glb export. Standalone .gltf may reference external textures or buffers and cannot be safely restored as one file.'};else if(ext==='xls')sf={...sf,state:'adapter',summary:'Legacy XLS fingerprinted. Binary BIFF adapter or conversion to XLSX is required; no structured engineering fields were invented.'};else if(NATIVE_ADAPTER.includes(ext))sf={...sf,state:'adapter',summary:`${ext.toUpperCase()} fingerprinted. Native adapter required before spatial claims.`};else sf={...sf,state:'review',summary:'Source preserved; format-specific extraction required.'}}catch(err){const failure=err instanceof Error?err.message:'Parser failed';fileFailures.push(`${file.name}: ${failure}`);if(replacementBackup){nextEntities=nextEntities.filter(entity=>String(entity.meta?.sourceSha256||'')!==digest&&entity.source!==replacementBackup!.source.name);nextEntities=[...nextEntities,...replacementBackup.entities];sf=replacementBackup.source;replacementSource=null;setMessage(`${file.name}: reprocess failed; the previous saved compilation was preserved. ${failure}`)}else sf={...sf,state:'failed',summary:failure}}nextFiles=[...nextFiles,sf];nextEntities=reconcileSpatialEquipmentIdentity(enrichZCandidates(nextEntities));setFiles(nextFiles);try{await saveGraph(nextFiles,nextEntities,replacementSource?[replacementSource]:[])}catch{setEntities(nextEntities);setBusy(false);setDragging(false);setMessage('Import could not be saved. Existing saved work is unchanged; imported objects remain in this session. Browser storage may be full or unavailable.');return}}setBusy(false);setDragging(false);setCanCancel(false);setParseProgress(null);parseAbortRef.current=null;const zoned=assignZones(nextEntities),links=buildLinks(zoned);setMessage(fileFailures.length?`Import finished with ${fileFailures.length} review exception${fileFailures.length===1?'':'s'}. ${fileFailures.join(' · ')} Retry is available without reloading.`:`Source compilation updated: ${nextFiles.filter(f=>f.state==='parsed').length}/${nextFiles.length} sources · ${new Set(zoned.map(e=>e.floor).filter(f=>f&&f!=='UNRESOLVED')).size} identified floor label(s) · ${zoned.filter(e=>e.kind==='room-boundary').length} reconstructed rooms · ${zoned.length} entities · ${links.length} relationships.`)}
+ }finally{if(parseAbortRef.current===controller)parseAbortRef.current=null;setCanCancel(false);setParseProgress(null);
+  setWorkerHealth(controller.signal.aborted?'TERMINATED':'FINALIZING')}
+ setMessage(`${file.name}: worker result received; validating retained source-plan basemap…`);
+ await new Promise<void>(resolve=>window.setTimeout(resolve,0));
+ const preflight=inspectDrawingReprocessOutput(parsed.entities);
+ if(preflight.basemaps===0&&(parsed.nonSldPlanPages>0||(Boolean(replacementBackup)&&parsed.sldPages===0)))
+  throw new PdfParseError('DRAWING_BASEMAP_NOT_RETAINED',`${file.name}: ${parsed.nonSldPlanPages} plan pages recognized but no source basemap survived extraction. Prior compilation preserved; parser capability gap, not an accepted reprocess.`);
+ const graph=withAssetCandidates(scopeSourceEntities(parsed.entities,digest));
+ await new Promise<void>(resolve=>window.setTimeout(resolve,0));
+ setMessage(`${file.name}: indexing Z source evidence for ${graph.length} review objects…`);
+ const zGraph=enrichZCandidates(graph);const reprocessAudit=replacementBackup?inspectDrawingReprocessOutput(zGraph):null;nextEntities=[...nextEntities,...zGraph];sf={...sf,discipline:parsed.disciplines.length>1?'Multi-discipline':parsed.disciplines[0]||discipline,state:'parsed',floor:[...new Set(graph.map(e=>e.floor))].join(', ')||'UNRESOLVED',summary:`${parsed.summary} · elevations and cross-sheet alignment unverified · ${graph.filter(x=>x.layer==='L4').length} L4 candidates${reprocessAudit?' · '+reprocessAudit.summary:''}`,entities:zGraph.length,pages:parsed.pages,vectors:parsed.vectors,textItems:parsed.textItems,sldPages:parsed.sldPages,nonSldPlanPages:parsed.nonSldPlanPages,planTypes:parsed.planTypes,setCompleteness:parsed.setCompleteness}}else if(ext==='dxf'){const parsed=parseDxf(file,await file.text(),level),graph=withAssetCandidates(scopeSourceEntities(parsed.entities,digest));nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:`${parsed.summary} · floor label ${level.floor}; Z remains source-driven/reviewed · ${graph.filter(x=>x.layer==='L4').length} L4 candidates`,entities:graph.length,unitName:parsed.unitName,unitToMeters:parsed.unitToMeters}}else if(['png','jpg','jpeg'].includes(ext)){const parsed=await parseImage(file,level,discipline,message=>setMessage(`${file.name}: ${message}`)),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,discipline:parsed.planDiscipline||discipline,state:parsed.ocrSucceeded?'parsed':'review',summary:parsed.summary,entities:graph.length,nonSldPlanPages:parsed.planType?1:0,planTypes:parsed.planType?[parsed.planType]:[]}}else if(['csv','txt'].includes(ext)){const parsed=parseEquipmentScheduleText(await file.text(),file.name,discipline,level.floor),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:parsed.summary,entities:graph.length}}else if(ext==='xlsx'){const parsed=parseXlsxBytes(new Uint8Array(buf),file.name,discipline,level.floor),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:parsed.summary,entities:graph.length}}else if(ext==='docx'){const parsed=parseDocxBytes(new Uint8Array(buf),file.name,discipline,level.floor),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:parsed.summary,entities:graph.length}}else if(ext==='ifc'){const parsed=parseIfcText(await file.text(),file.name,discipline),graph=withAssetCandidates(scopeSourceEntities(parsed.entities,digest) as GraphEntity[]);nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',discipline:discipline==='Unclassified'?'BIM / Multi-discipline':discipline,summary:parsed.summary,entities:graph.length,unitName:parsed.unitName,unitToMeters:parsed.unitToMeters||undefined}}else if(ext==='glb'){const model=await parseGlb(file,buf,digest,level);const existing=nextEntities.filter(e=>e.meta?.nonSpatial!==true);if(existing.length){const xs=existing.flatMap(e=>[e.x,...(Number.isFinite(e.x2)?[e.x2!]:[])]);model.x=Math.max(...xs)+3;model.y=existing.reduce((sum,e)=>sum+e.y,0)/existing.length;}nextEntities=[...nextEntities,model];sf={...sf,state:'parsed',summary:'Renderable 3D geometry imported · placement unverified · no registered asset inferred',entities:1,unitName:'m',unitToMeters:1}}else if(ext==='gltf')sf={...sf,state:'adapter',summary:'Use a self-contained .glb export. Standalone .gltf may reference external textures or buffers and cannot be safely restored as one file.'};else if(ext==='xls')sf={...sf,state:'adapter',summary:'Legacy XLS fingerprinted. Binary BIFF adapter or conversion to XLSX is required; no structured engineering fields were invented.'};else if(NATIVE_ADAPTER.includes(ext))sf={...sf,state:'adapter',summary:`${ext.toUpperCase()} fingerprinted. Native adapter required before spatial claims.`};else sf={...sf,state:'review',summary:'Source preserved; format-specific extraction required.'}}catch(err){const failure=err instanceof Error?err.message:'Parser failed';fileFailures.push(`${file.name}: ${failure}`);if(replacementBackup){nextEntities=nextEntities.filter(entity=>String(entity.meta?.sourceSha256||'')!==digest&&entity.source!==replacementBackup!.source.name);nextEntities=[...nextEntities,...replacementBackup.entities];sf=replacementBackup.source;replacementSource=null;setMessage(`${file.name}: reprocess failed; the previous saved compilation was preserved. ${failure}`)}else sf={...sf,state:'failed',summary:failure}}nextFiles=[...nextFiles,sf];await new Promise<void>(resolve=>window.setTimeout(resolve,0));
+ nextEntities=reconcileSpatialEquipmentIdentity(enrichZCandidates(nextEntities));setFiles(nextFiles);
+ setWorkerHealth('FINALIZING');setMessage(`${file.name}: saving ${nextEntities.length} objects; prior graph protected…`);
+ await new Promise<void>(resolve=>window.setTimeout(resolve,0));
+ try{await saveGraph(nextFiles,nextEntities,replacementSource?[replacementSource]:[])}catch{setEntities(nextEntities);parseBusyRef.current=false;setBusy(false);setDragging(false);setMessage('Import could not be saved. Existing saved work is unchanged; imported objects remain in this session. Browser storage may be full or unavailable.');return}}parseBusyRef.current=false;setBusy(false);setDragging(false);setCanCancel(false);setParseProgress(null);parseAbortRef.current=null;setWorkerHealth('IDLE');const zoned=assignZones(nextEntities),links=buildLinks(zoned);setMessage(fileFailures.length?`Import finished with ${fileFailures.length} review exception${fileFailures.length===1?'':'s'}. ${fileFailures.join(' · ')} Retry is available without reloading.`:`Source compilation updated: ${nextFiles.filter(f=>f.state==='parsed').length}/${nextFiles.length} sources · ${new Set(zoned.map(e=>e.floor).filter(f=>f&&f!=='UNRESOLVED')).size} identified floor label(s) · ${zoned.filter(e=>e.kind==='room-boundary').length} reconstructed rooms · ${zoned.length} entities · ${links.length} relationships.`)}
  async function renderSpatial(){
   if(busy||!entities.length)return;
   setMessage('Preparing the latest compiled graph for Spatial…');
@@ -432,18 +545,14 @@ export default function CompilerWorkspace(){
    setMessage(error instanceof Error?`Spatial render handoff failed: ${error.message}`:'Spatial render handoff failed. The parsed model remains in this browser.');
   }
  }
-  async function reprocessArchivedDrawings(){
-  if(busy||!archivedStaleSources.length)return;
-  const recovered:File[]=[];
-  for(const item of archivedStaleSources){
-   const record=await readArchivedSource(String(item.source.sha256||''));
-   if(record)recovered.push(archivedSourceToFile(record));
-  }
-  if(!recovered.length){setArchiveNote('The expected local source archive is unavailable on this browser. Re-upload the original drawing file instead.');return}
-  setArchiveNote(`Reprocessing ${recovered.length} protected browser-local source${recovered.length===1?'':'s'} with the current parser…`);
-  await processFiles(recovered);
+ function reprocessArchivedDrawings(){
+  queueArchivedReprocess(archivedStaleSources.map(item=>String(item.source.sha256||'')));
  }
- function cancelActiveParse(){if(!parseAbortRef.current)return;setMessage('Canceling the current PDF parse…');parseAbortRef.current.abort()}
+ function cancelActiveParse(){
+  if(!parseAbortRef.current){setMessage('No active PDF worker to cancel. Saved-graph finalization may be running.');return}
+  setWorkerHealth('CANCELING');setMessage('Canceling PDF worker; previous compilation protected…');
+  parseAbortRef.current.abort();
+ }
  async function addFiles(e:ChangeEvent<HTMLInputElement>){await processFiles(Array.from(e.target.files||[]));e.target.value=''}async function drop(e:DragEvent<HTMLLabelElement>){e.preventDefault();setDragging(false);await processFiles(Array.from(e.dataTransfer.files||[]))}
  async function addTeslaReference(){
   try{
@@ -453,24 +562,46 @@ export default function CompilerWorkspace(){
    await processFiles([file]);
   }catch(error){setMessage(error instanceof Error?error.message:'Tesla reference import failed.');}
  }
+ if(safeMode)return <section className="card import-primary" role="status">
+  <div className="eyebrow">Recovery</div>
+  <h2>SAFE IMPORT MODE</h2>
+  <p>Saved graph hydration, parsing, source uploads and automatic reprocessing are disabled in this rescue view. Browser-local source archives and previous graph versions remain untouched.</p>
+  <div className="button-row"><a className="ghost" href="/recovery.html">Recovery instructions</a>
+   <a className="action" href="/compiler">Return to normal import</a></div>
+ </section>;
  return <div style={{marginTop:14}}>
   <section className="card import-primary">
+   <div className="button-row" style={{justifyContent:'flex-end'}}>
+    <a className="ghost" href="/recovery.html" style={{textDecoration:'none',padding:'8px 12px',borderRadius:7}}>Browser recovery / Safe mode</a>
+   </div>
+   {safeMode&&<div className="notice" role="alert"><strong>SAFE IMPORT MODE</strong>
+    <span>Saved graph hydration and background projection are suspended. Archived drawings and local recovery copies are preserved. <a href="/compiler">Return to normal import</a> only when ready.</span>
+   </div>}
    <div className="eyebrow">Engineering sources</div>
    <h2>Drop the project set</h2>
    <label className={`source-drop ${dragging?'dragging':''}`} onDragEnter={e=>{e.preventDefault();setDragging(true)}} onDragOver={e=>{e.preventDefault();setDragging(true)}} onDragLeave={()=>setDragging(false)} onDrop={drop}>
     <div><div className="source-drop-icon">⌁</div><b>{busy?'Parsing engineering sources…':dragging?'Release to import':'Drag files here or choose files'}</b><p className="muted">PDF · DXF/DWG · IFC/RVT · self-contained GLB · images · schedules/spec files</p></div>
-    <input hidden multiple disabled={busy} type="file" accept=".pdf,.dwg,.dxf,.ifc,.rvt,.glb,.gltf,.png,.jpg,.jpeg,.csv,.xlsx,.xls,.docx,.txt" onChange={addFiles}/>
+    <input className="visually-hidden" multiple disabled={busy} type="file" accept=".pdf,.dwg,.dxf,.ifc,.rvt,.glb,.gltf,.png,.jpg,.jpeg,.csv,.xlsx,.xls,.docx,.txt" onChange={addFiles}/>
    </label>
    <div className="button-row" style={{marginTop:12}}><button className="ghost" type="button" onClick={()=>void addTeslaReference()} disabled={busy}>Add Tesla 3D reference to this project</button>{busy&&<button className="ghost" type="button" onClick={cancelActiveParse} disabled={!canCancel}>Cancel current PDF parse</button>}</div>
    <p className="muted">The bundled Tesla model is a licensed community visualization. Adding it creates a selectable, unregistered reference with unverified placement; it does not identify equipment on your drawings.</p>
 
-   {message&&<div className="notice" role="status"><strong>{busy?'PARSING':'IMPORT'}</strong><span>{message}</span>{parseProgress&&parseProgress.total>0&&<progress aria-label="PDF parsing progress" max={parseProgress.total} value={Math.max(0,Math.min(parseProgress.total,parseProgress.page))}/>}</div>}
+   {(message||busy)&&<div className="notice" role="status" aria-live="polite"><strong>{busy?'PARSING':'IMPORT'}</strong>
+    <span>{message} {busy?`· Worker: ${workerHealth}`:''}</span>
+    {parseProgress?.processed!==undefined&&<small>Worker heartbeat: {parseProgress.processed} / {parseProgress.workTotal||'?'} source elements</small>}
+    {parseProgress&&parseProgress.total>0&&<progress aria-label="PDF parsing progress" max={parseProgress.total} value={Math.max(0,Math.min(parseProgress.total,parseProgress.page))}/>}
+    {workerHealth==='STALLED'&&<strong>STALLED — no worker heartbeat in 15 seconds. Automatic timeout will stop this job; REPROCESS cancels it immediately.</strong>}
+   </div>}
 
-   {staleDrawingSources.length>0&&<div className="notice" role="alert"><strong>REPROCESS SAVED DRAWING</strong><span>{staleDrawingSources.length} saved drawing source{staleDrawingSources.length===1?' needs':'s need'} the current basemap/non-SLD parser. {archivedStaleSources.length>0?`${archivedStaleSources.length} source${archivedStaleSources.length===1?' is':'s are'} available in this browser's protected local archive.`:"Older sources without a protected local copy still require the original file to be selected again."}</span>{archivedStaleSources.length>0&&<button className="ghost" type="button" disabled={busy} onClick={()=>void reprocessArchivedDrawings()}>Reprocess archived drawing{archivedStaleSources.length===1?'':'s'}</button>}</div>}
+   {staleDrawingSources.length>0&&<div className="notice" role="alert"><strong>REPROCESS SAVED DRAWING</strong><span>{staleDrawingSources.length} saved drawing source{staleDrawingSources.length===1?' needs':'s need'} the current basemap/non-SLD parser. {archivedStaleSources.length>0?`${archivedStaleSources.length} source${archivedStaleSources.length===1?' is':'s are'} available in this browser's protected local archive.`:"Older sources without a protected local copy still require the original file to be selected again."}</span>{archivedStaleSources.length>0&&<button className="ghost" type="button" onClick={reprocessArchivedDrawings}>Reprocess archived drawing{archivedStaleSources.length===1?'':'s'}</button>}</div>}
    {archiveNote&&<div className="notice" role="status"><strong>LOCAL SOURCE ARCHIVE</strong><span>{archiveNote}</span></div>}
 
    {files.length>0&&<div className="import-results">
-    {files.map((f,i)=>{const staleReason=staleBySha.get(f.sha256);const summary=staleReason&&f.summary.includes(staleReason)?f.summary.replace(staleReason,'').replace(/^[ ·—-]+|[ ·—-]+$/g,''):f.summary;return <div className="file-row" key={`${f.name}-${i}`}><div className="file-icon">{f.ext.toUpperCase()}</div><div><strong>{f.name}</strong><small>{f.discipline} · {f.floor} @ {f.elevation}m{f.unitName?` · units ${f.unitName}`:''}</small>{Boolean(f.planTypes?.length)&&<small><b>Recognized non-SLD plans:</b> {f.planTypes!.map(value=>value.replaceAll('_',' ')).join(' · ')}</small>}{f.setCompleteness?.status==='PARTIAL'&&<small><b>Partial indexed set:</b> present {f.setCompleteness.presentSheets.join(', ')} · missing {f.setCompleteness.missingSheets.join(', ')}</small>}{f.setCompleteness?.status==='COMPLETE'&&<small><b>Indexed set:</b> complete · {f.setCompleteness.presentSheets.length} sheet{f.setCompleteness.presentSheets.length===1?'':'s'}</small>}{staleReason&&<small><b>Reprocess required:</b> {staleReason}</small>}{summary&&<small>{summary}</small>}</div><span className={staleReason?'pending':f.state==='parsed'?'proof':'pending'}>{staleReason?'REPROCESS':f.state.toUpperCase()}</span></div>})}
+    {files.map((f,i)=>{const staleReason=staleBySha.get(f.sha256);const summary=staleReason&&f.summary.includes(staleReason)?f.summary.replace(staleReason,'').replace(/^[ ·—-]+|[ ·—-]+$/g,''):f.summary;return <div className="file-row" key={`${f.name}-${i}`}><div className="file-icon">{f.ext.toUpperCase()}</div><div><strong>{f.name}</strong><small>{f.discipline} · {f.floor} @ {f.elevation}m{f.unitName?` · units ${f.unitName}`:''}</small>{Boolean(f.planTypes?.length)&&<small><b>Recognized non-SLD plans:</b> {f.planTypes!.map(value=>value.replaceAll('_',' ')).join(' · ')}</small>}{f.setCompleteness?.status==='PARTIAL'&&<small><b>Partial indexed set:</b> present {f.setCompleteness.presentSheets.join(', ')} · missing {f.setCompleteness.missingSheets.join(', ')}</small>}{f.setCompleteness?.status==='COMPLETE'&&<small><b>Indexed set:</b> complete · {f.setCompleteness.presentSheets.length} sheet{f.setCompleteness.presentSheets.length===1?'':'s'}</small>}{staleReason&&<small><b>Reprocess required:</b> {staleReason}</small>}{summary&&<small>{summary}</small>}</div>{staleReason&&archivedShas.has(f.sha256)
+     ?<button type="button" className="pending" aria-label={`Reprocess ${f.name}`}
+       disabled={activeReprocessShas.includes(f.sha256)}
+       onClick={()=>queueArchivedReprocess([f.sha256])}>{activeReprocessShas.includes(f.sha256)?'REPROCESSING':queuedReprocessShas.includes(f.sha256)?'QUEUED':'REPROCESS'}</button>
+     :<span className={staleReason?'pending':f.state==='parsed'?'proof':'pending'} title={staleReason?'Local source archive unavailable; upload the original file to retry':undefined}>{staleReason?'REUPLOAD':f.state.toUpperCase()}</span>}</div>})}
    </div>}
 
    <div className="import-summary">

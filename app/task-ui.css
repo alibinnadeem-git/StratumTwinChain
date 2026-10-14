@@ -48,6 +48,7 @@
 .source-drop{display:grid;place-items:center;min-height:180px;border:1px dashed #397391;border-radius:14px;background:#07131f;cursor:pointer;text-align:center;padding:22px;transition:border-color .16s ease,background .16s ease}
 .source-drop.dragging{border:2px solid #55b98a;background:#0b2130}
 .source-drop-icon{font-size:32px;margin-bottom:4px}
+.visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .import-results{display:grid;gap:8px;margin-top:14px}
 .import-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:14px 0}
 .import-summary>div{display:grid;gap:3px;padding:10px;border:1px solid var(--line);border-radius:10px;background:#081722}

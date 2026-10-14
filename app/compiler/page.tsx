@@ -13,7 +13,13 @@ import SpatialWorkspaceStatus from '@/components/SpatialWorkspaceStatus';
 import TitleBlockIntelligence from '@/components/TitleBlockIntelligence';
 import {readSession} from '@/lib/server/auth';
 
-export default async function CompilerPage(){const session=await readSession();return <>
+export default async function CompilerPage({searchParams}:{searchParams:Promise<{safe?:string}>}){
+ const params=await searchParams;
+ if(params.safe==='1')return <>
+  <div className="page-head"><div><div className="eyebrow">Recovery</div><h1 className="title">Safe import workspace</h1><p className="subtitle">Local saved-graph restore, automatic projection and background sync are suspended; no saved data is deleted.</p></div><Link className="ghost" href="/recovery.html">Recovery guide</Link></div>
+  <CompilerWorkspace safeMode/>
+ </>;
+ const session=await readSession();return <>
   <SpatialServerHydrator/>
   <SpatialProjectionEngine/>
   {session&&<SpatialAutoSync/>}
