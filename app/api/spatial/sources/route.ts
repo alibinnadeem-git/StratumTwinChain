@@ -1,3 +1,4 @@
+import {assertRealWritePayload} from '@/lib/spatial-provenance';
 import {createHash} from 'node:crypto';
 import {NextResponse} from 'next/server';
 import {z} from 'zod';
@@ -68,7 +69,8 @@ export async function POST(req:Request){
  try{
   const session=await requireSession(['SUPER_ADMIN','ORG_ADMIN','PROJECT_MANAGER']);
   if(!await schemaReady())return NextResponse.json({error:'Project source vault schema is not ready'},{status:503});
-  const body=CreateBody.parse(await req.json());
+  const raw=await req.json();assertRealWritePayload(raw);
+   const body=CreateBody.parse(raw);
   const out=await tx(async client=>{
    const project=await client.query<{id:string}>('SELECT id::text FROM projects WHERE id=$1 AND organization_id=$2 FOR SHARE',[body.projectId,session.organizationId]);
    if(!project.rows[0])throw Object.assign(new Error('Project not found in this organization'),{status:404});
@@ -100,6 +102,7 @@ export async function PUT(req:Request){
   const session=await requireSession(['SUPER_ADMIN','ORG_ADMIN','PROJECT_MANAGER']);
   if(!await schemaReady())return NextResponse.json({error:'Project source vault schema is not ready'},{status:503});
   const form=await req.formData();
+   for(const [key,value] of form.entries())if(typeof value==='string')assertRealWritePayload({[key]:value});
   const sourceId=String(form.get('sourceId')||'');
   const chunkIndex=Number(form.get('chunkIndex'));
   const claimed=String(form.get('chunkSha256')||'').trim().toLowerCase();
@@ -145,7 +148,8 @@ export async function PATCH(req:Request){
  try{
   const session=await requireSession(['SUPER_ADMIN','ORG_ADMIN','PROJECT_MANAGER']);
   if(!await schemaReady())return NextResponse.json({error:'Project source vault schema is not ready'},{status:503});
-  const body=FinalizeBody.parse(await req.json());
+  const raw=await req.json();assertRealWritePayload(raw);
+   const body=FinalizeBody.parse(raw);
   const out=await tx(async client=>{
    const sourceResult=await client.query<any>(`SELECT id::text,project_id::text,sha256,byte_size::text
      FROM spatial_project_sources WHERE id=$1 AND organization_id=$2 FOR SHARE`,[body.sourceId,session.organizationId]);
