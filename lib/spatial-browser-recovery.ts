@@ -1,4 +1,4 @@
-import {CHUNKED_GRAPH_THRESHOLD,getChunkedGraph,getChunkedGraphHead,putChunkedGraph,setChunkedGraphHead,copyChunkedGraphHead} from './spatial-chunked-graph';
+import {CHUNKED_GRAPH_THRESHOLD,getChunkedGraph,getChunkedGraphHead,putChunkedGraph,setChunkedGraphHead,copyChunkedGraphHead} from './spatial-chunked-graph.ts';
 
 import {requireExportAuthority} from './spatial-authority-io.ts';
 import {assertRealWritePayload} from './spatial-provenance.ts';

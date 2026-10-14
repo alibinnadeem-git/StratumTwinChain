@@ -30,7 +30,7 @@ assert.match(worker,/large-source bounded parse/);
 
 const compiler=fs.readFileSync('components/CompilerWorkspace.tsx','utf8');
 assert.match(compiler,/const ingestion=pdfIngestionProfile\(buffer\.byteLength\)/);
-assert.match(compiler,/ingestion\.mode==='LARGE_SOURCE'\?90000:35000/);
+assert.match(compiler,/ingestion\.mode==='LARGE_SOURCE'\?90000:PDF_WORKER_IDLE_TIMEOUT_MS/);
 assert.doesNotMatch(compiler,/const transferable=buffer\.slice\(0\)/);
 assert.match(compiler,/const transferable=buffer;/);
 
