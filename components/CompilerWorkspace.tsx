@@ -95,7 +95,7 @@ async function parsePdfOffThread(fileName:string,buffer:ArrayBuffer,level:{floor
   armWatchdog(0,'startup');
   hardDeadline=window.setTimeout(()=>finish(()=>reject(new PdfParseError('PDF_PARSE_HARD_TIMEOUT',
    'PDF worker exceeded the five-minute total safety budget. Previous compilation preserved. Retry or split the sheet.'))),PDF_WORKER_HARD_TIMEOUT_MS);
-  const transferable=buffer.slice(0);
+  const transferable=buffer;
   try{worker.postMessage({type:'parse',requestId,fileName,buffer:transferable,level,discipline},[transferable])}
   catch(error){finish(()=>reject(new PdfParseError('PDF_WORKER_START_FAILED',
    error instanceof Error?error.message:'Could not start PDF worker.')));}
