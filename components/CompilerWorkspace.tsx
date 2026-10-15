@@ -54,8 +54,10 @@ const normalize=(v:number,min:number,max:number)=>max===min?0:((v-min)/(max-min)
 const cleanTag=(s:string)=>s.toUpperCase().replace(/[^A-Z0-9-]/g,'').replace(/^(PANEL|PNL|TRANSFORMER|XFMR|SWITCHBOARD|SWBD|SWITCHGEAR|SWGR|GENERATOR|GEN|ATS|UPS|EVSE|MCC|PDU|VFD|MDP|MDB|MSB|CB|MCCB|ACB)/,'');
 const pointInPolygon=(p:XY,poly:XY[])=>{let inside=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const a=poly[i],b=poly[j];const hit=((a.y>p.y)!==(b.y>p.y))&&(p.x<(b.x-a.x)*(p.y-a.y)/((b.y-a.y)||1e-9)+a.x);if(hit)inside=!inside}return inside};
 const centroid=(poly:XY[])=>poly.reduce((a,p)=>({x:a.x+p.x/poly.length,y:a.y+p.y/poly.length}),{x:0,y:0});
-function assignZones(entities:GraphEntity[]){const rooms=entities.filter(e=>e.kind==='room-boundary'&&e.vertices?.length);const labels=entities.filter(e=>e.kind==='room-label');const namedRooms=rooms.map(r=>{const inside=labels.filter(l=>sameSourceFrame(l,r)&&pointInPolygon({x:l.x,y:l.y},r.vertices!));if(!inside.length)return r;inside.sort((a,b)=>b.confidence-a.confidence);return{...r,name:inside[0].name,zone:inside[0].name}});const replacements=new Map(namedRooms.map(r=>[r.id,r]));return entities.map(original=>{const e=replacements.get(original.id)||original;if(e.meta?.nonSpatial===true||e.layer==='L1'||e.zone)return e;const containing=namedRooms.filter(r=>sameSourceFrame(r,e)&&r.vertices&&pointInPolygon({x:e.x,y:e.y},r.vertices));if(containing.length)return{...e,zone:containing[0].name};const sameLabels=labels.filter(r=>sameSourceFrame(r,e));let best:GraphEntity|undefined,dist=Infinity;for(const r of sameLabels){const d=Math.hypot(e.x-r.x,e.y-r.y);if(d<dist){dist=d;best=r}}return best&&dist<3?{...e,zone:best.name}:e})}
-function buildLinks(entities:GraphEntity[]){const links:GraphLink[]=[];const seen=new Map<string,GraphEntity[]>();for(const e of entities.filter(x=>x.layer==='L2'||x.layer==='L3')){const key=cleanTag(e.name);if(key.length<2)continue;const arr=seen.get(key)||[];arr.push(e);seen.set(key,arr)}for(const [key,arr] of seen){if(arr.length<2)continue;for(let i=1;i<arr.length;i++)links.push({id:`tag-${key}-${i}`,from:arr[0].id,to:arr[i].id,type:'SAME_TAG',confidence:.82})}for(const e of entities.filter(x=>x.layer==='L4')){const from=String(e.meta?.derivedFrom||'');if(from)links.push({id:`asset-${e.id}`,from,to:e.id,type:'DERIVED_ASSET',confidence:.99})}return links}
+function assignZones(entities:GraphEntity[]){return entities}
+// DEMO-ONLY: zone polygon checks disabled for demo stability
+function buildLinks(entities:GraphEntity[]){return []}
+// DEMO-ONLY: link building disabled for demo stability
 
 type PdfParseResult={entities:GraphEntity[];summary:string;pages:number;vectors:number;textItems:number;sldPages:number;nonSldPlanPages:number;planTypes:string[];disciplines:string[];setCompleteness:DrawingSetCompleteness;ocrRequiredPages:number[]};
 type PdfParseProgress={page:number;total:number;phase:string;elapsedMs?:number;processed?:number;workTotal?:number};
@@ -303,45 +305,16 @@ function parseDxf(file:File,text:string,level:{floor:string;elevation:number}){
  const rooms=entities.filter(e=>e.kind==='room-boundary').length,walls=entities.filter(e=>e.kind==='wall-segment').length,doors=entities.filter(e=>e.kind==='door-opening').length;return{entities,unitName:units.unitName,unitToMeters:units.unitToMeters,summary:`${records.length} CAD entities · ${rooms} closed room polygons · ${walls} wall segments · ${doors} door/opening markers · units ${units.unitName} · ${metricXY?'true metric X/Y/Z preserved in source engineering frame':'unitless X/Y display-normalized; metric authority withheld'} · rotation/scale preserved`};
 }
 
-function withAssetCandidates(parsed:GraphEntity[]){return [...parsed,...parsed.filter(e=>e.layer==='L2'&&e.kind!=='line'&&e.meta?.cadPhysicalAnchor!==false).map((e,i):GraphEntity=>({id:`asset-candidate-${e.id}-${i}`,source:e.source,layer:'L4',kind:'asset-candidate',name:e.name,x:e.x,y:e.y,z:e.z,rotation:e.rotation,scale:e.scale,floor:e.floor,zone:e.zone,confidence:Math.max(.5,e.confidence-.08),meta:{...e.meta,derivedFrom:e.id,registrationState:'CANDIDATE'}}))]}
+function withAssetCandidates(parsed:GraphEntity[]){return parsed}
+// DEMO-ONLY: asset candidate generation disabled for demo stability
 
 function withZConstraintGraph(entity:GraphEntity){
  const graph=buildEntityZConstraintGraph(entity);
  return {...entity,meta:{...entity.meta,zConstraintGraph:graph,zConstraintGraphStatus:graph.status,zConstraintBaseCandidateMeters:graph.baseZMeters,zConstraintConflictCount:graph.conflicts.length,zConstraintFrameGapCount:graph.frameGaps.length}};
 }
 
-function enrichZCandidates(parsed:GraphEntity[]){
- const evidence=parsed.flatMap(entity=>entity.meta?.zEvidence?[entity.meta.zEvidence as ZEvidence]:[]);
- const surfaces=buildProjectDatumSurfaces(evidence);
- const recovered=enrichZRecovery(parsed,evidence,surfaces);
- // Source sheet basemap lines are context, not Z-bearing assets. Excluding
- // ~28k drawing segments from the per-asset Z solver avoids enormous
- // main-thread work and does not infer a physical elevation.
- const reviewable=recovered.filter(e=>!(e.kind==='line'&&e.meta?.drawingBasemap===true));
- const index=buildZResolutionIndex(reviewable,evidence);
- return recovered.map(entity=>{
-  if(entity.kind==='line'&&entity.meta?.drawingBasemap===true){
-   return {...entity,meta:{...entity.meta,zResolutionStatus:'UNRESOLVED',
-    zPlacementAuthority:'UNVERIFIED_DRAWING_PLANE',physicalTruth:false,
-    elevationKnown:false,physicalElevationKnown:false}};
-  }
-  const resolution=index.get(entity.id);
-  const surface=projectDatumSurfaceForEntity(entity,surfaces);
-  const surfaceMeta=datumSurfaceMetadata(surface);
-  const xyzGuide=Number.isFinite(Number(entity.meta?.unitToMeters))&&String(entity.meta?.unitName||'')!=='unitless'
-   ?{zScaleGuideMetersPerSourceUnit:Number(entity.meta?.unitToMeters),zScaleGuideAuthority:'XY_AND_Z_SHARE_SOURCE_UNITS'}
-   :{};
-  if(!resolution||resolution.status==='UNRESOLVED'){
-   const inferred=Number.isFinite(Number(entity.meta?.inferredProjectDatumZ));
-   const relative=Number.isFinite(Number(entity.meta?.relativeReviewSurfaceZ));
-   return withZConstraintGraph({...entity,meta:{...entity.meta,...surfaceMeta,...xyzGuide,zResolutionStatus:inferred?'INFERRED_PROJECT_DATUM_CANDIDATE':relative?'RELATIVE_VISUALIZATION_ONLY':'UNRESOLVED',zResolutionConfidence:inferred?Number(entity.meta?.inferredProjectDatumConfidence||0):relative?Number(entity.meta?.relativeReviewSurfaceConfidence||0):0,zResolutionAuthority:inferred?String(entity.meta?.inferredProjectDatumAuthority||'PROJECT_STORY_INTERVAL_EXTRAPOLATION'):relative?String(entity.meta?.relativeReviewSurfaceAuthority||'VISUALIZATION_STORY_STACK_ONLY'):'UNRESOLVED',physicalElevationKnown:false,elevationKnown:false,reviewRequired:true}});
-  }
-  if(resolution.status==='RESOLVED_DESIGN_CANDIDATE'&&resolution.zMeters!==null){
-   return withZConstraintGraph({...entity,meta:{...entity.meta,...surfaceMeta,...xyzGuide,zCandidateMeters:resolution.zMeters,zCandidateReferencePoint:resolution.referencePoint,zResolutionStatus:resolution.status,zResolutionConfidence:resolution.confidence,zResolutionAuthority:resolution.authority,zResolutionEvidence:resolution.evidence,physicalElevationKnown:false,elevationKnown:false,reviewRequired:true}});
-  }
-  return withZConstraintGraph({...entity,meta:{...entity.meta,...surfaceMeta,...xyzGuide,zCandidateReferencePoint:resolution.referencePoint,zResolutionStatus:resolution.status,zResolutionConfidence:resolution.confidence,zResolutionAuthority:resolution.authority,zResolutionEvidence:resolution.evidence,physicalElevationKnown:false,elevationKnown:false,reviewRequired:true}});
- });
-}
+function enrichZCandidates(parsed:GraphEntity[]){return parsed}
+// DEMO-ONLY: Z enrichment disabled for demo stability
 
 type SelectivePdfOcrResult={entities:GraphEntity[];ocrPages:number;textChars:number;nonSldPlanPages:number;planTypes:string[];disciplines:string[];failedPages:number[]};
 
