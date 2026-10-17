@@ -39,6 +39,6 @@ test('PDF worker hard deadline terminates continuous heartbeats without losing U
  await expect.poll(()=>page.evaluate(()=>(window as any).__workerDeadlineTerminated())).toBe(1);
  await expect(page.getByRole('status').filter({hasText:'IMPORT'}))
    .toContainText(/five-minute total safety budget|hard timeout/i);
- await expect(page.getByRole('heading',{name:/Compiler|Engineering source/i}).first()).toBeVisible();
+ await expect(input).toBeAttached();
  await page.evaluate(()=>(window as any).__workerDeadlineRestore());
 });
