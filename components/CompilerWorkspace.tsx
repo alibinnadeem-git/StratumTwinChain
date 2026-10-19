@@ -4,8 +4,7 @@ import {useRouter} from 'next/navigation';
 import PlanAnnotations from './PlanAnnotations';
 import SheetReview from './SheetReview';
 import SpatialPortableRecovery from './SpatialPortableRecovery';
-import {inferPdfPageFloor,sameSourceFrame,scopeSourceEntities} from '../lib/compiler-source';
-import {reconcileSpatialEquipmentIdentity} from '../lib/spatial-equipment-identity';
+import {inferPdfPageFloor,scopeSourceEntities} from '../lib/compiler-source';
 import {anchorPdfEquipmentToVectorSymbols} from '../lib/pdf-equipment-symbol-anchor';
 import {dxfRawXYToMeters,dxfRecordZ,dxfUnitInfo} from '../lib/dxf-z-semantics';
 import {dxfEquipmentSpatialAuthority} from '../lib/dxf-equipment-authority';
@@ -23,24 +22,19 @@ import {readPrimarySpatialGraph,replaceCurrentSpatialGraph} from '../lib/spatial
 import {encodeGlbBase64,inspectStandaloneGlb} from '../lib/spatial-glb-import';
 import {drawingSourceReprocessReason,findDrawingSourcesNeedingReprocess,inspectDrawingReprocessOutput} from '../lib/spatial-source-reprocess';
 import {archiveSourceBytes,archivedSourceToFile,listArchivedSourceMetadata,readArchivedSource} from '../lib/source-browser-archive';
-import {enrichCoordinationIntelligence} from '../lib/coordination-intelligence';
-import {buildZResolutionIndex,extractZEvidenceFromText,type ZEvidence} from '../lib/z-resolver';
-import {buildEntityZConstraintGraph} from '../lib/z-constraint-graph';
-import {buildProjectDatumSurfaces,datumSurfaceMetadata,projectDatumSurfaceForEntity} from '../lib/project-datum';
+import {extractZEvidenceFromText,type ZEvidence} from '../lib/z-resolver';
 import {buildElevationTriangles,extractPositionedElevationControls,resolveLocalElevationSurface,type ElevationControlPoint,type ElevationTriangle} from '../lib/elevation-surface';
 import {associateTerrainBreaklines,buildConstrainedElevationTriangles,extractPositionedTerrainSlopeEvidence,type TerrainBreakline,type TerrainSlopeEvidence} from '../lib/terrain-constraints';
 import {enrichSupportBaseOffsets,extractSupportOffsetEvidence,type SupportOffsetEvidence} from '../lib/support-base-evidence';
 import {analyzeDrawingSetCompleteness,type DrawingSetCompleteness} from '../lib/drawing-set-completeness';
 import {pdfIngestionProfile} from '../lib/pdf-ingestion-profile';
-import {enrichZRecovery} from '../lib/z-recovery';
 import {ChangeEvent,DragEvent,useEffect,useMemo,useRef,useState} from 'react';
+import {type GraphEntity,type GraphLink,type Layer,type XY} from '../lib/graph-assembly';
+import {enrichZCandidates} from '../lib/graph-enrichment';
+import {assembleGraphOffThread,compileGraphOffThread,enrichEntitiesOffThread} from '../lib/graph-assembly-client';
 
-type Layer='L0'|'L1'|'L2'|'L3'|'L4';
 type ParseState='parsed'|'adapter'|'review'|'failed';
-type XY={x:number;y:number};
-type GraphEntity={id:string;source:string;layer:Layer;kind:string;name:string;x:number;y:number;z?:number;x2?:number;y2?:number;z2?:number;rotation?:number;scale?:number;floor?:string;zone?:string;vertices?:XY[];confidence:number;meta?:Record<string,unknown>};
 type SourceFile={name:string;size:number;ext:string;discipline:string;sha256:string;state:ParseState;summary:string;entities:number;floor:string;elevation:number;unitName?:string;unitToMeters?:number;pages?:number;vectors?:number;textItems?:number;sldPages?:number;nonSldPlanPages?:number;planTypes?:string[];setCompleteness?:DrawingSetCompleteness};
-type GraphLink={id:string;from:string;to:string;type:'SAME_TAG'|'DERIVED_ASSET'|'SOURCE_RELATION';confidence:number};
 type CompiledGraph={version:string;createdAt:string;reviewState?:string;sources:SourceFile[];entities:GraphEntity[];links:GraphLink[];stats:Record<Layer,number>};
 
 const NATIVE_ADAPTER=['dwg','rvt'];
@@ -51,11 +45,7 @@ const layerFor=(s:string):Layer=>{const n=s.toLowerCase();if(/wall|door|room|flo
 const roomCandidate=(s:string)=>/room|electrical room|switchgear room|mdf|idf|mechanical room|garage|lobby|corridor|office|lab|data hall|closet|storage/i.test(s);
 const sha=async(buf:ArrayBuffer)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',buf))).map(b=>b.toString(16).padStart(2,'0')).join('');
 const normalize=(v:number,min:number,max:number)=>max===min?0:((v-min)/(max-min)-.5)*20;
-const cleanTag=(s:string)=>s.toUpperCase().replace(/[^A-Z0-9-]/g,'').replace(/^(PANEL|PNL|TRANSFORMER|XFMR|SWITCHBOARD|SWBD|SWITCHGEAR|SWGR|GENERATOR|GEN|ATS|UPS|EVSE|MCC|PDU|VFD|MDP|MDB|MSB|CB|MCCB|ACB)/,'');
-const pointInPolygon=(p:XY,poly:XY[])=>{let inside=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const a=poly[i],b=poly[j];const hit=((a.y>p.y)!==(b.y>p.y))&&(p.x<(b.x-a.x)*(p.y-a.y)/((b.y-a.y)||1e-9)+a.x);if(hit)inside=!inside}return inside};
 const centroid=(poly:XY[])=>poly.reduce((a,p)=>({x:a.x+p.x/poly.length,y:a.y+p.y/poly.length}),{x:0,y:0});
-function assignZones(entities:GraphEntity[]){const rooms=entities.filter(e=>e.kind==='room-boundary'&&e.vertices?.length);const labels=entities.filter(e=>e.kind==='room-label');const namedRooms=rooms.map(r=>{const inside=labels.filter(l=>sameSourceFrame(l,r)&&pointInPolygon({x:l.x,y:l.y},r.vertices!));if(!inside.length)return r;inside.sort((a,b)=>b.confidence-a.confidence);return{...r,name:inside[0].name,zone:inside[0].name}});const replacements=new Map(namedRooms.map(r=>[r.id,r]));return entities.map(original=>{const e=replacements.get(original.id)||original;if(e.meta?.nonSpatial===true||e.layer==='L1'||e.zone)return e;const containing=namedRooms.filter(r=>sameSourceFrame(r,e)&&r.vertices&&pointInPolygon({x:e.x,y:e.y},r.vertices));if(containing.length)return{...e,zone:containing[0].name};const sameLabels=labels.filter(r=>sameSourceFrame(r,e));let best:GraphEntity|undefined,dist=Infinity;for(const r of sameLabels){const d=Math.hypot(e.x-r.x,e.y-r.y);if(d<dist){dist=d;best=r}}return best&&dist<3?{...e,zone:best.name}:e})}
-function buildLinks(entities:GraphEntity[]){const links:GraphLink[]=[];const seen=new Map<string,GraphEntity[]>();for(const e of entities.filter(x=>x.layer==='L2'||x.layer==='L3')){const key=cleanTag(e.name);if(key.length<2)continue;const arr=seen.get(key)||[];arr.push(e);seen.set(key,arr)}for(const [key,arr] of seen){if(arr.length<2)continue;for(let i=1;i<arr.length;i++)links.push({id:`tag-${key}-${i}`,from:arr[0].id,to:arr[i].id,type:'SAME_TAG',confidence:.82})}for(const e of entities.filter(x=>x.layer==='L4')){const from=String(e.meta?.derivedFrom||'');if(from)links.push({id:`asset-${e.id}`,from,to:e.id,type:'DERIVED_ASSET',confidence:.99})}return links}
 
 type PdfParseResult={entities:GraphEntity[];summary:string;pages:number;vectors:number;textItems:number;sldPages:number;nonSldPlanPages:number;planTypes:string[];disciplines:string[];setCompleteness:DrawingSetCompleteness;ocrRequiredPages:number[]};
 type PdfParseProgress={page:number;total:number;phase:string;elapsedMs?:number;processed?:number;workTotal?:number};
@@ -305,44 +295,6 @@ function parseDxf(file:File,text:string,level:{floor:string;elevation:number}){
 
 function withAssetCandidates(parsed:GraphEntity[]){return [...parsed,...parsed.filter(e=>e.layer==='L2'&&e.kind!=='line'&&e.meta?.cadPhysicalAnchor!==false).map((e,i):GraphEntity=>({id:`asset-candidate-${e.id}-${i}`,source:e.source,layer:'L4',kind:'asset-candidate',name:e.name,x:e.x,y:e.y,z:e.z,rotation:e.rotation,scale:e.scale,floor:e.floor,zone:e.zone,confidence:Math.max(.5,e.confidence-.08),meta:{...e.meta,derivedFrom:e.id,registrationState:'CANDIDATE'}}))]}
 
-function withZConstraintGraph(entity:GraphEntity){
- const graph=buildEntityZConstraintGraph(entity);
- return {...entity,meta:{...entity.meta,zConstraintGraph:graph,zConstraintGraphStatus:graph.status,zConstraintBaseCandidateMeters:graph.baseZMeters,zConstraintConflictCount:graph.conflicts.length,zConstraintFrameGapCount:graph.frameGaps.length}};
-}
-
-function enrichZCandidates(parsed:GraphEntity[]){
- const evidence=parsed.flatMap(entity=>entity.meta?.zEvidence?[entity.meta.zEvidence as ZEvidence]:[]);
- const surfaces=buildProjectDatumSurfaces(evidence);
- const recovered=enrichZRecovery(parsed,evidence,surfaces);
- // Source sheet basemap lines are context, not Z-bearing assets. Excluding
- // ~28k drawing segments from the per-asset Z solver avoids enormous
- // main-thread work and does not infer a physical elevation.
- const reviewable=recovered.filter(e=>!(e.kind==='line'&&e.meta?.drawingBasemap===true));
- const index=buildZResolutionIndex(reviewable,evidence);
- return recovered.map(entity=>{
-  if(entity.kind==='line'&&entity.meta?.drawingBasemap===true){
-   return {...entity,meta:{...entity.meta,zResolutionStatus:'UNRESOLVED',
-    zPlacementAuthority:'UNVERIFIED_DRAWING_PLANE',physicalTruth:false,
-    elevationKnown:false,physicalElevationKnown:false}};
-  }
-  const resolution=index.get(entity.id);
-  const surface=projectDatumSurfaceForEntity(entity,surfaces);
-  const surfaceMeta=datumSurfaceMetadata(surface);
-  const xyzGuide=Number.isFinite(Number(entity.meta?.unitToMeters))&&String(entity.meta?.unitName||'')!=='unitless'
-   ?{zScaleGuideMetersPerSourceUnit:Number(entity.meta?.unitToMeters),zScaleGuideAuthority:'XY_AND_Z_SHARE_SOURCE_UNITS'}
-   :{};
-  if(!resolution||resolution.status==='UNRESOLVED'){
-   const inferred=Number.isFinite(Number(entity.meta?.inferredProjectDatumZ));
-   const relative=Number.isFinite(Number(entity.meta?.relativeReviewSurfaceZ));
-   return withZConstraintGraph({...entity,meta:{...entity.meta,...surfaceMeta,...xyzGuide,zResolutionStatus:inferred?'INFERRED_PROJECT_DATUM_CANDIDATE':relative?'RELATIVE_VISUALIZATION_ONLY':'UNRESOLVED',zResolutionConfidence:inferred?Number(entity.meta?.inferredProjectDatumConfidence||0):relative?Number(entity.meta?.relativeReviewSurfaceConfidence||0):0,zResolutionAuthority:inferred?String(entity.meta?.inferredProjectDatumAuthority||'PROJECT_STORY_INTERVAL_EXTRAPOLATION'):relative?String(entity.meta?.relativeReviewSurfaceAuthority||'VISUALIZATION_STORY_STACK_ONLY'):'UNRESOLVED',physicalElevationKnown:false,elevationKnown:false,reviewRequired:true}});
-  }
-  if(resolution.status==='RESOLVED_DESIGN_CANDIDATE'&&resolution.zMeters!==null){
-   return withZConstraintGraph({...entity,meta:{...entity.meta,...surfaceMeta,...xyzGuide,zCandidateMeters:resolution.zMeters,zCandidateReferencePoint:resolution.referencePoint,zResolutionStatus:resolution.status,zResolutionConfidence:resolution.confidence,zResolutionAuthority:resolution.authority,zResolutionEvidence:resolution.evidence,physicalElevationKnown:false,elevationKnown:false,reviewRequired:true}});
-  }
-  return withZConstraintGraph({...entity,meta:{...entity.meta,...surfaceMeta,...xyzGuide,zCandidateReferencePoint:resolution.referencePoint,zResolutionStatus:resolution.status,zResolutionConfidence:resolution.confidence,zResolutionAuthority:resolution.authority,zResolutionEvidence:resolution.evidence,physicalElevationKnown:false,elevationKnown:false,reviewRequired:true}});
- });
-}
-
 type SelectivePdfOcrResult={entities:GraphEntity[];ocrPages:number;textChars:number;nonSldPlanPages:number;planTypes:string[];disciplines:string[];failedPages:number[]};
 
 async function parsePdfSelectedOcrPages(
@@ -591,15 +543,18 @@ export default function CompilerWorkspace({safeMode=false}:{safeMode?:boolean}){
   const replaceShas=new Set(replaceSources.map(item=>item.sha256)),replaceNames=new Set(replaceSources.map(item=>item.name));
   const current:GraphEntity[]=(saved.entities as GraphEntity[]||[]).filter(entity=>!replaceShas.has(String(entity.meta?.sourceSha256||''))&&!replaceNames.has(entity.source));
   const merged=[...new Map([...current,...rawEntities.filter(e=>e.meta?.sourceType!=='MANUAL_IMAGE_ANNOTATION')].map(e=>[e.id,e])).values()];
-  const zoned=assignZones(merged),links=buildLinks(zoned);
   const priorSources=(saved.sources||[]).filter(source=>!replaceShas.has(source.sha256)&&!replaceNames.has(source.name));
   const sources=[...new Map([...priorSources,...nextFiles].map(f=>[f.sha256,f])).values()];
-  const base={...saved,coordinationIntelligence:undefined,reviewState:zoned.some(e=>e.layer==='L2'||e.layer==='L4')?'REVIEW_REQUIRED':saved.reviewState,version:'1.2',createdAt:new Date().toISOString(),sources,entities:zoned,links,stats:{L0:sources.length,L1:zoned.filter(e=>e.layer==='L1').length,L2:zoned.filter(e=>e.layer==='L2').length,L3:zoned.filter(e=>e.layer==='L3').length,L4:zoned.filter(e=>e.layer==='L4').length}};
-  const graph=enrichCoordinationIntelligence(base as any) as CompiledGraph;
+  const _tCompile=performance.now();
+  const compiled=await compileGraphOffThread({entities:merged,sources,priorReviewState:saved.reviewState});
+  const _tPersist=performance.now();
+  const graph={...saved,version:'1.2',createdAt:new Date().toISOString(),sources,entities:compiled.zoned,links:compiled.links,coordinationIntelligence:compiled.coordinationIntelligence,reviewState:compiled.reviewState,stats:compiled.stats} as CompiledGraph;
   await replaceCurrentSpatialGraph(graph);
   setEntities(graph.entities as GraphEntity[]);
+  console.info(`[stratum perf] saveGraph ${merged.length} entities · compile(worker) ${Math.round(_tPersist-_tCompile)}ms · persist ${Math.round(performance.now()-_tPersist)}ms`);
+  return{zoned:compiled.zoned,links:compiled.links};
  }
- async function processFiles(incoming:File[]){if(parseBusyRef.current||busy||!incoming.length)return;parseBusyRef.current=true;setBusy(true);let nextFiles=[...files],nextEntities=[...entities],fileFailures:string[]=[];for(const file of incoming){const ext=(file.name.split('.').pop()||'').toLowerCase();if(!ACCEPTED.has(ext)){setMessage(`${file.name} skipped: unsupported source format.`);continue}let buf:ArrayBuffer;try{buf=await file.arrayBuffer()}catch{setMessage(`${file.name} could not be read.`);continue}let digest:string;try{digest=await sha(buf)}catch{setMessage(`${file.name}: fingerprint failed; retry the import.`);continue}const archiveResult=await archiveSourceBytes({sha256:digest,name:file.name,mimeType:file.type,size:file.size,ext,bytes:buf});if(archiveResult.archived)setArchivedShas(current=>{const next=new Set(current);next.add(digest);return next});else setArchiveNote(`${file.name} was parsed without a protected browser-local source copy: ${archiveResult.reason}`);const discipline=classify(file.name),level=inferLevel(file.name);let replacementSource:{sha256:string;name:string}|null=null,replacementBackup:{source:SourceFile;entities:GraphEntity[]}|null=null;
+ async function processFiles(incoming:File[]){if(parseBusyRef.current||busy||!incoming.length)return;parseBusyRef.current=true;setBusy(true);let nextFiles=[...files],nextEntities=[...entities],fileFailures:string[]=[],lastAssembly:{zoned:GraphEntity[];links:GraphLink[]}|null=null;for(const file of incoming){const ext=(file.name.split('.').pop()||'').toLowerCase();if(!ACCEPTED.has(ext)){setMessage(`${file.name} skipped: unsupported source format.`);continue}let buf:ArrayBuffer;try{buf=await file.arrayBuffer()}catch{setMessage(`${file.name} could not be read.`);continue}let digest:string;try{digest=await sha(buf)}catch{setMessage(`${file.name}: fingerprint failed; retry the import.`);continue}const archiveResult=await archiveSourceBytes({sha256:digest,name:file.name,mimeType:file.type,size:file.size,ext,bytes:buf});if(archiveResult.archived)setArchivedShas(current=>{const next=new Set(current);next.add(digest);return next});else setArchiveNote(`${file.name} was parsed without a protected browser-local source copy: ${archiveResult.reason}`);const discipline=classify(file.name),level=inferLevel(file.name);let replacementSource:{sha256:string;name:string}|null=null,replacementBackup:{source:SourceFile;entities:GraphEntity[]}|null=null;
  const priorFailed=nextFiles.find(source=>source.sha256===digest&&source.state==='failed');
  if(priorFailed){nextFiles=nextFiles.filter(source=>source.sha256!==digest);nextEntities=nextEntities.filter(entity=>String(entity.meta?.sourceSha256||'')!==digest&&entity.source!==priorFailed.name)}
  const existing=nextFiles.find(source=>source.sha256===digest&&source.state!=='failed');if(existing){const reason=drawingSourceReprocessReason(existing,nextEntities);if(!reason)continue;replacementSource={sha256:digest,name:existing.name};replacementBackup={source:existing,entities:nextEntities.filter(entity=>String(entity.meta?.sourceSha256||'')===digest||entity.source===existing.name)};nextFiles=nextFiles.filter(source=>source.sha256!==digest);nextEntities=nextEntities.filter(entity=>String(entity.meta?.sourceSha256||'')!==digest&&entity.source!==existing.name);setMessage(`${file.name}: reprocessing saved drawing with the current basemap/non-SLD pipeline…`)}let sf:SourceFile={name:file.name,size:file.size,ext,discipline,sha256:digest,state:'review',summary:'Format requires review',entities:0,floor:level.floor,elevation:level.elevation};try{if(ext==='pdf'){
@@ -643,10 +598,10 @@ export default function CompilerWorkspace({safeMode=false}:{safeMode?:boolean}){
  await new Promise<void>(resolve=>window.setTimeout(resolve,0));
  setMessage(`${file.name}: indexing Z source evidence for ${graph.length} review objects…`);
  const zGraph=enrichZCandidates(graph);const reprocessAudit=replacementBackup?inspectDrawingReprocessOutput(zGraph):null;nextEntities=[...nextEntities,...zGraph];sf={...sf,discipline:parsed.disciplines.length>1?'Multi-discipline':parsed.disciplines[0]||discipline,state:'parsed',floor:[...new Set(graph.map(e=>e.floor))].join(', ')||'UNRESOLVED',summary:`${parsed.summary} · elevations and cross-sheet alignment unverified · ${graph.filter(x=>x.layer==='L4').length} L4 candidates${reprocessAudit?' · '+reprocessAudit.summary:''}`,entities:zGraph.length,pages:parsed.pages,vectors:parsed.vectors,textItems:parsed.textItems,sldPages:parsed.sldPages,nonSldPlanPages:parsed.nonSldPlanPages,planTypes:parsed.planTypes,setCompleteness:parsed.setCompleteness}}else if(ext==='dxf'){const parsed=parseDxf(file,await file.text(),level),graph=withAssetCandidates(scopeSourceEntities(parsed.entities,digest));nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:`${parsed.summary} · floor label ${level.floor}; Z remains source-driven/reviewed · ${graph.filter(x=>x.layer==='L4').length} L4 candidates`,entities:graph.length,unitName:parsed.unitName,unitToMeters:parsed.unitToMeters}}else if(['png','jpg','jpeg'].includes(ext)){const parsed=await parseImage(file,level,discipline,message=>setMessage(`${file.name}: ${message}`)),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,discipline:parsed.planDiscipline||discipline,state:parsed.ocrSucceeded?'parsed':'review',summary:parsed.summary,entities:graph.length,nonSldPlanPages:parsed.planType?1:0,planTypes:parsed.planType?[parsed.planType]:[]}}else if(['csv','txt'].includes(ext)){const parsed=parseEquipmentScheduleText(await file.text(),file.name,discipline,level.floor),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:parsed.summary,entities:graph.length}}else if(ext==='xlsx'){const parsed=parseXlsxBytes(new Uint8Array(buf),file.name,discipline,level.floor),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:parsed.summary,entities:graph.length}}else if(ext==='docx'){const parsed=parseDocxBytes(new Uint8Array(buf),file.name,discipline,level.floor),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:parsed.summary,entities:graph.length}}else if(ext==='ifc'){const parsed=parseIfcText(await file.text(),file.name,discipline),graph=withAssetCandidates(scopeSourceEntities(parsed.entities,digest) as GraphEntity[]);nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',discipline:discipline==='Unclassified'?'BIM / Multi-discipline':discipline,summary:parsed.summary,entities:graph.length,unitName:parsed.unitName,unitToMeters:parsed.unitToMeters||undefined}}else if(ext==='glb'){const model=await parseGlb(file,buf,digest,level);const existing=nextEntities.filter(e=>e.meta?.nonSpatial!==true);if(existing.length){const xs=existing.flatMap(e=>[e.x,...(Number.isFinite(e.x2)?[e.x2!]:[])]);model.x=Math.max(...xs)+3;model.y=existing.reduce((sum,e)=>sum+e.y,0)/existing.length;}nextEntities=[...nextEntities,model];sf={...sf,state:'parsed',summary:'Renderable 3D geometry imported · placement unverified · no registered asset inferred',entities:1,unitName:'m',unitToMeters:1}}else if(ext==='gltf')sf={...sf,state:'adapter',summary:'Use a self-contained .glb export. Standalone .gltf may reference external textures or buffers and cannot be safely restored as one file.'};else if(ext==='xls')sf={...sf,state:'adapter',summary:'Legacy XLS fingerprinted. Binary BIFF adapter or conversion to XLSX is required; no structured engineering fields were invented.'};else if(NATIVE_ADAPTER.includes(ext))sf={...sf,state:'adapter',summary:`${ext.toUpperCase()} fingerprinted. Native adapter required before spatial claims.`};else sf={...sf,state:'review',summary:'Source preserved; format-specific extraction required.'}}catch(err){const failure=err instanceof Error?err.message:'Parser failed';fileFailures.push(`${file.name}: ${failure}`);if(replacementBackup){nextEntities=nextEntities.filter(entity=>String(entity.meta?.sourceSha256||'')!==digest&&entity.source!==replacementBackup!.source.name);nextEntities=[...nextEntities,...replacementBackup.entities];sf=replacementBackup.source;replacementSource=null;setMessage(`${file.name}: reprocess failed; the previous saved compilation was preserved. ${failure}`)}else sf={...sf,state:'failed',summary:failure}}nextFiles=[...nextFiles,sf];await new Promise<void>(resolve=>window.setTimeout(resolve,0));
- nextEntities=reconcileSpatialEquipmentIdentity(enrichZCandidates(nextEntities));setFiles(nextFiles);
+ {const _t=performance.now();nextEntities=await enrichEntitiesOffThread(nextEntities);console.info(`[stratum perf] enrichZ+reconcile(worker) ${Math.round(performance.now()-_t)}ms · ${nextEntities.length} entities`);}setFiles(nextFiles);
  setWorkerHealth('FINALIZING');setMessage(`${file.name}: saving ${nextEntities.length} objects; prior graph protected…`);
  await new Promise<void>(resolve=>window.setTimeout(resolve,0));
- try{await saveGraph(nextFiles,nextEntities,replacementSource?[replacementSource]:[])}catch{setEntities(nextEntities);parseBusyRef.current=false;setBusy(false);setDragging(false);setMessage('Import could not be saved. Existing saved work is unchanged; imported objects remain in this session. Browser storage may be full or unavailable.');return}}parseBusyRef.current=false;setBusy(false);setDragging(false);setCanCancel(false);setParseProgress(null);parseAbortRef.current=null;setWorkerHealth('IDLE');const zoned=assignZones(nextEntities),links=buildLinks(zoned);setMessage(fileFailures.length?`Import finished with ${fileFailures.length} review exception${fileFailures.length===1?'':'s'}. ${fileFailures.join(' · ')} Retry is available without reloading.`:`Source compilation updated: ${nextFiles.filter(f=>f.state==='parsed').length}/${nextFiles.length} sources · ${new Set(zoned.map(e=>e.floor).filter(f=>f&&f!=='UNRESOLVED')).size} identified floor label(s) · ${zoned.filter(e=>e.kind==='room-boundary').length} reconstructed rooms · ${zoned.length} entities · ${links.length} relationships.`)}
+ try{lastAssembly=await saveGraph(nextFiles,nextEntities,replacementSource?[replacementSource]:[])}catch{setEntities(nextEntities);parseBusyRef.current=false;setBusy(false);setDragging(false);setMessage('Import could not be saved. Existing saved work is unchanged; imported objects remain in this session. Browser storage may be full or unavailable.');return}}parseBusyRef.current=false;setBusy(false);setDragging(false);setCanCancel(false);setParseProgress(null);parseAbortRef.current=null;setWorkerHealth('IDLE');const {zoned,links}=lastAssembly??await assembleGraphOffThread(nextEntities);setMessage(fileFailures.length?`Import finished with ${fileFailures.length} review exception${fileFailures.length===1?'':'s'}. ${fileFailures.join(' · ')} Retry is available without reloading.`:`Source compilation updated: ${nextFiles.filter(f=>f.state==='parsed').length}/${nextFiles.length} sources · ${new Set(zoned.map(e=>e.floor).filter(f=>f&&f!=='UNRESOLVED')).size} identified floor label(s) · ${zoned.filter(e=>e.kind==='room-boundary').length} reconstructed rooms · ${zoned.length} entities · ${links.length} relationships.`)}
  async function renderSpatial(){
   if(busy||!entities.length)return;
   setMessage('Preparing the latest compiled graph for Spatial…');

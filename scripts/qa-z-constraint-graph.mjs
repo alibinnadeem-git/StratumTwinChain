@@ -144,12 +144,13 @@ const direct=solveZConstraintGraph({
 assert.equal(direct.status,'CONFLICT');
 assert.ok(direct.conflicts.length>=1);
 
-const compiler=fs.readFileSync('components/CompilerWorkspace.tsx','utf8');
-assert.match(compiler,/buildEntityZConstraintGraph/);
-assert.match(compiler,/zConstraintGraphStatus/);
-assert.match(compiler,/zConstraintBaseCandidateMeters/);
-assert.match(compiler,/zConstraintConflictCount/);
-assert.match(compiler,/zConstraintFrameGapCount/);
+// Z constraint-graph wiring moved to lib/graph-enrichment.ts so it can run in the graph worker.
+const enrichment=fs.readFileSync('lib/graph-enrichment.ts','utf8');
+assert.match(enrichment,/buildEntityZConstraintGraph/);
+assert.match(enrichment,/zConstraintGraphStatus/);
+assert.match(enrichment,/zConstraintBaseCandidateMeters/);
+assert.match(enrichment,/zConstraintConflictCount/);
+assert.match(enrichment,/zConstraintFrameGapCount/);
 
 const inspector=fs.readFileSync('components/SpatialAssetInspector.tsx','utf8');
 assert.match(inspector,/Z constraint graph/);

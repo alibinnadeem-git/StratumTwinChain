@@ -89,8 +89,9 @@ assert.equal(sourceOrigin.zAuthority,'SOURCE_DESIGN_CANDIDATE');
 assert.equal(sourceOrigin.referencePoint,'SOURCE_ORIGIN');
 assert.equal(sourceOrigin.baseZ,8.25);
 
-const compiler=fs.readFileSync('components/CompilerWorkspace.tsx','utf8');
-assert.match(compiler,/zCandidateReferencePoint:resolution\.referencePoint/);
+// Per-asset Z candidate wiring moved to lib/graph-enrichment.ts so it can run in the graph worker.
+const enrichment=fs.readFileSync('lib/graph-enrichment.ts','utf8');
+assert.match(enrichment,/zCandidateReferencePoint:resolution\.referencePoint/);
 
 const inspector=fs.readFileSync('components/SpatialAssetInspector.tsx','utf8');
 assert.match(inspector,/AFF HEIGHT FOUND · REFERENCE POINT REQUIRED/);

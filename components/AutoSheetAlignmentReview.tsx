@@ -1,7 +1,8 @@
 'use client';
 
-import {useEffect,useState} from 'react';
+import {useEffect,useRef,useState} from 'react';
 import {proposeSheetAlignments,type AlignmentProposal,type AlignmentSheet} from '@/lib/auto-sheet-alignment';
+import {entitiesSignature} from '@/lib/graph-signature';
 import {applyReviewedProjectXYFrameRegistration,restoreReviewedProjectXYFrameRegistration} from '@/lib/project-xy-frame-registration';
 import {readPrimarySpatialGraph,writePrimarySpatialGraph} from '@/lib/spatial-browser-recovery';
 import {clearCrossSheetElevationForAlignment,enrichCrossSheetElevationSurfaces} from '@/lib/cross-sheet-elevation';
@@ -13,8 +14,29 @@ async function saveGraph(graph:Graph){await writePrimarySpatialGraph(graph as an
 
 export default function AutoSheetAlignmentReview(){
  const [proposals,setProposals]=useState<AlignmentProposal[]>([]),[message,setMessage]=useState('');
- async function refresh(){const graph=(await readPrimarySpatialGraph()||{}) as Graph,next=proposeSheetAlignments(graph.entities||[],graph.titleBlocks||[]);setProposals(next);if(JSON.stringify(graph.alignmentCandidates||[])!==JSON.stringify(next)){graph.alignmentCandidates=next;await writePrimarySpatialGraph(graph as any)}}
- useEffect(()=>{const run=()=>{void refresh()};run();window.addEventListener('stratum:graph-updated',run);return()=>window.removeEventListener('stratum:graph-updated',run)},[]);
+ const runningRef=useRef(false),lastInputSigRef=useRef('');
+ async function refresh(){
+  if(runningRef.current)return; // never overlap during a cascade
+  runningRef.current=true;
+  try{
+   const graph=(await readPrimarySpatialGraph()||{}) as Graph;
+   // Skip the heavy alignment recompute when its inputs (entities + title blocks) are unchanged.
+   const inputSig=entitiesSignature(graph.entities||[])+'|'+JSON.stringify(graph.titleBlocks||[]);
+   if(inputSig===lastInputSigRef.current)return;
+   lastInputSigRef.current=inputSig;
+   const next=proposeSheetAlignments(graph.entities||[],graph.titleBlocks||[]);
+   setProposals(next);
+   if(JSON.stringify(graph.alignmentCandidates||[])!==JSON.stringify(next)){graph.alignmentCandidates=next;await writePrimarySpatialGraph(graph as any)}
+  }finally{runningRef.current=false}
+ }
+ useEffect(()=>{
+  // Debounce graph-updated bursts into a single alignment pass.
+  let timer:ReturnType<typeof setTimeout>|null=null;
+  const run=()=>{if(timer)clearTimeout(timer);timer=setTimeout(()=>void refresh(),250)};
+  void refresh();
+  window.addEventListener('stratum:graph-updated',run);
+  return()=>{if(timer)clearTimeout(timer);window.removeEventListener('stratum:graph-updated',run)};
+ },[]);
 
  async function apply(proposal:AlignmentProposal){
   try{

@@ -87,10 +87,12 @@ assert.match(projection,/XY_AND_Z_SHARE_SOURCE_UNITS/);
 assert.match(projection,/zScaleGuideMetersPerSourceUnit/);
 assert.match(projection,/reviewSurfaceZ/);
 
-const compiler=fs.readFileSync('components/CompilerWorkspace.tsx','utf8');
-assert.match(compiler,/buildProjectDatumSurfaces/);
-assert.match(compiler,/projectDatumSurfaceForEntity/);
-assert.match(compiler,/zScaleGuideMetersPerSourceUnit/);
+// Project-datum consumption during Z enrichment moved to lib/graph-enrichment.ts
+// so the enrichment pass can run in the graph worker.
+const enrichment=fs.readFileSync('lib/graph-enrichment.ts','utf8');
+assert.match(enrichment,/buildProjectDatumSurfaces/);
+assert.match(enrichment,/projectDatumSurfaceForEntity/);
+assert.match(enrichment,/zScaleGuideMetersPerSourceUnit/);
 
 const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
 assert.match(viewer,/PROJECT DATUM REVIEW SURFACE/);
