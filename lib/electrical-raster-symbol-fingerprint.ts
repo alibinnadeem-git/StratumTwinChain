@@ -49,7 +49,7 @@ export function detectRasterSymbolCandidates(args:{
  image:RasterImage;page:number;textBoxes?:RasterBox[];minPixels?:number;maxPixels?:number;
 }):RasterCandidate[]{
  const {image,page}=args,threshold=otsuThreshold(image),minPixels=args.minPixels??8,maxPixels=args.maxPixels??2200;
- const maxDim=Math.max(image.width,image.height),maxW=Math.max(10,Math.round(maxDim*.035)),maxH=maxW,minW=3,minH=3;
+ const maxDim=Math.max(image.width,image.height),maxW=Math.max(32,Math.round(maxDim*.035)),maxH=maxW,minW=3,minH=3;
  const visited=new Uint8Array(image.width*image.height),out:RasterCandidate[]=[];
  const idx=(x:number,y:number)=>y*image.width+x;
  const foreground=(x:number,y:number)=>image.gray[idx(x,y)]<threshold;
