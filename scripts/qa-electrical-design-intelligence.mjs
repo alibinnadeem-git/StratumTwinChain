@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import {
  detectElectricalLegendPage,extractElectricalLegendEntries,
  detectElectricalSpecificationPage,extractElectricalSpecificationRequirements,
+ detectPdfEquipmentMatrixPage,extractPdfEquipmentMatrixRecords,
  buildElectricalDesignIntelligence,enrichElectricalDesignIntelligence
 } from '../lib/electrical-design-intelligence.ts';
 
@@ -23,6 +24,19 @@ assert.equal(specDetection.isSpecification,true);
 const specRequirements=extractElectricalSpecificationRequirements(specLabels,9);
 assert.ok(specRequirements.length>0);
 assert.ok(specRequirements.some(item=>item.ratings.voltage===480));
+
+const matrixItems=[
+ {text:'EQUIPMENT SCHEDULE',x:1,y:9,page:4},
+ {text:'TAG',x:1,y:8,page:4},{text:'DESCRIPTION',x:3,y:8,page:4},{text:'MANUFACTURER',x:6,y:8,page:4},{text:'MODEL',x:9,y:8,page:4},{text:'VOLTAGE',x:11,y:8,page:4},{text:'PHASE',x:13,y:8,page:4},
+ {text:'ATS-1',x:1,y:7.4,page:4},{text:'AUTOMATIC TRANSFER SWITCH',x:3,y:7.4,page:4},{text:'ASCO',x:6,y:7.4,page:4},{text:'300 SERIES',x:9,y:7.4,page:4},{text:'480V',x:11,y:7.4,page:4},{text:'3',x:13,y:7.4,page:4},
+];
+assert.equal(detectPdfEquipmentMatrixPage(matrixItems.map(item=>item.text)).isMatrix,true);
+const matrixRecords=extractPdfEquipmentMatrixRecords(matrixItems,4);
+assert.equal(matrixRecords.length,1);
+assert.equal(matrixRecords[0].tag,'ATS-1');
+assert.equal(matrixRecords[0].manufacturer,'ASCO');
+assert.equal(matrixRecords[0].ratings.voltage,480);
+assert.equal(matrixRecords[0].ratings.phase,3);
 
 const legendEntities=legendEntries.map((entry,index)=>({
  id:'legend-'+index,source:'E-001.pdf',layer:'L0',kind:'electrical-legend-entry',name:entry.description,x:entry.anchor.x,y:entry.anchor.y,confidence:entry.confidence,
