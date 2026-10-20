@@ -24,7 +24,7 @@ import {encodeGlbBase64,inspectStandaloneGlb} from '../lib/spatial-glb-import';
 import {drawingSourceReprocessReason,findDrawingSourcesNeedingReprocess,inspectDrawingReprocessOutput} from '../lib/spatial-source-reprocess';
 import {archiveSourceBytes,archivedSourceToFile,listArchivedSourceMetadata,readArchivedSource} from '../lib/source-browser-archive';
 import {enrichCoordinationIntelligence} from '../lib/coordination-intelligence';
-import {enrichElectricalDesignIntelligence,detectElectricalLegendPage,detectElectricalSpecificationPage,extractElectricalLegendEntries,extractElectricalSpecificationRequirements} from '../lib/electrical-design-intelligence';
+import {enrichElectricalDesignIntelligence} from '../lib/electrical-design-intelligence';
 import {buildZResolutionIndex,extractZEvidenceFromText,type ZEvidence} from '../lib/z-resolver';
 import {buildEntityZConstraintGraph} from '../lib/z-constraint-graph';
 import {buildProjectDatumSurfaces,datumSurfaceMetadata,projectDatumSurfaceForEntity} from '../lib/project-datum';
