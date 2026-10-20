@@ -10,7 +10,7 @@ import {buildElevationTriangles,extractPositionedElevationControls,resolveLocalE
 import {enrichSupportBaseOffsets,extractSupportOffsetEvidence,type SupportOffsetEvidence} from '../lib/support-base-evidence';
 import {analyzeDrawingSetCompleteness,type DrawingSetCompleteness} from '../lib/drawing-set-completeness';
 import {pdfIngestionProfile} from '../lib/pdf-ingestion-profile';
-import {detectElectricalLegendPage,detectElectricalSpecificationPage,extractElectricalLegendEntries,extractElectricalSpecificationRequirements} from '../lib/electrical-design-intelligence';
+import {detectElectricalLegendPage,detectElectricalSpecificationPage,detectPdfEquipmentMatrixPage,extractElectricalLegendEntries,extractElectricalSpecificationRequirements,extractPdfEquipmentMatrixRecords} from '../lib/electrical-design-intelligence';
 
 type Layer='L0'|'L1'|'L2'|'L3'|'L4';
 type XY={x:number;y:number};
@@ -157,6 +157,22 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
      meta:{page,nonSpatial:true,sourceType:'ELECTRICAL_SPECIFICATION',specRequirement:requirement,
       specificationSection:requirement.section,physicalTruth:false,reviewRequired:true,
       spatialPlacementAuthority:'NON_SPATIAL_SPECIFICATION',elevationKnown:false,physicalElevationKnown:false}
+    });
+   }
+   const matrix=detectPdfEquipmentMatrixPage(pageItems.map(item=>item.text));
+   if(matrix.isMatrix){
+    const records=extractPdfEquipmentMatrixRecords(pageItems,page);
+    for(const record of records)reviewEntities.push({
+     id:`pdf-${record.id}`,source:fileName,layer:'L4',kind:'schedule-powered-equipment-candidate',
+     name:[record.tag||record.description,record.tag&&record.description?record.description:''].filter(Boolean).join(' '),
+     x:0,y:0,z:0,floor:'UNRESOLVED',zone:record.location||undefined,confidence:record.confidence,
+     meta:{page,nonSpatial:true,sourceType:'EQUIPMENT_SCHEDULE',scheduleSourceFormat:'PDF_POSITIONAL_TABLE',
+      assetTag:record.tag||undefined,scheduleDescription:record.description||undefined,
+      manufacturer:record.manufacturer||undefined,model:record.model||undefined,scheduleLocation:record.location||undefined,
+      voltage:record.ratings.voltage,phase:record.ratings.phase,inputKva:record.ratings.kva,inputKw:record.ratings.kw,
+      fla:record.ratings.fla,mca:record.ratings.mca,mocp:record.ratings.mocp,motorHp:record.ratings.hp,
+      pdfEquipmentMatrixRecord:record,physicalTruth:false,reviewRequired:true,
+      spatialPlacementAuthority:'NON_SPATIAL_SCHEDULE',registrationState:'CANDIDATE'}
     });
    }
   }
