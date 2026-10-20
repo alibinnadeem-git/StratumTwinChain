@@ -424,7 +424,8 @@ export function enrichElectricalDesignIntelligence<T extends {entities:Electrica
   const specificationAvailable=intelligence.specifications.requirements.length>0;
   const scheduleAvailable=schedules.length>0,sldAvailable=sld.length>0;
   const legendCompared=intelligence.legend.entries.some(item=>item.componentHint===cls);
-  const specCompared=intelligence.specifications.requirements.some(item=>item.componentHint===cls);
+  const matchedSpecs=intelligence.specifications.requirements.filter(item=>item.componentHint===cls);
+  const specCompared=matchedSpecs.length>0;
   const scheduleCompared=schedules.some(item=>(tag&&entityTag(item)===tag)||(!tag&&componentClass(item)===cls));
   const sldCompared=sld.some(item=>(tag&&entityTag(item)===tag)||(!tag&&componentClass(item)===cls));
   const majorEquipment=['UTILITY_SOURCE','GENERATOR_SOURCE','PV_SOURCE','BATTERY_SOURCE','UPS','TRANSFORMER','SWITCHGEAR','SWITCHBOARD','ATS','BREAKER','MCC','PDU','PANEL','DISCONNECT','VFD','INVERTER','EVSE','MOTOR','METER'].includes(cls);
@@ -436,10 +437,28 @@ export function enrichElectricalDesignIntelligence<T extends {entities:Electrica
   ];
   const missing=required.filter(item=>item.applicable&&!item.passed).map(item=>item.name);
   const reconciled=!blocking&&missing.length===0;
+  const specManufacturers=uniq(matchedSpecs.map(item=>clean(item.manufacturer)).filter(Boolean));
+  const specModels=uniq(matchedSpecs.map(item=>clean(item.model)).filter(Boolean));
+  const existingManufacturer=clean(entity.meta?.manufacturer||entity.meta?.manufacturerName);
+  const existingModel=clean(entity.meta?.model||entity.meta?.modelNumber);
+  const uniqueSpecManufacturer=!blocking&&specManufacturers.length===1?specManufacturers[0]:null;
+  const uniqueSpecModel=!blocking&&specModels.length===1?specModels[0]:null;
+  const specIdentityApplied=specCompared&&!existingManufacturer&&!existingModel&&Boolean(uniqueSpecManufacturer||uniqueSpecModel);
   return {...entity,meta:{...(entity.meta||{}),
+   ...(specIdentityApplied&&uniqueSpecManufacturer?{manufacturer:uniqueSpecManufacturer}:{}),
+   ...(specIdentityApplied&&uniqueSpecModel?{model:uniqueSpecModel}:{}),
+   ...(specIdentityApplied?{
+    productIdentityStatus:'DESIGN_SPECIFICATION_CANDIDATE',
+    productIdentityAuthority:'DESIGN_SPECIFICATION',
+    productIdentityEvidenceIds:matchedSpecs.map(item=>item.id),
+    productIdentityEvidenceSources:matchedSpecs.flatMap(item=>item.sourceEvidence),
+    productIdentityPhysicalAssetVerified:false
+   }:{}),
    electricalEvidenceGate:blocking?'BLOCKED_CONFLICT':reconciled?'EVIDENCE_RECONCILED_REVIEW':'EVIDENCE_PARTIAL_REVIEW',
    electricalLegendCompared:legendCompared,electricalSpecificationCompared:specCompared,
    electricalScheduleCompared:scheduleCompared,electricalSldCompared:sldCompared,
+   electricalSpecificationIdentityApplied:specIdentityApplied,
+   electricalSpecificationManufacturers:specManufacturers,electricalSpecificationModels:specModels,
    electricalEvidenceMissing:missing,electricalEvidenceCoverage:{legendAvailable,specificationAvailable,scheduleAvailable,sldAvailable,majorEquipment},
    electricalEvidenceFindingIds:findings.map(item=>item.id),electricalTakeoffIncluded:true,physicalTruth:false,reviewRequired:true}};
  });
