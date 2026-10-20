@@ -32,10 +32,14 @@ const fps=buildRasterLegendFingerprints({
 assert.equal(fps.length,2);
 
 const plan=image(260,150);
-plus(plan,72,62,10);box(plan,175,62,10);
+plus(plan,72,62,12);box(plan,175,62,12);
 const planCandidates=detectRasterSymbolCandidates({image:plan,page:4});
 const matches=matchRasterLegendFingerprints({fingerprints:fps,candidates:planCandidates,minScore:.9});
 assert.ok(matches.some(m=>m.componentClass==='RECEPTACLE_DUPLEX'));
 assert.ok(matches.some(m=>m.componentClass==='JUNCTION_BOX'));
 assert.ok(matches.every(m=>m.page===4&&m.reviewRequired&&m.physicalTruth===false));
+const distorted=image(260,150);
+plus(distorted,72,62,7);
+const distortedMatches=matchRasterLegendFingerprints({fingerprints:fps,candidates:detectRasterSymbolCandidates({image:distorted,page:5})});
+assert.equal(distortedMatches.some(m=>m.componentClass==='RECEPTACLE_DUPLEX'),false,'materially distorted raster glyphs must fail closed instead of inflating takeoff quantities');
 console.log('Raster-only project legend symbol fingerprint matching passed.');
