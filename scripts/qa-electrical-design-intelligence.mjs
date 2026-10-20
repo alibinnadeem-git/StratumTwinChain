@@ -89,6 +89,22 @@ assert.ok(['EVIDENCE_RECONCILED_REVIEW','EVIDENCE_PARTIAL_REVIEW'].includes(Stri
 assert.equal(plan?.meta?.physicalTruth,false);
 assert.equal(plan?.meta?.reviewRequired,true);
 
+const specOnlyEntity={
+ id:'plan-ups-spec-only',source:'E-202.pdf',layer:'L2',kind:'text-asset-candidate',name:'UPS-1 UPS',x:5,y:5,floor:'L1',confidence:.88,
+ meta:{page:3,nonSldPlan:true,planType:'ELECTRICAL_POWER_PLAN',electricalComponentHint:'UPS'}
+};
+const specOnlyRequirement={
+ id:'spec-ups',source:'Division 26.pdf',layer:'L0',kind:'electrical-spec-requirement',name:'UPS PRODUCTS',x:0,y:0,confidence:.9,
+ meta:{nonSpatial:true,sourceType:'ELECTRICAL_SPECIFICATION',specRequirement:{id:'req-ups',page:12,section:'26 33 53',title:'UPS PRODUCTS',componentHint:'UPS',manufacturer:'APC',model:'GALAXY VS',ratings:{},sourceEvidence:['Manufacturer: APC · Model: GALAXY VS'],confidence:.9,physicalTruth:false,reviewRequired:true}}
+};
+const specOnly=enrichElectricalDesignIntelligence({entities:[specOnlyEntity,specOnlyRequirement]});
+const enrichedSpecOnly=specOnly.entities.find(entity=>entity.id==='plan-ups-spec-only');
+assert.equal(enrichedSpecOnly?.meta?.manufacturer,'APC');
+assert.equal(enrichedSpecOnly?.meta?.model,'GALAXY VS');
+assert.equal(enrichedSpecOnly?.meta?.productIdentityAuthority,'DESIGN_SPECIFICATION');
+assert.equal(enrichedSpecOnly?.meta?.productIdentityPhysicalAssetVerified,false);
+assert.equal(enrichedSpecOnly?.meta?.electricalEvidenceGate,'EVIDENCE_PARTIAL_REVIEW','missing matrix/SLD must keep major equipment review-gated even when specs identify a product');
+
 const conflicting=buildElectricalDesignIntelligence([
  ...legendEntities,
  {id:'plan-ats-c',source:'E-201.pdf',layer:'L2',kind:'text-asset-candidate',name:'ATS-1 AUTOMATIC TRANSFER SWITCH',x:4,y:3,floor:'L1',confidence:.9,meta:{page:2,nonSldPlan:true,planType:'ELECTRICAL_POWER_PLAN',electricalComponentHint:'ATS'}},
