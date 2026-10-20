@@ -173,7 +173,8 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
      name:[record.tag||record.description,record.tag&&record.description?record.description:''].filter(Boolean).join(' '),
      x:0,y:0,z:0,floor:'UNRESOLVED',zone:record.location||undefined,confidence:record.confidence,
      meta:{page,nonSpatial:true,sourceType:'EQUIPMENT_SCHEDULE',scheduleSourceFormat:'PDF_POSITIONAL_TABLE',
-      assetTag:record.tag||undefined,scheduleDescription:record.description||undefined,
+      assetTag:record.scheduleKind==='EQUIPMENT'?(record.tag||undefined):undefined,fixtureMark:record.scheduleKind==='LIGHT_FIXTURE'?(record.tag||undefined):undefined,
+      electricalComponentHint:record.componentHint||undefined,scheduleKind:record.scheduleKind,scheduleDescription:record.description||undefined,
       manufacturer:record.manufacturer||undefined,model:record.model||undefined,scheduleLocation:record.location||undefined,
       voltage:record.ratings.voltage,phase:record.ratings.phase,inputKva:record.ratings.kva,inputKw:record.ratings.kw,
       fla:record.ratings.fla,mca:record.ratings.mca,mocp:record.ratings.mocp,motorHp:record.ratings.hp,
@@ -183,6 +184,14 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
    }
   }
   for(const [page,frames] of planFramesByPage)for(const frame of frames)reviewEntities.push({id:`pdf-plan-frame-${page}-${frame.id}`,source:fileName,layer:'L0',kind:'plan-frame-candidate',name:frame.title,x:frame.anchorX,y:frame.anchorY,z:0,floor:frame.floor||'UNRESOLVED',confidence:frame.confidence,meta:{page,nonSpatial:true,sourceType:'PDF_PLAN_FRAME_TITLE',planFrame:frame,physicalTruth:false,reviewRequired:true,geometryAuthority:'TITLE_ANCHOR_ONLY',spatialPlacementAuthority:'SOURCE_SHEET_TITLE_ANCHOR_ONLY',zPlacementAuthority:'UNVERIFIED_DRAWING_PLANE',elevationKnown:false,physicalElevationKnown:false}});
+  const nearestFixtureMark=(page:number,x:number,y:number)=>{
+   const candidates=raw.filter(item=>item.page===page&&/^[A-Z]{1,3}\d?$/.test(item.str.trim()))
+    .map(item=>({item,distance:Math.hypot(item.x-x,item.y-y)})).filter(candidate=>candidate.distance<=.22)
+    .sort((a,b)=>a.distance-b.distance);
+   const best=candidates[0];if(!best)return null;
+   if(candidates[1]&&Math.abs(candidates[1].distance-best.distance)<.035)return null;
+   return best.item.str.trim();
+  };
   const legendEntries=[...legendEntriesByPage.values()].flat();
   const legendPageSet=new Set([...legendEntriesByPage.keys()]);
   const symbolFingerprints=buildLegendSymbolFingerprints({
@@ -216,7 +225,8 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
     meta:{page:match.page,nonSldPlan:true,planType:planEvidence.get(match.page)?.planType||'PLAN_VIEW_UNCLASSIFIED',
      planDiscipline:planEvidence.get(match.page)?.discipline||'Electrical',planFrameId:frame?.id||match.planFrameId||null,
      planFrameFloor:frame?.floor||null,planFrameUnitId:frame?.unitId||null,planFrameUnitPlan:frame?.unitPlan||null,
-     electricalComponentHint:match.componentClass,legendSymbolMatch:match,legendBacked:true,
+     electricalComponentHint:match.componentClass,fixtureMark:match.componentClass==='LIGHT_FIXTURE'?(nearestFixtureMark(match.page,match.x,match.y)||undefined):undefined,
+     fixtureMarkAuthority:match.componentClass==='LIGHT_FIXTURE'?'NEAREST_SOURCE_TEXT_REVIEW':undefined,legendSymbolMatch:match,legendBacked:true,
      symbolAnchorStatus:'RESOLVED_REVIEW_CANDIDATE',symbolAnchorAuthority:'PROJECT_LEGEND_VECTOR_FINGERPRINT',
      spatialPlacementAuthority:'PROJECT_LEGEND_VECTOR_SYMBOL_MATCH',physicalTruth:false,reviewRequired:true,
      elevationKnown:false,physicalElevationKnown:false,registrationState:'CANDIDATE'}
@@ -245,7 +255,8 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
     meta:{page:match.page,nonSldPlan:true,planType:planEvidence.get(match.page)?.planType||'PLAN_VIEW_UNCLASSIFIED',
      planDiscipline:planEvidence.get(match.page)?.discipline||'Electrical',planFrameId:frame?.id||null,
      planFrameFloor:frame?.floor||null,planFrameUnitId:frame?.unitId||null,planFrameUnitPlan:frame?.unitPlan||null,
-     electricalComponentHint:match.componentClass,legendSegmentSymbolMatch:match,legendBacked:true,
+     electricalComponentHint:match.componentClass,fixtureMark:match.componentClass==='LIGHT_FIXTURE'?(nearestFixtureMark(match.page,match.x,match.y)||undefined):undefined,
+     fixtureMarkAuthority:match.componentClass==='LIGHT_FIXTURE'?'NEAREST_SOURCE_TEXT_REVIEW':undefined,legendSegmentSymbolMatch:match,legendBacked:true,
      symbolAnchorStatus:'RESOLVED_REVIEW_CANDIDATE',symbolAnchorAuthority:'PROJECT_LEGEND_SEGMENT_FINGERPRINT',
      spatialPlacementAuthority:'PROJECT_LEGEND_SEGMENT_SYMBOL_MATCH',physicalTruth:false,reviewRequired:true,
      elevationKnown:false,physicalElevationKnown:false,registrationState:'CANDIDATE'}
