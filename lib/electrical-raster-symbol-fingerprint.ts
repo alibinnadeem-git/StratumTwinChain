@@ -72,17 +72,37 @@ export function detectRasterSymbolCandidates(args:{
  return out;
 }
 function gridDistance(a:number[],b:number[]){
- let best=Infinity,n=Math.round(Math.sqrt(a.length));
- const variants=(grid:number[])=>{
+ const n=Math.round(Math.sqrt(a.length));
+ const blur=(grid:number[])=>{
+  const out=new Array(grid.length).fill(0);
+  for(let y=0;y<n;y++)for(let x=0;x<n;x++){
+   let total=0,weight=0;
+   for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+    const xx=x+dx,yy=y+dy;if(xx<0||yy<0||xx>=n||yy>=n)continue;
+    const w=dx===0&&dy===0?4:(dx===0||dy===0?2:1);total+=(grid[yy*n+xx]||0)*w;weight+=w;
+   }
+   out[y*n+x]=weight?total/weight:0;
+  }
+  return out;
+ };
+ const aa=blur(a),variants=(grid:number[])=>{
   const out:number[][]=[];let cur=grid;
   for(let r=0;r<4;r++){
-   out.push(cur);const next=new Array(cur.length).fill(0);
+   out.push(blur(cur));const next=new Array(cur.length).fill(0);
    for(let y=0;y<n;y++)for(let x=0;x<n;x++)next[x*n+(n-1-y)]=cur[y*n+x];
    cur=next;
   }
   return out;
  };
- for(const v of variants(b)){let total=0;for(let i=0;i<a.length;i++)total+=Math.abs(a[i]-v[i]);best=Math.min(best,total/a.length)}
+ let best=Infinity;
+ for(const v of variants(b))for(let sy=-1;sy<=1;sy++)for(let sx=-1;sx<=1;sx++){
+  let total=0;
+  for(let y=0;y<n;y++)for(let x=0;x<n;x++){
+   const xx=x+sx,yy=y+sy,target=xx>=0&&yy>=0&&xx<n&&yy<n?v[yy*n+xx]:0;
+   total+=Math.abs(aa[y*n+x]-target);
+  }
+  best=Math.min(best,total/a.length);
+ }
  return best;
 }
 function candidateSimilarity(fp:RasterFingerprint,c:RasterCandidate){
