@@ -31,7 +31,7 @@ export type ElectricalTakeoffRow={
 export type ElectricalEvidenceFinding={
  id:string;severity:'H2'|'H3';type:
   'LEGEND_UNMAPPED'|'SLD_NOT_LOCATED'|'PLAN_NOT_IN_SLD'|'SCHEDULE_NOT_LOCATED'|'SPEC_SOURCE_MISSING'|
-  'SPEC_CLASS_MISSING'|'PRODUCT_IDENTITY_CONFLICT'|'RATING_CONFLICT';
+  'SPEC_CLASS_MISSING'|'PRODUCT_IDENTITY_CONFLICT'|'RATING_CONFLICT'|'SYMBOL_GEOMETRY_UNRESOLVED';
  title:string;detail:string;entityRefs:string[];sourceRefs:string[];blocking:boolean;
 };
 
@@ -339,6 +339,14 @@ export function buildElectricalDesignIntelligence(entities:ElectricalIntelligenc
   }else rows.set(key,{key,componentClass:cls,floor,unitId,planFrameId,planType,count:1,entityIds:[entity.id],sourceRefs:[entity.source],pages:[Number(entity.meta?.page||0)].filter(Boolean),legendBacked:legendClasses.has(cls)?1:0,sldRefs:sldRefs.length?1:0,scheduleRefs:scheduleRefs.length?1:0,specRefs:specRefs.length?1:0});
  }
  const findings:ElectricalEvidenceFinding[]=[];
+ const graphicalLegendClasses=new Set(legends.map(item=>item.componentHint).filter((value):value is string=>Boolean(value)&&/^(?:RECEPTACLE_|SWITCH_|SMOKE_DETECTOR|CO_DETECTOR|JUNCTION_BOX|TELEPHONE_OUTLET|THERMOSTAT|FAN|LIGHT_FIXTURE)/.test(String(value))));
+ const fingerprintClasses=new Set(entities.filter(entity=>entity.kind==='electrical-legend-symbol-fingerprint'||entity.kind==='electrical-legend-open-symbol-fingerprint').map(entity=>clean(entity.meta?.legendSymbolFingerprint?.componentClass||entity.meta?.legendOpenSymbolFingerprint?.componentClass)).filter(Boolean));
+ for(const cls of graphicalLegendClasses)if(!fingerprintClasses.has(cls))findings.push({
+  id:`elec:symbol-geometry:${cls}`,severity:'H2',type:'SYMBOL_GEOMETRY_UNRESOLVED',
+  title:`${cls} legend geometry is not yet matchable`,
+  detail:'The project legend defines this graphical device class, but STRATUM has not derived a defensible vector/open-stroke fingerprint. Quantity takeoff for this class remains incomplete; no occurrences are invented.',
+  entityRefs:[],sourceRefs:uniq(legends.filter(item=>item.componentHint===cls).flatMap(item=>item.sourceEvidence)),blocking:false
+ });
  const physicalTags=new Set(physical.map(entityTag).filter(Boolean));
  const sldTags=new Set(sld.map(entityTag).filter(Boolean));
  for(const entity of physical){
@@ -387,7 +395,8 @@ export function buildElectricalDesignIntelligence(entities:ElectricalIntelligenc
  }
  const blockingCount=findings.filter(item=>item.blocking).length;
  const coverage={legend:legends.length>0,physicalPlans:physical.length>0,equipmentMatrix:schedules.length>0,sld:sld.length>0,specifications:specs.length>0};
- const readiness=blockingCount>0?'BLOCKED_CONFLICT':Object.values(coverage).every(Boolean)?'COMPLETE_REVIEW':'PARTIAL_EVIDENCE';
+ const unresolvedSymbolGeometry=findings.some(item=>item.type==='SYMBOL_GEOMETRY_UNRESOLVED');
+ const readiness=blockingCount>0?'BLOCKED_CONFLICT':Object.values(coverage).every(Boolean)&&!unresolvedSymbolGeometry?'COMPLETE_REVIEW':'PARTIAL_EVIDENCE';
  return{
   version:'1',
   legend:{pages:uniq(legends.map(item=>item.page)),entries:legends},
