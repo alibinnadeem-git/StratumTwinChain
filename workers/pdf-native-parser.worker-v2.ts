@@ -17,7 +17,7 @@ import {buildLegendSegmentFingerprints,matchLegendSegmentFingerprints} from '../
 type Layer='L0'|'L1'|'L2'|'L3'|'L4';
 type XY={x:number;y:number};
 type GraphEntity={id:string;source:string;layer:Layer;kind:string;name:string;x:number;y:number;z?:number;x2?:number;y2?:number;z2?:number;rotation?:number;scale?:number;floor?:string;zone?:string;vertices?:XY[];confidence:number;meta?:Record<string,unknown>};
-type RawText={key:string;str:string;x:number;y:number;page:number};
+type RawText={key:string;str:string;x:number;y:number;page:number;dirX?:number;dirY?:number;textSpan?:number};
 type Segment={x:number;y:number;x2:number;y2:number;page:number};
 type Polygon={vertices:XY[];page:number;confidence:number};
 type Level={floor:string;elevation:number};
@@ -73,7 +73,9 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
     if(!item?.str?.trim())continue;
     if(raw.length>=ingestion.maxTextItems){page.cleanup();fail('PDF_TEXT_BUDGET',`PDF exceeds the ${ingestion.maxTextItems.toLocaleString()} positioned-text budget. Split the drawing set and retry.`,p)}
     const t=item.transform||[1,0,0,1,0,0],point=viewport.convertToViewportPoint(Number(t[4]||0),Number(t[5]||0));
-    raw.push({key:`text-${p}-${raw.length}`,str:item.str.trim(),x:(point[0]-viewport.width/2)*20/Math.max(viewport.width,viewport.height,1),y:(viewport.height/2-point[1])*20/Math.max(viewport.width,viewport.height,1),page:p});
+    const dirMag=Math.hypot(Number(t[0]||0),Number(t[1]||0))||1,normalizer=20/Math.max(viewport.width,viewport.height,1);
+    raw.push({key:`text-${p}-${raw.length}`,str:item.str.trim(),x:(point[0]-viewport.width/2)*normalizer,y:(viewport.height/2-point[1])*normalizer,page:p,
+     dirX:Number(t[0]||0)/dirMag,dirY:-Number(t[1]||0)/dirMag,textSpan:Math.abs(Number(item.width||0))*normalizer});
    }
 
    post({type:'progress',requestId,page:p,total:doc.numPages,phase:'vector operators'});
@@ -138,7 +140,7 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
   const reviewEntities:GraphEntity[]=[];
   const legendEntriesByPage=new Map<number,ReturnType<typeof extractElectricalLegendEntries>>();
   for(let page=1;page<=doc.numPages;page++){
-   const pageItems=raw.filter(item=>item.page===page).map(item=>({text:item.str,x:item.x,y:item.y,page:item.page}));
+   const pageItems=raw.filter(item=>item.page===page).map(item=>({text:item.str,x:item.x,y:item.y,page:item.page,dirX:item.dirX,dirY:item.dirY,textSpan:item.textSpan}));
    const legend=legendEvidence.get(page);
    if(legend?.isLegend){
     const entries=extractElectricalLegendEntries(pageItems,page);
