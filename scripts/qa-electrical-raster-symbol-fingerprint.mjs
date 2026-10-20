@@ -31,6 +31,16 @@ const fps=buildRasterLegendFingerprints({
 });
 assert.equal(fps.length,2);
 
+const vertical=image(140,220);
+box(vertical,70,42,12);
+const verticalCandidates=detectRasterSymbolCandidates({image:vertical,page:1});
+const verticalFp=buildRasterLegendFingerprints({
+ page:1,image:vertical,
+ entries:[{id:'vertical-box',componentClass:'JUNCTION_BOX',anchorX:70,anchorY:88,dirX:0,dirY:1,confidence:.92}],
+ candidates:verticalCandidates,pixelFromAnchor:(x,y)=>({x,y})
+});
+assert.equal(verticalFp.length,1,'vertical raster legend text must bind to the glyph before its baseline direction');
+
 const plan=image(260,150);
 plus(plan,72,62,12);box(plan,175,62,12);
 const planCandidates=detectRasterSymbolCandidates({image:plan,page:4});
