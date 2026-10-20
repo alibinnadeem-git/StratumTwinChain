@@ -1,4 +1,5 @@
 export type SymbolPoint={x:number;y:number};
+export type SymbolSegment={x:number;y:number;x2:number;y2:number;page:number};
 export type SymbolPolygon={id?:string;page:number;vertices:SymbolPoint[];confidence:number;planFrameId?:string|null};
 
 export type SymbolFingerprint={
@@ -12,6 +13,9 @@ export type SymbolFingerprint={
  aspect:number;
  compactness:number;
  radial:number[];
+ neighborhoodCount:number;
+ neighborhoodLengthSignature:number[];
+ neighborhoodAngleHistogram:number[];
  confidence:number;
  reviewRequired:true;
  physicalTruth:false;
@@ -68,20 +72,52 @@ function radialDistance(a:number[],b:number[]){
  }
  return best;
 }
-function similarity(fp:SymbolFingerprint,m:NonNullable<ReturnType<typeof metrics>>){
+
+function neighborhoodMetrics(page:number,m:NonNullable<ReturnType<typeof metrics>>,segments:SymbolSegment[]){
+ const coreSize=Math.max(m.width,m.height,1e-5),radius=Math.max(coreSize*1.85,.06);
+ const local=segments.filter(segment=>{
+  if(segment.page!==page)return false;
+  const a=Math.hypot(segment.x-m.centroid.x,segment.y-m.centroid.y);
+  const b=Math.hypot(segment.x2-m.centroid.x,segment.y2-m.centroid.y);
+  const length=Math.hypot(segment.x2-segment.x,segment.y2-segment.y);
+  return a<=radius&&b<=radius&&length>=.01&&length<=radius*1.5;
+ });
+ const lengths=local.map(segment=>Math.hypot(segment.x2-segment.x,segment.y2-segment.y)/coreSize).sort((a,b)=>a-b).slice(0,32);
+ const total=local.reduce((sum,segment)=>sum+Math.hypot(segment.x2-segment.x,segment.y2-segment.y),0)||1;
+ const histogram=Array.from({length:12},()=>0);
+ for(const segment of local){
+  const angle=(Math.atan2(segment.y2-segment.y,segment.x2-segment.x)+Math.PI)%Math.PI;
+  const bin=Math.min(11,Math.floor(angle/Math.PI*12));
+  histogram[bin]+=Math.hypot(segment.x2-segment.x,segment.y2-segment.y)/total;
+ }
+ return{count:local.length,lengths,histogram};
+}
+function arrayDistance(a:number[],b:number[]){
+ const n=Math.max(a.length,b.length);if(!n)return 0;let total=0;
+ for(let i=0;i<n;i++)total+=Math.abs((a[i]||0)-(b[i]||0));
+ return total/n;
+}
+function similarity(fp:SymbolFingerprint,m:NonNullable<ReturnType<typeof metrics>>,neighbor:{count:number;lengths:number[];histogram:number[]}){
  const vertexScore=1-Math.min(1,Math.abs(fp.vertexCount-m.vertexCount)/Math.max(fp.vertexCount,m.vertexCount,4));
  const aspectScore=1-Math.min(1,Math.abs(fp.aspect-m.aspect)/.55);
  const compactScore=1-Math.min(1,Math.abs(fp.compactness-m.compactness)/.6);
  const radialScore=1-Math.min(1,radialDistance(fp.radial,m.radial)/.5);
  const sizeRatio=m.size/Math.max(fp.size,1e-6);
- if(sizeRatio<.5||sizeRatio>2)return 0;
- const sizeScore=1-Math.min(1,Math.abs(Math.log(sizeRatio))/Math.log(2));
- return .18*vertexScore+.18*aspectScore+.14*compactScore+.32*radialScore+.18*sizeScore;
+ if(sizeRatio<.45||sizeRatio>2.2)return 0;
+ const sizeScore=1-Math.min(1,Math.abs(Math.log(sizeRatio))/Math.log(2.2));
+ const countScore=1-Math.min(1,Math.abs(fp.neighborhoodCount-neighbor.count)/Math.max(fp.neighborhoodCount,neighbor.count,1));
+ const lengthScore=1-Math.min(1,arrayDistance(fp.neighborhoodLengthSignature,neighbor.lengths)/.8);
+ const angleScore=1-Math.min(1,arrayDistance(fp.neighborhoodAngleHistogram,neighbor.histogram)/.22);
+ const hasNeighborhood=fp.neighborhoodCount>0||neighbor.count>0;
+ return hasNeighborhood
+  ?.12*vertexScore+.12*aspectScore+.09*compactScore+.20*radialScore+.12*sizeScore+.12*countScore+.10*lengthScore+.13*angleScore
+  :.18*vertexScore+.18*aspectScore+.14*compactScore+.32*radialScore+.18*sizeScore;
 }
 
 export function buildLegendSymbolFingerprints(args:{
  entries:Array<{id:string;page:number;componentHint:string|null;anchor:{x:number;y:number};textDirection?:{x:number;y:number};textSpan?:number;confidence:number}>;
  polygons:SymbolPolygon[];
+ segments?:SymbolSegment[];
 }):SymbolFingerprint[]{
  const out:SymbolFingerprint[]=[];
  for(const entry of args.entries){
@@ -103,10 +139,12 @@ export function buildLegendSymbolFingerprints(args:{
   const best=candidates[0];if(!best)continue;
   const ambiguous=candidates[1]&&Math.abs(candidates[1].score-best.score)<.12;
   if(ambiguous)continue;
+  const neighbor=neighborhoodMetrics(entry.page,best.m,args.segments||[]);
   out.push({
    id:`legend-fingerprint-${entry.id}`,sourcePage:entry.page,legendEntryId:entry.id,componentClass:entry.componentHint,
    centroid:best.m.centroid,vertexCount:best.m.vertexCount,size:best.m.size,aspect:best.m.aspect,compactness:best.m.compactness,
-   radial:best.m.radial,confidence:Math.min(entry.confidence,best.p.confidence,.9),reviewRequired:true,physicalTruth:false
+   radial:best.m.radial,neighborhoodCount:neighbor.count,neighborhoodLengthSignature:neighbor.lengths,neighborhoodAngleHistogram:neighbor.histogram,
+   confidence:Math.min(entry.confidence,best.p.confidence,.9),reviewRequired:true,physicalTruth:false
   });
  }
  return [...new Map(out.map(fp=>[fp.componentClass+'|'+fp.vertexCount+'|'+fp.aspect.toFixed(2)+'|'+fp.compactness.toFixed(2),fp])).values()];
@@ -117,13 +155,15 @@ export function matchLegendSymbolFingerprints(args:{
  polygons:SymbolPolygon[];
  legendPages:Set<number>;
  frameAt?:(page:number,x:number,y:number)=>{id?:string|null}|null;
+ segments?:SymbolSegment[];
  minScore?:number;
 }):SymbolMatch[]{
  const minScore=args.minScore??.84,out:SymbolMatch[]=[];
  const prepared=args.polygons.filter(p=>!args.legendPages.has(p.page)).map(p=>({p,m:metrics(p)}))
-  .filter((x):x is {p:SymbolPolygon;m:NonNullable<ReturnType<typeof metrics>>}=>Boolean(x.m));
+  .filter((x):x is {p:SymbolPolygon;m:NonNullable<ReturnType<typeof metrics>>}=>Boolean(x.m))
+  .map(x=>({...x,neighbor:neighborhoodMetrics(x.p.page,x.m,args.segments||[])}));
  for(const candidate of prepared){
-  const ranked=args.fingerprints.map(fp=>({fp,score:similarity(fp,candidate.m)})).sort((a,b)=>b.score-a.score);
+  const ranked=args.fingerprints.map(fp=>({fp,score:similarity(fp,candidate.m,candidate.neighbor)})).sort((a,b)=>b.score-a.score);
   const best=ranked[0],second=ranked[1];if(!best||best.score<minScore)continue;
   // Require class-separation so visually common rectangles/circles do not explode takeoff counts.
   if(second&&second.fp.componentClass!==best.fp.componentClass){
