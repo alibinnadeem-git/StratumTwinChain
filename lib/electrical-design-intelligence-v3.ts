@@ -16,7 +16,8 @@ export type ElectricalSpecificationRequirement={
 
 export type PdfEquipmentMatrixRecord={
  id:string;page:number;tag:string|null;description:string|null;manufacturer:string|null;model:string|null;
- location:string|null;ratings:Record<string,number>;confidence:number;sourceEvidence:string[];
+ location:string|null;componentHint:string|null;scheduleKind:'EQUIPMENT'|'LIGHT_FIXTURE';
+ ratings:Record<string,number>;confidence:number;sourceEvidence:string[];
 };
 
 export type ElectricalIntelligenceEntity={
@@ -220,6 +221,7 @@ export function extractPdfEquipmentMatrixRecords(items:PositionedElectricalText[
  }
  if(!header)return[];
  const records:PdfEquipmentMatrixRecord[]=[];
+ const isLightFixtureSchedule=pageItems.some(item=>/\bLIGHT\s+FIXTURE\s+SCHEDULE\b/i.test(clean(item.text)));
  const ordered=[...header.columns].sort((a,b)=>a.x-b.x);
  const rowCandidates=rows.filter(row=>row.y<header!.row.y-.12);
  for(const row of rowCandidates){
@@ -232,7 +234,7 @@ export function extractPdfEquipmentMatrixRecords(items:PositionedElectricalText[
   }
   const tag=clean(cells.tag)||null,description=clean(cells.description)||null;
   if(!tag&&!description)continue;
-  const identity=classifyElectricalLabel([tag,description].filter(Boolean).join(' '));
+  const identity=isLightFixtureSchedule?'LIGHT_FIXTURE':classifyElectricalLabel([tag,description].filter(Boolean).join(' '));
   const ratings:Record<string,number>={};
   for(const key of ['voltage','phase','kva','kw','watts','fla','mca','mocp','hp']){const value=firstNumber(cells[key]);if(value!==null)ratings[key]=value}
   const hasEngineering=Boolean(identity||Object.keys(ratings).length||cells.manufacturer||cells.model);
@@ -240,7 +242,8 @@ export function extractPdfEquipmentMatrixRecords(items:PositionedElectricalText[
   records.push({
    id:`pdf-matrix-${page}-${records.length}-${(tag||description||'row').replace(/[^A-Za-z0-9]+/g,'-').slice(0,80)}`,
    page,tag,description,manufacturer:clean(cells.manufacturer)||null,model:clean(cells.model)||null,
-   location:clean(cells.location)||null,ratings,confidence:tag&&identity ? .94 : tag ? .86 : .74,
+   location:clean(cells.location)||null,componentHint:identity||null,scheduleKind:isLightFixtureSchedule?'LIGHT_FIXTURE':'EQUIPMENT',
+   ratings,confidence:tag&&identity ? .94 : tag ? .86 : .74,
    sourceEvidence:[row.items.map(item=>clean(item.text)).join(' | ')]
   });
  }
