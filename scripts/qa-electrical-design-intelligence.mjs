@@ -150,11 +150,15 @@ assert.ok(orphanSld.findings.some(finding=>finding.type==='SLD_NOT_LOCATED'));
 const worker=fs.readFileSync('workers/pdf-native-parser.worker.ts','utf8');
 const compiler=fs.readFileSync('components/CompilerWorkspace.tsx','utf8');
 const panel=fs.readFileSync('components/ElectricalEvidencePanel.tsx','utf8');
+// Graph compilation (including electrical enrichment) runs in the graph worker via lib/graph-enrichment.ts.
+const enrichment=fs.readFileSync('lib/graph-enrichment.ts','utf8');
 const geometryPolicy=fs.readFileSync('lib/spatial-viewer-geometry-policy.ts','utf8');
 assert.match(worker,/electrical-legend-entry/);
 assert.match(worker,/electrical-spec-requirement/);
 assert.match(worker,/PDF_POSITIONAL_TABLE/);
-assert.match(compiler,/enrichElectricalDesignIntelligence/);
+assert.match(enrichment,/export function compileGraph[\s\S]*enrichElectricalDesignIntelligence/);
+assert.match(compiler,/compileGraphOffThread/);
+assert.match(compiler,/electricalIntelligence:compiled\.electricalIntelligence/);
 assert.match(panel,/Electrical evidence compiler/);
 assert.match(geometryPolicy,/BLOCKED · ELECTRICAL SOURCE CONFLICT/);
 assert.match(geometryPolicy,/EVIDENCE CHAIN INCOMPLETE/);
