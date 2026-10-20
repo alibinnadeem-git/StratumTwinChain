@@ -633,8 +633,8 @@ export default function CompilerWorkspace({safeMode=false}:{safeMode?:boolean}){
   const priorSources=(saved.sources||[]).filter(source=>!replaceShas.has(source.sha256)&&!replaceNames.has(source.name));
   const sources=[...new Map([...priorSources,...nextFiles].map(f=>[f.sha256,f])).values()];
   const base={...saved,coordinationIntelligence:undefined,reviewState:zoned.some(e=>e.layer==='L2'||e.layer==='L4')?'REVIEW_REQUIRED':saved.reviewState,version:'1.2',createdAt:new Date().toISOString(),sources,entities:zoned,links,stats:{L0:sources.length,L1:zoned.filter(e=>e.layer==='L1').length,L2:zoned.filter(e=>e.layer==='L2').length,L3:zoned.filter(e=>e.layer==='L3').length,L4:zoned.filter(e=>e.layer==='L4').length}};
-  const electrical=enrichElectricalDesignIntelligence(base as any);
-  const graph=enrichCoordinationIntelligence(electrical as any) as CompiledGraph;
+  const coordinated=enrichCoordinationIntelligence(base as any) as any;
+  const graph=enrichElectricalDesignIntelligence(coordinated) as CompiledGraph;
   await replaceCurrentSpatialGraph(graph);
   setEntities(graph.entities as GraphEntity[]);
  }
