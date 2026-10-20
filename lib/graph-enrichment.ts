@@ -1,6 +1,7 @@
 import {assignZones,buildLinks,type GraphEntity,type GraphLink,type Layer} from './graph-assembly';
 import {reconcileSpatialEquipmentIdentity} from './spatial-equipment-identity';
 import {enrichCoordinationIntelligence} from './coordination-intelligence';
+import {enrichElectricalDesignIntelligence,type ElectricalDesignIntelligence} from './electrical-design-intelligence-v3';
 import {enrichSpatialProjection} from './spatial-projection';
 import {enrichPowerIntelligence} from './power-intelligence';
 import {buildZResolutionIndex,type ZEvidence} from './z-resolver';
@@ -56,11 +57,11 @@ export function enrichSpatialEntities(entities:GraphEntity[]):GraphEntity[]{
  return reconcileSpatialEquipmentIdentity(enrichZCandidates(entities));
 }
 
-export type CompileGraphInput={entities:GraphEntity[];sources:Array<{name:string;sha256?:string;discipline?:string}>;priorReviewState?:string};
-export type CompileGraphResult={zoned:GraphEntity[];links:GraphLink[];coordinationIntelligence:unknown;reviewState?:string;stats:Record<Layer,number>};
+export type CompileGraphInput={entities:GraphEntity[];sources:Array<{name:string;sha256?:string;discipline?:string;setCompleteness?:{status?:string;missingSheets?:string[]}}>;priorReviewState?:string};
+export type CompileGraphResult={zoned:GraphEntity[];links:GraphLink[];coordinationIntelligence:unknown;electricalIntelligence:ElectricalDesignIntelligence;reviewState?:string;stats:Record<Layer,number>};
 
-// Assigns zones, builds logical links, derives coordination findings and layer stats in
-// one pass. Mirrors exactly what saveGraph used to do inline on the main thread.
+// Assigns zones, builds logical links, derives coordination findings, electrical evidence
+// and layer stats in one pass. Mirrors exactly what saveGraph used to do inline on the main thread.
 export function compileGraph(input:CompileGraphInput):CompileGraphResult{
  const sources=input.sources||[];
  const zoned=assignZones(input.entities);
@@ -68,7 +69,9 @@ export function compileGraph(input:CompileGraphInput):CompileGraphResult{
  const reviewState=zoned.some(e=>e.layer==='L2'||e.layer==='L4')?'REVIEW_REQUIRED':input.priorReviewState;
  const stats:Record<Layer,number>={L0:sources.length,L1:zoned.filter(e=>e.layer==='L1').length,L2:zoned.filter(e=>e.layer==='L2').length,L3:zoned.filter(e=>e.layer==='L3').length,L4:zoned.filter(e=>e.layer==='L4').length};
  const enriched=enrichCoordinationIntelligence({entities:zoned,sources,links} as any) as {coordinationIntelligence?:unknown};
- return {zoned,links,coordinationIntelligence:enriched.coordinationIntelligence??null,reviewState,stats};
+ // Electrical evidence annotates physical plan entities, so the returned entities carry its findings.
+ const electrical=enrichElectricalDesignIntelligence({entities:zoned as any[],sources});
+ return {zoned:electrical.entities as GraphEntity[],links,coordinationIntelligence:enriched.coordinationIntelligence??null,electricalIntelligence:electrical.electricalIntelligence,reviewState,stats};
 }
 
 // Reactive projection enrichment (spatial projection -> power intelligence -> coordination),

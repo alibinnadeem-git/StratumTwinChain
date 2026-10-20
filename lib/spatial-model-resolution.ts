@@ -158,7 +158,9 @@ export function resolveSpatialModel(entity:SpatialModelEntity,registry:Electrica
       ?(geometryStatus==='OEM_SUPPLIED'?.98:geometryStatus==='LICENSED_COMMUNITY'?.82:.9)
       :(hasRenderable?.65:.45)
   );
-  const identityAuthority=match.exact?'SOURCE_PRODUCT_IDENTITY_MATCH':'SOURCE_COMPONENT_FAMILY_MATCH';
+  const identityAuthority=match.exact
+    ?(clean(entity.meta?.productIdentityAuthority)||'SOURCE_PRODUCT_IDENTITY_MATCH')
+    :'SOURCE_COMPONENT_FAMILY_MATCH';
   const geometryAuthority=tier==='EXACT_VERIFIED_OEM_CAD'
     ?'VERIFIED_CATALOG_OEM_GEOMETRY'
     :tier==='EXACT_PRODUCT_VISUALIZATION'

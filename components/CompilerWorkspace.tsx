@@ -22,6 +22,10 @@ import {readPrimarySpatialGraph,replaceCurrentSpatialGraph} from '../lib/spatial
 import {encodeGlbBase64,inspectStandaloneGlb} from '../lib/spatial-glb-import';
 import {drawingSourceReprocessReason,findDrawingSourcesNeedingReprocess,inspectDrawingReprocessOutput} from '../lib/spatial-source-reprocess';
 import {archiveSourceBytes,archivedSourceToFile,listArchivedSourceMetadata,readArchivedSource} from '../lib/source-browser-archive';
+import {detectElectricalLegendPage,detectElectricalSpecificationPage,detectPdfEquipmentMatrixPage,extractElectricalLegendEntries,extractElectricalSpecificationRequirements,extractPdfEquipmentMatrixRecords} from '../lib/electrical-design-intelligence-v3';
+import {buildLegendSymbolFingerprints,matchLegendSymbolFingerprints} from '../lib/electrical-symbol-fingerprint';
+import {buildLegendSegmentFingerprints,matchLegendSegmentFingerprints} from '../lib/electrical-segment-symbol-fingerprint';
+import {rasterFromRgba,detectRasterSymbolCandidates,buildRasterLegendFingerprints,matchRasterLegendFingerprints,type RasterCandidate,type RasterFingerprint} from '../lib/electrical-raster-symbol-fingerprint';
 import {extractZEvidenceFromText,type ZEvidence} from '../lib/z-resolver';
 import {buildElevationTriangles,extractPositionedElevationControls,resolveLocalElevationSurface,type ElevationControlPoint,type ElevationTriangle} from '../lib/elevation-surface';
 import {associateTerrainBreaklines,buildConstrainedElevationTriangles,extractPositionedTerrainSlopeEvidence,type TerrainBreakline,type TerrainSlopeEvidence} from '../lib/terrain-constraints';
@@ -57,7 +61,7 @@ async function parsePdfOffThread(fileName:string,buffer:ArrayBuffer,level:{floor
  if(typeof Worker==='undefined')throw new PdfParseError('WORKER_UNAVAILABLE','This browser cannot start the protected PDF parser worker.');
  const ingestion=pdfIngestionProfile(buffer.byteLength);
  if(!ingestion.accepted)throw new PdfParseError('PDF_FILE_BUDGET',ingestion.reason);
- const requestId=crypto.randomUUID(),worker=new Worker(new URL('../workers/pdf-native-parser.worker.ts',import.meta.url),{type:'module'});
+ const requestId=crypto.randomUUID(),worker=new Worker(new URL('../workers/pdf-native-parser.worker-v2.ts',import.meta.url),{type:'module'});
  return await new Promise<PdfParseResult>((resolve,reject)=>{
   let settled=false,watchdog:number|undefined,hardDeadline:number|undefined;
   const cleanup=()=>{if(watchdog!==undefined)window.clearTimeout(watchdog);if(hardDeadline!==undefined)window.clearTimeout(hardDeadline);signal.removeEventListener('abort',onAbort);worker.terminate()};
@@ -152,6 +156,28 @@ async function parsePdfMainThreadFallback(file:File,level:{floor:string;elevatio
   const labels=[...raw.filter(item=>item.page===page).map(item=>item.str),...(ocrTextByPage.get(page)||[])],vectorCount=pageVectorOps.get(page)||0,{sld,plan}=resolveDrawingPageRecognition(labels,vectorCount);
   pageEvidence.set(page,sld);planEvidence.set(page,plan);
  }
+ for(let page=1;page<=doc.numPages;page++){
+  const labels=[...raw.filter(item=>item.page===page).map(item=>item.str),...(ocrTextByPage.get(page)||[])];
+  const legend=detectElectricalLegendPage(labels);
+  if(legend.isLegend){
+   const nativePositioned=raw.filter(item=>item.page===page).map(item=>({text:item.str,x:item.x,y:item.y,page}));
+   const rasterPositioned=(rasterPreviewByPage.get(page)?.geometryItems||[]).map(item=>({text:item.text,x:(Number(item.x)-.5)*(rasterPreviewByPage.get(page)?.planeWidth||20),y:(.5-Number(item.y))*(rasterPreviewByPage.get(page)?.planeHeight||20),page}));
+   const entries=extractElectricalLegendEntries(nativePositioned.length?nativePositioned:rasterPositioned,page);
+   for(const entry of entries)ocrEntities.push({id:`pdf-${entry.id}`,source:file.name,layer:'L0',kind:'electrical-legend-entry',name:`${entry.abbreviation} · ${entry.description}`,x:entry.anchor.x,y:entry.anchor.y,z:0,floor:'UNRESOLVED',confidence:entry.confidence,meta:{page,nonSpatial:true,sourceType:'ELECTRICAL_LEGEND',legendEntry:entry,legendPageScore:legend.score,physicalTruth:false,reviewRequired:true,spatialPlacementAuthority:'NON_SPATIAL_LEGEND',elevationKnown:false,physicalElevationKnown:false}} as GraphEntity);
+  }
+  const spec=detectElectricalSpecificationPage(labels);
+  if(spec.isSpecification){
+   const requirements=extractElectricalSpecificationRequirements(labels,page);
+   for(const requirement of requirements)ocrEntities.push({id:`pdf-${requirement.id}`,source:file.name,layer:'L0',kind:'electrical-spec-requirement',name:requirement.title,x:0,y:0,z:0,floor:'UNRESOLVED',confidence:requirement.confidence,meta:{page,nonSpatial:true,sourceType:'ELECTRICAL_SPECIFICATION',specRequirement:requirement,specificationSection:requirement.section,physicalTruth:false,reviewRequired:true,spatialPlacementAuthority:'NON_SPATIAL_SPECIFICATION',elevationKnown:false,physicalElevationKnown:false}} as GraphEntity);
+  }
+  const matrix=detectPdfEquipmentMatrixPage(labels);
+  if(matrix.isMatrix){
+   const nativePositioned=raw.filter(item=>item.page===page).map(item=>({text:item.str,x:item.x,y:item.y,page}));
+   const rasterPositioned=(rasterPreviewByPage.get(page)?.geometryItems||[]).map(item=>({text:item.text,x:(Number(item.x)-.5)*(rasterPreviewByPage.get(page)?.planeWidth||20),y:(.5-Number(item.y))*(rasterPreviewByPage.get(page)?.planeHeight||20),page}));
+   const records=extractPdfEquipmentMatrixRecords(nativePositioned.length?nativePositioned:rasterPositioned,page);
+   for(const record of records)ocrEntities.push({id:`pdf-${record.id}`,source:file.name,layer:'L4',kind:'schedule-powered-equipment-candidate',name:[record.tag||record.description,record.tag&&record.description?record.description:''].filter(Boolean).join(' '),x:0,y:0,z:0,floor:'UNRESOLVED',zone:record.location||undefined,confidence:record.confidence,meta:{page,nonSpatial:true,sourceType:'EQUIPMENT_SCHEDULE',scheduleSourceFormat:'PDF_POSITIONAL_TABLE',assetTag:record.scheduleKind==='EQUIPMENT'?(record.tag||undefined):undefined,fixtureMark:record.scheduleKind==='LIGHT_FIXTURE'?(record.tag||undefined):undefined,electricalComponentHint:record.componentHint||undefined,scheduleKind:record.scheduleKind,scheduleDescription:record.description||undefined,manufacturer:record.manufacturer||undefined,model:record.model||undefined,scheduleLocation:record.location||undefined,voltage:record.ratings.voltage,phase:record.ratings.phase,inputKva:record.ratings.kva,inputKw:record.ratings.kw,fla:record.ratings.fla,mca:record.ratings.mca,mocp:record.ratings.mocp,motorHp:record.ratings.hp,pdfEquipmentMatrixRecord:record,physicalTruth:false,reviewRequired:true,spatialPlacementAuthority:'NON_SPATIAL_SCHEDULE',registrationState:'CANDIDATE'}} as GraphEntity);
+  }
+ }
  const planFramesByPage=new Map<number,ReturnType<typeof detectPlanFrames>>();
  for(let page=1;page<=doc.numPages;page++){
   const positioned=raw.filter(item=>item.page===page).map(item=>({text:item.str,x:item.x,y:item.y}));
@@ -159,6 +185,44 @@ async function parsePdfMainThreadFallback(file:File,level:{floor:string;elevatio
  }
  const frameAt=(page:number,x:number,y:number)=>resolvePlanFrameAtPoint(planFramesByPage.get(page)||[],x,y);
  const floorAt=(page:number,x:number,y:number)=>frameAt(page,x,y)?.floor||pageFloors.get(page)||'UNRESOLVED';
+ const fallbackLegendEntries=ocrEntities.filter(entity=>entity.kind==='electrical-legend-entry').map(entity=>entity.meta?.legendEntry).filter(Boolean) as any[];
+ const fallbackLegendPages=new Set(fallbackLegendEntries.map(entry=>Number(entry.page)).filter(Boolean));
+ const fallbackAbbreviationClasses=new Map<string,Set<string>>();
+ const fallbackAbbreviationEntries=new Map<string,any>();
+ for(const entry of fallbackLegendEntries){
+  const key=String(entry?.abbreviation||'').trim().toUpperCase();if(!key||!entry?.componentHint)continue;
+  const set=fallbackAbbreviationClasses.get(key)||new Set<string>();set.add(String(entry.componentHint));fallbackAbbreviationClasses.set(key,set);
+  fallbackAbbreviationEntries.set(key,entry);
+ }
+ const fallbackLegendAbbreviationMap=new Map([...fallbackAbbreviationEntries].filter(([key])=>fallbackAbbreviationClasses.get(key)?.size===1));
+ const fallbackFingerprints=buildLegendSymbolFingerprints({
+  entries:fallbackLegendEntries,
+  polygons:polygons.map((polygon,index)=>({id:`pdf-fallback-poly-${polygon.page}-${index}`,page:polygon.page,vertices:polygon.vertices,confidence:polygon.confidence,planFrameId:null})),
+  segments
+ });
+ const fallbackSymbolMatches=matchLegendSymbolFingerprints({
+  fingerprints:fallbackFingerprints,
+  polygons:polygons.filter(polygon=>Boolean(planEvidence.get(polygon.page)?.isPlan)).map((polygon,index)=>({id:`pdf-fallback-plan-symbol-${polygon.page}-${index}`,page:polygon.page,vertices:polygon.vertices,confidence:polygon.confidence,planFrameId:null})),
+  legendPages:fallbackLegendPages,
+  frameAt:(page,x,y)=>frameAt(page,x,y),
+  segments
+ });
+ for(const fingerprint of fallbackFingerprints)ocrEntities.push({id:`pdf-${fingerprint.id}`,source:file.name,layer:'L0',kind:'electrical-legend-symbol-fingerprint',name:`${fingerprint.componentClass} · legend vector fingerprint`,x:fingerprint.centroid.x,y:fingerprint.centroid.y,z:0,floor:'UNRESOLVED',confidence:fingerprint.confidence,meta:{page:fingerprint.sourcePage,nonSpatial:true,sourceType:'ELECTRICAL_LEGEND_VECTOR_FINGERPRINT',legendSymbolFingerprint:fingerprint,physicalTruth:false,reviewRequired:true,spatialPlacementAuthority:'NON_SPATIAL_LEGEND_SYMBOL_FINGERPRINT',elevationKnown:false,physicalElevationKnown:false}} as GraphEntity);
+ for(const match of fallbackSymbolMatches){
+  const frame=frameAt(match.page,match.x,match.y);
+  ocrEntities.push({id:`pdf-${match.id}`,source:file.name,layer:'L2',kind:'legend-symbol-match-candidate',name:`${match.componentClass} · project legend symbol match`,x:match.x,y:match.y,z:0,floor:frame?.floor||pageFloors.get(match.page)||'UNRESOLVED',confidence:match.confidence,meta:{page:match.page,nonSldPlan:true,planType:planEvidence.get(match.page)?.planType||'PLAN_VIEW_UNCLASSIFIED',planDiscipline:planEvidence.get(match.page)?.discipline||'Electrical',planFrameId:frame?.id||match.planFrameId||null,planFrameFloor:frame?.floor||null,planFrameUnitId:frame?.unitId||null,planFrameUnitPlan:frame?.unitPlan||null,electricalComponentHint:match.componentClass,legendSymbolMatch:match,legendBacked:true,symbolAnchorStatus:'RESOLVED_REVIEW_CANDIDATE',symbolAnchorAuthority:'PROJECT_LEGEND_VECTOR_FINGERPRINT',spatialPlacementAuthority:'PROJECT_LEGEND_VECTOR_SYMBOL_MATCH',physicalTruth:false,reviewRequired:true,elevationKnown:false,physicalElevationKnown:false,registrationState:'CANDIDATE'}} as GraphEntity);
+ }
+ const fallbackSegmentFingerprints=buildLegendSegmentFingerprints({entries:fallbackLegendEntries,segments});
+ const fallbackSegmentMatches=matchLegendSegmentFingerprints({
+  fingerprints:fallbackSegmentFingerprints,segments,legendPages:fallbackLegendPages,
+  planPages:new Set([...planEvidence.entries()].filter(([,evidence])=>evidence.isPlan).map(([page])=>page))
+ });
+ for(const fingerprint of fallbackSegmentFingerprints)ocrEntities.push({id:`pdf-${fingerprint.id}`,source:file.name,layer:'L0',kind:'electrical-legend-segment-fingerprint',name:`${fingerprint.componentClass} · legend segment fingerprint`,x:fingerprint.centroid.x,y:fingerprint.centroid.y,z:0,floor:'UNRESOLVED',confidence:fingerprint.confidence,meta:{page:fingerprint.sourcePage,nonSpatial:true,sourceType:'ELECTRICAL_LEGEND_SEGMENT_FINGERPRINT',legendSegmentFingerprint:fingerprint,physicalTruth:false,reviewRequired:true,spatialPlacementAuthority:'NON_SPATIAL_LEGEND_SEGMENT_FINGERPRINT',elevationKnown:false,physicalElevationKnown:false}} as GraphEntity);
+ for(const match of fallbackSegmentMatches){
+  if(fallbackSymbolMatches.some(existing=>existing.page===match.page&&existing.componentClass===match.componentClass&&Math.hypot(existing.x-match.x,existing.y-match.y)<.07))continue;
+  const frame=frameAt(match.page,match.x,match.y);
+  ocrEntities.push({id:`pdf-${match.id}`,source:file.name,layer:'L2',kind:'legend-symbol-match-candidate',name:`${match.componentClass} · project legend open-vector match`,x:match.x,y:match.y,z:0,floor:frame?.floor||pageFloors.get(match.page)||'UNRESOLVED',confidence:match.confidence,meta:{page:match.page,nonSldPlan:true,planType:planEvidence.get(match.page)?.planType||'PLAN_VIEW_UNCLASSIFIED',planDiscipline:planEvidence.get(match.page)?.discipline||'Electrical',planFrameId:frame?.id||null,planFrameFloor:frame?.floor||null,planFrameUnitId:frame?.unitId||null,planFrameUnitPlan:frame?.unitPlan||null,electricalComponentHint:match.componentClass,legendSegmentSymbolMatch:match,legendBacked:true,symbolAnchorStatus:'RESOLVED_REVIEW_CANDIDATE',symbolAnchorAuthority:'PROJECT_LEGEND_SEGMENT_FINGERPRINT',spatialPlacementAuthority:'PROJECT_LEGEND_SEGMENT_SYMBOL_MATCH',physicalTruth:false,reviewRequired:true,elevationKnown:false,physicalElevationKnown:false,registrationState:'CANDIDATE'}} as GraphEntity);
+ }
  for(const [page,frames] of planFramesByPage){
   for(const frame of frames){
    ocrEntities.push({id:`pdf-plan-frame-${page}-${frame.id}`,source:file.name,layer:'L0',kind:'plan-frame-candidate',name:frame.title,x:frame.anchorX,y:frame.anchorY,z:0,floor:frame.floor||'UNRESOLVED',confidence:frame.confidence,meta:{page,nonSpatial:true,sourceType:'PDF_PLAN_FRAME_TITLE',planFrame:frame,physicalTruth:false,reviewRequired:true,geometryAuthority:'TITLE_ANCHOR_ONLY',spatialPlacementAuthority:'SOURCE_SHEET_TITLE_ANCHOR_ONLY',zPlacementAuthority:'UNVERIFIED_DRAWING_PLANE',elevationKnown:false,physicalElevationKnown:false}} as GraphEntity);
@@ -253,7 +317,14 @@ async function parsePdfMainThreadFallback(file:File,level:{floor:string;elevatio
   entities.push({id:`pdf-plan-line-${segment.page}-${i++}`,source:file.name,layer:'L1',kind:'line',name:`Source plan line · page ${segment.page}`,x:segment.x,y:segment.y,z:0,x2:segment.x2,y2:segment.y2,z2:0,floor:floorAt(segment.page,(segment.x+segment.x2)/2,(segment.y+segment.y2)/2),confidence:.99,meta:{page:segment.page,floorInference:'plan-frame-or-sheet-title-candidate',coordinateUnits:'sheet',sourceType:'PDF source-plan vector line',drawingBasemap:true,pdfTransformsApplied:true,elevationKnown:false,physicalElevationKnown:false,zPlacementAuthority:'UNVERIFIED_DRAWING_PLANE',spatialPlacementAuthority:'SOURCE_SHEET_POSITION_ONLY',physicalTruth:false,reviewRequired:false,scaleValidationEvidence:scaleValidationByPage.get(segment.page),...planMeta(segment.page,(segment.x+segment.x2)/2,(segment.y+segment.y2)/2)}});
  }
  for(const [page,topology] of vectorTopologyByPage){for(const segment of topology.segments){entities.push({id:`pdf-sld-feeder-${page}-${i++}`,source:file.name,layer:'L3',kind:'sld-feeder-candidate',name:`SLD feeder path · page ${page}`,x:segment.x,y:segment.y,z:0,x2:segment.x2,y2:segment.y2,z2:0,floor:pageFloors.get(page),confidence:.88,meta:{page,floorInference:'sheet-title-candidate',elevationKnown:false,coordinateUnits:'sheet',sourceType:'PDF vector electrical path',sldCandidate:true,sldFeederCandidate:true,sldVectorComponent:segment.component,sldVectorAuthority:'PDF_VECTOR_CONNECTED_COMPONENT',reviewRequired:true,physicalTruth:false}})}}
- for(const p of polygons){if(!pageEvidence.get(p.page)?.isSld&&!planEvidence.get(p.page)?.isPlan)continue;const area=Math.abs(p.vertices.reduce((s,v,j)=>{const n=p.vertices[(j+1)%p.vertices.length];return s+v.x*n.y-n.x*v.y},0))/2;if(area<.08||area>190)continue;const c=centroid(p.vertices);entities.push({id:`pdf-room-${p.page}-${i++}`,source:file.name,layer:'L1',kind:'vector-boundary-candidate',name:`PDF closed path · page ${p.page}`,x:c.x,y:c.y,z:0,vertices:p.vertices,floor:floorAt(p.page,c.x,c.y),confidence:p.confidence,meta:{page:p.page,floorInference:'plan-frame-or-sheet-title-candidate',elevationKnown:false,sourceType:'PDF vector path',reconstruction:'heuristic-closed-path',reviewRequired:true,coordinateUnits:'sheet',pdfTransformsApplied:true,geometryValidated:false,...sldMeta(p.page),...planMeta(p.page,c.x,c.y)}})}for(const t of raw){if(/\bcannot locate\b|\bplease advise\b/i.test(t.str)||(!pageEvidence.get(t.page)?.isSld&&!planEvidence.get(t.page)?.isPlan))continue;const equipmentClass=classifyElectricalLabel(t.str),poweredClass=poweredEquipmentClass(t.str),isAsset=Boolean(equipmentClass),isPoweredNonElectrical=Boolean(poweredClass&&!isAsset),isCircuit=isElectricalCircuitLabel(t.str),isRoom=roomCandidate(t.str),vectorAttachment=vectorAttachmentByKey.get(t.key);if(!isAsset&&!isCircuit&&!isRoom&&!isPoweredNonElectrical)continue;const layer:Layer=isRoom?'L1':isPoweredNonElectrical?'L4':isCircuit&&!isAsset?'L3':'L2';entities.push({id:`pdf-${t.page}-${i++}`,source:file.name,layer,kind:isRoom?'room-label':isPoweredNonElectrical?'powered-equipment-candidate':isAsset?'text-asset-candidate':'logical-tag',name:t.str,x:t.x,y:t.y,z:0,floor:floorAt(t.page,t.x,t.y),confidence:isRoom?.7:isPoweredNonElectrical?.72:isAsset?.86:.74,meta:{page:t.page,floorInference:'sheet-title-candidate',elevationKnown:false,coordinateUnits:'sheet',sourceType:'PDF text object',...(poweredClass?{poweredEquipmentClass:poweredClass,registrationState:'CANDIDATE',spatialPlacementAuthority:'SOURCE_SHEET_POSITION_ONLY',physicalTruth:false,reviewRequired:true}:{}),...(equipmentClass?{electricalComponentHint:equipmentClass}:{}),...(vectorAttachment?{sldVectorComponent:vectorAttachment.component,sldVectorDistance:vectorAttachment.distance,sldVectorAuthority:'PDF_VECTOR_CONNECTED_COMPONENT'}:{}),...sldMeta(t.page),...planMeta(t.page,t.x,t.y)}})}
+ for(const p of polygons){if(!pageEvidence.get(p.page)?.isSld&&!planEvidence.get(p.page)?.isPlan)continue;const area=Math.abs(p.vertices.reduce((s,v,j)=>{const n=p.vertices[(j+1)%p.vertices.length];return s+v.x*n.y-n.x*v.y},0))/2;if(area<.08||area>190)continue;const c=centroid(p.vertices);entities.push({id:`pdf-room-${p.page}-${i++}`,source:file.name,layer:'L1',kind:'vector-boundary-candidate',name:`PDF closed path · page ${p.page}`,x:c.x,y:c.y,z:0,vertices:p.vertices,floor:floorAt(p.page,c.x,c.y),confidence:p.confidence,meta:{page:p.page,floorInference:'plan-frame-or-sheet-title-candidate',elevationKnown:false,sourceType:'PDF vector path',reconstruction:'heuristic-closed-path',reviewRequired:true,coordinateUnits:'sheet',pdfTransformsApplied:true,geometryValidated:false,...sldMeta(p.page),...planMeta(p.page,c.x,c.y)}})}for(const t of raw){
+  if(/\bcannot locate\b|\bplease advise\b/i.test(t.str)||(!pageEvidence.get(t.page)?.isSld&&!planEvidence.get(t.page)?.isPlan))continue;
+  const legendEntry=fallbackLegendAbbreviationMap.get(t.str.trim().toUpperCase()),legendClass=legendEntry?.componentHint||null;
+  const equipmentClass=classifyElectricalLabel(t.str)||legendClass,poweredClass=poweredEquipmentClass(t.str),isAsset=Boolean(equipmentClass),isPoweredNonElectrical=Boolean(poweredClass&&!isAsset),isCircuit=isElectricalCircuitLabel(t.str),isRoom=roomCandidate(t.str),vectorAttachment=vectorAttachmentByKey.get(t.key);
+  if(!isAsset&&!isCircuit&&!isRoom&&!isPoweredNonElectrical)continue;
+  const layer:Layer=isRoom?'L1':isPoweredNonElectrical?'L4':isCircuit&&!isAsset?'L3':'L2';
+  entities.push({id:`pdf-${t.page}-${i++}`,source:file.name,layer,kind:isRoom?'room-label':isPoweredNonElectrical?'powered-equipment-candidate':isAsset?'text-asset-candidate':'logical-tag',name:t.str,x:t.x,y:t.y,z:0,floor:floorAt(t.page,t.x,t.y),confidence:isRoom?.7:isPoweredNonElectrical?.72:legendEntry?Math.min(.9,Number(legendEntry.confidence||.8)*.94):isAsset?.86:.74,meta:{page:t.page,floorInference:'sheet-title-candidate',elevationKnown:false,coordinateUnits:'sheet',sourceType:'PDF text object',...(poweredClass?{poweredEquipmentClass:poweredClass,registrationState:'CANDIDATE',spatialPlacementAuthority:'SOURCE_SHEET_POSITION_ONLY',physicalTruth:false,reviewRequired:true}:{}),...(equipmentClass?{electricalComponentHint:equipmentClass}:{}),...(legendEntry?{legendBacked:true,legendEntryId:legendEntry.id,legendAbbreviation:t.str.trim().toUpperCase(),symbolAnchorStatus:'TEXT_ABBREVIATION_REVIEW_CANDIDATE',symbolAnchorAuthority:'PROJECT_LEGEND_TEXT_ABBREVIATION',spatialPlacementAuthority:'SOURCE_TEXT_POSITION_ONLY',physicalTruth:false,reviewRequired:true,registrationState:'CANDIDATE'}:{}),...(vectorAttachment?{sldVectorComponent:vectorAttachment.component,sldVectorDistance:vectorAttachment.distance,sldVectorAuthority:'PDF_VECTOR_CONNECTED_COMPONENT'}:{}),...sldMeta(t.page),...planMeta(t.page,t.x,t.y)}})
+ }
  const symbolAnchorPolygons=polygons.map((polygon,index)=>{
   const center=centroid(polygon.vertices),frame=frameAt(polygon.page,center.x,center.y);
   return{id:`pdf-vector-symbol-${polygon.page}-${index}`,page:polygon.page,vertices:polygon.vertices,confidence:polygon.confidence,planFrameId:frame?.id||null};
@@ -318,6 +389,10 @@ async function parsePdfSelectedOcrPages(
  const entities:GraphEntity[]=[],supportOffsets:SupportOffsetEvidence[]=[];
  const planTypes=new Set<string>(),disciplines=new Set<string>();
  const failedPages:number[]=[];let textChars=0,ocrPages=0,nonSldPlanPages=0;
+ const rasterFingerprints:RasterFingerprint[]=[];
+ const rasterPlanCandidates:RasterCandidate[]=[];
+ const rasterPageMeta=new Map<number,{planeWidth:number;planeHeight:number;pixelWidth:number;pixelHeight:number;floor:string;plan:any;frames:ReturnType<typeof detectPlanFrames>}>();
+
  try{
   for(let index=0;index<wanted.length;index++){
    if(signal.aborted)throw new PdfParseError('PDF_PARSE_CANCELLED','Selective scanned-page OCR was canceled. Native parsed content remains retryable.');
@@ -347,12 +422,60 @@ async function parsePdfSelectedOcrPages(
       const x0=Number(bbox.x0),y0=Number(bbox.y0),x1=Number(bbox.x1),y1=Number(bbox.y1);if(![x0,y0,x1,y1].every(Number.isFinite))return[];
       return[{text:label,x:(x0+x1)/2/Math.max(canvas.width,1),y:(y0+y1)/2/Math.max(canvas.height,1),width:Math.abs(x1-x0)/Math.max(canvas.width,1),height:Math.abs(y1-y0)/Math.max(canvas.height,1)}];
     });
-    const positioned=geometryItems.map(item=>({text:item.text,x:(Number(item.x)-.5)*planeWidth,y:(.5-Number(item.y))*planeHeight}));
+    const positioned=geometryItems.map(item=>{
+      const vertical=Number(item.height)>Number(item.width)*1.4;
+      return{text:item.text,x:(Number(item.x)-.5)*planeWidth,y:(.5-Number(item.y))*planeHeight,
+        dirX:vertical?0:1,dirY:vertical?-1:0,textSpan:(vertical?Number(item.height)*planeHeight:Number(item.width)*planeWidth)};
+    });
+    const legend=detectElectricalLegendPage(lines);
+    if(legend.isLegend){
+      const entries=extractElectricalLegendEntries(positioned.map(item=>({...item,page:pageNumber})),pageNumber);
+      for(const entry of entries)entities.push({id:`pdf-${entry.id}`,source:file.name,layer:'L0',kind:'electrical-legend-entry',name:`${entry.abbreviation} · ${entry.description}`,x:entry.anchor.x,y:entry.anchor.y,z:0,floor:'UNRESOLVED',confidence:entry.confidence,meta:{page:pageNumber,nonSpatial:true,sourceType:'ELECTRICAL_LEGEND',legendEntry:entry,legendPageScore:legend.score,ocrAuthority:'REVIEW_ONLY',physicalTruth:false,reviewRequired:true,spatialPlacementAuthority:'NON_SPATIAL_LEGEND',elevationKnown:false,physicalElevationKnown:false}} as GraphEntity);
+    }
+    const specification=detectElectricalSpecificationPage(lines);
+    if(specification.isSpecification){
+      const requirements=extractElectricalSpecificationRequirements(lines,pageNumber);
+      for(const requirement of requirements)entities.push({id:`pdf-${requirement.id}`,source:file.name,layer:'L0',kind:'electrical-spec-requirement',name:requirement.title,x:0,y:0,z:0,floor:'UNRESOLVED',confidence:requirement.confidence,meta:{page:pageNumber,nonSpatial:true,sourceType:'ELECTRICAL_SPECIFICATION',specRequirement:requirement,specificationSection:requirement.section,ocrAuthority:'REVIEW_ONLY',physicalTruth:false,reviewRequired:true,spatialPlacementAuthority:'NON_SPATIAL_SPECIFICATION',elevationKnown:false,physicalElevationKnown:false}} as GraphEntity);
+    }
+    const matrix=detectPdfEquipmentMatrixPage(lines);
+    if(matrix.isMatrix){
+      const records=extractPdfEquipmentMatrixRecords(positioned.map(item=>({...item,page:pageNumber})),pageNumber);
+      for(const record of records)entities.push({id:`pdf-${record.id}`,source:file.name,layer:'L4',kind:'schedule-powered-equipment-candidate',name:[record.tag||record.description,record.tag&&record.description?record.description:''].filter(Boolean).join(' '),x:0,y:0,z:0,floor:'UNRESOLVED',zone:record.location||undefined,confidence:record.confidence,meta:{page:pageNumber,nonSpatial:true,sourceType:'EQUIPMENT_SCHEDULE',scheduleSourceFormat:'PDF_POSITIONAL_TABLE_OCR',ocrAuthority:'REVIEW_ONLY',assetTag:record.scheduleKind==='EQUIPMENT'?(record.tag||undefined):undefined,fixtureMark:record.scheduleKind==='LIGHT_FIXTURE'?(record.tag||undefined):undefined,electricalComponentHint:record.componentHint||undefined,scheduleKind:record.scheduleKind,scheduleDescription:record.description||undefined,manufacturer:record.manufacturer||undefined,model:record.model||undefined,scheduleLocation:record.location||undefined,voltage:record.ratings.voltage,phase:record.ratings.phase,inputKva:record.ratings.kva,inputKw:record.ratings.kw,fla:record.ratings.fla,mca:record.ratings.mca,mocp:record.ratings.mocp,motorHp:record.ratings.hp,pdfEquipmentMatrixRecord:record,physicalTruth:false,reviewRequired:true,spatialPlacementAuthority:'NON_SPATIAL_SCHEDULE',registrationState:'CANDIDATE'}} as GraphEntity);
+    }
     const recognition=resolveDrawingPageRecognition(lines,0);
     if(recognition.plan.isPlan){nonSldPlanPages++;if(recognition.plan.planType)planTypes.add(String(recognition.plan.planType));}
     if(recognition.plan.isPlan&&recognition.plan.discipline)disciplines.add(String(recognition.plan.discipline));
     const frames=detectPlanFrames(positioned,recognition.plan);
     const frameAt=(x:number,y:number)=>resolvePlanFrameAtPoint(frames,x,y);
+    if(legend.isLegend||recognition.plan.isPlan){
+      const rasterMax=760,rasterScale=Math.min(1,rasterMax/Math.max(canvas.width,canvas.height,1));
+      const symbolCanvas=document.createElement('canvas'),symbolCtx=symbolCanvas.getContext('2d',{willReadFrequently:true});
+      symbolCanvas.width=Math.max(1,Math.round(canvas.width*rasterScale));symbolCanvas.height=Math.max(1,Math.round(canvas.height*rasterScale));
+      if(symbolCtx){
+        symbolCtx.drawImage(canvas,0,0,symbolCanvas.width,symbolCanvas.height);
+        const pixels=symbolCtx.getImageData(0,0,symbolCanvas.width,symbolCanvas.height);
+        const image=rasterFromRgba(pixels.data,symbolCanvas.width,symbolCanvas.height);
+        const textBoxes=blockLines.flatMap((line:any)=>{
+          const bbox=line?.bbox;if(!bbox)return[];
+          const x0=Number(bbox.x0)*rasterScale,y0=Number(bbox.y0)*rasterScale,x1=Number(bbox.x1)*rasterScale,y1=Number(bbox.y1)*rasterScale;
+          return [x0,y0,x1,y1].every(Number.isFinite)?[{x0:Math.max(0,Math.floor(x0-2)),y0:Math.max(0,Math.floor(y0-2)),x1:Math.min(symbolCanvas.width,Math.ceil(x1+2)),y1:Math.min(symbolCanvas.height,Math.ceil(y1+2))}]:[];
+        });
+        const candidates=detectRasterSymbolCandidates({image,page:pageNumber,textBoxes,maxPixels:1600});
+        if(legend.isLegend){
+          const entries=extractElectricalLegendEntries(positioned.map(item=>({...item,page:pageNumber})),pageNumber)
+            .filter(entry=>Boolean(entry.componentHint))
+            .map(entry=>({id:entry.id,componentClass:String(entry.componentHint),anchorX:entry.anchor.x,anchorY:entry.anchor.y,dirX:entry.textDirection?.x,dirY:entry.textDirection?.y,confidence:entry.confidence}));
+          rasterFingerprints.push(...buildRasterLegendFingerprints({
+            page:pageNumber,image,entries,candidates,
+            pixelFromAnchor:(x,y)=>({x:(x/planeWidth+.5)*symbolCanvas.width,y:(.5-y/planeHeight)*symbolCanvas.height})
+          }));
+        }
+        if(recognition.plan.isPlan){
+          rasterPlanCandidates.push(...candidates);
+          rasterPageMeta.set(pageNumber,{planeWidth,planeHeight,pixelWidth:symbolCanvas.width,pixelHeight:symbolCanvas.height,floor:pageFloor,plan:recognition.plan,frames});
+        }
+      }
+    }
     const geometryEvidence=extractSheetGeometryEvidence({items:geometryItems,pageWidthPoints:viewport.width,pageHeightPoints:viewport.height});
     const validation=validateIndependentScale({items:geometryItems,segments:[],declaredScale:geometryEvidence.drawingScale.value,pageMaxDimensionPoints:maxSide,normalizedSheetSpan:20,coordinateSpan:1});
     const previewMax=1000,previewScale=Math.min(1,previewMax/Math.max(canvas.width,canvas.height,1)),preview=document.createElement('canvas'),previewCtx=preview.getContext('2d');
@@ -388,6 +511,31 @@ async function parsePdfSelectedOcrPages(
     failedPages.push(pageNumber);
    }finally{page?.cleanup?.()}
   }
+  const rasterMatches=matchRasterLegendFingerprints({fingerprints:rasterFingerprints,candidates:rasterPlanCandidates});
+  for(const match of rasterMatches){
+    const meta=rasterPageMeta.get(match.page);if(!meta)continue;
+    const x=(match.centerX/meta.pixelWidth-.5)*meta.planeWidth,y=(.5-match.centerY/meta.pixelHeight)*meta.planeHeight;
+    const frame=resolvePlanFrameAtPoint(meta.frames,x,y);
+    entities.push({
+      id:`pdf-${match.id}`,source:file.name,layer:'L2',kind:'legend-symbol-match-candidate',
+      name:`${match.componentClass} · project legend raster match`,x,y,z:0,
+      floor:frame?.floor||meta.floor,confidence:match.confidence,
+      meta:{page:match.page,nonSldPlan:true,planType:meta.plan.planType||'PLAN_VIEW_UNCLASSIFIED',
+        planDiscipline:meta.plan.discipline||'Electrical',planFrameId:frame?.id||null,
+        planFrameFloor:frame?.floor||null,planFrameUnitId:frame?.unitId||null,planFrameUnitPlan:frame?.unitPlan||null,
+        electricalComponentHint:match.componentClass,legendRasterSymbolMatch:match,legendBacked:true,
+        symbolAnchorStatus:'RESOLVED_REVIEW_CANDIDATE',symbolAnchorAuthority:'PROJECT_LEGEND_RASTER_FINGERPRINT',
+        spatialPlacementAuthority:'PROJECT_LEGEND_RASTER_SYMBOL_MATCH',ocrAuthority:'REVIEW_ONLY',
+        physicalTruth:false,reviewRequired:true,elevationKnown:false,physicalElevationKnown:false,registrationState:'CANDIDATE'}
+    } as GraphEntity);
+  }
+  for(const fingerprint of rasterFingerprints)entities.push({
+    id:`pdf-${fingerprint.id}`,source:file.name,layer:'L0',kind:'electrical-legend-raster-fingerprint',
+    name:`${fingerprint.componentClass} · legend raster fingerprint`,x:0,y:0,z:0,floor:'UNRESOLVED',confidence:fingerprint.confidence,
+    meta:{page:fingerprint.sourcePage,nonSpatial:true,sourceType:'ELECTRICAL_LEGEND_RASTER_FINGERPRINT',
+      legendRasterFingerprint:fingerprint,ocrAuthority:'REVIEW_ONLY',physicalTruth:false,reviewRequired:true,
+      spatialPlacementAuthority:'NON_SPATIAL_LEGEND_RASTER_FINGERPRINT',elevationKnown:false,physicalElevationKnown:false}
+  } as GraphEntity);
   return{entities:enrichSupportBaseOffsets(entities,supportOffsets),ocrPages,textChars,nonSldPlanPages,planTypes:[...planTypes],disciplines:[...disciplines],failedPages};
  }finally{
   await ocrWorker.terminate().catch(()=>{});
@@ -548,7 +696,7 @@ export default function CompilerWorkspace({safeMode=false}:{safeMode?:boolean}){
   const _tCompile=performance.now();
   const compiled=await compileGraphOffThread({entities:merged,sources,priorReviewState:saved.reviewState});
   const _tPersist=performance.now();
-  const graph={...saved,version:'1.2',createdAt:new Date().toISOString(),sources,entities:compiled.zoned,links:compiled.links,coordinationIntelligence:compiled.coordinationIntelligence,reviewState:compiled.reviewState,stats:compiled.stats} as CompiledGraph;
+  const graph={...saved,version:'1.2',createdAt:new Date().toISOString(),sources,entities:compiled.zoned,links:compiled.links,coordinationIntelligence:compiled.coordinationIntelligence,electricalIntelligence:compiled.electricalIntelligence,reviewState:compiled.reviewState,stats:compiled.stats} as CompiledGraph;
   await replaceCurrentSpatialGraph(graph);
   setEntities(graph.entities as GraphEntity[]);
   console.info(`[stratum perf] saveGraph ${merged.length} entities · compile(worker) ${Math.round(_tPersist-_tCompile)}ms · persist ${Math.round(performance.now()-_tPersist)}ms`);

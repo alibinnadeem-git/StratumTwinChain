@@ -10,6 +10,9 @@ import {buildElevationTriangles,extractPositionedElevationControls,resolveLocalE
 import {enrichSupportBaseOffsets,extractSupportOffsetEvidence,type SupportOffsetEvidence} from '../lib/support-base-evidence';
 import {analyzeDrawingSetCompleteness,type DrawingSetCompleteness} from '../lib/drawing-set-completeness';
 import {pdfIngestionProfile} from '../lib/pdf-ingestion-profile';
+import {detectElectricalLegendPage,detectElectricalSpecificationPage,detectPdfEquipmentMatrixPage,extractElectricalLegendEntries,extractElectricalSpecificationRequirements,extractPdfEquipmentMatrixRecords} from '../lib/electrical-design-intelligence';
+import {buildLegendSymbolFingerprints,matchLegendSymbolFingerprints} from '../lib/electrical-symbol-fingerprint';
+import {buildLegendSegmentFingerprints,matchLegendSegmentFingerprints} from '../lib/electrical-segment-symbol-fingerprint';
 
 type Layer='L0'|'L1'|'L2'|'L3'|'L4';
 type XY={x:number;y:number};
@@ -50,6 +53,8 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
  const pageGeometryByPage=new Map<number,{width:number;height:number;max:number}>();
  const pageEvidence=new Map<number,ReturnType<typeof resolveDrawingPageRecognition>['sld']>();
  const planEvidence=new Map<number,ReturnType<typeof resolveDrawingPageRecognition>['plan']>();
+ const legendEvidence=new Map<number,ReturnType<typeof detectElectricalLegendPage>>();
+ const specificationEvidence=new Map<number,ReturnType<typeof detectElectricalSpecificationPage>>();
  let vectors=0,totalOps=0;const ocrRequiredPages:number[]=[];
 
  try{
@@ -80,8 +85,10 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
    vectors+=pageOps;pageVectorOps.set(p,pageOps);
    const recognition=resolveDrawingPageRecognition(nativeText,pageOps);
    pageEvidence.set(p,recognition.sld);planEvidence.set(p,recognition.plan);
+   legendEvidence.set(p,detectElectricalLegendPage(nativeText));
+   specificationEvidence.set(p,detectElectricalSpecificationPage(nativeText));
 
-   if(recognition.sld.isSld||recognition.plan.isPlan){
+   if(recognition.sld.isSld||recognition.plan.isPlan||legendEvidence.get(p)?.isLegend){
     post({type:'progress',requestId,page:p,total:doc.numPages,phase:'vector geometry'});
     const active:XY[]=[];let matrix=[1,0,0,1,0,0];const stack:number[][]=[];
     let pageSegments=0,pagePolygons=0;
@@ -129,7 +136,117 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
   const frameAt=(page:number,x:number,y:number)=>resolvePlanFrameAtPoint(planFramesByPage.get(page)||[],x,y);
   const floorAt=(page:number,x:number,y:number)=>frameAt(page,x,y)?.floor||pageFloors.get(page)||'UNRESOLVED';
   const reviewEntities:GraphEntity[]=[];
+  const legendEntriesByPage=new Map<number,ReturnType<typeof extractElectricalLegendEntries>>();
+  for(let page=1;page<=doc.numPages;page++){
+   const pageItems=raw.filter(item=>item.page===page).map(item=>({text:item.str,x:item.x,y:item.y,page:item.page}));
+   const legend=legendEvidence.get(page);
+   if(legend?.isLegend){
+    const entries=extractElectricalLegendEntries(pageItems,page);
+    legendEntriesByPage.set(page,entries);
+    for(const entry of entries)reviewEntities.push({
+     id:`pdf-${entry.id}`,source:fileName,layer:'L0',kind:'electrical-legend-entry',
+     name:`${entry.abbreviation} · ${entry.description}`,x:entry.anchor.x,y:entry.anchor.y,z:0,
+     floor:'UNRESOLVED',confidence:entry.confidence,
+     meta:{page,nonSpatial:true,sourceType:'ELECTRICAL_LEGEND',legendEntry:entry,legendPageScore:legend.score,
+      physicalTruth:false,reviewRequired:true,spatialPlacementAuthority:'NON_SPATIAL_LEGEND',
+      elevationKnown:false,physicalElevationKnown:false}
+    });
+   }
+   const spec=specificationEvidence.get(page);
+   if(spec?.isSpecification){
+    const requirements=extractElectricalSpecificationRequirements(pageItems.map(item=>item.text),page);
+    for(const requirement of requirements)reviewEntities.push({
+     id:`pdf-${requirement.id}`,source:fileName,layer:'L0',kind:'electrical-spec-requirement',
+     name:requirement.title,x:0,y:0,z:0,floor:'UNRESOLVED',confidence:requirement.confidence,
+     meta:{page,nonSpatial:true,sourceType:'ELECTRICAL_SPECIFICATION',specRequirement:requirement,
+      specificationSection:requirement.section,physicalTruth:false,reviewRequired:true,
+      spatialPlacementAuthority:'NON_SPATIAL_SPECIFICATION',elevationKnown:false,physicalElevationKnown:false}
+    });
+   }
+   const matrix=detectPdfEquipmentMatrixPage(pageItems.map(item=>item.text));
+   if(matrix.isMatrix){
+    const records=extractPdfEquipmentMatrixRecords(pageItems,page);
+    for(const record of records)reviewEntities.push({
+     id:`pdf-${record.id}`,source:fileName,layer:'L4',kind:'schedule-powered-equipment-candidate',
+     name:[record.tag||record.description,record.tag&&record.description?record.description:''].filter(Boolean).join(' '),
+     x:0,y:0,z:0,floor:'UNRESOLVED',zone:record.location||undefined,confidence:record.confidence,
+     meta:{page,nonSpatial:true,sourceType:'EQUIPMENT_SCHEDULE',scheduleSourceFormat:'PDF_POSITIONAL_TABLE',
+      assetTag:record.tag||undefined,scheduleDescription:record.description||undefined,
+      manufacturer:record.manufacturer||undefined,model:record.model||undefined,scheduleLocation:record.location||undefined,
+      voltage:record.ratings.voltage,phase:record.ratings.phase,inputKva:record.ratings.kva,inputKw:record.ratings.kw,
+      fla:record.ratings.fla,mca:record.ratings.mca,mocp:record.ratings.mocp,motorHp:record.ratings.hp,
+      pdfEquipmentMatrixRecord:record,physicalTruth:false,reviewRequired:true,
+      spatialPlacementAuthority:'NON_SPATIAL_SCHEDULE',registrationState:'CANDIDATE'}
+    });
+   }
+  }
   for(const [page,frames] of planFramesByPage)for(const frame of frames)reviewEntities.push({id:`pdf-plan-frame-${page}-${frame.id}`,source:fileName,layer:'L0',kind:'plan-frame-candidate',name:frame.title,x:frame.anchorX,y:frame.anchorY,z:0,floor:frame.floor||'UNRESOLVED',confidence:frame.confidence,meta:{page,nonSpatial:true,sourceType:'PDF_PLAN_FRAME_TITLE',planFrame:frame,physicalTruth:false,reviewRequired:true,geometryAuthority:'TITLE_ANCHOR_ONLY',spatialPlacementAuthority:'SOURCE_SHEET_TITLE_ANCHOR_ONLY',zPlacementAuthority:'UNVERIFIED_DRAWING_PLANE',elevationKnown:false,physicalElevationKnown:false}});
+  const legendEntries=[...legendEntriesByPage.values()].flat();
+  const legendPageSet=new Set([...legendEntriesByPage.keys()]);
+  const symbolFingerprints=buildLegendSymbolFingerprints({
+   entries:legendEntries,
+   polygons:polygons.map((polygon,index)=>({id:`pdf-poly-${polygon.page}-${index}`,page:polygon.page,vertices:polygon.vertices,confidence:polygon.confidence,planFrameId:null}))
+  });
+  const symbolMatches=matchLegendSymbolFingerprints({
+   fingerprints:symbolFingerprints,
+   polygons:polygons
+    .filter(polygon=>Boolean(planEvidence.get(polygon.page)?.isPlan))
+    .map((polygon,index)=>({id:`pdf-plan-symbol-${polygon.page}-${index}`,page:polygon.page,vertices:polygon.vertices,confidence:polygon.confidence,planFrameId:null})),
+   legendPages:legendPageSet,
+   frameAt:(page,x,y)=>frameAt(page,x,y)
+  });
+  for(const fingerprint of symbolFingerprints)reviewEntities.push({
+   id:`pdf-${fingerprint.id}`,source:fileName,layer:'L0',kind:'electrical-legend-symbol-fingerprint',
+   name:`${fingerprint.componentClass} · legend vector fingerprint`,x:fingerprint.centroid.x,y:fingerprint.centroid.y,z:0,
+   floor:'UNRESOLVED',confidence:fingerprint.confidence,
+   meta:{page:fingerprint.sourcePage,nonSpatial:true,sourceType:'ELECTRICAL_LEGEND_VECTOR_FINGERPRINT',
+    legendSymbolFingerprint:fingerprint,physicalTruth:false,reviewRequired:true,
+    spatialPlacementAuthority:'NON_SPATIAL_LEGEND_SYMBOL_FINGERPRINT',elevationKnown:false,physicalElevationKnown:false}
+  });
+  for(const match of symbolMatches){
+   const frame=frameAt(match.page,match.x,match.y);
+   reviewEntities.push({
+    id:`pdf-${match.id}`,source:fileName,layer:'L2',kind:'legend-symbol-match-candidate',
+    name:`${match.componentClass} · project legend symbol match`,x:match.x,y:match.y,z:0,
+    floor:frame?.floor||pageFloors.get(match.page)||'UNRESOLVED',confidence:match.confidence,
+    meta:{page:match.page,nonSldPlan:true,planType:planEvidence.get(match.page)?.planType||'PLAN_VIEW_UNCLASSIFIED',
+     planDiscipline:planEvidence.get(match.page)?.discipline||'Electrical',planFrameId:frame?.id||match.planFrameId||null,
+     planFrameFloor:frame?.floor||null,planFrameUnitId:frame?.unitId||null,planFrameUnitPlan:frame?.unitPlan||null,
+     electricalComponentHint:match.componentClass,legendSymbolMatch:match,legendBacked:true,
+     symbolAnchorStatus:'RESOLVED_REVIEW_CANDIDATE',symbolAnchorAuthority:'PROJECT_LEGEND_VECTOR_FINGERPRINT',
+     spatialPlacementAuthority:'PROJECT_LEGEND_VECTOR_SYMBOL_MATCH',physicalTruth:false,reviewRequired:true,
+     elevationKnown:false,physicalElevationKnown:false,registrationState:'CANDIDATE'}
+   });
+  }
+  const segmentFingerprints=buildLegendSegmentFingerprints({entries:legendEntries,segments});
+  const segmentMatches=matchLegendSegmentFingerprints({
+   fingerprints:segmentFingerprints,segments,legendPages:legendPageSet,
+   planPages:new Set([...planEvidence.entries()].filter(([,evidence])=>evidence.isPlan).map(([page])=>page))
+  });
+  for(const fingerprint of segmentFingerprints)reviewEntities.push({
+   id:`pdf-${fingerprint.id}`,source:fileName,layer:'L0',kind:'electrical-legend-segment-fingerprint',
+   name:`${fingerprint.componentClass} · legend segment fingerprint`,x:fingerprint.centroid.x,y:fingerprint.centroid.y,z:0,
+   floor:'UNRESOLVED',confidence:fingerprint.confidence,
+   meta:{page:fingerprint.sourcePage,nonSpatial:true,sourceType:'ELECTRICAL_LEGEND_SEGMENT_FINGERPRINT',
+    legendSegmentFingerprint:fingerprint,physicalTruth:false,reviewRequired:true,
+    spatialPlacementAuthority:'NON_SPATIAL_LEGEND_SEGMENT_FINGERPRINT',elevationKnown:false,physicalElevationKnown:false}
+  });
+  for(const match of segmentMatches){
+   if(symbolMatches.some(existing=>existing.page===match.page&&existing.componentClass===match.componentClass&&Math.hypot(existing.x-match.x,existing.y-match.y)<.07))continue;
+   const frame=frameAt(match.page,match.x,match.y);
+   reviewEntities.push({
+    id:`pdf-${match.id}`,source:fileName,layer:'L2',kind:'legend-symbol-match-candidate',
+    name:`${match.componentClass} · project legend open-vector match`,x:match.x,y:match.y,z:0,
+    floor:frame?.floor||pageFloors.get(match.page)||'UNRESOLVED',confidence:match.confidence,
+    meta:{page:match.page,nonSldPlan:true,planType:planEvidence.get(match.page)?.planType||'PLAN_VIEW_UNCLASSIFIED',
+     planDiscipline:planEvidence.get(match.page)?.discipline||'Electrical',planFrameId:frame?.id||null,
+     planFrameFloor:frame?.floor||null,planFrameUnitId:frame?.unitId||null,planFrameUnitPlan:frame?.unitPlan||null,
+     electricalComponentHint:match.componentClass,legendSegmentSymbolMatch:match,legendBacked:true,
+     symbolAnchorStatus:'RESOLVED_REVIEW_CANDIDATE',symbolAnchorAuthority:'PROJECT_LEGEND_SEGMENT_FINGERPRINT',
+     spatialPlacementAuthority:'PROJECT_LEGEND_SEGMENT_SYMBOL_MATCH',physicalTruth:false,reviewRequired:true,
+     elevationKnown:false,physicalElevationKnown:false,registrationState:'CANDIDATE'}
+   });
+  }
 
   const zEvidence:ZEvidence[]=[];
   for(let page=1;page<=doc.numPages;page++){
@@ -165,6 +282,7 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
   }
 
   const sldPages=[...pageEvidence.values()].filter(item=>item.isSld).length,nonSldPlanPages=[...planEvidence.values()].filter(item=>item.isPlan).length;
+  const legendPages=[...legendEvidence.values()].filter(item=>item.isLegend).length,specificationPages=[...specificationEvidence.values()].filter(item=>item.isSpecification).length;
   const planTypes=[...new Set([...planEvidence.values()].filter(item=>item.isPlan&&item.planType).map(item=>String(item.planType)))];
   const disciplines=[...new Set([...planEvidence.values()].filter(item=>item.isPlan&&item.discipline).map(item=>String(item.discipline)))];if(sldPages)disciplines.push('Electrical');
   const uniqueDisciplines=[...new Set(disciplines)];

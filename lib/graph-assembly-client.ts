@@ -60,5 +60,5 @@ export async function compileGraphOffThread(input:CompileGraphInput):Promise<Com
   {type:'compile',input},
   ()=>compileGraph(input),
  );
- return {zoned:result.zoned,links:result.links,coordinationIntelligence:result.coordinationIntelligence,reviewState:result.reviewState,stats:result.stats};
+ return {zoned:result.zoned,links:result.links,coordinationIntelligence:result.coordinationIntelligence,electricalIntelligence:result.electricalIntelligence,reviewState:result.reviewState,stats:result.stats};
 }
