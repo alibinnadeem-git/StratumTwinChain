@@ -200,6 +200,35 @@ export function buildElectricalDesignIntelligence(entities:ElectricalIntelligenc
  for(const entity of schedules){
   const tag=entityTag(entity);if(tag&&!physicalTags.has(tag))findings.push({id:`elec:schedule-missing:${entity.id}`,severity:'H2',type:'SCHEDULE_NOT_LOCATED',title:`${tag} appears in the equipment matrix but is not located on a physical plan`,detail:'The equipment matrix/schedule record is preserved as non-spatial evidence until a physical-plan counterpart is found.',entityRefs:[entity.id],sourceRefs:[entity.source],blocking:false});
  }
+
+ const ratingKeys=['voltage','phase','kva','kw','amperage'] as const;
+ for(const entity of physical){
+  const tag=entityTag(entity),cls=componentClass(entity);
+  const matchedSchedules=schedules.filter(item=>tag&&entityTag(item)===tag);
+  const matchedSpecs=specs.filter(item=>item.componentHint===cls);
+  if(!matchedSchedules.length||!matchedSpecs.length)continue;
+  const scheduleManufacturers=uniq(matchedSchedules.map(item=>norm(item.meta?.manufacturer||item.meta?.manufacturerName)).filter(Boolean));
+  const specManufacturers=uniq(matchedSpecs.map(item=>norm(item.manufacturer)).filter(Boolean));
+  if(scheduleManufacturers.length&&specManufacturers.length&&!scheduleManufacturers.some(value=>specManufacturers.includes(value))){
+   findings.push({id:`elec:product-conflict:${entity.id}`,severity:'H3',type:'PRODUCT_IDENTITY_CONFLICT',title:`${tag||entity.name} manufacturer conflicts with specification evidence`,detail:`Equipment matrix manufacturer ${scheduleManufacturers.join(', ')} does not match the structured specification manufacturer evidence ${specManufacturers.join(', ')}. Preserve both sources and block exact-product promotion pending review.`,entityRefs:[entity.id,...matchedSchedules.map(item=>item.id)],sourceRefs:uniq([entity.source,...matchedSchedules.map(item=>item.source)]),blocking:true});
+  }
+  for(const schedule of matchedSchedules){
+   const scheduleRatings:Record<string,number|null>={
+    voltage:Number.isFinite(Number(schedule.meta?.voltage))?Number(schedule.meta?.voltage):null,
+    phase:Number.isFinite(Number(schedule.meta?.phase))?Number(schedule.meta?.phase):null,
+    kva:Number.isFinite(Number(schedule.meta?.inputKva))?Number(schedule.meta?.inputKva):null,
+    kw:Number.isFinite(Number(schedule.meta?.inputKw))?Number(schedule.meta?.inputKw):null,
+    amperage:Number.isFinite(Number(schedule.meta?.fla))?Number(schedule.meta?.fla):Number.isFinite(Number(schedule.meta?.mca))?Number(schedule.meta?.mca):null
+   };
+   for(const spec of matchedSpecs){
+    const mismatches=ratingKeys.filter(key=>{
+     const a=scheduleRatings[key],b=spec.ratings[key];
+     return a!==null&&typeof b==='number'&&Math.abs(a-b)>1e-6;
+    });
+    if(mismatches.length)findings.push({id:`elec:rating-conflict:${entity.id}:${schedule.id}:${spec.id}`,severity:'H3',type:'RATING_CONFLICT',title:`${tag||entity.name} ratings conflict between matrix and specifications`,detail:`Conflicting fields: ${mismatches.join(', ')}. STRATUM preserves the disagreement and blocks exact-product promotion until the effective design source is reviewed.`,entityRefs:[entity.id,schedule.id],sourceRefs:uniq([entity.source,schedule.source]),blocking:true});
+   }
+  }
+ }
  if(!specSourcePresent&&physical.length)findings.push({id:'elec:spec-source-missing',severity:'H2',type:'SPEC_SOURCE_MISSING',title:'Electrical specification evidence has not been ingested',detail:'The audio-defined workflow requires an applicable specification comparison for every resolved electrical item. 3D family previews may remain available, but exact-product resolution must remain review-gated until specification evidence is supplied or explicitly waived.',entityRefs:physical.map(item=>item.id),sourceRefs:uniq(physical.map(item=>item.source)),blocking:false});
  else if(specSourcePresent){
   for(const row of rows.values())if(row.componentClass!=='UNRESOLVED'&&!specClasses.has(row.componentClass))findings.push({id:`elec:spec-class:${row.key}`,severity:'H2',type:'SPEC_CLASS_MISSING',title:`${row.componentClass} has no matched specification requirement`,detail:'Specification pages were ingested, but no requirement was matched to this quantified equipment class. Review the applicable section and terminology.',entityRefs:row.entityIds,sourceRefs:row.sourceRefs,blocking:false});
