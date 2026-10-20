@@ -3,9 +3,10 @@ import fs from 'node:fs';
 import {
  detectElectricalLegendPage,extractElectricalLegendEntries,
  detectElectricalSpecificationPage,extractElectricalSpecificationRequirements,
- detectPdfEquipmentMatrixPage,extractPdfEquipmentMatrixRecords,
+ detectPdfEquipmentMatrixPage,extractPdfEquipmentMatrixRecords,classifyElectricalLegendDescription,
  buildElectricalDesignIntelligence,enrichElectricalDesignIntelligence
 } from '../lib/electrical-design-intelligence.ts';
+import {buildLegendSymbolFingerprints,matchLegendSymbolFingerprints} from '../lib/electrical-symbol-fingerprint.ts';
 
 const legendLabels=['ELECTRICAL SYMBOLS & ABBREVIATIONS','SYMBOL','ABBREVIATION','DESCRIPTION','ATS','AUTOMATIC TRANSFER SWITCH','XFMR','TRANSFORMER'];
 const legendDetection=detectElectricalLegendPage(legendLabels);
@@ -30,6 +31,9 @@ const denseLegend=extractElectricalLegendEntries([
 assert.equal(denseLegend.some(entry=>entry.abbreviation==='E-1'),false,'sheet-index rows must not leak into project legend extraction');
 assert.equal(denseLegend.some(entry=>entry.abbreviation==='SD'),true);
 assert.equal(denseLegend.some(entry=>entry.abbreviation==='CO'),true);
+assert.equal(classifyElectricalLegendDescription('DUPLEX RECEPTACLE (+18\")'),'RECEPTACLE_DUPLEX');
+assert.equal(classifyElectricalLegendDescription('HARD-WIRED SMOKE DETECTOR W/ BATTERY BACK UP'),'SMOKE_DETECTOR');
+assert.equal(classifyElectricalLegendDescription('JUNCTION BOX.'),'JUNCTION_BOX');
 
 const specLabels=['SECTION 26 36 23','AUTOMATIC TRANSFER SWITCHES','PART 2 - PRODUCTS','MANUFACTURER: ASCO','ATS-1 480V 3PH 800A'];
 const specDetection=detectElectricalSpecificationPage(specLabels);
