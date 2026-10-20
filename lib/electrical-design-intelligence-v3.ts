@@ -341,7 +341,7 @@ export function buildElectricalDesignIntelligence(entities:ElectricalIntelligenc
  const findings:ElectricalEvidenceFinding[]=[];
  if(options?.drawingSetPartial)findings.push({id:'elec:drawing-set-partial',severity:'H2',type:'DRAWING_SET_PARTIAL',title:'Indexed electrical drawing set is incomplete',detail:`The source index references sheets that are not present in this compilation${options.missingSheets?.length?': '+options.missingSheets.join(', '):''}. Completeness remains partial; missing sheets are never inferred.`,entityRefs:[],sourceRefs:[],blocking:false});
  const graphicalLegendClasses=new Set(legends.map(item=>item.componentHint).filter((value):value is string=>Boolean(value)&&/^(?:RECEPTACLE_|SWITCH_|SMOKE_DETECTOR|CO_DETECTOR|JUNCTION_BOX|TELEPHONE_OUTLET|THERMOSTAT|FAN|LIGHT_FIXTURE)/.test(String(value))));
- const fingerprintClasses=new Set(entities.filter(entity=>entity.kind==='electrical-legend-symbol-fingerprint'||entity.kind==='electrical-legend-open-symbol-fingerprint').map(entity=>{const meta=entity.meta as any;return clean(meta?.legendSymbolFingerprint?.componentClass||meta?.legendOpenSymbolFingerprint?.componentClass)}).filter(Boolean));
+ const fingerprintClasses=new Set(entities.filter(entity=>entity.kind==='electrical-legend-symbol-fingerprint'||entity.kind==='electrical-legend-segment-fingerprint'||entity.kind==='electrical-legend-open-symbol-fingerprint').map(entity=>{const meta=entity.meta as any;return clean(meta?.legendSymbolFingerprint?.componentClass||meta?.legendSegmentFingerprint?.componentClass||meta?.legendOpenSymbolFingerprint?.componentClass)}).filter(Boolean));
  for(const cls of graphicalLegendClasses)if(!fingerprintClasses.has(cls))findings.push({
   id:`elec:symbol-geometry:${cls}`,severity:'H2',type:'SYMBOL_GEOMETRY_UNRESOLVED',
   title:`${cls} legend geometry is not yet matchable`,
@@ -425,14 +425,14 @@ export function enrichElectricalDesignIntelligence<T extends {entities:Electrica
   const scheduleAvailable=schedules.length>0,sldAvailable=sld.length>0;
   const legendCompared=intelligence.legend.entries.some(item=>item.componentHint===cls);
   const specCompared=intelligence.specifications.requirements.some(item=>item.componentHint===cls);
-  const scheduleCompared=schedules.some(item=>tag&&entityTag(item)===tag);
+  const scheduleCompared=schedules.some(item=>(tag&&entityTag(item)===tag)||(!tag&&componentClass(item)===cls));
   const sldCompared=sld.some(item=>(tag&&entityTag(item)===tag)||(!tag&&componentClass(item)===cls));
   const majorEquipment=['UTILITY_SOURCE','GENERATOR_SOURCE','PV_SOURCE','BATTERY_SOURCE','UPS','TRANSFORMER','SWITCHGEAR','SWITCHBOARD','ATS','BREAKER','MCC','PDU','PANEL','DISCONNECT','VFD','INVERTER','EVSE','MOTOR','METER'].includes(cls);
   const required=[
    {name:'legend',applicable:legendAvailable,passed:!legendAvailable||legendCompared},
    {name:'specification',applicable:true,passed:specificationAvailable&&specCompared},
-   {name:'equipmentMatrix',applicable:majorEquipment&&Boolean(tag),passed:!majorEquipment||!tag||(scheduleAvailable&&scheduleCompared)},
-   {name:'sld',applicable:majorEquipment&&Boolean(tag),passed:!majorEquipment||!tag||(sldAvailable&&sldCompared)}
+   {name:'equipmentMatrix',applicable:majorEquipment,passed:!majorEquipment||(scheduleAvailable&&scheduleCompared)},
+   {name:'sld',applicable:majorEquipment,passed:!majorEquipment||(sldAvailable&&sldCompared)}
   ];
   const missing=required.filter(item=>item.applicable&&!item.passed).map(item=>item.name);
   const reconciled=!blocking&&missing.length===0;
