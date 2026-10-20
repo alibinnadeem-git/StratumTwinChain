@@ -40,7 +40,10 @@ export type ElectricalDesignIntelligence={
  specifications:{pages:number[];requirements:ElectricalSpecificationRequirement[]};
  takeoff:{rows:ElectricalTakeoffRow[];totalPhysicalEquipment:number;floors:string[]};
  findings:ElectricalEvidenceFinding[];
- summary:{legendEntries:number;specRequirements:number;physicalEquipment:number;takeoffRows:number;findings:number;blocking:number};
+ summary:{legendEntries:number;specRequirements:number;physicalEquipment:number;takeoffRows:number;findings:number;blocking:number;
+  readiness:'COMPLETE_REVIEW'|'PARTIAL_EVIDENCE'|'BLOCKED_CONFLICT';
+  coverage:{legend:boolean;physicalPlans:boolean;equipmentMatrix:boolean;sld:boolean;specifications:boolean}};
+};
 };
 
 const clean=(value:unknown)=>String(value??'').replace(/\s+/g,' ').trim();
@@ -383,13 +386,16 @@ export function buildElectricalDesignIntelligence(entities:ElectricalIntelligenc
  else if(specSourcePresent){
   for(const row of rows.values())if(row.componentClass!=='UNRESOLVED'&&!specClasses.has(row.componentClass))findings.push({id:`elec:spec-class:${row.key}`,severity:'H2',type:'SPEC_CLASS_MISSING',title:`${row.componentClass} has no matched specification requirement`,detail:'Specification pages were ingested, but no requirement was matched to this quantified equipment class. Review the applicable section and terminology.',entityRefs:row.entityIds,sourceRefs:row.sourceRefs,blocking:false});
  }
+ const blockingCount=findings.filter(item=>item.blocking).length;
+ const coverage={legend:legends.length>0,physicalPlans:physical.length>0,equipmentMatrix:schedules.length>0,sld:sld.length>0,specifications:specs.length>0};
+ const readiness=blockingCount>0?'BLOCKED_CONFLICT':Object.values(coverage).every(Boolean)?'COMPLETE_REVIEW':'PARTIAL_EVIDENCE';
  return{
   version:'1',
   legend:{pages:uniq(legends.map(item=>item.page)),entries:legends},
   specifications:{pages:uniq(specs.map(item=>item.page)),requirements:specs},
-  takeoff:{rows:[...rows.values()].sort((a,b)=>a.floor.localeCompare(b.floor)||a.componentClass.localeCompare(b.componentClass)),totalPhysicalEquipment:physical.length,floors:uniq(physical.map(item=>clean(item.floor)||'UNRESOLVED')).sort()},
+  takeoff:{rows:[...rows.values()].sort((a,b)=>(a.unitId||a.floor).localeCompare(b.unitId||b.floor)||a.componentClass.localeCompare(b.componentClass)),totalPhysicalEquipment:physical.length,floors:uniq(physical.map(item=>clean(item.floor)||'UNRESOLVED')).sort()},
   findings,
-  summary:{legendEntries:legends.length,specRequirements:specs.length,physicalEquipment:physical.length,takeoffRows:rows.size,findings:findings.length,blocking:findings.filter(item=>item.blocking).length}
+  summary:{legendEntries:legends.length,specRequirements:specs.length,physicalEquipment:physical.length,takeoffRows:rows.size,findings:findings.length,blocking:blockingCount,readiness,coverage}
  };
 }
 
