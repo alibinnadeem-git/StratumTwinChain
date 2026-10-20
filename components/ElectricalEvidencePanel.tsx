@@ -34,8 +34,8 @@ export default function ElectricalEvidencePanel(){
   </div>
   {intel.takeoff.rows.length>0&&<div style={{overflowX:"auto",marginTop:14}}>
    <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-    <thead><tr><th align="left">Floor</th><th align="left">Plan</th><th align="left">Class</th><th align="right">Qty</th><th align="right">Legend</th><th align="right">Matrix</th><th align="right">SLD</th><th align="right">Spec</th></tr></thead>
-    <tbody>{intel.takeoff.rows.slice(0,80).map(row=><tr key={row.key}><td>{row.floor}</td><td>{row.planType.replaceAll("_"," ")}</td><td>{row.componentClass}</td><td align="right">{row.count}</td><td align="right">{row.legendBacked}</td><td align="right">{row.scheduleRefs}</td><td align="right">{row.sldRefs}</td><td align="right">{row.specRefs}</td></tr>)}</tbody>
+    <thead><tr><th align="left">Floor / Unit</th><th align="left">Plan</th><th align="left">Class</th><th align="right">Qty</th><th align="right">Legend</th><th align="right">Matrix</th><th align="right">SLD</th><th align="right">Spec</th></tr></thead>
+    <tbody>{intel.takeoff.rows.slice(0,80).map(row=><tr key={row.key}><td>{row.unitId ? "Unit "+row.unitId : row.floor}</td><td>{row.planType.replaceAll("_"," ")}</td><td>{row.componentClass}</td><td align="right">{row.count}</td><td align="right">{row.legendBacked}</td><td align="right">{row.scheduleRefs}</td><td align="right">{row.sldRefs}</td><td align="right">{row.specRefs}</td></tr>)}</tbody>
    </table>
   </div>}
   {intel.findings.length>0&&<div style={{marginTop:14}}>
