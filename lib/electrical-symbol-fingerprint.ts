@@ -118,7 +118,11 @@ export function matchLegendSymbolFingerprints(args:{
   const ranked=args.fingerprints.map(fp=>({fp,score:similarity(fp,candidate.m)})).sort((a,b)=>b.score-a.score);
   const best=ranked[0],second=ranked[1];if(!best||best.score<minScore)continue;
   // Require class-separation so visually common rectangles/circles do not explode takeoff counts.
-  if(second&&second.fp.componentClass!==best.fp.componentClass&&best.score-second.score<.08)continue;
+  if(second&&second.fp.componentClass!==best.fp.componentClass){
+   const exactBest=best.fp.vertexCount===candidate.m.vertexCount;
+   const exactSecond=second.fp.vertexCount===candidate.m.vertexCount;
+   if((!exactBest||exactSecond)&&best.score-second.score<.08)continue;
+  }
   const frame=args.frameAt?.(candidate.p.page,candidate.m.centroid.x,candidate.m.centroid.y)||null;
   out.push({
    id:`symbol-match-${candidate.p.page}-${out.length}`,fingerprintId:best.fp.id,legendEntryId:best.fp.legendEntryId,
