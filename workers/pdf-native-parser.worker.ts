@@ -181,7 +181,7 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
   }
   for(const [page,frames] of planFramesByPage)for(const frame of frames)reviewEntities.push({id:`pdf-plan-frame-${page}-${frame.id}`,source:fileName,layer:'L0',kind:'plan-frame-candidate',name:frame.title,x:frame.anchorX,y:frame.anchorY,z:0,floor:frame.floor||'UNRESOLVED',confidence:frame.confidence,meta:{page,nonSpatial:true,sourceType:'PDF_PLAN_FRAME_TITLE',planFrame:frame,physicalTruth:false,reviewRequired:true,geometryAuthority:'TITLE_ANCHOR_ONLY',spatialPlacementAuthority:'SOURCE_SHEET_TITLE_ANCHOR_ONLY',zPlacementAuthority:'UNVERIFIED_DRAWING_PLANE',elevationKnown:false,physicalElevationKnown:false}});
   const legendEntries=[...legendEntriesByPage.values()].flat();
-  const legendPages=new Set([...legendEntriesByPage.keys()]);
+  const legendPageSet=new Set([...legendEntriesByPage.keys()]);
   const symbolFingerprints=buildLegendSymbolFingerprints({
    entries:legendEntries,
    polygons:polygons.map((polygon,index)=>({id:`pdf-poly-${polygon.page}-${index}`,page:polygon.page,vertices:polygon.vertices,confidence:polygon.confidence,planFrameId:null}))
@@ -191,7 +191,7 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
    polygons:polygons
     .filter(polygon=>Boolean(planEvidence.get(polygon.page)?.isPlan))
     .map((polygon,index)=>({id:`pdf-plan-symbol-${polygon.page}-${index}`,page:polygon.page,vertices:polygon.vertices,confidence:polygon.confidence,planFrameId:null})),
-   legendPages,
+   legendPages:legendPageSet,
    frameAt:(page,x,y)=>frameAt(page,x,y)
   });
   for(const fingerprint of symbolFingerprints)reviewEntities.push({
