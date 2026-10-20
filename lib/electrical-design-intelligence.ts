@@ -68,6 +68,13 @@ function descriptionCandidate(value:string){
  return v.length>=4&&v.length<=180&&!/^(?:SYMBOL|ABBREVIATION|DESCRIPTION)$/i.test(v);
 }
 
+function legendPairNoise(abbreviation:string,description:string){
+ const joined=clean(abbreviation+' '+description);
+ if(/\b(?:SHEET\s+INDEX|DRAWING\s+INDEX|(?:FIRST|SECOND|THIRD|FOURTH|FIFTH|SIXTH|GROUND|1ST|2ND|3RD|4TH)\s+FLOOR|SITE\s+PLAN|ROOF\s+PLAN|UNIT\s+PLANS?|PHOTOMETRICS|T-24|GENERAL\s+NOTES|CONDUCTOR\s+SIZE|EMERGENCY\s+LIGHTING\s+NOTES|HANDICAP\s+ACCESSIBILITY\s+NOTES|SCOPE\s+OF\s+WORK|UTILITY\s+CONTACTS|ENERGY\s+NOTES|ARTICLE\s+\d+|\bDETAILS?\b|\bSCHEDULE\b|\bJOB\b|\bCLIENT\b)\b/i.test(joined))return true;
+ if(/^[A-Z]$/i.test(clean(abbreviation))&&/^FIXTURE$/i.test(clean(description)))return true;
+ return false;
+}
+
 export function extractElectricalLegendEntries(items:PositionedElectricalText[],page:number):ElectricalLegendEntry[]{
  const allPageItems=items.filter(item=>item.page===page&&clean(item.text));
  const headingItems=allPageItems.filter(item=>/^(?:GENERAL\s+SYMBOLS|ELECTRICAL\s+ABBREVIATIONS|ELECTRICAL\s+SYMBOLS|SYMBOLS\s*(?:&|AND)\s*ABBREVIATIONS)$/i.test(clean(item.text)));
@@ -86,6 +93,7 @@ export function extractElectricalLegendEntries(items:PositionedElectricalText[],
    .sort((a,b)=>a.dy-b.dy||a.dx-b.dx)[0];
   if(!near)continue;
   const description=clean(near.item.text);
+  if(legendPairNoise(token,description))continue;
   const componentHint=classifyElectricalLabel(token+' '+description);
   out.push({
    id:`legend-${page}-${out.length}-${token.replace(/[^A-Za-z0-9]+/g,'-')}`,
@@ -100,7 +108,7 @@ export function extractElectricalLegendEntries(items:PositionedElectricalText[],
   if(consumed.has(i))continue;
   const value=clean(pageItems[i].text);
   const match=value.match(/^([A-Z0-9][A-Z0-9 ._\-/()#]{0,20})\s*(?:-|–|—|:)\s*(.{4,160})$/);
-  if(!match||!abbreviationCandidate(match[1])||!descriptionCandidate(match[2]))continue;
+  if(!match||!abbreviationCandidate(match[1])||!descriptionCandidate(match[2])||legendPairNoise(match[1],match[2]))continue;
   const componentHint=classifyElectricalLabel(match[1]+' '+match[2]);
   out.push({
    id:`legend-${page}-inline-${out.length}-${match[1].replace(/[^A-Za-z0-9]+/g,'-')}`,
