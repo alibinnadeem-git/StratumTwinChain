@@ -18,21 +18,34 @@ function clusterSegments(segments:Segment[],tolerance=.045):Cluster[]{
  const byPage=new Map<number,Segment[]>();
  for(const s of usable)byPage.set(s.page,[...(byPage.get(s.page)||[]),s]);
  const out:Cluster[]=[];
+ const cell=tolerance;
+ const key=(x:number,y:number)=>`${Math.floor(x/cell)}:${Math.floor(y/cell)}`;
  for(const [page,pageSegs] of byPage){
+  const endpointGrid=new Map<string,Set<number>>();
+  const addEndpoint=(index:number,p:{x:number;y:number})=>{
+   const k=key(p.x,p.y);let bucket=endpointGrid.get(k);if(!bucket){bucket=new Set<number>();endpointGrid.set(k,bucket)}bucket.add(index);
+  };
+  pageSegs.forEach((seg,index)=>{addEndpoint(index,{x:seg.x,y:seg.y});addEndpoint(index,{x:seg.x2,y:seg.y2})});
+  const neighbors=(p:{x:number;y:number})=>{
+   const gx=Math.floor(p.x/cell),gy=Math.floor(p.y/cell),ids=new Set<number>();
+   for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)for(const id of endpointGrid.get(`${gx+dx}:${gy+dy}`)||[])ids.add(id);
+   return ids;
+  };
   const used=new Set<number>();
   for(let seed=0;seed<pageSegs.length;seed++){
    if(used.has(seed))continue;
    const queue=[seed],indices:number[]=[];used.add(seed);
    while(queue.length&&indices.length<30){
     const i=queue.shift()!;indices.push(i);const a=pageSegs[i],endsA=[{x:a.x,y:a.y},{x:a.x2,y:a.y2}];
-    for(let j=0;j<pageSegs.length;j++){
-     if(used.has(j))continue;const b=pageSegs[j],endsB=[{x:b.x,y:b.y},{x:b.x2,y:b.y2}];
+    const candidateIds=new Set<number>();for(const p of endsA)for(const id of neighbors(p))candidateIds.add(id);
+    for(const j of candidateIds){
+     if(used.has(j)||j===i)continue;const b=pageSegs[j],endsB=[{x:b.x,y:b.y},{x:b.x2,y:b.y2}];
      if(endsA.some(p=>endsB.some(q=>d(p,q)<=tolerance))){used.add(j);queue.push(j)}
     }
    }
    const ss=indices.map(i=>pageSegs[i]);
    if(ss.length<2||ss.length>24)continue;
-   const points=ss.flatMap(s=>[{x:s.x,y:s.y},{x:s.x2,y:s.y2}]),xs=points.map(p=>p.x),ys=points.map(p=>p.y);
+   const points=ss.flatMap(seg=>[{x:seg.x,y:seg.y},{x:seg.x2,y:seg.y2}]),xs=points.map(p=>p.x),ys=points.map(p=>p.y);
    const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys),width=maxX-minX,height=maxY-minY;
    if(width<.02||height<.02||width>1.4||height>1.4)continue;
    out.push({page,segments:ss,centroid:{x:(minX+maxX)/2,y:(minY+maxY)/2},width,height});
@@ -40,7 +53,6 @@ function clusterSegments(segments:Segment[],tolerance=.045):Cluster[]{
  }
  return out;
 }
-
 function metrics(cluster:Cluster){
  const lengths=cluster.segments.map(segLen),total=lengths.reduce((a,b)=>a+b,0)||1;
  const lengthSignature=[...lengths].sort((a,b)=>b-a).slice(0,10).map(v=>v/total);
