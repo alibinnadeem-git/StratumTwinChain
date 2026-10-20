@@ -25,7 +25,8 @@ export default function ElectricalEvidencePanel(){
  },[]);
  if(!intel||(!intel.summary.physicalEquipment&&!intel.summary.legendEntries&&!intel.summary.specRequirements))return null;
  return <details className="secondary-details card" aria-label="Electrical evidence compiler" style={{marginBottom:18}}>
-  <summary>Electrical evidence compiler · {intel.summary.physicalEquipment} physical item{intel.summary.physicalEquipment===1?'':'s'} · {intel.summary.findings} review finding{intel.summary.findings===1?'':'s'}</summary>
+  <summary>Electrical evidence compiler · {intel.summary.readiness.replaceAll("_"," ")} · {intel.summary.physicalEquipment} physical item{intel.summary.physicalEquipment===1?'':'s'} · {intel.summary.findings} review finding{intel.summary.findings===1?'':'s'}</summary>
+  <div style={{marginTop:10,fontSize:12}}>Evidence coverage · Legend {intel.summary.coverage.legend?'✓':'—'} · Plans {intel.summary.coverage.physicalPlans?'✓':'—'} · Matrix {intel.summary.coverage.equipmentMatrix?'✓':'—'} · SLD {intel.summary.coverage.sld?'✓':'—'} · Specs {intel.summary.coverage.specifications?'✓':'—'}</div>
   <div className="grid two" style={{marginTop:12}}>
    <div><div className="label">Project legend</div><b>{intel.summary.legendEntries} entries</b><small style={{display:"block"}}>{intel.legend.pages.length?'Pages '+intel.legend.pages.join(", "):"No electrical legend page structured yet"}</small></div>
    <div><div className="label">Specifications</div><b>{intel.summary.specRequirements} requirements</b><small style={{display:"block"}}>{intel.specifications.pages.length?'Pages '+intel.specifications.pages.join(", "):"Specification comparison remains review-gated"}</small></div>
