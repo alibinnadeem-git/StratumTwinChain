@@ -69,7 +69,13 @@ function descriptionCandidate(value:string){
 }
 
 export function extractElectricalLegendEntries(items:PositionedElectricalText[],page:number):ElectricalLegendEntry[]{
- const pageItems=items.filter(item=>item.page===page&&clean(item.text));
+ const allPageItems=items.filter(item=>item.page===page&&clean(item.text));
+ const headingItems=allPageItems.filter(item=>/^(?:GENERAL\s+SYMBOLS|ELECTRICAL\s+ABBREVIATIONS|ELECTRICAL\s+SYMBOLS|SYMBOLS\s*(?:&|AND)\s*ABBREVIATIONS)$/i.test(clean(item.text)));
+ const pageItems=headingItems.length?(()=>{
+  const minX=Math.min(...headingItems.map(item=>item.x)),maxX=Math.max(...headingItems.map(item=>item.x));
+  const maxY=Math.max(...headingItems.map(item=>item.y)),minY=Math.min(...headingItems.map(item=>item.y));
+  return allPageItems.filter(item=>item.x>=minX-1.5&&item.x<=maxX+2&&item.y<=maxY+.5&&item.y>=minY-6.8&&!headingItems.includes(item));
+ })():allPageItems;
  const out:ElectricalLegendEntry[]=[];
  const consumed=new Set<number>();
  for(let i=0;i<pageItems.length;i++){
