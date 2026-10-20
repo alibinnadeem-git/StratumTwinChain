@@ -1,10 +1,11 @@
 import {classifyElectricalLabel} from './sld-recognition.ts';
 
-export type PositionedElectricalText={text:string;x:number;y:number;page:number};
+export type PositionedElectricalText={text:string;x:number;y:number;page:number;dirX?:number;dirY?:number;textSpan?:number};
 
 export type ElectricalLegendEntry={
  id:string;page:number;abbreviation:string;description:string;componentHint:string|null;
- anchor:{x:number;y:number};confidence:number;sourceEvidence:string[];physicalTruth:false;reviewRequired:true;
+ anchor:{x:number;y:number};textDirection?:{x:number;y:number};textSpan?:number;
+ confidence:number;sourceEvidence:string[];physicalTruth:false;reviewRequired:true;
 };
 
 export type ElectricalSpecificationRequirement={
@@ -129,7 +130,7 @@ export function extractElectricalLegendEntries(items:PositionedElectricalText[],
   out.push({
    id:`legend-${page}-${out.length}-${token.replace(/[^A-Za-z0-9]+/g,'-')}`,
    page,abbreviation:token,description,componentHint:componentHint||null,
-   anchor:{x:left.x,y:left.y},confidence:componentHint ? .94 : .82,
+   anchor:{x:left.x,y:left.y},textDirection:Number.isFinite(left.dirX)&&Number.isFinite(left.dirY)?{x:Number(left.dirX),y:Number(left.dirY)}:undefined,textSpan:Number.isFinite(left.textSpan)?Number(left.textSpan):undefined,confidence:componentHint ? .94 : .82,
    sourceEvidence:[token,description],physicalTruth:false,reviewRequired:true
   });
   consumed.add(i);consumed.add(near.index);
@@ -144,7 +145,7 @@ export function extractElectricalLegendEntries(items:PositionedElectricalText[],
   out.push({
    id:`legend-${page}-inline-${out.length}-${match[1].replace(/[^A-Za-z0-9]+/g,'-')}`,
    page,abbreviation:clean(match[1]),description:clean(match[2]),componentHint:componentHint||null,
-   anchor:{x:pageItems[i].x,y:pageItems[i].y},confidence:componentHint ? .96 : .84,
+   anchor:{x:pageItems[i].x,y:pageItems[i].y},textDirection:Number.isFinite(pageItems[i].dirX)&&Number.isFinite(pageItems[i].dirY)?{x:Number(pageItems[i].dirX),y:Number(pageItems[i].dirY)}:undefined,textSpan:Number.isFinite(pageItems[i].textSpan)?Number(pageItems[i].textSpan):undefined,confidence:componentHint ? .96 : .84,
    sourceEvidence:[value],physicalTruth:false,reviewRequired:true
   });
  }
@@ -157,6 +158,8 @@ export function extractElectricalLegendEntries(items:PositionedElectricalText[],
   out.push({
    id:`legend-${page}-description-${out.length}-${componentHint.toLowerCase().replace(/[^a-z0-9]+/g,'-')}`,
    page,abbreviation:'',description,componentHint,anchor:{x:item.x,y:item.y},
+   textDirection:Number.isFinite(item.dirX)&&Number.isFinite(item.dirY)?{x:Number(item.dirX),y:Number(item.dirY)}:undefined,
+   textSpan:Number.isFinite(item.textSpan)?Number(item.textSpan):undefined,
    confidence:.78,sourceEvidence:[description],physicalTruth:false,reviewRequired:true
   });
  }
