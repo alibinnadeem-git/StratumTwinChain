@@ -1,6 +1,6 @@
 export type RasterImage={width:number;height:number;gray:Uint8Array};
 export type RasterBox={x0:number;y0:number;x1:number;y1:number};
-export type RasterLegendEntry={id:string;componentClass:string;anchorX:number;anchorY:number;confidence:number};
+export type RasterLegendEntry={id:string;componentClass:string;anchorX:number;anchorY:number;dirX?:number;dirY?:number;confidence:number};
 export type RasterCandidate={
  id:string;page:number;box:RasterBox;centerX:number;centerY:number;width:number;height:number;
  density:number;aspect:number;grid:number[];confidence:number;
@@ -118,11 +118,22 @@ export function buildRasterLegendFingerprints(args:{
  const out:RasterFingerprint[]=[];
  for(const entry of args.entries){
   if(!entry.componentClass)continue;const anchor=args.pixelFromAnchor(entry.anchorX,entry.anchorY);
-  const ranked=args.candidates.map(c=>({c,dx:anchor.x-c.centerX,dy:Math.abs(anchor.y-c.centerY)}))
-   .filter(v=>v.dx>=-8&&v.dx<=Math.max(90,args.image.width*.13)&&v.dy<=Math.max(18,args.image.height*.025))
-   .sort((a,b)=>(a.dy*2+Math.max(0,a.dx))-(b.dy*2+Math.max(0,b.dx)));
+  const hasDirection=Number.isFinite(entry.dirX)&&Number.isFinite(entry.dirY)&&Math.hypot(Number(entry.dirX),Number(entry.dirY))>.1;
+  const direction=hasDirection?(()=>{
+   const next=args.pixelFromAnchor(entry.anchorX+Number(entry.dirX)*.5,entry.anchorY+Number(entry.dirY)*.5);
+   const dx=next.x-anchor.x,dy=next.y-anchor.y,mag=Math.hypot(dx,dy)||1;return{x:dx/mag,y:dy/mag};
+  })():null;
+  const ranked=args.candidates.map(c=>{
+   if(direction){
+    const vx=c.centerX-anchor.x,vy=c.centerY-anchor.y,along=vx*direction.x+vy*direction.y,perp=Math.abs(vx*(-direction.y)+vy*direction.x);
+    const maxAlong=Math.max(90,args.image.width*.13),maxPerp=Math.max(18,args.image.height*.025);
+    return{c,eligible:along>=-maxAlong&&along<=8&&perp<=maxPerp,score:perp*2+Math.abs(along+Math.max(8,args.image.width*.012))};
+   }
+   const dx=anchor.x-c.centerX,dy=Math.abs(anchor.y-c.centerY),maxAlong=Math.max(90,args.image.width*.13),maxPerp=Math.max(18,args.image.height*.025);
+   return{c,eligible:dx>=-8&&dx<=maxAlong&&dy<=maxPerp,score:dy*2+Math.max(0,dx)};
+  }).filter(v=>v.eligible).sort((a,b)=>a.score-b.score);
   const best=ranked[0];if(!best)continue;
-  if(ranked[1]&&Math.abs((ranked[1].dy*2+Math.max(0,ranked[1].dx))-(best.dy*2+Math.max(0,best.dx)))<6)continue;
+  if(ranked[1]&&Math.abs(ranked[1].score-best.score)<6)continue;
   out.push({id:`raster-fp-${entry.id}`,legendEntryId:entry.id,componentClass:entry.componentClass,sourcePage:args.page,grid:best.c.grid,aspect:best.c.aspect,density:best.c.density,confidence:Math.min(.82,entry.confidence,best.c.confidence),physicalTruth:false,reviewRequired:true});
  }
  return out;
