@@ -307,7 +307,14 @@ function sldEntity(entity:ElectricalIntelligenceEntity){return entity.meta?.sldC
 export function buildElectricalDesignIntelligence(entities:ElectricalIntelligenceEntity[]):ElectricalDesignIntelligence{
  const legends=entities.filter(legendEntity).map(entity=>entity.meta?.legendEntry as ElectricalLegendEntry).filter(Boolean);
  const specs=entities.filter(specEntity).map(entity=>entity.meta?.specRequirement as ElectricalSpecificationRequirement).filter(Boolean);
- const physical=entities.filter(physicalPlanEntity);
+ const physicalRaw=entities.filter(physicalPlanEntity);
+ const physical=[...physicalRaw].sort((a,b)=>{
+  const authority=(e:ElectricalIntelligenceEntity)=>(e.meta?.legendBacked===true?3:0)+(e.meta?.symbolAnchorStatus==='RESOLVED_REVIEW_CANDIDATE'?2:0)+e.confidence;
+  return authority(b)-authority(a);
+ }).filter((entity,index,array)=>{
+  const cls=componentClass(entity),page=Number(entity.meta?.page||0);
+  return !array.slice(0,index).some(other=>componentClass(other)===cls&&Number(other.meta?.page||0)===page&&Math.hypot(other.x-entity.x,other.y-entity.y)<.07);
+ });
  const schedules=entities.filter(scheduleEntity);
  const sld=entities.filter(sldEntity);
  const legendClasses=new Set(legends.map(entry=>entry.componentHint).filter(Boolean));
