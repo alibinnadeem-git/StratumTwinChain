@@ -31,6 +31,34 @@ const ambiguous=matchLegendSymbolFingerprints({fingerprints,legendPages:new Set(
 ]});
 assert.ok(ambiguous.length<=1,'multi-class matching must remain ambiguity-gated');
 
+const verticalClosed=buildLegendSymbolFingerprints({
+ entries:[{id:'vertical-box',page:1,componentHint:'JUNCTION_BOX',anchor:{x:4,y:1},textDirection:{x:0,y:-1},textSpan:.8,confidence:.9}],
+ polygons:[{id:'vertical-square',page:1,vertices:square(4,1.18,.09),confidence:.9}]
+});
+assert.equal(verticalClosed.length,1,'vertical legend text must resolve its leading-edge closed symbol');
+
+const neighborhoodEntries=[
+ {id:'smoke',page:1,componentHint:'SMOKE_DETECTOR',anchor:{x:1,y:1},textDirection:{x:0,y:-1},confidence:.9},
+ {id:'co',page:1,componentHint:'CO_DETECTOR',anchor:{x:2,y:1},textDirection:{x:0,y:-1},confidence:.9},
+];
+const neighborhoodPolygons=[
+ {id:'smoke-core',page:1,vertices:square(1,1.18,.08),confidence:.9},
+ {id:'co-core',page:1,vertices:square(2,1.18,.08),confidence:.9},
+ {id:'plan-smoke-core',page:4,vertices:square(5,5,.08),confidence:.9},
+ {id:'plan-co-core',page:4,vertices:square(6,5,.08),confidence:.9},
+];
+const neighborhoodSegments=[
+ {page:1,x:.94,y:1.18,x2:1.06,y2:1.18},{page:1,x:1,y:1.12,x2:1,y2:1.24},
+ {page:1,x:1.94,y:1.12,x2:2.06,y2:1.24},{page:1,x:1.94,y:1.24,x2:2.06,y2:1.12},
+ {page:4,x:4.94,y:5,x2:5.06,y2:5},{page:4,x:5,y:4.94,x2:5,y2:5.06},
+ {page:4,x:5.94,y:4.94,x2:6.06,y2:5.06},{page:4,x:5.94,y:5.06,x2:6.06,y2:4.94},
+];
+const neighborhoodFingerprints=buildLegendSymbolFingerprints({entries:neighborhoodEntries,polygons:neighborhoodPolygons.filter(p=>p.page===1),segments:neighborhoodSegments});
+const neighborhoodMatches=matchLegendSymbolFingerprints({fingerprints:neighborhoodFingerprints,polygons:neighborhoodPolygons.filter(p=>p.page===4),segments:neighborhoodSegments,legendPages:new Set([1]),minScore:.7});
+assert.ok(neighborhoodMatches.some(match=>match.componentClass==='SMOKE_DETECTOR'&&Math.abs(match.x-5)<.2),'interior-neighborhood must distinguish smoke glyph');
+assert.ok(neighborhoodMatches.some(match=>match.componentClass==='CO_DETECTOR'&&Math.abs(match.x-6)<.2),'interior-neighborhood must distinguish CO glyph');
+
+
 const fixtureSchedule=[
  {text:'COMMON AREA (HOUSE) LIGHT FIXTURE SCHEDULE',x:1,y:9,page:1},
  {text:'FIXTURE',x:1,y:8,page:1},{text:'DESCRIPTION',x:3,y:8,page:1},{text:'MANUFACTURER',x:6,y:8,page:1},{text:'CATALOG NUMBER',x:9,y:8,page:1},{text:'WATTS',x:11,y:8,page:1},{text:'VOLTS',x:13,y:8,page:1},
