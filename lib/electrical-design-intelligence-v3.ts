@@ -31,7 +31,7 @@ export type ElectricalTakeoffRow={
 export type ElectricalEvidenceFinding={
  id:string;severity:'H2'|'H3';type:
   'LEGEND_UNMAPPED'|'SLD_NOT_LOCATED'|'PLAN_NOT_IN_SLD'|'SCHEDULE_NOT_LOCATED'|'SPEC_SOURCE_MISSING'|
-  'SPEC_CLASS_MISSING'|'PRODUCT_IDENTITY_CONFLICT'|'RATING_CONFLICT'|'SYMBOL_GEOMETRY_UNRESOLVED';
+  'SPEC_CLASS_MISSING'|'PRODUCT_IDENTITY_CONFLICT'|'RATING_CONFLICT'|'SYMBOL_GEOMETRY_UNRESOLVED'|'DRAWING_SET_PARTIAL';
  title:string;detail:string;entityRefs:string[];sourceRefs:string[];blocking:boolean;
 };
 
@@ -42,7 +42,7 @@ export type ElectricalDesignIntelligence={
  findings:ElectricalEvidenceFinding[];
  summary:{legendEntries:number;specRequirements:number;physicalEquipment:number;takeoffRows:number;findings:number;blocking:number;
   readiness:'COMPLETE_REVIEW'|'PARTIAL_EVIDENCE'|'BLOCKED_CONFLICT';
-  coverage:{legend:boolean;physicalPlans:boolean;equipmentMatrix:boolean;sld:boolean;specifications:boolean}};
+  coverage:{legend:boolean;physicalPlans:boolean;equipmentMatrix:boolean;sld:boolean;specifications:boolean;drawingSet:boolean}};
 };
 
 const clean=(value:unknown)=>String(value??'').replace(/\s+/g,' ').trim();
@@ -307,7 +307,7 @@ function legendEntity(entity:ElectricalIntelligenceEntity){return entity.kind===
 function specEntity(entity:ElectricalIntelligenceEntity){return entity.kind==='electrical-spec-requirement'}
 function sldEntity(entity:ElectricalIntelligenceEntity){return entity.meta?.sldCandidate===true&&(entity.layer==='L2'||entity.layer==='L4')}
 
-export function buildElectricalDesignIntelligence(entities:ElectricalIntelligenceEntity[]):ElectricalDesignIntelligence{
+export function buildElectricalDesignIntelligence(entities:ElectricalIntelligenceEntity[],options?:{drawingSetPartial?:boolean;missingSheets?:string[]}):ElectricalDesignIntelligence{
  const legends=entities.filter(legendEntity).map(entity=>entity.meta?.legendEntry as ElectricalLegendEntry).filter(Boolean);
  const specs=entities.filter(specEntity).map(entity=>entity.meta?.specRequirement as ElectricalSpecificationRequirement).filter(Boolean);
  const physicalRaw=entities.filter(physicalPlanEntity);
@@ -339,6 +339,7 @@ export function buildElectricalDesignIntelligence(entities:ElectricalIntelligenc
   }else rows.set(key,{key,componentClass:cls,floor,unitId,planFrameId,planType,count:1,entityIds:[entity.id],sourceRefs:[entity.source],pages:[Number(entity.meta?.page||0)].filter(Boolean),legendBacked:legendClasses.has(cls)?1:0,sldRefs:sldRefs.length?1:0,scheduleRefs:scheduleRefs.length?1:0,specRefs:specRefs.length?1:0});
  }
  const findings:ElectricalEvidenceFinding[]=[];
+ if(options?.drawingSetPartial)findings.push({id:'elec:drawing-set-partial',severity:'H2',type:'DRAWING_SET_PARTIAL',title:'Indexed electrical drawing set is incomplete',detail:`The source index references sheets that are not present in this compilation${options.missingSheets?.length?': '+options.missingSheets.join(', '):''}. Completeness remains partial; missing sheets are never inferred.`,entityRefs:[],sourceRefs:[],blocking:false});
  const graphicalLegendClasses=new Set(legends.map(item=>item.componentHint).filter((value):value is string=>Boolean(value)&&/^(?:RECEPTACLE_|SWITCH_|SMOKE_DETECTOR|CO_DETECTOR|JUNCTION_BOX|TELEPHONE_OUTLET|THERMOSTAT|FAN|LIGHT_FIXTURE)/.test(String(value))));
  const fingerprintClasses=new Set(entities.filter(entity=>entity.kind==='electrical-legend-symbol-fingerprint'||entity.kind==='electrical-legend-open-symbol-fingerprint').map(entity=>clean(entity.meta?.legendSymbolFingerprint?.componentClass||entity.meta?.legendOpenSymbolFingerprint?.componentClass)).filter(Boolean));
  for(const cls of graphicalLegendClasses)if(!fingerprintClasses.has(cls))findings.push({
@@ -394,7 +395,7 @@ export function buildElectricalDesignIntelligence(entities:ElectricalIntelligenc
   for(const row of rows.values())if(row.componentClass!=='UNRESOLVED'&&!specClasses.has(row.componentClass))findings.push({id:`elec:spec-class:${row.key}`,severity:'H2',type:'SPEC_CLASS_MISSING',title:`${row.componentClass} has no matched specification requirement`,detail:'Specification pages were ingested, but no requirement was matched to this quantified equipment class. Review the applicable section and terminology.',entityRefs:row.entityIds,sourceRefs:row.sourceRefs,blocking:false});
  }
  const blockingCount=findings.filter(item=>item.blocking).length;
- const coverage={legend:legends.length>0,physicalPlans:physical.length>0,equipmentMatrix:schedules.length>0,sld:sld.length>0,specifications:specs.length>0};
+ const coverage={legend:legends.length>0,physicalPlans:physical.length>0,equipmentMatrix:schedules.length>0,sld:sld.length>0,specifications:specs.length>0,drawingSet:!options?.drawingSetPartial};
  const unresolvedSymbolGeometry=findings.some(item=>item.type==='SYMBOL_GEOMETRY_UNRESOLVED');
  const readiness=blockingCount>0?'BLOCKED_CONFLICT':Object.values(coverage).every(Boolean)&&!unresolvedSymbolGeometry?'COMPLETE_REVIEW':'PARTIAL_EVIDENCE';
  return{
@@ -407,8 +408,10 @@ export function buildElectricalDesignIntelligence(entities:ElectricalIntelligenc
  };
 }
 
-export function enrichElectricalDesignIntelligence<T extends {entities:ElectricalIntelligenceEntity[]}>(graph:T):T&{electricalIntelligence:ElectricalDesignIntelligence}{
- const intelligence=buildElectricalDesignIntelligence(graph.entities);
+export function enrichElectricalDesignIntelligence<T extends {entities:ElectricalIntelligenceEntity[];sources?:Array<{setCompleteness?:{status?:string;missingSheets?:string[]}}>}>(graph:T):T&{electricalIntelligence:ElectricalDesignIntelligence}{
+ const partialSources=(graph.sources||[]).filter(source=>source.setCompleteness?.status==='PARTIAL');
+ const missingSheets=uniq(partialSources.flatMap(source=>source.setCompleteness?.missingSheets||[]));
+ const intelligence=buildElectricalDesignIntelligence(graph.entities,{drawingSetPartial:partialSources.length>0,missingSheets});
  const schedules=graph.entities.filter(scheduleEntity);
  const sld=graph.entities.filter(sldEntity);
  const findingByEntity=new Map<string,ElectricalEvidenceFinding[]>();
