@@ -82,6 +82,12 @@ const entities=[
 assert.equal((await import('../lib/sld-recognition.ts')).classifyElectricalLabel('MS1'),'SWITCHBOARD');
 assert.equal((await import('../lib/sld-recognition.ts')).classifyElectricalLabel('MS2'),'SWITCHBOARD');
 
+const brynhurstService=buildElectricalDesignIntelligence([
+ {id:'plan-ms1',source:'E-3.pdf',layer:'L2',kind:'text-asset-candidate',name:'MS1',x:4,y:4,floor:'L1',confidence:.9,meta:{page:3,nonSldPlan:true,planType:'ELECTRICAL_SITE_PLAN',electricalComponentHint:'SWITCHBOARD'}},
+ {id:'sld-ms1',source:'E-2.pdf',layer:'L2',kind:'text-asset-candidate',name:'MS1',x:1,y:1,confidence:.9,meta:{page:2,sldCandidate:true,electricalComponentHint:'SWITCHBOARD'}},
+]);
+assert.equal(brynhurstService.findings.some(finding=>finding.type==='PLAN_NOT_IN_SLD'||finding.type==='SLD_NOT_LOCATED'),false,'MS1 must reconcile across Brynhurst plan/SLD evidence');
+
 const intelligence=buildElectricalDesignIntelligence(entities);
 assert.equal(intelligence.takeoff.totalPhysicalEquipment,1);
 assert.equal(intelligence.takeoff.rows.length,1);
