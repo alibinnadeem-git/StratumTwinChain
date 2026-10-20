@@ -80,20 +80,28 @@ function similarity(fp:SymbolFingerprint,m:NonNullable<ReturnType<typeof metrics
 }
 
 export function buildLegendSymbolFingerprints(args:{
- entries:Array<{id:string;page:number;componentHint:string|null;anchor:{x:number;y:number};confidence:number}>;
+ entries:Array<{id:string;page:number;componentHint:string|null;anchor:{x:number;y:number};textDirection?:{x:number;y:number};textSpan?:number;confidence:number}>;
  polygons:SymbolPolygon[];
 }):SymbolFingerprint[]{
  const out:SymbolFingerprint[]=[];
  for(const entry of args.entries){
   if(!entry.componentHint)continue;
+  const dir=entry.textDirection,mag=dir?Math.hypot(dir.x,dir.y):0,unit=dir&&mag>.1?{x:dir.x/mag,y:dir.y/mag}:null;
   const candidates=args.polygons.filter(p=>p.page===entry.page).map(p=>({p,m:metrics(p)}))
    .filter((x):x is {p:SymbolPolygon;m:NonNullable<ReturnType<typeof metrics>>}=>Boolean(x.m))
-   // Project legends conventionally place the symbol immediately left of its text/abbreviation.
-   .map(x=>({...x,dx:entry.anchor.x-x.m.centroid.x,dy:Math.abs(entry.anchor.y-x.m.centroid.y)}))
-   .filter(x=>x.dx>=-.25&&x.dx<=2.8&&x.dy<=.45)
-   .sort((a,b)=>(a.dy*2+a.dx)-(b.dy*2+b.dx));
+   .map(x=>{
+    if(unit){
+     const vx=x.m.centroid.x-entry.anchor.x,vy=x.m.centroid.y-entry.anchor.y;
+     const along=vx*unit.x+vy*unit.y,perp=Math.abs(vx*(-unit.y)+vy*unit.x);
+     return{...x,eligible:along>=-.95&&along<=.2&&perp<=.48,score:perp*2+Math.abs(along+.14)};
+    }
+    const dx=entry.anchor.x-x.m.centroid.x,dy=Math.abs(entry.anchor.y-x.m.centroid.y);
+    return{...x,eligible:dx>=-.25&&dx<=2.8&&dy<=.45,score:dy*2+dx};
+   })
+   .filter(x=>x.eligible)
+   .sort((a,b)=>a.score-b.score);
   const best=candidates[0];if(!best)continue;
-  const ambiguous=candidates[1]&&Math.abs((candidates[1].dy*2+candidates[1].dx)-(best.dy*2+best.dx))<.12;
+  const ambiguous=candidates[1]&&Math.abs(candidates[1].score-best.score)<.12;
   if(ambiguous)continue;
   out.push({
    id:`legend-fingerprint-${entry.id}`,sourcePage:entry.page,legendEntryId:entry.id,componentClass:entry.componentHint,
