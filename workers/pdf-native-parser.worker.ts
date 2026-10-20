@@ -10,6 +10,7 @@ import {buildElevationTriangles,extractPositionedElevationControls,resolveLocalE
 import {enrichSupportBaseOffsets,extractSupportOffsetEvidence,type SupportOffsetEvidence} from '../lib/support-base-evidence';
 import {analyzeDrawingSetCompleteness,type DrawingSetCompleteness} from '../lib/drawing-set-completeness';
 import {pdfIngestionProfile} from '../lib/pdf-ingestion-profile';
+import {detectElectricalLegendPage,detectElectricalSpecificationPage,extractElectricalLegendEntries,extractElectricalSpecificationRequirements} from '../lib/electrical-design-intelligence';
 
 type Layer='L0'|'L1'|'L2'|'L3'|'L4';
 type XY={x:number;y:number};
@@ -50,6 +51,8 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
  const pageGeometryByPage=new Map<number,{width:number;height:number;max:number}>();
  const pageEvidence=new Map<number,ReturnType<typeof resolveDrawingPageRecognition>['sld']>();
  const planEvidence=new Map<number,ReturnType<typeof resolveDrawingPageRecognition>['plan']>();
+ const legendEvidence=new Map<number,ReturnType<typeof detectElectricalLegendPage>>();
+ const specificationEvidence=new Map<number,ReturnType<typeof detectElectricalSpecificationPage>>();
  let vectors=0,totalOps=0;const ocrRequiredPages:number[]=[];
 
  try{
@@ -80,6 +83,8 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
    vectors+=pageOps;pageVectorOps.set(p,pageOps);
    const recognition=resolveDrawingPageRecognition(nativeText,pageOps);
    pageEvidence.set(p,recognition.sld);planEvidence.set(p,recognition.plan);
+   legendEvidence.set(p,detectElectricalLegendPage(nativeText));
+   specificationEvidence.set(p,detectElectricalSpecificationPage(nativeText));
 
    if(recognition.sld.isSld||recognition.plan.isPlan){
     post({type:'progress',requestId,page:p,total:doc.numPages,phase:'vector geometry'});
@@ -129,6 +134,32 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
   const frameAt=(page:number,x:number,y:number)=>resolvePlanFrameAtPoint(planFramesByPage.get(page)||[],x,y);
   const floorAt=(page:number,x:number,y:number)=>frameAt(page,x,y)?.floor||pageFloors.get(page)||'UNRESOLVED';
   const reviewEntities:GraphEntity[]=[];
+  for(let page=1;page<=doc.numPages;page++){
+   const pageItems=raw.filter(item=>item.page===page).map(item=>({text:item.str,x:item.x,y:item.y,page:item.page}));
+   const legend=legendEvidence.get(page);
+   if(legend?.isLegend){
+    const entries=extractElectricalLegendEntries(pageItems,page);
+    for(const entry of entries)reviewEntities.push({
+     id:`pdf-${entry.id}`,source:fileName,layer:'L0',kind:'electrical-legend-entry',
+     name:`${entry.abbreviation} · ${entry.description}`,x:entry.anchor.x,y:entry.anchor.y,z:0,
+     floor:'UNRESOLVED',confidence:entry.confidence,
+     meta:{page,nonSpatial:true,sourceType:'ELECTRICAL_LEGEND',legendEntry:entry,legendPageScore:legend.score,
+      physicalTruth:false,reviewRequired:true,spatialPlacementAuthority:'NON_SPATIAL_LEGEND',
+      elevationKnown:false,physicalElevationKnown:false}
+    });
+   }
+   const spec=specificationEvidence.get(page);
+   if(spec?.isSpecification){
+    const requirements=extractElectricalSpecificationRequirements(pageItems.map(item=>item.text),page);
+    for(const requirement of requirements)reviewEntities.push({
+     id:`pdf-${requirement.id}`,source:fileName,layer:'L0',kind:'electrical-spec-requirement',
+     name:requirement.title,x:0,y:0,z:0,floor:'UNRESOLVED',confidence:requirement.confidence,
+     meta:{page,nonSpatial:true,sourceType:'ELECTRICAL_SPECIFICATION',specRequirement:requirement,
+      specificationSection:requirement.section,physicalTruth:false,reviewRequired:true,
+      spatialPlacementAuthority:'NON_SPATIAL_SPECIFICATION',elevationKnown:false,physicalElevationKnown:false}
+    });
+   }
+  }
   for(const [page,frames] of planFramesByPage)for(const frame of frames)reviewEntities.push({id:`pdf-plan-frame-${page}-${frame.id}`,source:fileName,layer:'L0',kind:'plan-frame-candidate',name:frame.title,x:frame.anchorX,y:frame.anchorY,z:0,floor:frame.floor||'UNRESOLVED',confidence:frame.confidence,meta:{page,nonSpatial:true,sourceType:'PDF_PLAN_FRAME_TITLE',planFrame:frame,physicalTruth:false,reviewRequired:true,geometryAuthority:'TITLE_ANCHOR_ONLY',spatialPlacementAuthority:'SOURCE_SHEET_TITLE_ANCHOR_ONLY',zPlacementAuthority:'UNVERIFIED_DRAWING_PLANE',elevationKnown:false,physicalElevationKnown:false}});
 
   const zEvidence:ZEvidence[]=[];
@@ -165,6 +196,7 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
   }
 
   const sldPages=[...pageEvidence.values()].filter(item=>item.isSld).length,nonSldPlanPages=[...planEvidence.values()].filter(item=>item.isPlan).length;
+  const legendPages=[...legendEvidence.values()].filter(item=>item.isLegend).length,specificationPages=[...specificationEvidence.values()].filter(item=>item.isSpecification).length;
   const planTypes=[...new Set([...planEvidence.values()].filter(item=>item.isPlan&&item.planType).map(item=>String(item.planType)))];
   const disciplines=[...new Set([...planEvidence.values()].filter(item=>item.isPlan&&item.discipline).map(item=>String(item.discipline)))];if(sldPages)disciplines.push('Electrical');
   const uniqueDisciplines=[...new Set(disciplines)];
