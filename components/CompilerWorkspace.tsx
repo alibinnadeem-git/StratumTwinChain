@@ -24,7 +24,7 @@ import {encodeGlbBase64,inspectStandaloneGlb} from '../lib/spatial-glb-import';
 import {drawingSourceReprocessReason,findDrawingSourcesNeedingReprocess,inspectDrawingReprocessOutput} from '../lib/spatial-source-reprocess';
 import {archiveSourceBytes,archivedSourceToFile,listArchivedSourceMetadata,readArchivedSource} from '../lib/source-browser-archive';
 import {enrichCoordinationIntelligence} from '../lib/coordination-intelligence';
-import {enrichElectricalDesignIntelligence} from '../lib/electrical-design-intelligence';
+import {enrichElectricalDesignIntelligence,detectElectricalLegendPage,detectElectricalSpecificationPage,extractElectricalLegendEntries,extractElectricalSpecificationRequirements} from '../lib/electrical-design-intelligence';
 import {buildZResolutionIndex,extractZEvidenceFromText,type ZEvidence} from '../lib/z-resolver';
 import {buildEntityZConstraintGraph} from '../lib/z-constraint-graph';
 import {buildProjectDatumSurfaces,datumSurfaceMetadata,projectDatumSurfaceForEntity} from '../lib/project-datum';
@@ -162,6 +162,21 @@ async function parsePdfMainThreadFallback(file:File,level:{floor:string;elevatio
  for(let page=1;page<=doc.numPages;page++){
   const labels=[...raw.filter(item=>item.page===page).map(item=>item.str),...(ocrTextByPage.get(page)||[])],vectorCount=pageVectorOps.get(page)||0,{sld,plan}=resolveDrawingPageRecognition(labels,vectorCount);
   pageEvidence.set(page,sld);planEvidence.set(page,plan);
+ }
+ for(let page=1;page<=doc.numPages;page++){
+  const labels=[...raw.filter(item=>item.page===page).map(item=>item.str),...(ocrTextByPage.get(page)||[])];
+  const legend=detectElectricalLegendPage(labels);
+  if(legend.isLegend){
+   const nativePositioned=raw.filter(item=>item.page===page).map(item=>({text:item.str,x:item.x,y:item.y,page}));
+   const rasterPositioned=(rasterPreviewByPage.get(page)?.geometryItems||[]).map(item=>({text:item.text,x:(Number(item.x)-.5)*(rasterPreviewByPage.get(page)?.planeWidth||20),y:(.5-Number(item.y))*(rasterPreviewByPage.get(page)?.planeHeight||20),page}));
+   const entries=extractElectricalLegendEntries(nativePositioned.length?nativePositioned:rasterPositioned,page);
+   for(const entry of entries)ocrEntities.push({id:`pdf-${entry.id}`,source:file.name,layer:'L0',kind:'electrical-legend-entry',name:`${entry.abbreviation} · ${entry.description}`,x:entry.anchor.x,y:entry.anchor.y,z:0,floor:'UNRESOLVED',confidence:entry.confidence,meta:{page,nonSpatial:true,sourceType:'ELECTRICAL_LEGEND',legendEntry:entry,legendPageScore:legend.score,physicalTruth:false,reviewRequired:true,spatialPlacementAuthority:'NON_SPATIAL_LEGEND',elevationKnown:false,physicalElevationKnown:false}} as GraphEntity);
+  }
+  const spec=detectElectricalSpecificationPage(labels);
+  if(spec.isSpecification){
+   const requirements=extractElectricalSpecificationRequirements(labels,page);
+   for(const requirement of requirements)ocrEntities.push({id:`pdf-${requirement.id}`,source:file.name,layer:'L0',kind:'electrical-spec-requirement',name:requirement.title,x:0,y:0,z:0,floor:'UNRESOLVED',confidence:requirement.confidence,meta:{page,nonSpatial:true,sourceType:'ELECTRICAL_SPECIFICATION',specRequirement:requirement,specificationSection:requirement.section,physicalTruth:false,reviewRequired:true,spatialPlacementAuthority:'NON_SPATIAL_SPECIFICATION',elevationKnown:false,physicalElevationKnown:false}} as GraphEntity);
+  }
  }
  const planFramesByPage=new Map<number,ReturnType<typeof detectPlanFrames>>();
  for(let page=1;page<=doc.numPages;page++){
