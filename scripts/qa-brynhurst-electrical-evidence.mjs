@@ -28,8 +28,10 @@ const partial=buildElectricalDesignIntelligence([
  {id:'legend-panel',source:fixture.source.fileName,layer:'L0',kind:'electrical-legend-entry',name:'PANEL',x:0,y:0,confidence:.9,meta:{nonSpatial:true,sourceType:'ELECTRICAL_LEGEND',legendEntry:{id:'l1',page:1,abbreviation:'',description:'SUB-PANEL (LOAD CENTER) SURFACE MOUNTED',componentHint:'PANEL',anchor:{x:0,y:0},confidence:.9,sourceEvidence:['SUB-PANEL'],physicalTruth:false,reviewRequired:true}}},
  {id:'plan-panel',source:fixture.source.fileName,layer:'L2',kind:'text-asset-candidate',name:'ELEC PANEL',x:4,y:4,floor:'L1',confidence:.86,meta:{page:4,nonSldPlan:true,planType:'ELECTRICAL_POWER_PLAN',electricalComponentHint:'PANEL'}},
  {id:'sld-ms1',source:fixture.source.fileName,layer:'L2',kind:'text-asset-candidate',name:'MS1',x:1,y:1,confidence:.86,meta:{page:2,sldCandidate:true,electricalComponentHint:'SWITCHBOARD'}},
-]);
+],{drawingSetPartial:true,missingSheets:fixture.source.setCompleteness.missingSheets});
 assert.equal(partial.summary.readiness,'PARTIAL_EVIDENCE');
+assert.equal(partial.summary.coverage.drawingSet,false);
+assert.ok(partial.findings.some(item=>item.type==='DRAWING_SET_PARTIAL'));
 assert.equal(partial.summary.coverage.legend,true);
 assert.equal(partial.summary.coverage.physicalPlans,true);
 assert.equal(partial.summary.coverage.sld,true);
