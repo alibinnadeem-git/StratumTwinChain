@@ -217,6 +217,11 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
       return true;
     });
   },[graph,floor,discipline,mode,systemMode,search,sourceDisciplines,hiddenSourceSet,activeSheetFrame]);
+  // A large PDF can produce tens of thousands of retained source entities. Keep
+  // render membership O(1) per entity; scanning the visible array for every
+  // graph entity makes scene construction O(n²) and can leave Spatial looking
+  // empty/partial while the browser is still burning through comparisons.
+  const visibleIds=useMemo(()=>new Set(visible.map(entity=>entity.id)),[visible]);
   const inventory=useMemo(()=>visible.filter(e=>e.kind!=="line"&&e.kind!=="sld-feeder-candidate"&&e.kind!=="wall-segment"&&e.kind!=="source-raster-underlay"&&e.kind!=="elevation-control-point"&&e.kind!=="elevation-review-surface-triangle"),[visible]);
   const identifiedEquipment=useMemo(()=>visible.filter(isIdentifiedProjectEquipment).length,[visible]);
   const visibleLines=useMemo(()=>visible.filter(e=>e.kind==="line").length,[visible]);
@@ -243,7 +248,6 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
   const entityIndex=useMemo(()=>new Map((graph?.entities||[]).map(e=>[e.id,e])),[graph]);
   const inventoryIndex=useMemo(()=>new Map(inventory.map((e,i)=>[e.id,i] as [string,number])),[inventory]);
   const miniMapEntities=useMemo(()=>visible.filter(e=>e.kind!=="source-raster-underlay"),[visible]);
-  const visibleIdSet=useMemo(()=>new Set(visible.map(e=>e.id)),[visible]);
 
   useEffect(()=>{
     if(!graph)return;
@@ -302,7 +306,6 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
         }
         return displayElevation(e,mode)+extra(e);
       };
-      const visibleIds=new Set(visible.map(v=>v.id));
       const isVisible=(e:Entity)=>visibleIds.has(e.id);
       const material=(color:number,opacity=1,emissive=0)=>new THREE.MeshStandardMaterial({color,emissive,emissiveIntensity:.2,metalness:.28,roughness:.48,transparent:opacity<1,opacity,depthWrite:opacity>.2});
       const tag=(obj:any,e:Entity)=>{obj.userData.entity=e;entityAnchors.set(e.id,obj);clickableEntities.add(e.id);renderer.domElement.dataset.clickableAssets=String(clickableEntities.size);obj.traverse?.((node:any)=>{if(node.isMesh){node.userData.entity=e;if(!node.userData?.interactionProxy){node.castShadow=true;node.receiveShadow=true}const mats=Array.isArray(node.material)?node.material:[node.material];for(const mat of mats){if(mat?.emissive&&mat.userData?.stratumBaseEmissive===undefined){mat.userData=mat.userData||{};mat.userData.stratumBaseEmissive=mat.emissive.getHex();mat.userData.stratumBaseEmissiveIntensity=Number(mat.emissiveIntensity||0)}}clickable.push(node)}})};
@@ -620,7 +623,7 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
       cleanup=()=>{runtime.current=null;cancelAnimationFrame(frame);ro.disconnect();renderer.domElement.removeEventListener("pointerdown",pointerDown);renderer.domElement.removeEventListener("pointermove",pointerMove);renderer.domElement.removeEventListener("pointerup",pointerUp);renderer.domElement.removeEventListener("pointercancel",pointerCancel);renderer.domElement.removeEventListener("click",clickPick);controls.dispose();renderer.dispose();host.replaceChildren()};
     })();
     return()=>{disposed=true;cleanup()};
-  },[graph,registry,mode,environment,systemMode,floor,exploded,xray,labels,visible,levels,renderOrigin.x,renderOrigin.y,demoMode]);
+  },[graph,registry,mode,environment,systemMode,floor,exploded,xray,labels,visibleIds,levels,renderOrigin.x,renderOrigin.y,demoMode]);
 
   useEffect(()=>{
     const r=runtime.current;if(!r?.scene)return;
@@ -765,7 +768,7 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
             {miniMapEntities.slice(0,MINIMAP_MAX_NODES).map(e=>(e.kind==="line"||e.kind==="sld-feeder-candidate")&&Number.isFinite(e.x2)&&Number.isFinite(e.y2)?<line key={e.id} x1={sx(e.x)} y1={sy(e.y)} x2={sx(e.x2!)} y2={sy(e.y2!)} stroke={e.layer==="L3"?"#62bfff":"#7895a4"} strokeWidth=".28"/>:<g key={e.id} onClick={()=>setSelected(e)} style={{cursor:"pointer"}}><circle cx={sx(e.x)} cy={sy(e.y)} r={e.layer==="L2"?1.25:.75} fill={e.layer==="L2"?"#e5a14d":e.layer==="L4"?"#43d98f":"#7f98a6"}/>{labels&&e.layer==="L2"&&<text x={sx(e.x)+1.7} y={sy(e.y)-1+Math.max(0,inventoryIndex.get(e.id)??0)*3} fill="#d8edf6" fontSize="2.2">{e.name.slice(0,24)}{physicalElevationKnown(e)?'':' · Z unverified'}</text>}</g>)}
           </svg><p className="muted" style={{margin:"8px 0 0"}}>Interactive 2D fallback active. Source placement and selection remain available while this device/browser cannot initialize WebGL.{miniMapEntities.length>MINIMAP_MAX_NODES?` Showing the first ${MINIMAP_MAX_NODES.toLocaleString()} of ${miniMapEntities.length.toLocaleString()} objects in this 2D overview; the 3D view and object list remain complete.`:''}</p>
         </div>}
-        <div className="spatial-hud"><button type="button" className="ghost" aria-expanded={hudOpen} onClick={()=>setHudOpen(value=>!value)}>Infrastructure HUD · {inventory.length} view objects {hudOpen?'▴':'▾'}</button>{hudOpen&&<div className="spatial-hud-body"><small>{renderStatus==="WEBGL"?"3D WEBGL":"2D FALLBACK"} · {mode}</small><div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:"4px 12px",marginTop:6,fontSize:12}}><span>PLAN FRAMES</span><b>{sheetFrames.length}</b><span>NON-SLD PLANS</span><b>{nonSldPlanSheets}</b><span>DRAWING LINES</span><b>{visibleLines}</b><span>DRAWING UNDERLAYS</span><b>{rasterUnderlays}</b><span>VIEW OBJECTS</span><b>{inventory.length}</b><span>IDENTIFIED EQUIPMENT</span><b>{identifiedEquipment}</b><span>SLD</span><b>{sldObjects}</b><span>UNRESOLVED Z</span><b>{unresolvedZ}</b><span>3D MODELS</span><b>{modelMapped}</b>{mode==="REVIEW"&&<><span>COORDINATION</span><b>{[...coordinationReview.values()].filter(item=>visibleIdSet.has(item.entityId)).length}</b></>}</div></div>}</div>
+        <div className="spatial-hud"><button type="button" className="ghost" aria-expanded={hudOpen} onClick={()=>setHudOpen(value=>!value)}>Infrastructure HUD · {inventory.length} view objects {hudOpen?'▴':'▾'}</button>{hudOpen&&<div className="spatial-hud-body"><small>{renderStatus==="WEBGL"?"3D WEBGL":"2D FALLBACK"} · {mode}</small><div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:"4px 12px",marginTop:6,fontSize:12}}><span>PLAN FRAMES</span><b>{sheetFrames.length}</b><span>NON-SLD PLANS</span><b>{nonSldPlanSheets}</b><span>DRAWING LINES</span><b>{visibleLines}</b><span>DRAWING UNDERLAYS</span><b>{rasterUnderlays}</b><span>VIEW OBJECTS</span><b>{inventory.length}</b><span>IDENTIFIED EQUIPMENT</span><b>{identifiedEquipment}</b><span>SLD</span><b>{sldObjects}</b><span>UNRESOLVED Z</span><b>{unresolvedZ}</b><span>3D MODELS</span><b>{modelMapped}</b>{mode==="REVIEW"&&<><span>COORDINATION</span><b>{[...coordinationReview.values()].filter(item=>visibleIds.has(item.entityId)).length}</b></>}</div></div>}</div>
       </div>
 
       <aside style={{padding:15,borderLeft:"1px solid #17334a",overflow:"auto"}}>
