@@ -93,18 +93,24 @@ function similarity(fp:SegmentFingerprint,c:Cluster){
 }
 
 export function buildLegendSegmentFingerprints(args:{
- entries:Array<{id:string;page:number;componentHint:string|null;anchor:{x:number;y:number};confidence:number}>;
+ entries:Array<{id:string;page:number;componentHint:string|null;anchor:{x:number;y:number};textDirection?:{x:number;y:number};textSpan?:number;confidence:number}>;
  segments:Segment[];
 }):SegmentFingerprint[]{
  const clusters=clusterSegments(args.segments),out:SegmentFingerprint[]=[];
  for(const entry of args.entries){
   if(!entry.componentHint)continue;
-  const candidates=clusters.filter(c=>c.page===entry.page)
-   .map(c=>({c,dx:entry.anchor.x-c.centroid.x,dy:Math.abs(entry.anchor.y-c.centroid.y)}))
-   .filter(x=>x.dx>=-.2&&x.dx<=2.8&&x.dy<=.55)
-   .sort((a,b)=>(a.dy*2+a.dx)-(b.dy*2+b.dx));
+  const dir=entry.textDirection,mag=dir?Math.hypot(dir.x,dir.y):0,unit=dir&&mag>.1?{x:dir.x/mag,y:dir.y/mag}:null;
+  const candidates=clusters.filter(c=>c.page===entry.page).map(c=>{
+   if(unit){
+    const vx=c.centroid.x-entry.anchor.x,vy=c.centroid.y-entry.anchor.y;
+    const along=vx*unit.x+vy*unit.y,perp=Math.abs(vx*(-unit.y)+vy*unit.x);
+    return{c,eligible:along>=-.95&&along<=.2&&perp<=.48,score:perp*2+Math.abs(along+.14)};
+   }
+   const dx=entry.anchor.x-c.centroid.x,dy=Math.abs(entry.anchor.y-c.centroid.y);
+   return{c,eligible:dx>=-.2&&dx<=2.8&&dy<=.55,score:dy*2+dx};
+  }).filter(x=>x.eligible).sort((a,b)=>a.score-b.score);
   const best=candidates[0];if(!best)continue;
-  if(candidates[1]&&Math.abs((candidates[1].dy*2+candidates[1].dx)-(best.dy*2+best.dx))<.1)continue;
+  if(candidates[1]&&Math.abs(candidates[1].score-best.score)<.1)continue;
   const m=metrics(best.c);
   out.push({id:`legend-segment-fp-${entry.id}`,legendEntryId:entry.id,componentClass:entry.componentHint,sourcePage:entry.page,
    segmentCount:m.segmentCount,aspect:m.aspect,degreeSignature:m.degreeSignature,lengthSignature:m.lengthSignature,
