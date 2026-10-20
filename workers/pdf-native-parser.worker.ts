@@ -12,6 +12,7 @@ import {analyzeDrawingSetCompleteness,type DrawingSetCompleteness} from '../lib/
 import {pdfIngestionProfile} from '../lib/pdf-ingestion-profile';
 import {detectElectricalLegendPage,detectElectricalSpecificationPage,detectPdfEquipmentMatrixPage,extractElectricalLegendEntries,extractElectricalSpecificationRequirements,extractPdfEquipmentMatrixRecords} from '../lib/electrical-design-intelligence';
 import {buildLegendSymbolFingerprints,matchLegendSymbolFingerprints} from '../lib/electrical-symbol-fingerprint';
+import {buildLegendSegmentFingerprints,matchLegendSegmentFingerprints} from '../lib/electrical-segment-symbol-fingerprint';
 
 type Layer='L0'|'L1'|'L2'|'L3'|'L4';
 type XY={x:number;y:number};
@@ -214,6 +215,35 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
      electricalComponentHint:match.componentClass,legendSymbolMatch:match,legendBacked:true,
      symbolAnchorStatus:'RESOLVED_REVIEW_CANDIDATE',symbolAnchorAuthority:'PROJECT_LEGEND_VECTOR_FINGERPRINT',
      spatialPlacementAuthority:'PROJECT_LEGEND_VECTOR_SYMBOL_MATCH',physicalTruth:false,reviewRequired:true,
+     elevationKnown:false,physicalElevationKnown:false,registrationState:'CANDIDATE'}
+   });
+  }
+  const segmentFingerprints=buildLegendSegmentFingerprints({entries:legendEntries,segments});
+  const segmentMatches=matchLegendSegmentFingerprints({
+   fingerprints:segmentFingerprints,segments,legendPages:legendPageSet,
+   planPages:new Set([...planEvidence.entries()].filter(([,evidence])=>evidence.isPlan).map(([page])=>page))
+  });
+  for(const fingerprint of segmentFingerprints)reviewEntities.push({
+   id:`pdf-${fingerprint.id}`,source:fileName,layer:'L0',kind:'electrical-legend-segment-fingerprint',
+   name:`${fingerprint.componentClass} · legend segment fingerprint`,x:fingerprint.centroid.x,y:fingerprint.centroid.y,z:0,
+   floor:'UNRESOLVED',confidence:fingerprint.confidence,
+   meta:{page:fingerprint.sourcePage,nonSpatial:true,sourceType:'ELECTRICAL_LEGEND_SEGMENT_FINGERPRINT',
+    legendSegmentFingerprint:fingerprint,physicalTruth:false,reviewRequired:true,
+    spatialPlacementAuthority:'NON_SPATIAL_LEGEND_SEGMENT_FINGERPRINT',elevationKnown:false,physicalElevationKnown:false}
+  });
+  for(const match of segmentMatches){
+   if(symbolMatches.some(existing=>existing.page===match.page&&existing.componentClass===match.componentClass&&Math.hypot(existing.x-match.x,existing.y-match.y)<.07))continue;
+   const frame=frameAt(match.page,match.x,match.y);
+   reviewEntities.push({
+    id:`pdf-${match.id}`,source:fileName,layer:'L2',kind:'legend-symbol-match-candidate',
+    name:`${match.componentClass} · project legend open-vector match`,x:match.x,y:match.y,z:0,
+    floor:frame?.floor||pageFloors.get(match.page)||'UNRESOLVED',confidence:match.confidence,
+    meta:{page:match.page,nonSldPlan:true,planType:planEvidence.get(match.page)?.planType||'PLAN_VIEW_UNCLASSIFIED',
+     planDiscipline:planEvidence.get(match.page)?.discipline||'Electrical',planFrameId:frame?.id||null,
+     planFrameFloor:frame?.floor||null,planFrameUnitId:frame?.unitId||null,planFrameUnitPlan:frame?.unitPlan||null,
+     electricalComponentHint:match.componentClass,legendSegmentSymbolMatch:match,legendBacked:true,
+     symbolAnchorStatus:'RESOLVED_REVIEW_CANDIDATE',symbolAnchorAuthority:'PROJECT_LEGEND_SEGMENT_FINGERPRINT',
+     spatialPlacementAuthority:'PROJECT_LEGEND_SEGMENT_SYMBOL_MATCH',physicalTruth:false,reviewRequired:true,
      elevationKnown:false,physicalElevationKnown:false,registrationState:'CANDIDATE'}
    });
   }
