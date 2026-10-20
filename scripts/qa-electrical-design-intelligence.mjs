@@ -55,6 +55,16 @@ assert.equal(matrixRecords[0].manufacturer,'ASCO');
 assert.equal(matrixRecords[0].ratings.voltage,480);
 assert.equal(matrixRecords[0].ratings.phase,3);
 
+const fixtureSchedule=[
+ {text:'COMMON AREA (HOUSE) LIGHT FIXTURE SCHEDULE',x:1,y:9,page:1},
+ {text:'FIXTURE',x:1,y:8,page:1},{text:'DESCRIPTION',x:3,y:8,page:1},{text:'MANUFACTURER',x:6,y:8,page:1},{text:'CATALOG NUMBER',x:9,y:8,page:1},{text:'WATTS',x:11,y:8,page:1},{text:'VOLTS',x:13,y:8,page:1},
+ {text:'A',x:1,y:7.4,page:1},{text:'LED WALL FIXTURE',x:3,y:7.4,page:1},{text:'ACME',x:6,y:7.4,page:1},{text:'LF-100',x:9,y:7.4,page:1},{text:'18',x:11,y:7.4,page:1},{text:'120',x:13,y:7.4,page:1},
+];
+const fixtureRecords=extractPdfEquipmentMatrixRecords(fixtureSchedule,1);
+assert.equal(fixtureRecords[0]?.scheduleKind,'LIGHT_FIXTURE');
+assert.equal(fixtureRecords[0]?.componentHint,'LIGHT_FIXTURE');
+assert.equal(fixtureRecords[0]?.tag,'A');
+
 const legendEntities=legendEntries.map((entry,index)=>({
  id:'legend-'+index,source:'E-001.pdf',layer:'L0',kind:'electrical-legend-entry',name:entry.description,x:entry.anchor.x,y:entry.anchor.y,confidence:entry.confidence,
  meta:{nonSpatial:true,sourceType:'ELECTRICAL_LEGEND',legendEntry:entry}
@@ -81,6 +91,13 @@ assert.equal(intelligence.takeoff.rows[0].scheduleRefs,1);
 assert.equal(intelligence.takeoff.rows[0].sldRefs,1);
 assert.ok(intelligence.legend.entries.length>=2);
 assert.ok(intelligence.specifications.requirements.length>=1);
+
+const fixtureIntel=buildElectricalDesignIntelligence([
+ {id:'fixture-a-plan',source:'E-401.pdf',layer:'L2',kind:'legend-symbol-match-candidate',name:'LIGHT FIXTURE A',x:2,y:2,floor:'L1',confidence:.86,meta:{page:4,nonSldPlan:true,planType:'ELECTRICAL_LIGHTING_PLAN',electricalComponentHint:'LIGHT_FIXTURE',fixtureMark:'A',legendBacked:true}},
+ {id:'fixture-a-schedule',source:'E-001.pdf',layer:'L4',kind:'schedule-powered-equipment-candidate',name:'A LED WALL FIXTURE',x:0,y:0,confidence:.9,meta:{nonSpatial:true,sourceType:'EQUIPMENT_SCHEDULE',scheduleKind:'LIGHT_FIXTURE',fixtureMark:'A',electricalComponentHint:'LIGHT_FIXTURE',manufacturer:'ACME',model:'LF-100'}},
+]);
+assert.equal(fixtureIntel.takeoff.rows[0]?.scheduleRefs,1,'fixture mark A must reconcile to schedule row A');
+assert.equal(fixtureIntel.findings.some(finding=>finding.type==='SCHEDULE_NOT_LOCATED'),false);
 
 const enriched=enrichElectricalDesignIntelligence({entities});
 const plan=enriched.entities.find(entity=>entity.id==='plan-ats');
