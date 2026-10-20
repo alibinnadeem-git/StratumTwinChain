@@ -23,6 +23,7 @@ const checks=[
  ['worker caps retained analysis geometry by ingestion profile',/ingestion\.maxAnalysisSegmentsPerPage/.test(worker)&&/ingestion\.maxAnalysisSegmentsTotal/.test(worker)&&/ingestion\.maxPolygonsPerPage/.test(worker)],
  ['worker reports actionable budget failures',/split the set and retry/i.test(worker)&&/export a lighter PDF/i.test(worker)],
  ['worker reports bounded protected-ingestion failures without forcing normal large sources to be split',/protected native-ingestion ceiling/i.test(worker)&&/bounded parser envelope/i.test(worker)],
+ ['active worker executes project-legend closed/open symbol matching',/matchLegendSymbolFingerprints/.test(worker)&&/matchLegendSegmentFingerprints/.test(worker)&&/legend-symbol-match-candidate/.test(worker)],
  ['z-recovery enrichment runs before the basemap-excluded Z index',/enrichZRecovery/.test(compiler)&&/drawingBasemap===true/.test(compiler)],
  ['failed same-SHA source can be retried without reload',/priorFailed/.test(compiler)&&/source\.state==='failed'/.test(compiler)&&/Retry is available without reloading/.test(compiler)],
  ['pdf.js worker asset is shipped',/pdf\.worker\.min\.mjs/.test(assets)],
