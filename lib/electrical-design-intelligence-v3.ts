@@ -295,7 +295,10 @@ export function extractElectricalSpecificationRequirements(labels:string[],page:
 function entityTag(entity:ElectricalIntelligenceEntity){
  const explicit=clean(entity.meta?.assetTag||entity.meta?.equipmentTag||entity.meta?.tag);
  if(explicit)return norm(explicit).replace(/\s+/g,'-');
- const m=norm(entity.name).match(/\b(?:ATS|UPS|MCC|PDU|MDP|MDB|MSB|XFMR|TX|GEN|EVSE|PANEL|PNL|SWBD|SWGR)[-_ ]?#?[A-Z0-9]+(?:[-_.][A-Z0-9]+)*\b/);
+ const name=norm(entity.name);
+ const numbered=name.match(/\b(?:MS|HP|LP|PP|DP|RP|EP|SP|TX|T|DS|CB)[-_ ]?#?\d+[A-Z0-9]*(?:[-_.][A-Z0-9]+)*\b/);
+ if(numbered)return numbered[0].replace(/\s+/g,'-');
+ const m=name.match(/\b(?:ATS|UPS|MCC|PDU|MDP|MDB|MSB|XFMR|TX|GEN|EVSE|PANEL|PNL|SWBD|SWGR|VFD|DISC|DISCONNECT)[-_ ]?#?[A-Z0-9]+(?:[-_.][A-Z0-9]+)*\b/);
  return m?.[0]?.replace(/\s+/g,'-')||null;
 }
 function componentClass(entity:ElectricalIntelligenceEntity){
