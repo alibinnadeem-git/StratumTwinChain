@@ -199,13 +199,15 @@ async function parsePdfMainThreadFallback(file:File,level:{floor:string;elevatio
  const fallbackLegendPages=new Set(fallbackLegendEntries.map(entry=>Number(entry.page)).filter(Boolean));
  const fallbackFingerprints=buildLegendSymbolFingerprints({
   entries:fallbackLegendEntries,
-  polygons:polygons.map((polygon,index)=>({id:`pdf-fallback-poly-${polygon.page}-${index}`,page:polygon.page,vertices:polygon.vertices,confidence:polygon.confidence,planFrameId:null}))
+  polygons:polygons.map((polygon,index)=>({id:`pdf-fallback-poly-${polygon.page}-${index}`,page:polygon.page,vertices:polygon.vertices,confidence:polygon.confidence,planFrameId:null})),
+  segments
  });
  const fallbackSymbolMatches=matchLegendSymbolFingerprints({
   fingerprints:fallbackFingerprints,
   polygons:polygons.filter(polygon=>Boolean(planEvidence.get(polygon.page)?.isPlan)).map((polygon,index)=>({id:`pdf-fallback-plan-symbol-${polygon.page}-${index}`,page:polygon.page,vertices:polygon.vertices,confidence:polygon.confidence,planFrameId:null})),
   legendPages:fallbackLegendPages,
-  frameAt:(page,x,y)=>frameAt(page,x,y)
+  frameAt:(page,x,y)=>frameAt(page,x,y),
+  segments
  });
  for(const fingerprint of fallbackFingerprints)ocrEntities.push({id:`pdf-${fingerprint.id}`,source:file.name,layer:'L0',kind:'electrical-legend-symbol-fingerprint',name:`${fingerprint.componentClass} · legend vector fingerprint`,x:fingerprint.centroid.x,y:fingerprint.centroid.y,z:0,floor:'UNRESOLVED',confidence:fingerprint.confidence,meta:{page:fingerprint.sourcePage,nonSpatial:true,sourceType:'ELECTRICAL_LEGEND_VECTOR_FINGERPRINT',legendSymbolFingerprint:fingerprint,physicalTruth:false,reviewRequired:true,spatialPlacementAuthority:'NON_SPATIAL_LEGEND_SYMBOL_FINGERPRINT',elevationKnown:false,physicalElevationKnown:false}} as GraphEntity);
  for(const match of fallbackSymbolMatches){
