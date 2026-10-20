@@ -91,9 +91,13 @@ assert.ok(orphanSld.findings.some(finding=>finding.type==='SLD_NOT_LOCATED'));
 const worker=fs.readFileSync('workers/pdf-native-parser.worker.ts','utf8');
 const compiler=fs.readFileSync('components/CompilerWorkspace.tsx','utf8');
 const panel=fs.readFileSync('components/ElectricalEvidencePanel.tsx','utf8');
+const geometryPolicy=fs.readFileSync('lib/spatial-viewer-geometry-policy.ts','utf8');
 assert.match(worker,/electrical-legend-entry/);
 assert.match(worker,/electrical-spec-requirement/);
+assert.match(worker,/PDF_POSITIONAL_TABLE/);
 assert.match(compiler,/enrichElectricalDesignIntelligence/);
 assert.match(panel,/Electrical evidence compiler/);
+assert.match(geometryPolicy,/BLOCKED · ELECTRICAL SOURCE CONFLICT/);
+assert.match(geometryPolicy,/EVIDENCE CHAIN INCOMPLETE/);
 
 console.log('Electrical evidence compiler passed: project legend extraction, floor takeoff, equipment-matrix reconciliation, SLD cross-check, specification comparison, evidence gating, and fail-open review semantics are all active without inventing physical truth.');
