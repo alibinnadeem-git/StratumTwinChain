@@ -13,6 +13,11 @@ export type ElectricalSpecificationRequirement={
  sourceEvidence:string[];confidence:number;physicalTruth:false;reviewRequired:true;
 };
 
+export type PdfEquipmentMatrixRecord={
+ id:string;page:number;tag:string|null;description:string|null;manufacturer:string|null;model:string|null;
+ location:string|null;ratings:Record<string,number>;confidence:number;sourceEvidence:string[];
+};
+
 export type ElectricalIntelligenceEntity={
  id:string;source:string;layer:string;kind:string;name:string;x:number;y:number;z?:number;
  floor?:string;zone?:string;confidence:number;meta?:Record<string,unknown>;
@@ -99,6 +104,86 @@ export function extractElectricalLegendEntries(items:PositionedElectricalText[],
   });
  }
  return [...new Map(out.map(entry=>[`${norm(entry.abbreviation)}|${norm(entry.description)}`,entry])).values()];
+}
+
+export function detectPdfEquipmentMatrixPage(labels:string[]){
+ const text=labels.map(clean).filter(Boolean);
+ const title=text.find(value=>/\b(?:ELECTRICAL\s+)?(?:EQUIPMENT\s+(?:MATRIX|SCHEDULE)|EQUIPMENT\s+LIST|DEVICE\s+SCHEDULE)\b/i.test(value));
+ const headers=new Set<string>();
+ for(const value of text){
+  const n=norm(value);
+  if(/^(?:TAG|MARK|EQUIPMENT\s+ID)$/.test(n))headers.add('tag');
+  if(/^(?:DESCRIPTION|EQUIPMENT|EQUIPMENT\s+TYPE)$/.test(n))headers.add('description');
+  if(/^(?:MANUFACTURER|MFR|MAKE)$/.test(n))headers.add('manufacturer');
+  if(/^(?:MODEL|MODEL\s+NO\.?|MODEL\s+NUMBER)$/.test(n))headers.add('model');
+  if(/^(?:VOLTAGE|VOLTS?|V)$/.test(n))headers.add('voltage');
+  if(/^(?:PHASE|PH)$/.test(n))headers.add('phase');
+  if(/^(?:LOCATION|ROOM|AREA)$/.test(n))headers.add('location');
+ }
+ return{isMatrix:Boolean(title||headers.size>=4),score:(title?6:0)+headers.size,title:title||null,headerFields:[...headers]};
+}
+
+function matrixHeaderKey(value:string){
+ const n=norm(value);
+ if(/^(?:TAG|MARK|EQUIPMENT\s+ID|EQUIPMENT\s+NO\.?)$/.test(n))return'tag';
+ if(/^(?:DESCRIPTION|EQUIPMENT|EQUIPMENT\s+TYPE|TYPE|NAME)$/.test(n))return'description';
+ if(/^(?:MANUFACTURER|MFR|MAKE)$/.test(n))return'manufacturer';
+ if(/^(?:MODEL|MODEL\s+NO\.?|MODEL\s+NUMBER)$/.test(n))return'model';
+ if(/^(?:VOLTAGE|VOLTS?|V)$/.test(n))return'voltage';
+ if(/^(?:PHASE|PH)$/.test(n))return'phase';
+ if(/^(?:KVA|INPUT\s+KVA)$/.test(n))return'kva';
+ if(/^(?:KW|INPUT\s+KW)$/.test(n))return'kw';
+ if(/^(?:FLA|FULL\s+LOAD\s+AMPS?)$/.test(n))return'fla';
+ if(/^(?:MCA|MINIMUM\s+CIRCUIT\s+AMPACITY)$/.test(n))return'mca';
+ if(/^(?:MOCP|MAX(?:IMUM)?\s+OVERCURRENT\s+PROTECTION)$/.test(n))return'mocp';
+ if(/^(?:HP|HORSEPOWER)$/.test(n))return'hp';
+ if(/^(?:LOCATION|ROOM|AREA|ZONE)$/.test(n))return'location';
+ return null;
+}
+function firstNumber(value:unknown){const match=clean(value).replace(/,/g,'').match(/-?\d+(?:\.\d+)?/);return match?Number(match[0]):null}
+
+export function extractPdfEquipmentMatrixRecords(items:PositionedElectricalText[],page:number):PdfEquipmentMatrixRecord[]{
+ const pageItems=items.filter(item=>item.page===page&&clean(item.text)).sort((a,b)=>b.y-a.y||a.x-b.x);
+ if(!pageItems.length)return[];
+ const rows:{y:number;items:PositionedElectricalText[]}[]=[];
+ for(const item of pageItems){
+  let row=rows.find(candidate=>Math.abs(candidate.y-item.y)<=.16);
+  if(!row){row={y:item.y,items:[]};rows.push(row)}
+  row.items.push(item);row.y=(row.y*(row.items.length-1)+item.y)/row.items.length;
+ }
+ for(const row of rows)row.items.sort((a,b)=>a.x-b.x);
+ let header:{row:{y:number;items:PositionedElectricalText[]};columns:{key:string;x:number}[]}|null=null;
+ for(const row of rows){
+  const columns=row.items.map(item=>({key:matrixHeaderKey(item.text),x:item.x})).filter((item):item is {key:string;x:number}=>Boolean(item.key));
+  if(columns.length>=3&&(!header||columns.length>header.columns.length))header={row,columns};
+ }
+ if(!header)return[];
+ const records:PdfEquipmentMatrixRecord[]=[];
+ const ordered=[...header.columns].sort((a,b)=>a.x-b.x);
+ const rowCandidates=rows.filter(row=>row.y<header!.row.y-.12);
+ for(const row of rowCandidates){
+  const cells:Record<string,string>={};
+  for(const item of row.items){
+   let best=ordered[0],distance=Infinity;
+   for(const column of ordered){const d=Math.abs(item.x-column.x);if(d<distance){distance=d;best=column}}
+   if(distance>2.8)continue;
+   cells[best.key]=clean([cells[best.key],item.text].filter(Boolean).join(' '));
+  }
+  const tag=clean(cells.tag)||null,description=clean(cells.description)||null;
+  if(!tag&&!description)continue;
+  const identity=classifyElectricalLabel([tag,description].filter(Boolean).join(' '));
+  const ratings:Record<string,number>={};
+  for(const key of ['voltage','phase','kva','kw','fla','mca','mocp','hp']){const value=firstNumber(cells[key]);if(value!==null)ratings[key]=value}
+  const hasEngineering=Boolean(identity||Object.keys(ratings).length||cells.manufacturer||cells.model);
+  if(!hasEngineering)continue;
+  records.push({
+   id:`pdf-matrix-${page}-${records.length}-${(tag||description||'row').replace(/[^A-Za-z0-9]+/g,'-').slice(0,80)}`,
+   page,tag,description,manufacturer:clean(cells.manufacturer)||null,model:clean(cells.model)||null,
+   location:clean(cells.location)||null,ratings,confidence:tag&&identity ? .94 : tag ? .86 : .74,
+   sourceEvidence:[row.items.map(item=>clean(item.text)).join(' | ')]
+  });
+ }
+ return records.slice(0,1000);
 }
 
 export function detectElectricalSpecificationPage(labels:string[]){
