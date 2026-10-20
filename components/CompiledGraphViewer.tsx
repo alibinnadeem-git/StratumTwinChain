@@ -214,6 +214,11 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
       return true;
     });
   },[graph,floor,discipline,mode,systemMode,search,sourceDisciplines,hiddenSourceSet,activeSheetFrame]);
+  // A large PDF can produce tens of thousands of retained source entities. Keep
+  // render membership O(1) per entity; scanning the visible array for every
+  // graph entity makes scene construction O(n²) and can leave Spatial looking
+  // empty/partial while the browser is still burning through comparisons.
+  const visibleIds=useMemo(()=>new Set(visible.map(entity=>entity.id)),[visible]);
   const inventory=useMemo(()=>visible.filter(e=>e.kind!=="line"&&e.kind!=="sld-feeder-candidate"&&e.kind!=="wall-segment"&&e.kind!=="source-raster-underlay"&&e.kind!=="elevation-control-point"&&e.kind!=="elevation-review-surface-triangle"),[visible]);
   const identifiedEquipment=useMemo(()=>visible.filter(isIdentifiedProjectEquipment).length,[visible]);
   const visibleLines=useMemo(()=>visible.filter(e=>e.kind==="line").length,[visible]);
@@ -295,7 +300,7 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
         }
         return displayElevation(e,mode)+extra(e);
       };
-      const isVisible=(e:Entity)=>visible.some(v=>v.id===e.id);
+      const isVisible=(e:Entity)=>visibleIds.has(e.id);
       const material=(color:number,opacity=1,emissive=0)=>new THREE.MeshStandardMaterial({color,emissive,emissiveIntensity:.2,metalness:.28,roughness:.48,transparent:opacity<1,opacity,depthWrite:opacity>.2});
       const tag=(obj:any,e:Entity)=>{obj.userData.entity=e;entityAnchors.set(e.id,obj);clickableEntities.add(e.id);renderer.domElement.dataset.clickableAssets=String(clickableEntities.size);obj.traverse?.((node:any)=>{if(node.isMesh){node.userData.entity=e;if(!node.userData?.interactionProxy){node.castShadow=true;node.receiveShadow=true}const mats=Array.isArray(node.material)?node.material:[node.material];for(const mat of mats){if(mat?.emissive&&mat.userData?.stratumBaseEmissive===undefined){mat.userData=mat.userData||{};mat.userData.stratumBaseEmissive=mat.emissive.getHex();mat.userData.stratumBaseEmissiveIntensity=Number(mat.emissiveIntensity||0)}}clickable.push(node)}})};
       const interactionProxy=(root:any,target:[number,number,number])=>{const proxy=new THREE.Mesh(new THREE.BoxGeometry(Math.max(target[0]+.3,.8),Math.max(target[1]+.3,.8),Math.max(target[2]+.3,.8)),new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false,colorWrite:false}));proxy.userData.interactionProxy=true;root.add(proxy)};
@@ -601,7 +606,7 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
       cleanup=()=>{runtime.current=null;cancelAnimationFrame(frame);ro.disconnect();renderer.domElement.removeEventListener("pointerdown",pointerDown);renderer.domElement.removeEventListener("pointermove",pointerMove);renderer.domElement.removeEventListener("pointerup",pointerUp);renderer.domElement.removeEventListener("pointercancel",pointerCancel);renderer.domElement.removeEventListener("click",clickPick);controls.dispose();renderer.dispose();host.replaceChildren()};
     })();
     return()=>{disposed=true;cleanup()};
-  },[graph,registry,mode,environment,systemMode,floor,exploded,xray,labels,visible,levels,renderOrigin.x,renderOrigin.y,demoMode]);
+  },[graph,registry,mode,environment,systemMode,floor,exploded,xray,labels,visibleIds,levels,renderOrigin.x,renderOrigin.y,demoMode]);
 
   useEffect(()=>{
     const r=runtime.current;if(!r?.scene)return;
