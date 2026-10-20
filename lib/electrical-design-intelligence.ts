@@ -24,7 +24,7 @@ export type ElectricalIntelligenceEntity={
 };
 
 export type ElectricalTakeoffRow={
- key:string;componentClass:string;floor:string;planType:string;count:number;
+ key:string;componentClass:string;floor:string;unitId:string|null;planFrameId:string|null;planType:string;count:number;
  entityIds:string[];sourceRefs:string[];pages:number[];legendBacked:number;sldRefs:number;scheduleRefs:number;specRefs:number;
 };
 
@@ -316,7 +316,9 @@ export function buildElectricalDesignIntelligence(entities:ElectricalIntelligenc
  const rows=new Map<string,ElectricalTakeoffRow>();
  for(const entity of physical){
   const cls=componentClass(entity),floor=clean(entity.floor)||'UNRESOLVED',planType=clean(entity.meta?.planType)||'UNCLASSIFIED_PLAN';
-  const key=`${floor}|${planType}|${cls}`,prior=rows.get(key);
+  const unitId=clean(entity.meta?.planFrameUnitId)||null,planFrameId=clean(entity.meta?.planFrameId)||null;
+  const locationBucket=unitId?`UNIT:${unitId}`:planFrameId?`FRAME:${planFrameId}`:floor;
+  const key=`${locationBucket}|${planType}|${cls}`,prior=rows.get(key);
   const tag=entityTag(entity);
   const scheduleRefs=schedules.filter(item=>tag&&entityTag(item)===tag).map(item=>item.id);
   const sldRefs=sld.filter(item=>(tag&&entityTag(item)===tag)||componentClass(item)===cls).map(item=>item.id);
@@ -324,7 +326,7 @@ export function buildElectricalDesignIntelligence(entities:ElectricalIntelligenc
   if(prior){
    prior.count++;prior.entityIds.push(entity.id);prior.sourceRefs=uniq([...prior.sourceRefs,entity.source]);prior.pages=uniq([...prior.pages,Number(entity.meta?.page||0)].filter(Boolean));
    prior.legendBacked+=legendClasses.has(cls)?1:0;prior.sldRefs+=sldRefs.length?1:0;prior.scheduleRefs+=scheduleRefs.length?1:0;prior.specRefs+=specRefs.length?1:0;
-  }else rows.set(key,{key,componentClass:cls,floor,planType,count:1,entityIds:[entity.id],sourceRefs:[entity.source],pages:[Number(entity.meta?.page||0)].filter(Boolean),legendBacked:legendClasses.has(cls)?1:0,sldRefs:sldRefs.length?1:0,scheduleRefs:scheduleRefs.length?1:0,specRefs:specRefs.length?1:0});
+  }else rows.set(key,{key,componentClass:cls,floor,unitId,planFrameId,planType,count:1,entityIds:[entity.id],sourceRefs:[entity.source],pages:[Number(entity.meta?.page||0)].filter(Boolean),legendBacked:legendClasses.has(cls)?1:0,sldRefs:sldRefs.length?1:0,scheduleRefs:scheduleRefs.length?1:0,specRefs:specRefs.length?1:0});
  }
  const findings:ElectricalEvidenceFinding[]=[];
  const physicalTags=new Set(physical.map(entityTag).filter(Boolean));
@@ -390,10 +392,29 @@ export function enrichElectricalDesignIntelligence<T extends {entities:Electrica
  const nextEntities=graph.entities.map(entity=>{
   if(!physicalPlanEntity(entity))return entity;
   const cls=componentClass(entity),findings=findingByEntity.get(entity.id)||[];
-  const blocking=findings.some(item=>item.blocking);
-  const specCompared=intelligence.specifications.requirements.some(item=>item.componentHint===cls);
+  const blocking=findings.some(item=>item.blocking),tag=entityTag(entity);
+  const legendAvailable=intelligence.legend.entries.length>0;
+  const specificationAvailable=intelligence.specifications.requirements.length>0;
+  const scheduleAvailable=schedules.length>0,sldAvailable=sld.length>0;
   const legendCompared=intelligence.legend.entries.some(item=>item.componentHint===cls);
-  return {...entity,meta:{...(entity.meta||{}),electricalEvidenceGate:blocking?'BLOCKED_CONFLICT':specCompared?'EVIDENCE_RECONCILED_REVIEW':'EVIDENCE_PARTIAL_REVIEW',electricalLegendCompared:legendCompared,electricalSpecificationCompared:specCompared,electricalEvidenceFindingIds:findings.map(item=>item.id),electricalTakeoffIncluded:true,physicalTruth:false,reviewRequired:true}};
+  const specCompared=intelligence.specifications.requirements.some(item=>item.componentHint===cls);
+  const scheduleCompared=schedules.some(item=>tag&&entityTag(item)===tag);
+  const sldCompared=sld.some(item=>(tag&&entityTag(item)===tag)||(!tag&&componentClass(item)===cls));
+  const majorEquipment=['UTILITY_SOURCE','GENERATOR_SOURCE','PV_SOURCE','BATTERY_SOURCE','UPS','TRANSFORMER','SWITCHGEAR','SWITCHBOARD','ATS','BREAKER','MCC','PDU','PANEL','DISCONNECT','VFD','INVERTER','EVSE','MOTOR','METER'].includes(cls);
+  const required=[
+   {name:'legend',applicable:legendAvailable,passed:!legendAvailable||legendCompared},
+   {name:'specification',applicable:true,passed:specificationAvailable&&specCompared},
+   {name:'equipmentMatrix',applicable:majorEquipment&&Boolean(tag),passed:!majorEquipment||!tag||(scheduleAvailable&&scheduleCompared)},
+   {name:'sld',applicable:majorEquipment&&Boolean(tag),passed:!majorEquipment||!tag||(sldAvailable&&sldCompared)}
+  ];
+  const missing=required.filter(item=>item.applicable&&!item.passed).map(item=>item.name);
+  const reconciled=!blocking&&missing.length===0;
+  return {...entity,meta:{...(entity.meta||{}),
+   electricalEvidenceGate:blocking?'BLOCKED_CONFLICT':reconciled?'EVIDENCE_RECONCILED_REVIEW':'EVIDENCE_PARTIAL_REVIEW',
+   electricalLegendCompared:legendCompared,electricalSpecificationCompared:specCompared,
+   electricalScheduleCompared:scheduleCompared,electricalSldCompared:sldCompared,
+   electricalEvidenceMissing:missing,electricalEvidenceCoverage:{legendAvailable,specificationAvailable,scheduleAvailable,sldAvailable,majorEquipment},
+   electricalEvidenceFindingIds:findings.map(item=>item.id),electricalTakeoffIncluded:true,physicalTruth:false,reviewRequired:true}};
  });
  return {...graph,entities:nextEntities,electricalIntelligence:intelligence};
 }
