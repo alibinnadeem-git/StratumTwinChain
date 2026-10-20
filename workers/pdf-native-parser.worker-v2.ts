@@ -187,7 +187,8 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
   const legendPageSet=new Set([...legendEntriesByPage.keys()]);
   const symbolFingerprints=buildLegendSymbolFingerprints({
    entries:legendEntries,
-   polygons:polygons.map((polygon,index)=>({id:`pdf-poly-${polygon.page}-${index}`,page:polygon.page,vertices:polygon.vertices,confidence:polygon.confidence,planFrameId:null}))
+   polygons:polygons.map((polygon,index)=>({id:`pdf-poly-${polygon.page}-${index}`,page:polygon.page,vertices:polygon.vertices,confidence:polygon.confidence,planFrameId:null})),
+   segments
   });
   const symbolMatches=matchLegendSymbolFingerprints({
    fingerprints:symbolFingerprints,
@@ -195,7 +196,8 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
     .filter(polygon=>Boolean(planEvidence.get(polygon.page)?.isPlan))
     .map((polygon,index)=>({id:`pdf-plan-symbol-${polygon.page}-${index}`,page:polygon.page,vertices:polygon.vertices,confidence:polygon.confidence,planFrameId:null})),
    legendPages:legendPageSet,
-   frameAt:(page,x,y)=>frameAt(page,x,y)
+   frameAt:(page,x,y)=>frameAt(page,x,y),
+   segments
   });
   for(const fingerprint of symbolFingerprints)reviewEntities.push({
    id:`pdf-${fingerprint.id}`,source:fileName,layer:'L0',kind:'electrical-legend-symbol-fingerprint',
