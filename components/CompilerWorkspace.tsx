@@ -455,7 +455,11 @@ async function parsePdfSelectedOcrPages(
       const x0=Number(bbox.x0),y0=Number(bbox.y0),x1=Number(bbox.x1),y1=Number(bbox.y1);if(![x0,y0,x1,y1].every(Number.isFinite))return[];
       return[{text:label,x:(x0+x1)/2/Math.max(canvas.width,1),y:(y0+y1)/2/Math.max(canvas.height,1),width:Math.abs(x1-x0)/Math.max(canvas.width,1),height:Math.abs(y1-y0)/Math.max(canvas.height,1)}];
     });
-    const positioned=geometryItems.map(item=>({text:item.text,x:(Number(item.x)-.5)*planeWidth,y:(.5-Number(item.y))*planeHeight}));
+    const positioned=geometryItems.map(item=>{
+      const vertical=Number(item.height)>Number(item.width)*1.4;
+      return{text:item.text,x:(Number(item.x)-.5)*planeWidth,y:(.5-Number(item.y))*planeHeight,
+        dirX:vertical?0:1,dirY:vertical?-1:0,textSpan:(vertical?Number(item.height)*planeHeight:Number(item.width)*planeWidth)};
+    });
     const legend=detectElectricalLegendPage(lines);
     if(legend.isLegend){
       const entries=extractElectricalLegendEntries(positioned.map(item=>({...item,page:pageNumber})),pageNumber);
@@ -493,7 +497,7 @@ async function parsePdfSelectedOcrPages(
         if(legend.isLegend){
           const entries=extractElectricalLegendEntries(positioned.map(item=>({...item,page:pageNumber})),pageNumber)
             .filter(entry=>Boolean(entry.componentHint))
-            .map(entry=>({id:entry.id,componentClass:String(entry.componentHint),anchorX:entry.anchor.x,anchorY:entry.anchor.y,confidence:entry.confidence}));
+            .map(entry=>({id:entry.id,componentClass:String(entry.componentHint),anchorX:entry.anchor.x,anchorY:entry.anchor.y,dirX:entry.textDirection?.x,dirY:entry.textDirection?.y,confidence:entry.confidence}));
           rasterFingerprints.push(...buildRasterLegendFingerprints({
             page:pageNumber,image,entries,candidates,
             pixelFromAnchor:(x,y)=>({x:(x/planeWidth+.5)*symbolCanvas.width,y:(.5-y/planeHeight)*symbolCanvas.height})
