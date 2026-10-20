@@ -18,16 +18,16 @@ const fingerprints=buildLegendSymbolFingerprints({entries,polygons:[
 ]});
 assert.equal(fingerprints.length,2);
 const receptacleMatches=matchLegendSymbolFingerprints({fingerprints:fingerprints.filter(fp=>fp.componentClass==='RECEPTACLE_DUPLEX'),legendPages:new Set([1]),polygons:[
- {id:'plan-square',page:4,vertices:square(5,5,.09),confidence:.9,planFrameId:'frame-l1'},
+ {id:'plan-square',page:4,vertices:square(5,5,.18),confidence:.9,planFrameId:'frame-l1'},
 ]});
 const junctionMatches=matchLegendSymbolFingerprints({fingerprints:fingerprints.filter(fp=>fp.componentClass==='JUNCTION_BOX'),legendPages:new Set([1]),polygons:[
- {id:'plan-triangle',page:4,vertices:triangle(6,5,.11),confidence:.9,planFrameId:'frame-l1'},
+ {id:'plan-triangle',page:4,vertices:triangle(6,5,.22),confidence:.9,planFrameId:'frame-l1'},
 ]});
 assert.equal(receptacleMatches[0]?.componentClass,'RECEPTACLE_DUPLEX');
 assert.equal(junctionMatches[0]?.componentClass,'JUNCTION_BOX');
 assert.ok([...receptacleMatches,...junctionMatches].every(match=>match.page===4&&match.reviewRequired&&match.physicalTruth===false));
 const ambiguous=matchLegendSymbolFingerprints({fingerprints,legendPages:new Set([1]),polygons:[
- {id:'ambiguous-square',page:4,vertices:square(7,5,.09),confidence:.9,planFrameId:'frame-l1'},
+ {id:'ambiguous-square',page:4,vertices:square(7,5,.18),confidence:.9,planFrameId:'frame-l1'},
 ]});
 assert.ok(ambiguous.length<=1,'multi-class matching must remain ambiguity-gated');
 
