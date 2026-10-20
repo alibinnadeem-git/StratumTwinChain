@@ -47,6 +47,35 @@ const clean=(value:unknown)=>String(value??'').replace(/\s+/g,' ').trim();
 const norm=(value:unknown)=>clean(value).toUpperCase();
 const uniq=<T>(items:T[])=>[...new Set(items)];
 
+export function classifyElectricalLegendDescription(value:string):string|null{
+ const text=norm(value);
+ const deviceRules:[string,RegExp][]=[
+  ['RECEPTACLE_GFCI',/\b(?:GFCI|GFI)\b.*\bRECEPTACLE\b|\bRECEPTACLE\b.*\b(?:GFCI|GFI)\b/],
+  ['RECEPTACLE_DOUBLE_DUPLEX',/\bDOUBLE\s+DUPLEX\s+RECEPTACLE\b/],
+  ['RECEPTACLE_DUPLEX',/\bDUPLEX\s+RECEPTACLE\b/],
+  ['RECEPTACLE_CEILING',/\bCEILING\s+MOUNTED\s+RECEPTACLE\b/],
+  ['RECEPTACLE_FLOOR',/\bFLOOR\s+MOUNTED\s+RECEPTACLE\b/],
+  ['RECEPTACLE_SWITCHED',/\b(?:HALF[- ]HOT|SWITCHED)\b.*\bRECEPTACLE\b/],
+  ['RECEPTACLE_208V',/\b(?:220|208)\s*VOLT\b.*\bRECEPTACLE\b/],
+  ['SWITCH_OCCUPANCY',/\bOCCUPANCY\s+SENSOR\s+SWITCH\b/],
+  ['SWITCH_DIMMER',/\bDIMMER\b.*\bSWITCH\b|\bSWITCH\b.*\bDIMMER\b/],
+  ['SWITCH_4WAY',/\b4[- ]WAY\s+SWITCH\b/],
+  ['SWITCH_3WAY',/\b3[- ]WAY\s+SWITCH\b/],
+  ['SWITCH_SINGLE_POLE',/\bSINGLE\s+POLE\s+SWITCH\b/],
+  ['SWITCH_KEY',/\bKEY\s+SWITCH\b/],
+  ['SWITCH_2POLE',/\b2[- ]POLE\s+SWITCH\b/],
+  ['SMOKE_DETECTOR',/\bSMOKE\s+DETECTOR\b/],
+  ['CO_DETECTOR',/\bCARBON\s+MONOXIDE\s+DETECTOR\b/],
+  ['JUNCTION_BOX',/\bJUNCTION\s+BOX\b/],
+  ['TELEPHONE_OUTLET',/\bTELEPHONE\s+OUTLET\b/],
+  ['THERMOSTAT',/\bTHERMOSTAT\b/],
+  ['FAN',/\bFAN\b/],
+  ['LIGHT_FIXTURE',/\b(?:LIGHT|LIGHTING)\s+FIXTURE\b|\bLUMINAIRE\b/]
+ ];
+ for(const [kind,pattern] of deviceRules)if(pattern.test(text))return kind;
+ return classifyElectricalLabel(text);
+}
+
 export function detectElectricalLegendPage(labels:string[]){
  const text=labels.map(clean).filter(Boolean);
  const title=text.find(value=>/\b(?:ELECTRICAL\s+)?(?:SYMBOLS?|LEGEND|ABBREVIATIONS?|SYMBOLS\s*(?:&|AND)\s*ABBREVIATIONS?)\b/i.test(value));
@@ -94,7 +123,7 @@ export function extractElectricalLegendEntries(items:PositionedElectricalText[],
   if(!near)continue;
   const description=clean(near.item.text);
   if(legendPairNoise(token,description))continue;
-  const componentHint=classifyElectricalLabel(token+' '+description);
+  const componentHint=classifyElectricalLegendDescription(token+' '+description);
   out.push({
    id:`legend-${page}-${out.length}-${token.replace(/[^A-Za-z0-9]+/g,'-')}`,
    page,abbreviation:token,description,componentHint:componentHint||null,
@@ -109,7 +138,7 @@ export function extractElectricalLegendEntries(items:PositionedElectricalText[],
   const value=clean(pageItems[i].text);
   const match=value.match(/^([A-Z0-9][A-Z0-9 ._\-/()#]{0,20})\s*(?:-|–|—|:)\s*(.{4,160})$/);
   if(!match||!abbreviationCandidate(match[1])||!descriptionCandidate(match[2])||legendPairNoise(match[1],match[2]))continue;
-  const componentHint=classifyElectricalLabel(match[1]+' '+match[2]);
+  const componentHint=classifyElectricalLegendDescription(match[1]+' '+match[2]);
   out.push({
    id:`legend-${page}-inline-${out.length}-${match[1].replace(/[^A-Za-z0-9]+/g,'-')}`,
    page,abbreviation:clean(match[1]),description:clean(match[2]),componentHint:componentHint||null,
@@ -117,19 +146,30 @@ export function extractElectricalLegendEntries(items:PositionedElectricalText[],
    sourceEvidence:[value],physicalTruth:false,reviewRequired:true
   });
  }
+ // Capture description-only legend rows whose graphical symbol is the primary key.
+ for(const item of pageItems){
+  const description=clean(item.text),componentHint=classifyElectricalLegendDescription(description);
+  if(!componentHint||legendPairNoise('',description))continue;
+  if(out.some(entry=>norm(entry.description)===norm(description)))continue;
+  out.push({
+   id:`legend-${page}-description-${out.length}-${componentHint.toLowerCase().replace(/[^a-z0-9]+/g,'-')}`,
+   page,abbreviation:'',description,componentHint,anchor:{x:item.x,y:item.y},
+   confidence:.78,sourceEvidence:[description],physicalTruth:false,reviewRequired:true
+  });
+ }
  return [...new Map(out.map(entry=>[`${norm(entry.abbreviation)}|${norm(entry.description)}`,entry])).values()];
 }
 
 export function detectPdfEquipmentMatrixPage(labels:string[]){
  const text=labels.map(clean).filter(Boolean);
- const title=text.find(value=>/\b(?:ELECTRICAL\s+)?(?:EQUIPMENT\s+(?:MATRIX|SCHEDULE)|EQUIPMENT\s+LIST|DEVICE\s+SCHEDULE)\b/i.test(value));
+ const title=text.find(value=>/\b(?:ELECTRICAL\s+)?(?:EQUIPMENT\s+(?:MATRIX|SCHEDULE)|EQUIPMENT\s+LIST|DEVICE\s+SCHEDULE|(?:COMMON\s+AREA\s+\(HOUSE\)\s+)?LIGHT\s+FIXTURE\s+SCHEDULE)\b/i.test(value));
  const headers=new Set<string>();
  for(const value of text){
   const n=norm(value);
-  if(/^(?:TAG|MARK|EQUIPMENT\s+ID)$/.test(n))headers.add('tag');
+  if(/^(?:TAG|MARK|EQUIPMENT\s+ID|FIXTURE)$/.test(n))headers.add('tag');
   if(/^(?:DESCRIPTION|EQUIPMENT|EQUIPMENT\s+TYPE)$/.test(n))headers.add('description');
   if(/^(?:MANUFACTURER|MFR|MAKE)$/.test(n))headers.add('manufacturer');
-  if(/^(?:MODEL|MODEL\s+NO\.?|MODEL\s+NUMBER)$/.test(n))headers.add('model');
+  if(/^(?:MODEL|MODEL\s+NO\.?|MODEL\s+NUMBER|CATALOG\s+NUMBER|CATALOG\s+NO\.?)$/.test(n))headers.add('model');
   if(/^(?:VOLTAGE|VOLTS?|V)$/.test(n))headers.add('voltage');
   if(/^(?:PHASE|PH)$/.test(n))headers.add('phase');
   if(/^(?:LOCATION|ROOM|AREA)$/.test(n))headers.add('location');
@@ -139,14 +179,15 @@ export function detectPdfEquipmentMatrixPage(labels:string[]){
 
 function matrixHeaderKey(value:string){
  const n=norm(value);
- if(/^(?:TAG|MARK|EQUIPMENT\s+ID|EQUIPMENT\s+NO\.?)$/.test(n))return'tag';
+ if(/^(?:TAG|MARK|EQUIPMENT\s+ID|EQUIPMENT\s+NO\.?|FIXTURE)$/.test(n))return'tag';
  if(/^(?:DESCRIPTION|EQUIPMENT|EQUIPMENT\s+TYPE|TYPE|NAME)$/.test(n))return'description';
  if(/^(?:MANUFACTURER|MFR|MAKE)$/.test(n))return'manufacturer';
- if(/^(?:MODEL|MODEL\s+NO\.?|MODEL\s+NUMBER)$/.test(n))return'model';
+ if(/^(?:MODEL|MODEL\s+NO\.?|MODEL\s+NUMBER|CATALOG\s+NUMBER|CATALOG\s+NO\.?)$/.test(n))return'model';
  if(/^(?:VOLTAGE|VOLTS?|V)$/.test(n))return'voltage';
  if(/^(?:PHASE|PH)$/.test(n))return'phase';
  if(/^(?:KVA|INPUT\s+KVA)$/.test(n))return'kva';
  if(/^(?:KW|INPUT\s+KW)$/.test(n))return'kw';
+ if(/^(?:WATTS?|W)$/.test(n))return'watts';
  if(/^(?:FLA|FULL\s+LOAD\s+AMPS?)$/.test(n))return'fla';
  if(/^(?:MCA|MINIMUM\s+CIRCUIT\s+AMPACITY)$/.test(n))return'mca';
  if(/^(?:MOCP|MAX(?:IMUM)?\s+OVERCURRENT\s+PROTECTION)$/.test(n))return'mocp';
@@ -187,7 +228,7 @@ export function extractPdfEquipmentMatrixRecords(items:PositionedElectricalText[
   if(!tag&&!description)continue;
   const identity=classifyElectricalLabel([tag,description].filter(Boolean).join(' '));
   const ratings:Record<string,number>={};
-  for(const key of ['voltage','phase','kva','kw','fla','mca','mocp','hp']){const value=firstNumber(cells[key]);if(value!==null)ratings[key]=value}
+  for(const key of ['voltage','phase','kva','kw','watts','fla','mca','mocp','hp']){const value=firstNumber(cells[key]);if(value!==null)ratings[key]=value}
   const hasEngineering=Boolean(identity||Object.keys(ratings).length||cells.manufacturer||cells.model);
   if(!hasEngineering)continue;
   records.push({
