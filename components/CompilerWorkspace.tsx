@@ -26,6 +26,7 @@ import {archiveSourceBytes,archivedSourceToFile,listArchivedSourceMetadata,readA
 import {enrichCoordinationIntelligence} from '../lib/coordination-intelligence';
 import {enrichElectricalDesignIntelligence,detectElectricalLegendPage,detectElectricalSpecificationPage,detectPdfEquipmentMatrixPage,extractElectricalLegendEntries,extractElectricalSpecificationRequirements,extractPdfEquipmentMatrixRecords} from '../lib/electrical-design-intelligence-v3';
 import {buildLegendSymbolFingerprints,matchLegendSymbolFingerprints} from '../lib/electrical-symbol-fingerprint';
+import {buildLegendSegmentFingerprints,matchLegendSegmentFingerprints} from '../lib/electrical-segment-symbol-fingerprint';
 import {buildZResolutionIndex,extractZEvidenceFromText,type ZEvidence} from '../lib/z-resolver';
 import {buildEntityZConstraintGraph} from '../lib/z-constraint-graph';
 import {buildProjectDatumSurfaces,datumSurfaceMetadata,projectDatumSurfaceForEntity} from '../lib/project-datum';
@@ -209,6 +210,17 @@ async function parsePdfMainThreadFallback(file:File,level:{floor:string;elevatio
  for(const match of fallbackSymbolMatches){
   const frame=frameAt(match.page,match.x,match.y);
   ocrEntities.push({id:`pdf-${match.id}`,source:file.name,layer:'L2',kind:'legend-symbol-match-candidate',name:`${match.componentClass} · project legend symbol match`,x:match.x,y:match.y,z:0,floor:frame?.floor||pageFloors.get(match.page)||'UNRESOLVED',confidence:match.confidence,meta:{page:match.page,nonSldPlan:true,planType:planEvidence.get(match.page)?.planType||'PLAN_VIEW_UNCLASSIFIED',planDiscipline:planEvidence.get(match.page)?.discipline||'Electrical',planFrameId:frame?.id||match.planFrameId||null,planFrameFloor:frame?.floor||null,planFrameUnitId:frame?.unitId||null,planFrameUnitPlan:frame?.unitPlan||null,electricalComponentHint:match.componentClass,legendSymbolMatch:match,legendBacked:true,symbolAnchorStatus:'RESOLVED_REVIEW_CANDIDATE',symbolAnchorAuthority:'PROJECT_LEGEND_VECTOR_FINGERPRINT',spatialPlacementAuthority:'PROJECT_LEGEND_VECTOR_SYMBOL_MATCH',physicalTruth:false,reviewRequired:true,elevationKnown:false,physicalElevationKnown:false,registrationState:'CANDIDATE'}} as GraphEntity);
+ }
+ const fallbackSegmentFingerprints=buildLegendSegmentFingerprints({entries:fallbackLegendEntries,segments});
+ const fallbackSegmentMatches=matchLegendSegmentFingerprints({
+  fingerprints:fallbackSegmentFingerprints,segments,legendPages:fallbackLegendPages,
+  planPages:new Set([...planEvidence.entries()].filter(([,evidence])=>evidence.isPlan).map(([page])=>page))
+ });
+ for(const fingerprint of fallbackSegmentFingerprints)ocrEntities.push({id:`pdf-${fingerprint.id}`,source:file.name,layer:'L0',kind:'electrical-legend-segment-fingerprint',name:`${fingerprint.componentClass} · legend segment fingerprint`,x:fingerprint.centroid.x,y:fingerprint.centroid.y,z:0,floor:'UNRESOLVED',confidence:fingerprint.confidence,meta:{page:fingerprint.sourcePage,nonSpatial:true,sourceType:'ELECTRICAL_LEGEND_SEGMENT_FINGERPRINT',legendSegmentFingerprint:fingerprint,physicalTruth:false,reviewRequired:true,spatialPlacementAuthority:'NON_SPATIAL_LEGEND_SEGMENT_FINGERPRINT',elevationKnown:false,physicalElevationKnown:false}} as GraphEntity);
+ for(const match of fallbackSegmentMatches){
+  if(fallbackSymbolMatches.some(existing=>existing.page===match.page&&existing.componentClass===match.componentClass&&Math.hypot(existing.x-match.x,existing.y-match.y)<.07))continue;
+  const frame=frameAt(match.page,match.x,match.y);
+  ocrEntities.push({id:`pdf-${match.id}`,source:file.name,layer:'L2',kind:'legend-symbol-match-candidate',name:`${match.componentClass} · project legend open-vector match`,x:match.x,y:match.y,z:0,floor:frame?.floor||pageFloors.get(match.page)||'UNRESOLVED',confidence:match.confidence,meta:{page:match.page,nonSldPlan:true,planType:planEvidence.get(match.page)?.planType||'PLAN_VIEW_UNCLASSIFIED',planDiscipline:planEvidence.get(match.page)?.discipline||'Electrical',planFrameId:frame?.id||null,planFrameFloor:frame?.floor||null,planFrameUnitId:frame?.unitId||null,planFrameUnitPlan:frame?.unitPlan||null,electricalComponentHint:match.componentClass,legendSegmentSymbolMatch:match,legendBacked:true,symbolAnchorStatus:'RESOLVED_REVIEW_CANDIDATE',symbolAnchorAuthority:'PROJECT_LEGEND_SEGMENT_FINGERPRINT',spatialPlacementAuthority:'PROJECT_LEGEND_SEGMENT_SYMBOL_MATCH',physicalTruth:false,reviewRequired:true,elevationKnown:false,physicalElevationKnown:false,registrationState:'CANDIDATE'}} as GraphEntity);
  }
  for(const [page,frames] of planFramesByPage){
   for(const frame of frames){
