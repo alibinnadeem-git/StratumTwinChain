@@ -330,8 +330,8 @@ export function buildElectricalDesignIntelligence(entities:ElectricalIntelligenc
   const locationBucket=unitId?`UNIT:${unitId}`:planFrameId?`FRAME:${planFrameId}`:floor;
   const key=`${locationBucket}|${planType}|${cls}`,prior=rows.get(key);
   const tag=entityTag(entity);
-  const scheduleRefs=schedules.filter(item=>tag&&entityTag(item)===tag).map(item=>item.id);
-  const sldRefs=sld.filter(item=>(tag&&entityTag(item)===tag)||componentClass(item)===cls).map(item=>item.id);
+  const scheduleRefs=schedules.filter(item=>(tag&&entityTag(item)===tag)||(!tag&&componentClass(item)===cls)).map(item=>item.id);
+  const sldRefs=sld.filter(item=>(tag&&entityTag(item)===tag)||(!tag&&componentClass(item)===cls)).map(item=>item.id);
   const specRefs=specs.filter(item=>item.componentHint===cls).map(item=>item.id);
   if(prior){
    prior.count++;prior.entityIds.push(entity.id);prior.sourceRefs=uniq([...prior.sourceRefs,entity.source]);prior.pages=uniq([...prior.pages,Number(entity.meta?.page||0)].filter(Boolean));
