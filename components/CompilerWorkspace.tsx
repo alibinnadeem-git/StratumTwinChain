@@ -69,7 +69,7 @@ async function parsePdfOffThread(fileName:string,buffer:ArrayBuffer,level:{floor
  if(typeof Worker==='undefined')throw new PdfParseError('WORKER_UNAVAILABLE','This browser cannot start the protected PDF parser worker.');
  const ingestion=pdfIngestionProfile(buffer.byteLength);
  if(!ingestion.accepted)throw new PdfParseError('PDF_FILE_BUDGET',ingestion.reason);
- const requestId=crypto.randomUUID(),worker=new Worker(new URL('../workers/pdf-native-parser.worker-v3.ts',import.meta.url),{type:'module'});
+ const requestId=crypto.randomUUID(),worker=new Worker(new URL('../workers/pdf-native-parser.worker-v2.ts',import.meta.url),{type:'module'});
  return await new Promise<PdfParseResult>((resolve,reject)=>{
   let settled=false,watchdog:number|undefined,hardDeadline:number|undefined;
   const cleanup=()=>{if(watchdog!==undefined)window.clearTimeout(watchdog);if(hardDeadline!==undefined)window.clearTimeout(hardDeadline);signal.removeEventListener('abort',onAbort);worker.terminate()};
