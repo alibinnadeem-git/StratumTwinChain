@@ -25,6 +25,7 @@ import {drawingSourceReprocessReason,findDrawingSourcesNeedingReprocess,inspectD
 import {archiveSourceBytes,archivedSourceToFile,listArchivedSourceMetadata,readArchivedSource} from '../lib/source-browser-archive';
 import {enrichCoordinationIntelligence} from '../lib/coordination-intelligence';
 import {enrichElectricalDesignIntelligence,detectElectricalLegendPage,detectElectricalSpecificationPage,detectPdfEquipmentMatrixPage,extractElectricalLegendEntries,extractElectricalSpecificationRequirements,extractPdfEquipmentMatrixRecords} from '../lib/electrical-design-intelligence';
+import {buildLegendSymbolFingerprints,matchLegendSymbolFingerprints} from '../lib/electrical-symbol-fingerprint';
 import {buildZResolutionIndex,extractZEvidenceFromText,type ZEvidence} from '../lib/z-resolver';
 import {buildEntityZConstraintGraph} from '../lib/z-constraint-graph';
 import {buildProjectDatumSurfaces,datumSurfaceMetadata,projectDatumSurfaceForEntity} from '../lib/project-datum';
@@ -192,6 +193,23 @@ async function parsePdfMainThreadFallback(file:File,level:{floor:string;elevatio
  }
  const frameAt=(page:number,x:number,y:number)=>resolvePlanFrameAtPoint(planFramesByPage.get(page)||[],x,y);
  const floorAt=(page:number,x:number,y:number)=>frameAt(page,x,y)?.floor||pageFloors.get(page)||'UNRESOLVED';
+ const fallbackLegendEntries=ocrEntities.filter(entity=>entity.kind==='electrical-legend-entry').map(entity=>entity.meta?.legendEntry).filter(Boolean) as any[];
+ const fallbackLegendPages=new Set(fallbackLegendEntries.map(entry=>Number(entry.page)).filter(Boolean));
+ const fallbackFingerprints=buildLegendSymbolFingerprints({
+  entries:fallbackLegendEntries,
+  polygons:polygons.map((polygon,index)=>({id:`pdf-fallback-poly-${polygon.page}-${index}`,page:polygon.page,vertices:polygon.vertices,confidence:polygon.confidence,planFrameId:null}))
+ });
+ const fallbackSymbolMatches=matchLegendSymbolFingerprints({
+  fingerprints:fallbackFingerprints,
+  polygons:polygons.filter(polygon=>Boolean(planEvidence.get(polygon.page)?.isPlan)).map((polygon,index)=>({id:`pdf-fallback-plan-symbol-${polygon.page}-${index}`,page:polygon.page,vertices:polygon.vertices,confidence:polygon.confidence,planFrameId:null})),
+  legendPages:fallbackLegendPages,
+  frameAt:(page,x,y)=>frameAt(page,x,y)
+ });
+ for(const fingerprint of fallbackFingerprints)ocrEntities.push({id:`pdf-${fingerprint.id}`,source:file.name,layer:'L0',kind:'electrical-legend-symbol-fingerprint',name:`${fingerprint.componentClass} · legend vector fingerprint`,x:fingerprint.centroid.x,y:fingerprint.centroid.y,z:0,floor:'UNRESOLVED',confidence:fingerprint.confidence,meta:{page:fingerprint.sourcePage,nonSpatial:true,sourceType:'ELECTRICAL_LEGEND_VECTOR_FINGERPRINT',legendSymbolFingerprint:fingerprint,physicalTruth:false,reviewRequired:true,spatialPlacementAuthority:'NON_SPATIAL_LEGEND_SYMBOL_FINGERPRINT',elevationKnown:false,physicalElevationKnown:false}} as GraphEntity);
+ for(const match of fallbackSymbolMatches){
+  const frame=frameAt(match.page,match.x,match.y);
+  ocrEntities.push({id:`pdf-${match.id}`,source:file.name,layer:'L2',kind:'legend-symbol-match-candidate',name:`${match.componentClass} · project legend symbol match`,x:match.x,y:match.y,z:0,floor:frame?.floor||pageFloors.get(match.page)||'UNRESOLVED',confidence:match.confidence,meta:{page:match.page,nonSldPlan:true,planType:planEvidence.get(match.page)?.planType||'PLAN_VIEW_UNCLASSIFIED',planDiscipline:planEvidence.get(match.page)?.discipline||'Electrical',planFrameId:frame?.id||match.planFrameId||null,planFrameFloor:frame?.floor||null,planFrameUnitId:frame?.unitId||null,planFrameUnitPlan:frame?.unitPlan||null,electricalComponentHint:match.componentClass,legendSymbolMatch:match,legendBacked:true,symbolAnchorStatus:'RESOLVED_REVIEW_CANDIDATE',symbolAnchorAuthority:'PROJECT_LEGEND_VECTOR_FINGERPRINT',spatialPlacementAuthority:'PROJECT_LEGEND_VECTOR_SYMBOL_MATCH',physicalTruth:false,reviewRequired:true,elevationKnown:false,physicalElevationKnown:false,registrationState:'CANDIDATE'}} as GraphEntity);
+ }
  for(const [page,frames] of planFramesByPage){
   for(const frame of frames){
    ocrEntities.push({id:`pdf-plan-frame-${page}-${frame.id}`,source:file.name,layer:'L0',kind:'plan-frame-candidate',name:frame.title,x:frame.anchorX,y:frame.anchorY,z:0,floor:frame.floor||'UNRESOLVED',confidence:frame.confidence,meta:{page,nonSpatial:true,sourceType:'PDF_PLAN_FRAME_TITLE',planFrame:frame,physicalTruth:false,reviewRequired:true,geometryAuthority:'TITLE_ANCHOR_ONLY',spatialPlacementAuthority:'SOURCE_SHEET_TITLE_ANCHOR_ONLY',zPlacementAuthority:'UNVERIFIED_DRAWING_PLANE',elevationKnown:false,physicalElevationKnown:false}} as GraphEntity);
