@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import {
  detectElectricalLegendPage,extractElectricalLegendEntries,
  detectElectricalSpecificationPage,extractElectricalSpecificationRequirements,
@@ -54,6 +55,15 @@ assert.ok(['EVIDENCE_RECONCILED_REVIEW','EVIDENCE_PARTIAL_REVIEW'].includes(Stri
 assert.equal(plan?.meta?.physicalTruth,false);
 assert.equal(plan?.meta?.reviewRequired,true);
 
+const conflicting=buildElectricalDesignIntelligence([
+ ...legendEntities,
+ {id:'plan-ats-c',source:'E-201.pdf',layer:'L2',kind:'text-asset-candidate',name:'ATS-1 AUTOMATIC TRANSFER SWITCH',x:4,y:3,floor:'L1',confidence:.9,meta:{page:2,nonSldPlan:true,planType:'ELECTRICAL_POWER_PLAN',electricalComponentHint:'ATS'}},
+ {id:'schedule-ats-c',source:'Equipment Matrix.xlsx',layer:'L4',kind:'schedule-powered-equipment-candidate',name:'ATS-1 AUTOMATIC TRANSFER SWITCH',x:0,y:0,confidence:.95,meta:{nonSpatial:true,sourceType:'EQUIPMENT_SCHEDULE',assetTag:'ATS-1',manufacturer:'EATON',voltage:208,phase:3}},
+ ...specEntities
+]);
+assert.ok(conflicting.findings.some(finding=>finding.type==='PRODUCT_IDENTITY_CONFLICT'&&finding.blocking));
+assert.ok(conflicting.findings.some(finding=>finding.type==='RATING_CONFLICT'&&finding.blocking));
+
 const withoutSpec=buildElectricalDesignIntelligence(entities.filter(entity=>entity.kind!=='electrical-spec-requirement'));
 assert.ok(withoutSpec.findings.some(finding=>finding.type==='SPEC_SOURCE_MISSING'));
 assert.equal(withoutSpec.findings.find(finding=>finding.type==='SPEC_SOURCE_MISSING')?.blocking,false);
@@ -63,5 +73,13 @@ const orphanSld=buildElectricalDesignIntelligence([
  {id:'sld-mdp',source:'E-601.pdf',layer:'L2',kind:'text-asset-candidate',name:'MDP-1 MAIN DISTRIBUTION PANEL',x:1,y:1,confidence:.9,meta:{sldCandidate:true,electricalComponentHint:'SWITCHBOARD'}}
 ]);
 assert.ok(orphanSld.findings.some(finding=>finding.type==='SLD_NOT_LOCATED'));
+
+const worker=fs.readFileSync('workers/pdf-native-parser.worker.ts','utf8');
+const compiler=fs.readFileSync('components/CompilerWorkspace.tsx','utf8');
+const panel=fs.readFileSync('components/ElectricalEvidencePanel.tsx','utf8');
+assert.match(worker,/electrical-legend-entry/);
+assert.match(worker,/electrical-spec-requirement/);
+assert.match(compiler,/enrichElectricalDesignIntelligence/);
+assert.match(panel,/Electrical evidence compiler/);
 
 console.log('Electrical evidence compiler passed: project legend extraction, floor takeoff, equipment-matrix reconciliation, SLD cross-check, specification comparison, evidence gating, and fail-open review semantics are all active without inventing physical truth.');
