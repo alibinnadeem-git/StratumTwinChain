@@ -35,4 +35,8 @@ const matches=matchLegendSegmentFingerprints({
 assert.ok(matches.some(m=>m.componentClass==='SWITCH_SINGLE_POLE'));
 assert.ok(matches.some(m=>m.componentClass==='JUNCTION_BOX'));
 assert.ok(matches.every(m=>m.reviewRequired&&m.physicalTruth===false));
+const verticalEntries=[{id:'vertical-receptacle',page:1,componentHint:'RECEPTACLE_DUPLEX',anchor:{x:3,y:1},textDirection:{x:0,y:-1},textSpan:.7,confidence:.9}];
+const verticalFp=buildLegendSegmentFingerprints({entries:verticalEntries,segments:symbol(1,3,1.22,.55)});
+assert.equal(verticalFp.length,1,'vertical legend text must associate with the symbol immediately before its baseline direction');
+
 console.log('Open-vector electrical symbol fingerprint matching passed.');
