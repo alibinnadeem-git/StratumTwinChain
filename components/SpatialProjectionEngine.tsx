@@ -18,8 +18,14 @@ export default function SpatialProjectionEngine(){
     const graph=await readPrimarySpatialGraph();if(!graph||!Array.isArray(graph.entities))return;
     const storedRegistry=localStorage.getItem(ELECTRICAL_MODEL_REGISTRY_STORAGE_KEY);
     const registry=storedRegistry?normalizeElectricalModelRegistry(JSON.parse(storedRegistry)):DEFAULT_ELECTRICAL_MODEL_REGISTRY;
+    const before=graphSignature(graph);
     const enriched=await projectGraphOffThread(graph as any,registry);
-    if(graphSignature(enriched)===graphSignature(graph))return;
+    if(graphSignature(enriched)===before)return;
+    // Projection is async, so another panel (e.g. room proposals) may have written the graph
+    // meanwhile. Never overwrite that newer graph with one projected from a stale read:
+    // re-project from the latest graph instead.
+    const latest=await readPrimarySpatialGraph();
+    if(!latest||graphSignature(latest)!==before){refresh();return}
     await writePrimarySpatialGraph(enriched as any);
     window.dispatchEvent(new Event('stratum:graph-updated'));
    }catch{
