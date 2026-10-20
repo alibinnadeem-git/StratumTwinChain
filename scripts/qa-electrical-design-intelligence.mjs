@@ -18,6 +18,19 @@ assert.equal(legendEntries.length,2);
 assert.ok(legendEntries.some(entry=>entry.abbreviation==='ATS'&&entry.componentHint));
 assert.ok(legendEntries.some(entry=>entry.abbreviation==='XFMR'&&entry.componentHint));
 
+const denseLegend=extractElectricalLegendEntries([
+ {text:'GENERAL NOTES',x:-8.4,y:6.4,page:1},
+ {text:'GENERAL SYMBOLS',x:-3.4,y:6.4,page:1},
+ {text:'ELECTRICAL ABBREVIATIONS',x:-.65,y:6.4,page:1},
+ {text:'ELECTRICAL SHEET INDEX',x:5.4,y:6.4,page:1},
+ {text:'E-1',x:4.6,y:6.1,page:1},{text:'NOTES & SYMBOLS',x:5.4,y:6.1,page:1},
+ {text:'SD',x:-4.2,y:3.4,page:1},{text:'SMOKE DETECTOR',x:-3.2,y:3.4,page:1},
+ {text:'CO',x:-4.2,y:3.1,page:1},{text:'CARBON MONOXIDE DETECTOR',x:-3.1,y:3.1,page:1},
+],1);
+assert.equal(denseLegend.some(entry=>entry.abbreviation==='E-1'),false,'sheet-index rows must not leak into project legend extraction');
+assert.equal(denseLegend.some(entry=>entry.abbreviation==='SD'),true);
+assert.equal(denseLegend.some(entry=>entry.abbreviation==='CO'),true);
+
 const specLabels=['SECTION 26 36 23','AUTOMATIC TRANSFER SWITCHES','PART 2 - PRODUCTS','MANUFACTURER: ASCO','ATS-1 480V 3PH 800A'];
 const specDetection=detectElectricalSpecificationPage(specLabels);
 assert.equal(specDetection.isSpecification,true);
@@ -52,6 +65,9 @@ const entities=[
  {id:'sld-ats',source:'E-601.pdf',layer:'L2',kind:'text-asset-candidate',name:'ATS-1 AUTOMATIC TRANSFER SWITCH',x:2,y:2,floor:'L1',confidence:.9,meta:{page:6,sldCandidate:true,electricalComponentHint:'ATS'}},
  {id:'schedule-ats',source:'Equipment Matrix.xlsx',layer:'L4',kind:'schedule-powered-equipment-candidate',name:'ATS-1 AUTOMATIC TRANSFER SWITCH 480V 3PH',x:0,y:0,confidence:.95,meta:{nonSpatial:true,sourceType:'EQUIPMENT_SCHEDULE',assetTag:'ATS-1',manufacturer:'ASCO',model:'300 SERIES'}},
 ];
+assert.equal((await import('../lib/sld-recognition.ts')).classifyElectricalLabel('MS1'),'SWITCHBOARD');
+assert.equal((await import('../lib/sld-recognition.ts')).classifyElectricalLabel('MS2'),'SWITCHBOARD');
+
 const intelligence=buildElectricalDesignIntelligence(entities);
 assert.equal(intelligence.takeoff.totalPhysicalEquipment,1);
 assert.equal(intelligence.takeoff.rows.length,1);
