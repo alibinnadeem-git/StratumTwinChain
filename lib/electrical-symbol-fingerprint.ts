@@ -8,6 +8,7 @@ export type SymbolFingerprint={
  componentClass:string;
  centroid:SymbolPoint;
  vertexCount:number;
+ size:number;
  aspect:number;
  compactness:number;
  radial:number[];
@@ -48,7 +49,7 @@ function metrics(polygon:SymbolPolygon){
  const xs=v.map(p=>p.x),ys=v.map(p=>p.y),width=Math.max(...xs)-Math.min(...xs),height=Math.max(...ys)-Math.min(...ys);
  if(width<.015||height<.015||width>2.2||height>2.2)return null;
  const aspect=Math.min(width,height)/Math.max(width,height);
- const compactness=Math.max(0,Math.min(1,4*Math.PI*area/(perimeter*perimeter)));
+ const compactness=Math.max(0,Math.min(1,4*Math.PI*area/(perimeter*perimeter))),size=Math.sqrt(area);
  const radii=v.map(p=>dist(p,centroid)),maxR=Math.max(...radii)||1;
  const bins=8,radial=Array.from({length:bins},()=>0),counts=Array.from({length:bins},()=>0);
  for(let i=0;i<v.length;i++){
@@ -56,7 +57,7 @@ function metrics(polygon:SymbolPolygon){
   radial[bin]+=radii[i]/maxR;counts[bin]++;
  }
  for(let i=0;i<bins;i++)radial[i]=counts[i]?radial[i]/counts[i]:0;
- return{centroid,vertexCount:v.length,aspect,compactness,radial,area,width,height};
+ return{centroid,vertexCount:v.length,size,aspect,compactness,radial,area,width,height};
 }
 function radialDistance(a:number[],b:number[]){
  let best=Infinity;
@@ -72,7 +73,10 @@ function similarity(fp:SymbolFingerprint,m:NonNullable<ReturnType<typeof metrics
  const aspectScore=1-Math.min(1,Math.abs(fp.aspect-m.aspect)/.55);
  const compactScore=1-Math.min(1,Math.abs(fp.compactness-m.compactness)/.6);
  const radialScore=1-Math.min(1,radialDistance(fp.radial,m.radial)/.5);
- return .22*vertexScore+.24*aspectScore+.18*compactScore+.36*radialScore;
+ const sizeRatio=m.size/Math.max(fp.size,1e-6);
+ if(sizeRatio<.5||sizeRatio>2)return 0;
+ const sizeScore=1-Math.min(1,Math.abs(Math.log(sizeRatio))/Math.log(2));
+ return .18*vertexScore+.18*aspectScore+.14*compactScore+.32*radialScore+.18*sizeScore;
 }
 
 export function buildLegendSymbolFingerprints(args:{
@@ -93,7 +97,7 @@ export function buildLegendSymbolFingerprints(args:{
   if(ambiguous)continue;
   out.push({
    id:`legend-fingerprint-${entry.id}`,sourcePage:entry.page,legendEntryId:entry.id,componentClass:entry.componentHint,
-   centroid:best.m.centroid,vertexCount:best.m.vertexCount,aspect:best.m.aspect,compactness:best.m.compactness,
+   centroid:best.m.centroid,vertexCount:best.m.vertexCount,size:best.m.size,aspect:best.m.aspect,compactness:best.m.compactness,
    radial:best.m.radial,confidence:Math.min(entry.confidence,best.p.confidence,.9),reviewRequired:true,physicalTruth:false
   });
  }
