@@ -79,7 +79,7 @@ export function extractElectricalLegendEntries(items:PositionedElectricalText[],
   out.push({
    id:`legend-${page}-${out.length}-${token.replace(/[^A-Za-z0-9]+/g,'-')}`,
    page,abbreviation:token,description,componentHint:componentHint||null,
-   anchor:{x:left.x,y:left.y},confidence:componentHint?.94:.82,
+   anchor:{x:left.x,y:left.y},confidence:componentHint ? .94 : .82,
    sourceEvidence:[token,description],physicalTruth:false,reviewRequired:true
   });
   consumed.add(i);consumed.add(near.index);
@@ -94,7 +94,7 @@ export function extractElectricalLegendEntries(items:PositionedElectricalText[],
   out.push({
    id:`legend-${page}-inline-${out.length}-${match[1].replace(/[^A-Za-z0-9]+/g,'-')}`,
    page,abbreviation:clean(match[1]),description:clean(match[2]),componentHint:componentHint||null,
-   anchor:{x:pageItems[i].x,y:pageItems[i].y},confidence:componentHint?.96:.84,
+   anchor:{x:pageItems[i].x,y:pageItems[i].y},confidence:componentHint ? .96 : .84,
    sourceEvidence:[value],physicalTruth:false,reviewRequired:true
   });
  }
@@ -137,7 +137,7 @@ export function extractElectricalSpecificationRequirements(labels:string[],page:
   out.push({
    id:`spec-${page}-${out.length}`,page,section,title:line,componentHint:componentHint||null,
    manufacturer:maker?clean(maker[1]):null,model:model?clean(model[1]):null,ratings,
-   sourceEvidence:[context],confidence:componentHint?.9:.72,physicalTruth:false,reviewRequired:true
+   sourceEvidence:[context],confidence:componentHint ? .9 : .72,physicalTruth:false,reviewRequired:true
   });
  }
  return out.slice(0,500);
