@@ -335,8 +335,8 @@ export function buildElectricalDesignIntelligence(entities:ElectricalIntelligenc
   const unitId=clean(entity.meta?.planFrameUnitId)||null,planFrameId=clean(entity.meta?.planFrameId)||null;
   const locationBucket=unitId?`UNIT:${unitId}`:planFrameId?`FRAME:${planFrameId}`:floor;
   const key=`${locationBucket}|${planType}|${cls}`,prior=rows.get(key);
-  const tag=entityTag(entity);
-  const scheduleRefs=schedules.filter(item=>(tag&&entityTag(item)===tag)||(!tag&&componentClass(item)===cls)).map(item=>item.id);
+  const tag=entityTag(entity),fixtureMark=norm(entity.meta?.fixtureMark);
+  const scheduleRefs=schedules.filter(item=>(tag&&entityTag(item)===tag)||(cls==='LIGHT_FIXTURE'&&fixtureMark&&norm(item.meta?.fixtureMark)===fixtureMark)||(!tag&&!fixtureMark&&componentClass(item)===cls)).map(item=>item.id);
   const sldRefs=sld.filter(item=>(tag&&entityTag(item)===tag)||(!tag&&componentClass(item)===cls)).map(item=>item.id);
   const specRefs=specs.filter(item=>item.componentHint===cls).map(item=>item.id);
   if(prior){
@@ -355,6 +355,7 @@ export function buildElectricalDesignIntelligence(entities:ElectricalIntelligenc
   entityRefs:[],sourceRefs:uniq(legends.filter(item=>item.componentHint===cls).flatMap(item=>item.sourceEvidence)),blocking:false
  });
  const physicalTags=new Set(physical.map(entityTag).filter(Boolean));
+ const physicalFixtureMarks=new Set(physical.filter(entity=>componentClass(entity)==='LIGHT_FIXTURE').map(entity=>norm(entity.meta?.fixtureMark)).filter(Boolean));
  const sldTags=new Set(sld.map(entityTag).filter(Boolean));
  for(const entity of physical){
   const cls=componentClass(entity),tag=entityTag(entity);
@@ -365,13 +366,16 @@ export function buildElectricalDesignIntelligence(entities:ElectricalIntelligenc
   const tag=entityTag(entity);if(tag&&!physicalTags.has(tag))findings.push({id:`elec:plan-missing:${entity.id}`,severity:'H2',type:'SLD_NOT_LOCATED',title:`${tag} appears in the SLD but has no located physical-plan counterpart`,detail:'The SLD identifies this equipment but no physical plan entity with the same tag has been located.',entityRefs:[entity.id],sourceRefs:[entity.source],blocking:false});
  }
  for(const entity of schedules){
-  const tag=entityTag(entity);if(tag&&!physicalTags.has(tag))findings.push({id:`elec:schedule-missing:${entity.id}`,severity:'H2',type:'SCHEDULE_NOT_LOCATED',title:`${tag} appears in the equipment matrix but is not located on a physical plan`,detail:'The equipment matrix/schedule record is preserved as non-spatial evidence until a physical-plan counterpart is found.',entityRefs:[entity.id],sourceRefs:[entity.source],blocking:false});
+  const tag=entityTag(entity),fixtureMark=norm(entity.meta?.fixtureMark);
+  if(fixtureMark&&componentClass(entity)==='LIGHT_FIXTURE'&&!physicalFixtureMarks.has(fixtureMark))findings.push({id:`elec:fixture-missing:${entity.id}`,severity:'H2',type:'SCHEDULE_NOT_LOCATED',title:`Fixture ${fixtureMark} appears in the lighting schedule but is not reconciled to a physical plan symbol`,detail:'The fixture schedule row is preserved as non-spatial evidence until a plan occurrence with the same review-only fixture mark is located.',entityRefs:[entity.id],sourceRefs:[entity.source],blocking:false});
+  else if(tag&&!physicalTags.has(tag))findings.push({id:`elec:schedule-missing:${entity.id}`,severity:'H2',type:'SCHEDULE_NOT_LOCATED',title:`${tag} appears in the equipment matrix but is not located on a physical plan`,detail:'The equipment matrix/schedule record is preserved as non-spatial evidence until a physical-plan counterpart is found.',entityRefs:[entity.id],sourceRefs:[entity.source],blocking:false});
  }
 
  const ratingKeys=['voltage','phase','kva','kw','amperage'] as const;
  for(const entity of physical){
   const tag=entityTag(entity),cls=componentClass(entity);
-  const matchedSchedules=schedules.filter(item=>tag&&entityTag(item)===tag);
+  const fixtureMark=norm(entity.meta?.fixtureMark);
+  const matchedSchedules=schedules.filter(item=>(tag&&entityTag(item)===tag)||(cls==='LIGHT_FIXTURE'&&fixtureMark&&norm(item.meta?.fixtureMark)===fixtureMark));
   const matchedSpecs=specs.filter(item=>item.componentHint===cls);
   if(!matchedSchedules.length||!matchedSpecs.length)continue;
   const scheduleManufacturers=uniq(matchedSchedules.map(item=>norm(item.meta?.manufacturer||item.meta?.manufacturerName)).filter(Boolean));
