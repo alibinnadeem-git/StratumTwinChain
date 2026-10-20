@@ -412,6 +412,16 @@ async function parsePdfSelectedOcrPages(
       return[{text:label,x:(x0+x1)/2/Math.max(canvas.width,1),y:(y0+y1)/2/Math.max(canvas.height,1),width:Math.abs(x1-x0)/Math.max(canvas.width,1),height:Math.abs(y1-y0)/Math.max(canvas.height,1)}];
     });
     const positioned=geometryItems.map(item=>({text:item.text,x:(Number(item.x)-.5)*planeWidth,y:(.5-Number(item.y))*planeHeight}));
+    const legend=detectElectricalLegendPage(lines);
+    if(legend.isLegend){
+      const entries=extractElectricalLegendEntries(positioned.map(item=>({...item,page:pageNumber})),pageNumber);
+      for(const entry of entries)entities.push({id:`pdf-${entry.id}`,source:file.name,layer:'L0',kind:'electrical-legend-entry',name:`${entry.abbreviation} · ${entry.description}`,x:entry.anchor.x,y:entry.anchor.y,z:0,floor:'UNRESOLVED',confidence:entry.confidence,meta:{page:pageNumber,nonSpatial:true,sourceType:'ELECTRICAL_LEGEND',legendEntry:entry,legendPageScore:legend.score,ocrAuthority:'REVIEW_ONLY',physicalTruth:false,reviewRequired:true,spatialPlacementAuthority:'NON_SPATIAL_LEGEND',elevationKnown:false,physicalElevationKnown:false}} as GraphEntity);
+    }
+    const specification=detectElectricalSpecificationPage(lines);
+    if(specification.isSpecification){
+      const requirements=extractElectricalSpecificationRequirements(lines,pageNumber);
+      for(const requirement of requirements)entities.push({id:`pdf-${requirement.id}`,source:file.name,layer:'L0',kind:'electrical-spec-requirement',name:requirement.title,x:0,y:0,z:0,floor:'UNRESOLVED',confidence:requirement.confidence,meta:{page:pageNumber,nonSpatial:true,sourceType:'ELECTRICAL_SPECIFICATION',specRequirement:requirement,specificationSection:requirement.section,ocrAuthority:'REVIEW_ONLY',physicalTruth:false,reviewRequired:true,spatialPlacementAuthority:'NON_SPATIAL_SPECIFICATION',elevationKnown:false,physicalElevationKnown:false}} as GraphEntity);
+    }
     const recognition=resolveDrawingPageRecognition(lines,0);
     if(recognition.plan.isPlan){nonSldPlanPages++;if(recognition.plan.planType)planTypes.add(String(recognition.plan.planType));}
     if(recognition.plan.isPlan&&recognition.plan.discipline)disciplines.add(String(recognition.plan.discipline));
