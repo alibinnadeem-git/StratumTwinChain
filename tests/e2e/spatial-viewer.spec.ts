@@ -312,12 +312,14 @@ test('SLD becomes review-only spatial electrical hierarchy',async({page})=>{
  await page.getByLabel('Imported object').selectOption('panel');
  await expect(page.getByText('SLD → SPATIAL PROJECTION')).toBeVisible();
  await expect(page.getByText(/logical power hierarchy/i)).toBeVisible();
- const projected=await page.evaluate(()=>{
+ // The projection is saved asynchronously (debounced, off the UI thread), so the screen can show
+ // it before the stored graph does: wait for the persisted result rather than racing it.
+ const projected=()=>page.evaluate(()=>{
   const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
   return{depths:(graph.entities||[]).map((entity:any)=>entity.meta?.sldLogicalDepth),feeders:(graph.links||[]).filter((link:any)=>link.type==='SLD_FEEDS').length};
  });
- expect(projected.depths).toEqual([0,1,2,4]);
- expect(projected.feeders).toBeGreaterThanOrEqual(3);
+ await expect.poll(async()=>(await projected()).depths,{timeout:15000}).toEqual([0,1,2,4]);
+ expect((await projected()).feeders).toBeGreaterThanOrEqual(3);
 });
 
 

@@ -43,6 +43,28 @@ assert.ok(location);assert.deepEqual(location.comparison.floors.sort(),['L2','RO
 assert.equal(result.findings.some(item=>/GEOMETRIC_CLASH|PHYSICAL_CLASH/.test(item.findingType)),false);
 assert.equal(result.truthBoundary,'COORDINATION_FINDINGS_DO_NOT_ESTABLISH_PHYSICAL_CLASH_CODE_COMPLIANCE_OR_ENGINEERING_APPROVAL');
 
+// PR #234 review / Brynhurst: ordinary drawing words must not become equipment tags
+// (P+LAN, P+DF, P+ANEL, EL+EVATOR), and source basemap linework is never tagged. 28k lines named
+// "...PLAN" once formed one tag group with ~392M pairwise comparisons and bogus conflicts.
+const wordNoise=buildCoordinationIntelligence({sources:[{name:'E-1.pdf',sha256:'a'},{name:'E-2.pdf',sha256:'b'}],entities:[
+ ...['PLAN','PDF','PANEL','PATH','POLE','ELEVATOR'].flatMap((word,i)=>[
+  {id:'w1-'+i,source:'E-1.pdf',layer:'L2',kind:'text-asset-candidate',name:'SEE '+word+' 208V',confidence:.8,floor:'L1',meta:{sourceSha256:'a'}},
+  {id:'w2-'+i,source:'E-2.pdf',layer:'L2',kind:'text-asset-candidate',name:'SEE '+word+' 480V',confidence:.8,floor:'L2',meta:{sourceSha256:'b'}}]),
+ ...Array.from({length:2000},(_,i)=>({id:'basemap-'+i,source:i%2?'E-1.pdf':'E-2.pdf',layer:'L1',kind:'line',name:'Source plan line · AHU-9',confidence:.5,floor:i%2?'L1':'L2',meta:{drawingBasemap:true,sourceSha256:i%2?'a':'b',voltage:i}}))
+]});
+assert.equal(wordNoise.findings.length,0,'drawing words and basemap linework must not produce coordination findings');
+for(const [text,expected] of [['AHU-1','AHU-1'],['AHU-A','AHU-A'],['MDP 2','MDP-2'],['EF1A','EF1A'],['PANEL HP1','HP1']]){
+ const one=buildCoordinationIntelligence({entities:[
+  {id:'s',source:'Schedule.csv',layer:'L4',kind:'schedule-powered-equipment-candidate',name:text,confidence:.9,meta:{nonSpatial:true}}]});
+ assert.ok(one.findings.some(item=>item.findingType==='MISSING_SPATIAL_REPRESENTATION'&&item.comparison.tag===expected),'real tag must still be recognized: '+text);
+}
+// Rating conflicts are found in one pass per field: a large tag group stays fast and exact.
+const crowd=Array.from({length:20000},(_,i)=>({id:'ahu7-'+i,source:i%2?'M-1.pdf':'M-2.pdf',layer:'L2',kind:'text-asset-candidate',name:'AHU-7',confidence:.9,meta:{sourceSha256:i%2?'m1':'m2',voltage:i===12345?208:480,mca:480.0001}}));
+const started=performance.now();
+const crowded=buildCoordinationIntelligence({entities:crowd}).findings.find(item=>item.findingType==='RATING_CONFLICT');
+assert.ok(performance.now()-started<3000,'rating comparison must not be quadratic in tag-group size');
+assert.deepEqual(crowded?.comparison.fields,['voltage'],'only fields whose known values differ beyond tolerance conflict');
+
 const migration=fs.readFileSync('migrations/009_coordination_intelligence.sql','utf8');
 for(const name of ['coordination_snapshots','coordination_findings','coordination_finding_dispositions','coordination_action_requests','stratum_prevent_coordination_snapshot_update','stratum_prevent_coordination_finding_update','stratum_prevent_coordination_disposition_update','stratum_prevent_coordination_action_request_update']){
  assert.ok(migration.includes(name),'Missing coordination persistence invariant: '+name);

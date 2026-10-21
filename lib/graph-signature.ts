@@ -5,9 +5,9 @@
 // This folds an FNV-1a hash over the graph in a single pass without allocating a giant
 // string. It recurses into objects so meaningful changes (projection output, coordination
 // findings, room proposals, Z status) are detected, but skips a denylist of known-huge
-// blobs — base64 models/rasters and deep derived objects whose scalar summaries (counts,
-// status) are already hashed as sibling fields. Missing a change inside one of those blobs
-// can only cause a redundant/skipped no-op write, never a loss of authoritative geometry.
+// blobs — base64 models/rasters and deep parser-written evidence whose scalar summaries
+// (counts, status) are already hashed as sibling fields. Review panels never edit those
+// blobs, so skipping them cannot hide a human change from a compare-and-write.
 
 const FNV_OFFSET=2166136261;
 
@@ -23,9 +23,20 @@ function fold(hash:number,value:string):number{
  return h>>>0;
 }
 
+// Numbers (coordinates, mostly) are folded by their float64 bits: String(number) dominated the cost.
+const numberView=new Float64Array(1),numberWords=new Uint32Array(numberView.buffer);
+function foldNumber(hash:number,value:number):number{
+ numberView[0]=value;
+ let h=(hash^0x6e)>>>0;h=Math.imul(h,16777619);
+ h^=numberWords[0];h=Math.imul(h,16777619);
+ h^=numberWords[1];h=Math.imul(h,16777619);
+ return h>>>0;
+}
+
 function foldUnknown(hash:number,value:unknown):number{
  if(value===null||value===undefined)return fold(hash,'\u0000');
  const type=typeof value;
+ if(type==='number')return foldNumber(hash,value as number);
  if(type!=='object')return fold(hash,type[0]+String(value));
  if(Array.isArray(value)){
   let h=fold(hash,'['+value.length);
@@ -44,29 +55,21 @@ export function entitiesSignature(entities:ReadonlyArray<Record<string,any>>|und
  let h=FNV_OFFSET;
  const list=entities||[];
  h=fold(h,'n'+list.length);
- for(const e of list){
-  h=foldUnknown(h,e.id);h=foldUnknown(h,e.layer);h=foldUnknown(h,e.kind);h=foldUnknown(h,e.name);
-  h=foldUnknown(h,e.x);h=foldUnknown(h,e.y);h=foldUnknown(h,e.z);
-  h=foldUnknown(h,e.x2);h=foldUnknown(h,e.y2);h=foldUnknown(h,e.z2);
-  h=foldUnknown(h,e.rotation);h=foldUnknown(h,e.scale);
-  h=foldUnknown(h,e.floor);h=foldUnknown(h,e.zone);h=foldUnknown(h,e.confidence);
-  h=foldUnknown(h,e.vertices);
-  h=foldUnknown(h,e.meta);
- }
+ for(const e of list)h=foldUnknown(h,e);
  return h.toString(16);
 }
 
+// Covers every top-level field, not a hand-picked list: SpatialProjectionEngine uses this to
+// detect that another panel wrote the graph (title-block confirmations, room proposals,
+// alignment candidates, calibrations, ...) while a projection was running, so any field a
+// panel can write must change the signature or that write is silently reverted.
 export function graphSignature(graph:any):string{
  if(!graph||typeof graph!=='object')return '0';
  let h=fold(FNV_OFFSET,entitiesSignature(graph.entities));
- const links=graph.links||[];
- h=fold(h,'L'+links.length);
- for(const l of links){h=foldUnknown(h,l.id);h=foldUnknown(h,l.from);h=foldUnknown(h,l.to);h=foldUnknown(h,l.type);}
- const sources=graph.sources||[];
- h=fold(h,'S'+sources.length);
- for(const s of sources){h=foldUnknown(h,s.sha256);h=foldUnknown(h,s.name);h=foldUnknown(h,s.state);h=foldUnknown(h,s.discipline);}
- h=foldUnknown(h,graph.reviewState);
- // coordinationIntelligence is bounded (a findings list, not per-entity) so recurse it fully.
- h=foldUnknown(h,graph.coordinationIntelligence);
+ for(const key of Object.keys(graph).sort()){
+  if(key==='entities')continue;
+  h=fold(h,key);
+  h=SKIP_KEYS.has(key)?fold(h,'\u0001'):foldUnknown(h,graph[key]);
+ }
  return h.toString(16);
 }

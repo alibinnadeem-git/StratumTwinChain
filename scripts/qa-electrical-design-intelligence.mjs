@@ -137,6 +137,34 @@ const conflicting=buildElectricalDesignIntelligence([
 assert.ok(conflicting.findings.some(finding=>finding.type==='PRODUCT_IDENTITY_CONFLICT'&&finding.blocking));
 assert.ok(conflicting.findings.some(finding=>finding.type==='RATING_CONFLICT'&&finding.blocking));
 
+// PR #234 review: equipment in different PDFs that shares a page number and local coordinates is
+// different equipment; only near-coincident candidates on the same sheet collapse to one.
+const panelOn=(id,source,sha)=>({id,source,layer:'L2',kind:'text-asset-candidate',name:'PANEL',x:.42,y:.31,floor:id.includes('l2')?'L2':'L1',confidence:.9,meta:{page:2,sourceSha256:sha,nonSldPlan:true,planType:'ELECTRICAL_POWER_PLAN',electricalComponentHint:'PANEL'}});
+const crossPdf=buildElectricalDesignIntelligence([panelOn('panel-l1','E-201 Level 1.pdf','a'.repeat(64)),panelOn('panel-l2','E-202 Level 2.pdf','b'.repeat(64))]);
+assert.equal(crossPdf.takeoff.totalPhysicalEquipment,2,'panels in separate PDFs must not collapse on equal page/local coordinates');
+const samePdf=buildElectricalDesignIntelligence([panelOn('panel-l1','E-201 Level 1.pdf','a'.repeat(64)),{...panelOn('panel-l1-dup','E-201 Level 1.pdf','a'.repeat(64)),x:.43}]);
+assert.equal(samePdf.takeoff.totalPhysicalEquipment,1,'near-coincident candidates on one sheet remain one symbol');
+const framed=(id,frame)=>({...panelOn(id,'E-201 Level 1.pdf','a'.repeat(64)),meta:{...panelOn(id,'E-201 Level 1.pdf','a'.repeat(64)).meta,planFrameId:frame}});
+assert.equal(buildElectricalDesignIntelligence([framed('panel-f1','unit-a'),framed('panel-f2','unit-b')]).takeoff.totalPhysicalEquipment,2,'separate plan frames bound deduplication');
+
+// PR #234 review: readiness is COMPLETE_REVIEW only when a source shows the indexed drawing set is
+// complete; an UNRESOLVED or unreported set keeps it partial.
+const completeEvidence=[
+ {id:'legend-panel',source:'E-001.pdf',layer:'L0',kind:'electrical-legend-entry',name:'PANELBOARD',x:0,y:0,confidence:.9,meta:{nonSpatial:true,sourceType:'ELECTRICAL_LEGEND',legendEntry:{id:'l-panel',page:1,abbreviation:'',description:'PANELBOARD',componentHint:'PANEL',anchor:{x:0,y:0},confidence:.9,sourceEvidence:['PANELBOARD'],physicalTruth:false,reviewRequired:true}}},
+ {id:'spec-panel',source:'Division 26.pdf',layer:'L0',kind:'electrical-spec-requirement',name:'PANELBOARDS',x:0,y:0,confidence:.9,meta:{nonSpatial:true,sourceType:'ELECTRICAL_SPECIFICATION',specRequirement:{id:'req-panel',page:4,section:'26 24 16',title:'PANELBOARDS',componentHint:'PANEL',manufacturer:'',model:'',ratings:{},sourceEvidence:['PANELBOARDS'],physicalTruth:false,reviewRequired:true}}},
+ {id:'plan-lp1',source:'E-201.pdf',layer:'L2',kind:'text-asset-candidate',name:'PANEL LP1',x:4,y:3,floor:'L1',confidence:.9,meta:{page:2,nonSldPlan:true,planType:'ELECTRICAL_POWER_PLAN',electricalComponentHint:'PANEL',assetTag:'LP1'}},
+ {id:'sld-lp1',source:'E-601.pdf',layer:'L2',kind:'text-asset-candidate',name:'PANEL LP1',x:2,y:2,floor:'L1',confidence:.9,meta:{page:6,sldCandidate:true,electricalComponentHint:'PANEL',assetTag:'LP1'}},
+ {id:'sched-lp1',source:'Equipment Matrix.xlsx',layer:'L4',kind:'schedule-powered-equipment-candidate',name:'PANEL LP1',x:0,y:0,confidence:.95,meta:{nonSpatial:true,sourceType:'EQUIPMENT_SCHEDULE',assetTag:'LP1',electricalComponentHint:'PANEL'}},
+];
+const readinessFor=sources=>enrichElectricalDesignIntelligence({entities:completeEvidence,sources}).electricalIntelligence;
+assert.equal(readinessFor([{name:'E.pdf',setCompleteness:{status:'COMPLETE'}}]).summary.readiness,'COMPLETE_REVIEW');
+for(const sources of [[{name:'E.pdf',setCompleteness:{status:'UNRESOLVED'}}],[{name:'E.pdf'}],[{name:'E.pdf',setCompleteness:{status:'COMPLETE'}},{name:'F.pdf',setCompleteness:{status:'UNRESOLVED'}}]]){
+ const unresolved=readinessFor(sources);
+ assert.equal(unresolved.summary.readiness,'PARTIAL_EVIDENCE','unknown drawing-set completeness must never become COMPLETE_REVIEW');
+ assert.equal(unresolved.summary.coverage.drawingSet,false);
+ assert.ok(unresolved.findings.some(item=>item.type==='DRAWING_SET_UNRESOLVED'));
+}
+
 const withoutSpec=buildElectricalDesignIntelligence(entities.filter(entity=>entity.kind!=='electrical-spec-requirement'));
 assert.ok(withoutSpec.findings.some(finding=>finding.type==='SPEC_SOURCE_MISSING'));
 assert.equal(withoutSpec.findings.find(finding=>finding.type==='SPEC_SOURCE_MISSING')?.blocking,false);

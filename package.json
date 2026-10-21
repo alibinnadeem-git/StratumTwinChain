@@ -31,6 +31,7 @@
     "qa:equipment-schedule": "node --experimental-strip-types scripts/qa-equipment-schedule.mjs",
     "qa:engineering-knowledge": "node scripts/qa-engineering-knowledge.mjs",
     "qa:coordination-intelligence": "node --experimental-strip-types scripts/qa-coordination-intelligence.mjs",
+    "qa:graph-review-concurrency": "node --experimental-strip-types scripts/qa-graph-review-concurrency.mjs",
     "qa:spatial-coordination-review": "node --experimental-strip-types scripts/qa-spatial-coordination-review.mjs",
     "qa:office-ingestion": "node --experimental-strip-types scripts/qa-office-ingestion.mjs",
     "qa:ifc-ingestion": "node --experimental-strip-types scripts/qa-ifc-ingestion.mjs",

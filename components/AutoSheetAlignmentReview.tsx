@@ -2,9 +2,9 @@
 
 import {useEffect,useRef,useState} from 'react';
 import {proposeSheetAlignments,type AlignmentProposal,type AlignmentSheet} from '@/lib/auto-sheet-alignment';
-import {entitiesSignature} from '@/lib/graph-signature';
+import {entitiesSignature,graphSignature} from '@/lib/graph-signature';
 import {applyReviewedProjectXYFrameRegistration,restoreReviewedProjectXYFrameRegistration} from '@/lib/project-xy-frame-registration';
-import {readPrimarySpatialGraph,writePrimarySpatialGraph} from '@/lib/spatial-browser-recovery';
+import {readPrimarySpatialGraph,writePrimarySpatialGraph,writePrimarySpatialGraphIfUnchanged} from '@/lib/spatial-browser-recovery';
 import {clearCrossSheetElevationForAlignment,enrichCrossSheetElevationSurfaces} from '@/lib/cross-sheet-elevation';
 
 type GraphEntity={id:string;name:string;x:number;y:number;z?:number;x2?:number;y2?:number;vertices?:{x:number;y:number}[];floor?:string;layer?:string;kind:string;confidence:number;meta?:Record<string,unknown>};
@@ -18,16 +18,21 @@ export default function AutoSheetAlignmentReview(){
  async function refresh(){
   if(runningRef.current)return; // never overlap during a cascade
   runningRef.current=true;
+  let rerun=false;
   try{
-   const graph=(await readPrimarySpatialGraph()||{}) as Graph;
+   const stored=await readPrimarySpatialGraph();
+   const graph=(stored||{}) as Graph;
    // Skip the heavy alignment recompute when its inputs (entities + title blocks) are unchanged.
    const inputSig=entitiesSignature(graph.entities||[])+'|'+JSON.stringify(graph.titleBlocks||[]);
    if(inputSig===lastInputSigRef.current)return;
    lastInputSigRef.current=inputSig;
    const next=proposeSheetAlignments(graph.entities||[],graph.titleBlocks||[]);
    setProposals(next);
-   if(JSON.stringify(graph.alignmentCandidates||[])!==JSON.stringify(next)){graph.alignmentCandidates=next;await writePrimarySpatialGraph(graph as any)}
-  }finally{runningRef.current=false}
+   // Write only against the graph read above so a concurrent human review is never reverted.
+   if(JSON.stringify(graph.alignmentCandidates||[])!==JSON.stringify(next)&&!await writePrimarySpatialGraphIfUnchanged({...graph,alignmentCandidates:next} as any,graphSignature(stored))){
+    lastInputSigRef.current='';rerun=true;
+   }
+  }finally{runningRef.current=false;if(rerun)void refresh()}
  }
  useEffect(()=>{
   // Debounce graph-updated bursts into a single alignment pass.

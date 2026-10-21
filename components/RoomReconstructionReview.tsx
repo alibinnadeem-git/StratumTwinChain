@@ -2,8 +2,8 @@
 
 import {useEffect,useRef,useState} from 'react';
 import {proposeRooms,reconstructWallLoopCandidates,type RoomEntity,type RoomProposal} from '@/lib/room-reconstruction';
-import {readPrimarySpatialGraph,writePrimarySpatialGraph} from '@/lib/spatial-browser-recovery';
-import {entitiesSignature} from '@/lib/graph-signature';
+import {readPrimarySpatialGraph,writePrimarySpatialGraphIfUnchanged} from '@/lib/spatial-browser-recovery';
+import {entitiesSignature,graphSignature} from '@/lib/graph-signature';
 
 type Graph={entities?:RoomEntity[];roomReconstructionProposals?:RoomProposal[];[key:string]:unknown};
 
@@ -13,8 +13,10 @@ export default function RoomReconstructionReview(){
  async function refresh(){
   if(runningRef.current)return; // never overlap: avoids duplicate writes during a cascade
   runningRef.current=true;
+  let rerun=false;
   try{
-  const graph=(await readPrimarySpatialGraph()||{}) as Graph;
+  const stored=await readPrimarySpatialGraph();
+  const graph=(stored||{}) as Graph;
   const base=(graph.entities||[]).filter(entity=>entity.meta?.reconstruction!=='wall-segment-loop');
   const stitched=reconstructWallLoopCandidates(base);
   const combined=[...base,...stitched];
@@ -22,12 +24,14 @@ export default function RoomReconstructionReview(){
   const proposalMap=new Map(next.map(item=>[item.candidateId,item]));
   const entities=combined.map(entity=>entity.kind==='vector-boundary-candidate'?{...entity,meta:{...(entity.meta||{}),automaticRoomProposal:proposalMap.get(entity.id)||null}}:entity);
   const changed=JSON.stringify(graph.roomReconstructionProposals||[])!==JSON.stringify(next)||entitiesSignature(graph.entities||[])!==entitiesSignature(entities);
-  if(changed){
-   await writePrimarySpatialGraph({...graph,entities,roomReconstructionProposals:next} as any);
+  // A human review (e.g. a room confirmation) written while this pass ran must not be reverted:
+  // write only against the graph read above, otherwise recompute from the latest.
+  if(changed&&!await writePrimarySpatialGraphIfUnchanged({...graph,entities,roomReconstructionProposals:next} as any,graphSignature(stored))){
+   rerun=true;return;
   }
   setProposals(next);
   if(changed)window.dispatchEvent(new Event('stratum:graph-updated'));
-  }finally{runningRef.current=false}
+  }finally{runningRef.current=false;if(rerun)void refresh()}
  }
  useEffect(()=>{
   // Debounce graph-updated bursts into a single reconstruction pass.

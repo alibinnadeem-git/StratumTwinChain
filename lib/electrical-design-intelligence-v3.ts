@@ -33,7 +33,7 @@ export type ElectricalTakeoffRow={
 export type ElectricalEvidenceFinding={
  id:string;severity:'H2'|'H3';type:
   'LEGEND_UNMAPPED'|'SLD_NOT_LOCATED'|'PLAN_NOT_IN_SLD'|'SCHEDULE_NOT_LOCATED'|'SPEC_SOURCE_MISSING'|
-  'SPEC_CLASS_MISSING'|'PRODUCT_IDENTITY_CONFLICT'|'RATING_CONFLICT'|'SYMBOL_GEOMETRY_UNRESOLVED'|'DRAWING_SET_PARTIAL';
+  'SPEC_CLASS_MISSING'|'PRODUCT_IDENTITY_CONFLICT'|'RATING_CONFLICT'|'SYMBOL_GEOMETRY_UNRESOLVED'|'DRAWING_SET_PARTIAL'|'DRAWING_SET_UNRESOLVED';
  title:string;detail:string;entityRefs:string[];sourceRefs:string[];blocking:boolean;
 };
 
@@ -316,16 +316,22 @@ function legendEntity(entity:ElectricalIntelligenceEntity){return entity.kind===
 function specEntity(entity:ElectricalIntelligenceEntity){return entity.kind==='electrical-spec-requirement'}
 function sldEntity(entity:ElectricalIntelligenceEntity){return entity.meta?.sldCandidate===true&&(entity.layer==='L2'||entity.layer==='L4')}
 
-export function buildElectricalDesignIntelligence(entities:ElectricalIntelligenceEntity[],options?:{drawingSetPartial?:boolean;missingSheets?:string[]}):ElectricalDesignIntelligence{
+export function buildElectricalDesignIntelligence(entities:ElectricalIntelligenceEntity[],options?:{drawingSetPartial?:boolean;drawingSetUnresolved?:boolean;missingSheets?:string[]}):ElectricalDesignIntelligence{
  const legends=entities.filter(legendEntity).map(entity=>entity.meta?.legendEntry as ElectricalLegendEntry).filter(Boolean);
  const specs=entities.filter(specEntity).map(entity=>entity.meta?.specRequirement as ElectricalSpecificationRequirement).filter(Boolean);
  const physicalRaw=entities.filter(physicalPlanEntity);
+ // Near-coincident candidates of one class are one symbol only on the same sheet: page numbers
+ // and local coordinates repeat across PDFs and plan frames, so those bound the comparison.
+ const seenOnSheet=new Map<string,ElectricalIntelligenceEntity[]>();
  const physical=[...physicalRaw].sort((a,b)=>{
   const authority=(e:ElectricalIntelligenceEntity)=>(e.meta?.legendBacked===true?3:0)+(e.meta?.symbolAnchorStatus==='RESOLVED_REVIEW_CANDIDATE'?2:0)+e.confidence;
   return authority(b)-authority(a);
- }).filter((entity,index,array)=>{
-  const cls=componentClass(entity),page=Number(entity.meta?.page||0);
-  return !array.slice(0,index).some(other=>componentClass(other)===cls&&Number(other.meta?.page||0)===page&&Math.hypot(other.x-entity.x,other.y-entity.y)<.07);
+ }).filter(entity=>{
+  const sheet=[componentClass(entity),clean(entity.meta?.sourceSha256)||clean(entity.source),Number(entity.meta?.page||0),clean(entity.meta?.planFrameId)].join('|');
+  const earlier=seenOnSheet.get(sheet)||[];
+  const duplicate=earlier.some(other=>Math.hypot(other.x-entity.x,other.y-entity.y)<.07);
+  earlier.push(entity);seenOnSheet.set(sheet,earlier);
+  return !duplicate;
  });
  const schedules=entities.filter(scheduleEntity);
  const sld=entities.filter(sldEntity);
@@ -348,6 +354,7 @@ export function buildElectricalDesignIntelligence(entities:ElectricalIntelligenc
   }else rows.set(key,{key,componentClass:cls,floor,unitId,planFrameId,planType,count:1,entityIds:[entity.id],sourceRefs:[entity.source],pages:[Number(entity.meta?.page||0)].filter(Boolean),legendBacked:legendClasses.has(cls)?1:0,sldRefs:sldRefs.length?1:0,scheduleRefs:scheduleRefs.length?1:0,specRefs:specRefs.length?1:0});
  }
  const findings:ElectricalEvidenceFinding[]=[];
+ if(options?.drawingSetUnresolved&&!options?.drawingSetPartial)findings.push({id:'elec:drawing-set-unresolved',severity:'H2',type:'DRAWING_SET_UNRESOLVED',title:'Electrical drawing-set completeness is unresolved',detail:'No source establishes that the indexed drawing set is complete (no sheet index was found, or no stable sheet run could be read). Completeness remains unresolved; missing sheets are never inferred.',entityRefs:[],sourceRefs:[],blocking:false});
  if(options?.drawingSetPartial)findings.push({id:'elec:drawing-set-partial',severity:'H2',type:'DRAWING_SET_PARTIAL',title:'Indexed electrical drawing set is incomplete',detail:`The source index references sheets that are not present in this compilation${options.missingSheets?.length?': '+options.missingSheets.join(', '):''}. Completeness remains partial; missing sheets are never inferred.`,entityRefs:[],sourceRefs:[],blocking:false});
  const graphicalLegendClasses=new Set(legends.map(item=>item.componentHint).filter((value):value is string=>Boolean(value)&&/^(?:RECEPTACLE_|SWITCH_|SMOKE_DETECTOR|CO_DETECTOR|JUNCTION_BOX|TELEPHONE_OUTLET|THERMOSTAT|FAN|LIGHT_FIXTURE)/.test(String(value))));
  const fingerprintClasses=new Set(entities.filter(entity=>entity.kind==='electrical-legend-symbol-fingerprint'||entity.kind==='electrical-legend-segment-fingerprint'||entity.kind==='electrical-legend-raster-fingerprint'||entity.kind==='electrical-legend-open-symbol-fingerprint').map(entity=>{const meta=entity.meta as any;return clean(meta?.legendSymbolFingerprint?.componentClass||meta?.legendSegmentFingerprint?.componentClass||meta?.legendRasterFingerprint?.componentClass||meta?.legendOpenSymbolFingerprint?.componentClass)}).filter(Boolean));
@@ -408,7 +415,7 @@ export function buildElectricalDesignIntelligence(entities:ElectricalIntelligenc
   for(const row of rows.values())if(row.componentClass!=='UNRESOLVED'&&!specClasses.has(row.componentClass))findings.push({id:`elec:spec-class:${row.key}`,severity:'H2',type:'SPEC_CLASS_MISSING',title:`${row.componentClass} has no matched specification requirement`,detail:'Specification pages were ingested, but no requirement was matched to this quantified equipment class. Review the applicable section and terminology.',entityRefs:row.entityIds,sourceRefs:row.sourceRefs,blocking:false});
  }
  const blockingCount=findings.filter(item=>item.blocking).length;
- const coverage={legend:legends.length>0,physicalPlans:physical.length>0,equipmentMatrix:schedules.length>0,sld:sld.length>0,specifications:specs.length>0,drawingSet:!options?.drawingSetPartial};
+ const coverage={legend:legends.length>0,physicalPlans:physical.length>0,equipmentMatrix:schedules.length>0,sld:sld.length>0,specifications:specs.length>0,drawingSet:!options?.drawingSetPartial&&!options?.drawingSetUnresolved};
  const unresolvedSymbolGeometry=findings.some(item=>item.type==='SYMBOL_GEOMETRY_UNRESOLVED');
  const readiness=blockingCount>0?'BLOCKED_CONFLICT':Object.values(coverage).every(Boolean)&&!unresolvedSymbolGeometry?'COMPLETE_REVIEW':'PARTIAL_EVIDENCE';
  return{
@@ -422,9 +429,13 @@ export function buildElectricalDesignIntelligence(entities:ElectricalIntelligenc
 }
 
 export function enrichElectricalDesignIntelligence<T extends {entities:ElectricalIntelligenceEntity[];sources?:Array<{setCompleteness?:{status?:string;missingSheets?:string[]}}>}>(graph:T):T&{electricalIntelligence:ElectricalDesignIntelligence}{
- const partialSources=(graph.sources||[]).filter(source=>source.setCompleteness?.status==='PARTIAL');
+ const sources=graph.sources||[];
+ const partialSources=sources.filter(source=>source.setCompleteness?.status==='PARTIAL');
  const missingSheets=uniq(partialSources.flatMap(source=>source.setCompleteness?.missingSheets||[]));
- const intelligence=buildElectricalDesignIntelligence(graph.entities,{drawingSetPartial:partialSources.length>0,missingSheets});
+ // Completeness must be shown, not assumed: an UNRESOLVED source, or no source reporting a
+ // COMPLETE indexed set at all, leaves the drawing set unresolved.
+ const drawingSetUnresolved=sources.some(source=>source.setCompleteness?.status==='UNRESOLVED')||!sources.some(source=>source.setCompleteness?.status==='COMPLETE');
+ const intelligence=buildElectricalDesignIntelligence(graph.entities,{drawingSetPartial:partialSources.length>0,drawingSetUnresolved,missingSheets});
  const schedules=graph.entities.filter(scheduleEntity);
  const sld=graph.entities.filter(sldEntity);
  const findingByEntity=new Map<string,ElectricalEvidenceFinding[]>();

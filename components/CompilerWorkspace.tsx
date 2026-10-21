@@ -35,7 +35,8 @@ import {pdfIngestionProfile} from '../lib/pdf-ingestion-profile';
 import {ChangeEvent,DragEvent,useEffect,useMemo,useRef,useState} from 'react';
 import {type GraphEntity,type GraphLink,type Layer,type XY} from '../lib/graph-assembly';
 import {enrichZCandidates} from '../lib/graph-enrichment';
-import {assembleGraphOffThread,compileGraphOffThread,enrichEntitiesOffThread} from '../lib/graph-assembly-client';
+import {assembleGraphOffThread,compileGraphOffThread,enrichEntitiesOffThread,GraphWorkerError} from '../lib/graph-assembly-client';
+import {graphSignature} from '../lib/graph-signature';
 
 type ParseState='parsed'|'adapter'|'review'|'failed';
 type SourceFile={name:string;size:number;ext:string;discipline:string;sha256:string;state:ParseState;summary:string;entities:number;floor:string;elevation:number;unitName?:string;unitToMeters?:number;pages?:number;vectors?:number;textItems?:number;sldPages?:number;nonSldPlanPages?:number;planTypes?:string[];setCompleteness?:DrawingSetCompleteness};
@@ -607,6 +608,7 @@ export default function CompilerWorkspace({safeMode=false}:{safeMode?:boolean}){
  const [workerHealth,setWorkerHealth]=useState<'IDLE'|'STARTING'|'RUNNING'|'STALLED'|'CANCELING'|'FINALIZING'|'TERMINATED'>('IDLE');
  const lastWorkerHeartbeatRef=useRef(0);
  const parseAbortRef=useRef<AbortController|null>(null);
+ const graphAbortRef=useRef<AbortController|null>(null);
  // Synchronous exclusion while React's busy state is still committing.
  const parseBusyRef=useRef(false);
  const [queuedReprocessShas,setQueuedReprocessShas]=useState<string[]>([]);
@@ -685,22 +687,30 @@ export default function CompilerWorkspace({safeMode=false}:{safeMode?:boolean}){
 
  const totals=useMemo(()=>({files:files.length,parsed:files.filter(f=>f.state==='parsed').length,entities:entities.length,assets:entities.filter(e=>e.layer==='L4').length,levels:new Set(entities.map(e=>e.floor).filter(f=>f&&f!=='UNRESOLVED')).size,rooms:entities.filter(e=>e.kind==='room-boundary').length,nonSldPlanPages:files.reduce((sum,file)=>sum+(file.nonSldPlanPages||0),0),reprocess:staleDrawingSources.length}),[files,entities,staleDrawingSources.length]);
  const layerStats=useMemo(()=>['L0','L1','L2','L3','L4'].reduce((a,l)=>({...a,[l]:entities.filter(e=>e.layer===l).length}),{} as Record<string,number>),[entities]);
- async function saveGraph(nextFiles:SourceFile[],rawEntities:GraphEntity[],replaceSources:{sha256:string;name:string}[]=[]){
-  const saved=(await readPrimarySpatialGraph()||{}) as Partial<CompiledGraph>;
-  if(saved.entities&&!Array.isArray(saved.entities))throw new Error('Saved graph is invalid; import was not written.');
-  const replaceShas=new Set(replaceSources.map(item=>item.sha256)),replaceNames=new Set(replaceSources.map(item=>item.name));
-  const current:GraphEntity[]=(saved.entities as GraphEntity[]||[]).filter(entity=>!replaceShas.has(String(entity.meta?.sourceSha256||''))&&!replaceNames.has(entity.source));
-  const merged=[...new Map([...current,...rawEntities.filter(e=>e.meta?.sourceType!=='MANUAL_IMAGE_ANNOTATION')].map(e=>[e.id,e])).values()];
-  const priorSources=(saved.sources||[]).filter(source=>!replaceShas.has(source.sha256)&&!replaceNames.has(source.name));
-  const sources=[...new Map([...priorSources,...nextFiles].map(f=>[f.sha256,f])).values()];
-  const _tCompile=performance.now();
-  const compiled=await compileGraphOffThread({entities:merged,sources,priorReviewState:saved.reviewState});
-  const _tPersist=performance.now();
-  const graph={...saved,version:'1.2',createdAt:new Date().toISOString(),sources,entities:compiled.zoned,links:compiled.links,coordinationIntelligence:compiled.coordinationIntelligence,electricalIntelligence:compiled.electricalIntelligence,reviewState:compiled.reviewState,stats:compiled.stats} as CompiledGraph;
-  await replaceCurrentSpatialGraph(graph);
-  setEntities(graph.entities as GraphEntity[]);
-  console.info(`[stratum perf] saveGraph ${merged.length} entities · compile(worker) ${Math.round(_tPersist-_tCompile)}ms · persist ${Math.round(performance.now()-_tPersist)}ms`);
-  return{zoned:compiled.zoned,links:compiled.links};
+ async function saveGraph(nextFiles:SourceFile[],rawEntities:GraphEntity[],replaceSources:{sha256:string;name:string}[]=[],signal?:AbortSignal){
+  // The compile runs off the UI thread, so a review panel can write the graph meanwhile. Commit
+  // only against the graph this compile was built from; on a conflict, rebuild from the latest.
+  for(let attempt=1;;attempt++){
+   const stored=await readPrimarySpatialGraph();
+   const saved=(stored||{}) as Partial<CompiledGraph>;
+   if(saved.entities&&!Array.isArray(saved.entities))throw new Error('Saved graph is invalid; import was not written.');
+   const replaceShas=new Set(replaceSources.map(item=>item.sha256)),replaceNames=new Set(replaceSources.map(item=>item.name));
+   const current:GraphEntity[]=(saved.entities as GraphEntity[]||[]).filter(entity=>!replaceShas.has(String(entity.meta?.sourceSha256||''))&&!replaceNames.has(entity.source));
+   const merged=[...new Map([...current,...rawEntities.filter(e=>e.meta?.sourceType!=='MANUAL_IMAGE_ANNOTATION')].map(e=>[e.id,e])).values()];
+   const priorSources=(saved.sources||[]).filter(source=>!replaceShas.has(source.sha256)&&!replaceNames.has(source.name));
+   const sources=[...new Map([...priorSources,...nextFiles].map(f=>[f.sha256,f])).values()];
+   const _tCompile=performance.now();
+   const compiled=await compileGraphOffThread({entities:merged,sources,priorReviewState:saved.reviewState},signal);
+   const _tPersist=performance.now();
+   const graph={...saved,version:'1.2',createdAt:new Date().toISOString(),sources,entities:compiled.zoned,links:compiled.links,coordinationIntelligence:compiled.coordinationIntelligence,electricalIntelligence:compiled.electricalIntelligence,reviewState:compiled.reviewState,stats:compiled.stats} as CompiledGraph;
+   if(!await replaceCurrentSpatialGraph(graph,graphSignature(stored))){
+    if(attempt>=3)throw new Error('The saved graph kept changing during import; nothing was overwritten.');
+    continue;
+   }
+   setEntities(graph.entities as GraphEntity[]);
+   console.info(`[stratum perf] saveGraph ${merged.length} entities · compile(worker) ${Math.round(_tPersist-_tCompile)}ms · persist ${Math.round(performance.now()-_tPersist)}ms`);
+   return{zoned:compiled.zoned,links:compiled.links};
+  }
  }
  async function processFiles(incoming:File[]){if(parseBusyRef.current||busy||!incoming.length)return;parseBusyRef.current=true;setBusy(true);let nextFiles=[...files],nextEntities=[...entities],fileFailures:string[]=[],lastAssembly:{zoned:GraphEntity[];links:GraphLink[]}|null=null;for(const file of incoming){const ext=(file.name.split('.').pop()||'').toLowerCase();if(!ACCEPTED.has(ext)){setMessage(`${file.name} skipped: unsupported source format.`);continue}let buf:ArrayBuffer;try{buf=await file.arrayBuffer()}catch{setMessage(`${file.name} could not be read.`);continue}let digest:string;try{digest=await sha(buf)}catch{setMessage(`${file.name}: fingerprint failed; retry the import.`);continue}const archiveResult=await archiveSourceBytes({sha256:digest,name:file.name,mimeType:file.type,size:file.size,ext,bytes:buf});if(archiveResult.archived)setArchivedShas(current=>{const next=new Set(current);next.add(digest);return next});else setArchiveNote(`${file.name} was parsed without a protected browser-local source copy: ${archiveResult.reason}`);const discipline=classify(file.name),level=inferLevel(file.name);let replacementSource:{sha256:string;name:string}|null=null,replacementBackup:{source:SourceFile;entities:GraphEntity[]}|null=null;
  const priorFailed=nextFiles.find(source=>source.sha256===digest&&source.state==='failed');
@@ -746,10 +756,24 @@ export default function CompilerWorkspace({safeMode=false}:{safeMode?:boolean}){
  await new Promise<void>(resolve=>window.setTimeout(resolve,0));
  setMessage(`${file.name}: indexing Z source evidence for ${graph.length} review objects…`);
  const zGraph=enrichZCandidates(graph);const reprocessAudit=replacementBackup?inspectDrawingReprocessOutput(zGraph):null;nextEntities=[...nextEntities,...zGraph];sf={...sf,discipline:parsed.disciplines.length>1?'Multi-discipline':parsed.disciplines[0]||discipline,state:'parsed',floor:[...new Set(graph.map(e=>e.floor))].join(', ')||'UNRESOLVED',summary:`${parsed.summary} · elevations and cross-sheet alignment unverified · ${graph.filter(x=>x.layer==='L4').length} L4 candidates${reprocessAudit?' · '+reprocessAudit.summary:''}`,entities:zGraph.length,pages:parsed.pages,vectors:parsed.vectors,textItems:parsed.textItems,sldPages:parsed.sldPages,nonSldPlanPages:parsed.nonSldPlanPages,planTypes:parsed.planTypes,setCompleteness:parsed.setCompleteness}}else if(ext==='dxf'){const parsed=parseDxf(file,await file.text(),level),graph=withAssetCandidates(scopeSourceEntities(parsed.entities,digest));nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:`${parsed.summary} · floor label ${level.floor}; Z remains source-driven/reviewed · ${graph.filter(x=>x.layer==='L4').length} L4 candidates`,entities:graph.length,unitName:parsed.unitName,unitToMeters:parsed.unitToMeters}}else if(['png','jpg','jpeg'].includes(ext)){const parsed=await parseImage(file,level,discipline,message=>setMessage(`${file.name}: ${message}`)),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,discipline:parsed.planDiscipline||discipline,state:parsed.ocrSucceeded?'parsed':'review',summary:parsed.summary,entities:graph.length,nonSldPlanPages:parsed.planType?1:0,planTypes:parsed.planType?[parsed.planType]:[]}}else if(['csv','txt'].includes(ext)){const parsed=parseEquipmentScheduleText(await file.text(),file.name,discipline,level.floor),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:parsed.summary,entities:graph.length}}else if(ext==='xlsx'){const parsed=parseXlsxBytes(new Uint8Array(buf),file.name,discipline,level.floor),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:parsed.summary,entities:graph.length}}else if(ext==='docx'){const parsed=parseDocxBytes(new Uint8Array(buf),file.name,discipline,level.floor),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:parsed.summary,entities:graph.length}}else if(ext==='ifc'){const parsed=parseIfcText(await file.text(),file.name,discipline),graph=withAssetCandidates(scopeSourceEntities(parsed.entities,digest) as GraphEntity[]);nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',discipline:discipline==='Unclassified'?'BIM / Multi-discipline':discipline,summary:parsed.summary,entities:graph.length,unitName:parsed.unitName,unitToMeters:parsed.unitToMeters||undefined}}else if(ext==='glb'){const model=await parseGlb(file,buf,digest,level);const existing=nextEntities.filter(e=>e.meta?.nonSpatial!==true);if(existing.length){const xs=existing.flatMap(e=>[e.x,...(Number.isFinite(e.x2)?[e.x2!]:[])]);model.x=Math.max(...xs)+3;model.y=existing.reduce((sum,e)=>sum+e.y,0)/existing.length;}nextEntities=[...nextEntities,model];sf={...sf,state:'parsed',summary:'Renderable 3D geometry imported · placement unverified · no registered asset inferred',entities:1,unitName:'m',unitToMeters:1}}else if(ext==='gltf')sf={...sf,state:'adapter',summary:'Use a self-contained .glb export. Standalone .gltf may reference external textures or buffers and cannot be safely restored as one file.'};else if(ext==='xls')sf={...sf,state:'adapter',summary:'Legacy XLS fingerprinted. Binary BIFF adapter or conversion to XLSX is required; no structured engineering fields were invented.'};else if(NATIVE_ADAPTER.includes(ext))sf={...sf,state:'adapter',summary:`${ext.toUpperCase()} fingerprinted. Native adapter required before spatial claims.`};else sf={...sf,state:'review',summary:'Source preserved; format-specific extraction required.'}}catch(err){const failure=err instanceof Error?err.message:'Parser failed';fileFailures.push(`${file.name}: ${failure}`);if(replacementBackup){nextEntities=nextEntities.filter(entity=>String(entity.meta?.sourceSha256||'')!==digest&&entity.source!==replacementBackup!.source.name);nextEntities=[...nextEntities,...replacementBackup.entities];sf=replacementBackup.source;replacementSource=null;setMessage(`${file.name}: reprocess failed; the previous saved compilation was preserved. ${failure}`)}else sf={...sf,state:'failed',summary:failure}}nextFiles=[...nextFiles,sf];await new Promise<void>(resolve=>window.setTimeout(resolve,0));
- {const _t=performance.now();nextEntities=await enrichEntitiesOffThread(nextEntities);console.info(`[stratum perf] enrichZ+reconcile(worker) ${Math.round(performance.now()-_t)}ms · ${nextEntities.length} entities`);}setFiles(nextFiles);
- setWorkerHealth('FINALIZING');setMessage(`${file.name}: saving ${nextEntities.length} objects; prior graph protected…`);
- await new Promise<void>(resolve=>window.setTimeout(resolve,0));
- try{lastAssembly=await saveGraph(nextFiles,nextEntities,replacementSource?[replacementSource]:[])}catch{setEntities(nextEntities);parseBusyRef.current=false;setBusy(false);setDragging(false);setMessage('Import could not be saved. Existing saved work is unchanged; imported objects remain in this session. Browser storage may be full or unavailable.');return}}parseBusyRef.current=false;setBusy(false);setDragging(false);setCanCancel(false);setParseProgress(null);parseAbortRef.current=null;setWorkerHealth('IDLE');const {zoned,links}=lastAssembly??await assembleGraphOffThread(nextEntities);setMessage(fileFailures.length?`Import finished with ${fileFailures.length} review exception${fileFailures.length===1?'':'s'}. ${fileFailures.join(' · ')} Retry is available without reloading.`:`Source compilation updated: ${nextFiles.filter(f=>f.state==='parsed').length}/${nextFiles.length} sources · ${new Set(zoned.map(e=>e.floor).filter(f=>f&&f!=='UNRESOLVED')).size} identified floor label(s) · ${zoned.filter(e=>e.kind==='room-boundary').length} reconstructed rooms · ${zoned.length} entities · ${links.length} relationships.`)}
+ // Graph finalization runs in a worker with a hard deadline and stays cancelable, so a silent
+ // worker cannot leave upload and cancel disabled.
+ const graphController=new AbortController();graphAbortRef.current=graphController;setCanCancel(true);
+ try{
+  {const _t=performance.now();nextEntities=await enrichEntitiesOffThread(nextEntities,graphController.signal);console.info(`[stratum perf] enrichZ+reconcile(worker) ${Math.round(performance.now()-_t)}ms · ${nextEntities.length} entities`);}setFiles(nextFiles);
+  setWorkerHealth('FINALIZING');setMessage(`${file.name}: saving ${nextEntities.length} objects; prior graph protected…`);
+  await new Promise<void>(resolve=>window.setTimeout(resolve,0));
+  lastAssembly=await saveGraph(nextFiles,nextEntities,replacementSource?[replacementSource]:[],graphController.signal);
+ }catch(error){
+  parseBusyRef.current=false;setBusy(false);setDragging(false);setCanCancel(false);setParseProgress(null);
+  if(error instanceof GraphWorkerError){
+   // The saved graph and this session's prior state are untouched, so the same file can be retried.
+   setWorkerHealth('TERMINATED');
+   setMessage(`${file.name}: ${error.message} Existing saved work is unchanged; retry is available without reloading.`);
+   return;
+  }
+  setWorkerHealth('IDLE');setFiles(nextFiles);setEntities(nextEntities);setMessage('Import could not be saved. Existing saved work is unchanged; imported objects remain in this session. Browser storage may be full or unavailable.');return
+ }finally{if(graphAbortRef.current===graphController)graphAbortRef.current=null}}parseBusyRef.current=false;setBusy(false);setDragging(false);setCanCancel(false);setParseProgress(null);parseAbortRef.current=null;setWorkerHealth('IDLE');const {zoned,links}=lastAssembly??await assembleGraphOffThread(nextEntities);setMessage(fileFailures.length?`Import finished with ${fileFailures.length} review exception${fileFailures.length===1?'':'s'}. ${fileFailures.join(' · ')} Retry is available without reloading.`:`Source compilation updated: ${nextFiles.filter(f=>f.state==='parsed').length}/${nextFiles.length} sources · ${new Set(zoned.map(e=>e.floor).filter(f=>f&&f!=='UNRESOLVED')).size} identified floor label(s) · ${zoned.filter(e=>e.kind==='room-boundary').length} reconstructed rooms · ${zoned.length} entities · ${links.length} relationships.`)}
  async function renderSpatial(){
   if(busy||!entities.length)return;
   setMessage('Preparing the latest compiled graph for Spatial…');
@@ -778,9 +802,17 @@ export default function CompilerWorkspace({safeMode=false}:{safeMode?:boolean}){
   queueArchivedReprocess(archivedStaleSources.map(item=>String(item.source.sha256||'')));
  }
  function cancelActiveParse(){
-  if(!parseAbortRef.current){setMessage('No active PDF worker to cancel. Saved-graph finalization may be running.');return}
-  setWorkerHealth('CANCELING');setMessage('Canceling PDF worker; previous compilation protected…');
-  parseAbortRef.current.abort();
+  if(parseAbortRef.current){
+   setWorkerHealth('CANCELING');setMessage('Canceling PDF worker; previous compilation protected…');
+   parseAbortRef.current.abort();
+   return;
+  }
+  if(graphAbortRef.current){
+   setWorkerHealth('CANCELING');setMessage('Canceling graph finalization; previous compilation protected…');
+   graphAbortRef.current.abort();
+   return;
+  }
+  setMessage('No active import step to cancel.');
  }
  async function addFiles(e:ChangeEvent<HTMLInputElement>){await processFiles(Array.from(e.target.files||[]));e.target.value=''}async function drop(e:DragEvent<HTMLLabelElement>){e.preventDefault();setDragging(false);await processFiles(Array.from(e.dataTransfer.files||[]))}
  async function addTeslaReference(){
