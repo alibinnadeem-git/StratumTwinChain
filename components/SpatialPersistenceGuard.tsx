@@ -32,7 +32,12 @@ export default function SpatialPersistenceGuard(){
         const local=parseSpatialGraph(localStorage.getItem(SPATIAL_GRAPH_KEY));
         const indexed=await readIndexedCurrentSpatialGraph();
         if(!active)return;
-        const differs=Boolean(local&&(!indexed||graphSignature(local)!==graphSignature(indexed)));
+        // Promote the localStorage shadow only when it is genuinely newer
+        // than the IndexedDB graph. A stale shadow left behind by an earlier
+        // small graph must never override a newer chunked graph: doing so
+        // reverted the workspace to the old graph after every large import.
+        const localNewer=Boolean(local&&indexed&&(Date.parse(String(local.createdAt||''))||0)>(Date.parse(String(indexed.createdAt||''))||0));
+        const differs=Boolean(local&&(!indexed||(graphSignature(local)!==graphSignature(indexed)&&localNewer)));
         // Explicit same-tab graph updates may promote a legacy compatibility writer.
         // Generic cross-tab storage events never receive that authority.
         const graph=differs?local:(indexed||local);
