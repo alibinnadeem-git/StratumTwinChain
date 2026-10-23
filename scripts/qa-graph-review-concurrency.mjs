@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
 import {register} from 'node:module';
+import fs from 'node:fs';
+import vm from 'node:vm';
+import ts from 'typescript';
 
 // The graph pipeline uses bundler-style extensionless relative imports; resolve them to .ts here.
 register('data:text/javascript,'+encodeURIComponent(`
@@ -113,4 +116,48 @@ const settle=promise=>promise.then(value=>({value}),error=>({error}));
 }
 globalThis.setTimeout=realSetTimeout;
 
-console.log('Graph review concurrency passed: stale projections cannot revert human reviews, writes are serialized, and silent graph workers stop at the deadline or on cancel.');
+// The global guard can finish reading a durable snapshot after a human has saved a newer graph.
+// Capturing recovery must not write that old snapshot back to primary. Execute the actual effect
+// with a held IndexedDB read to make that interleaving deterministic.
+{
+ let current=base,effect;
+ const listeners=new Map(),storage=memoryStorage();
+ storage.setItem('stratum_compiled_graph',JSON.stringify(base));
+ let releaseRead,readStarted,initialized,captured;
+ const held=new Promise(resolve=>{releaseRead=resolve});
+ const started=new Promise(resolve=>{readStarted=resolve});
+ const ready=new Promise(resolve=>{initialized=resolve});
+ const done=new Promise(resolve=>{captured=resolve});
+ let capturing=false;
+ const recovery={
+  SPATIAL_GRAPH_KEY:'stratum_compiled_graph',
+  parseSpatialGraph:raw=>JSON.parse(raw),
+  readPrimarySpatialGraph:async()=>current,
+  readIndexedCurrentSpatialGraph:async()=>{const snapshot=current;readStarted();await held;return snapshot},
+  restoreBestSpatialGraph:async()=>({graph:current}),
+  protectSpatialGraph:async()=>{if(capturing)captured();else initialized()},
+  writePrimarySpatialGraph:async graph=>{current=graph},
+ };
+ const compiled=ts.transpileModule(fs.readFileSync('components/SpatialPersistenceGuard.tsx','utf8'),{
+  compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022},
+ }).outputText;
+ const module={exports:{}};
+ vm.runInNewContext(compiled,{
+  module,exports:module.exports,localStorage:storage,
+  window:{location:{pathname:'/spatial'},addEventListener:(name,fn)=>listeners.set(name,fn),removeEventListener:name=>listeners.delete(name)},
+  require:id=>{
+   if(id==='react')return{useRef:()=>({current:null}),useEffect:fn=>{effect=fn}};
+   if(id==='@/lib/spatial-browser-recovery')return recovery;
+   if(id==='@/lib/graph-signature')return{graphSignature};
+   throw new Error('Unexpected guard import '+id);
+  },
+ });
+ module.exports.default();const cleanup=effect();await ready;
+ capturing=true;listeners.get('stratum:graph-updated')();await started;
+ current=confirm(base);releaseRead();await done;
+ assert.equal(current.titleBlocks[0].reviewState,'CONFIRMED','recovery capture must not revert a newer human review with a stale IndexedDB snapshot');
+ assert.equal(current.titleBlocks[0].confirmedAt,'2026-10-21T01:00:00.000Z');
+ cleanup();
+}
+
+console.log('Graph review concurrency passed: stale projections and recovery captures cannot revert human reviews, writes are serialized, and silent graph workers stop at the deadline or on cancel.');

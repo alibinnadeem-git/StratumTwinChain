@@ -27,6 +27,9 @@ function isPlanEquipment(entity:StoryDatumEntity){
 }
 function hasElevationEvidence(meta:Record<string,unknown>){
   if(meta.elevationKnown===true||meta.physicalElevationKnown===true)return true;
+  // Source-derived design Z remains review-only, so the physical-elevation flags above are false.
+  // A zero-valued CAD/IFC candidate is still evidence and must retain its resolved design status.
+  if(meta.zCandidateMeters!==null&&meta.zCandidateMeters!==undefined&&meta.zCandidateMeters!==''&&finite(meta.zCandidateMeters)!==null)return true;
   return EXISTING_SURFACE_KEYS.some(key=>finite(meta[key])!==null);
 }
 
