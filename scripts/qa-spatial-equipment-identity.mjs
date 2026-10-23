@@ -1,8 +1,20 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
+import {register} from 'node:module';
 import {DEFAULT_ELECTRICAL_MODEL_REGISTRY} from '../lib/electrical-model-registry.ts';
 import {reconcileSpatialEquipmentIdentity} from '../lib/spatial-equipment-identity.ts';
 import {resolveSpatialModel} from '../lib/spatial-model-resolution.ts';
+
+// Exercise the accumulated graph pipeline using its bundler-style relative imports.
+register('data:text/javascript,'+encodeURIComponent(`
+import {existsSync} from 'node:fs';import {fileURLToPath} from 'node:url';
+export async function resolve(specifier,context,next){
+ if(specifier.startsWith('.')&&!/\\.[cm]?[jt]sx?$|\\.json$/.test(specifier)){
+  const base=new URL(specifier,context.parentURL);
+  if(existsSync(fileURLToPath(base)+'.ts'))return next(base.href+'.ts',context);
+ }
+ return next(specifier,context);
+}`));
+const {enrichSpatialEntities}=await import('../lib/graph-enrichment.ts');
 
 const spatial={
   id:'pdf-evse-1',source:'E2.01.pdf',layer:'L2',kind:'text-asset-candidate',
@@ -69,10 +81,21 @@ const unrelated={...spatial,id:'pdf-ats-1',name:'ATS-1 AUTOMATIC TRANSFER SWITCH
 const unrelatedResult=reconcileSpatialEquipmentIdentity([unrelated,schedule]).find(entity=>entity.id==='pdf-ats-1');
 assert.equal(unrelatedResult?.meta?.productIdentityStatus,undefined);
 
-// Equipment-identity reconciliation over the accumulated graph moved into
-// lib/graph-enrichment.ts (enrichSpatialEntities) so it can run in the graph worker.
-const enrichment=fs.readFileSync('lib/graph-enrichment.ts','utf8');
-assert.match(enrichment,/reconcileSpatialEquipmentIdentity/);
-assert.match(enrichment,/reconcileSpatialEquipmentIdentity\(enrichZCandidates\(entities\)\)/);
+// Identity must survive the full worker enrichment pipeline, including the spatial role gate.
+const accumulated=enrichSpatialEntities([spatial,schedule]);
+const enrichedPlaced=accumulated.find(entity=>entity.id===spatial.id);
+assert.equal(enrichedPlaced?.meta?.manufacturer,'Tesla');
+assert.equal(enrichedPlaced?.meta?.model,'Universal Wall Connector Gen 3');
+assert.equal(enrichedPlaced?.meta?.productIdentityStatus,'SOURCE_RECONCILED_CANDIDATE');
+assert.equal(enrichedPlaced?.meta?.candidateRole,'INSTANCE');
+assert.equal(enrichedPlaced?.meta?.physicalTruth,false);
+assert.equal(enrichedPlaced?.meta?.reviewRequired,true);
+assert.equal(resolveSpatialModel(enrichedPlaced,DEFAULT_ELECTRICAL_MODEL_REGISTRY).componentKey,'evse-tesla-wall-connector-gen3');
+const enrichedConflict=enrichSpatialEntities([spatial,schedule,conflictingSchedule]).find(entity=>entity.id===spatial.id);
+assert.equal(enrichedConflict?.meta?.productIdentityStatus,'CONFLICT');
+assert.equal(resolveSpatialModel(enrichedConflict,DEFAULT_ELECTRICAL_MODEL_REGISTRY).exactProductIdentity,false);
+const bridged=enrichSpatialEntities([{...spatial,id:'panel-3',name:'PNL-3'}]).find(entity=>entity.id==='panel-3');
+assert.equal(resolveSpatialModel(bridged,DEFAULT_ELECTRICAL_MODEL_REGISTRY).componentKey,'panelboard','the spatial tag bridge remains available without product evidence');
+assert.equal(resolveSpatialModel({name:'Unknown unit',meta:{libraryComponentKey:'evse-tesla-wall-connector-gen3'}},DEFAULT_ELECTRICAL_MODEL_REGISTRY).exactProductIdentity,false,'an automatic review key alone cannot establish exact product identity');
 
 console.log('Spatial equipment identity reconciliation passed: same-tag schedule evidence enriches positioned equipment for exact product-model resolution, conflicts fail closed without silent manufacturer/model selection, existing source evidence is preserved, and physical installed identity remains unverified.');

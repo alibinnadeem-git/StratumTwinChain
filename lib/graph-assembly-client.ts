@@ -1,5 +1,6 @@
 import {assembleGraph,type GraphEntity,type GraphLink} from './graph-assembly';
 import {compileGraph,enrichSpatialEntities,projectGraph,type CompileGraphInput,type CompileGraphResult} from './graph-enrichment';
+import {reportSpatialDiag,startSpatialDiagTimer} from './spatial-diagnostics';
 
 export type GraphAssembly={zoned:GraphEntity[];links:GraphLink[]};
 
@@ -21,15 +22,28 @@ export class GraphWorkerError extends Error{
 const cancelled=()=>new GraphWorkerError('GRAPH_WORKER_CANCELLED','Graph finalization was canceled. No partial result was accepted.');
 
 async function runGraphWorkerTask<T>(message:Record<string,unknown>,fallback:()=>T,entityCount:number,signal?:AbortSignal):Promise<T>{
+ const task=String(message.type||'unknown');
+ const elapsed=startSpatialDiagTimer();
  if(signal?.aborted)throw cancelled();
- if(typeof Worker==='undefined'||entityCount<GRAPH_WORKER_MIN_ENTITIES)return fallback();
+ // Small graphs run inline by design (worker startup costs more than the work). This is not a
+ // failure, but it is reported so the HUD distinguishes "ran inline" from "worker silently fell back".
+ if(typeof Worker==='undefined'||entityCount<GRAPH_WORKER_MIN_ENTITIES){
+  const reason=typeof Worker==='undefined'?'NO_WORKER_SUPPORT':'BELOW_WORKER_THRESHOLD';
+  const result=fallback();
+  reportSpatialDiag({stage:'worker',level:'info',code:'TASK_INLINE',message:`${task} ran inline (${reason})`,counts:{entityCount},durationMs:Math.round(elapsed()),data:{task,reason}});
+  return result;
+ }
+ reportSpatialDiag({stage:'worker',level:'info',code:'TASK_START',message:`${task} dispatched to worker`,counts:{entityCount},data:{task}});
  let worker:Worker;
  try{worker=new Worker(new URL('../workers/graph-assembly.worker.ts',import.meta.url),{type:'module'});}
- catch{return fallback();}
+ catch(error){
+  reportSpatialDiag({stage:'worker',level:'warn',code:'WORKER_UNAVAILABLE_FELL_BACK',message:`${task}: worker could not start; ran on the UI thread`,counts:{entityCount},durationMs:Math.round(elapsed()),data:{task,error:error instanceof Error?error.message:String(error)}});
+  return fallback();
+ }
  const requestId=crypto.randomUUID();
  let deadline:ReturnType<typeof setTimeout>|undefined,onAbort:(()=>void)|undefined;
  try{
-  return await new Promise<T>((resolve,reject)=>{
+  const result=await new Promise<T>((resolve,reject)=>{
    worker.onmessage=(event:MessageEvent)=>{
     const data=event.data||{};
     if(data.requestId!==requestId)return;
@@ -46,8 +60,16 @@ async function runGraphWorkerTask<T>(message:Record<string,unknown>,fallback:()=
    signal?.addEventListener('abort',onAbort,{once:true});
    worker.postMessage({...message,requestId});
   });
+  reportSpatialDiag({stage:'worker',level:'info',code:'TASK_OK',message:`${task} completed in the worker`,counts:{entityCount},durationMs:Math.round(elapsed()),data:{task}});
+  return result;
  }catch(error){
-  if(error instanceof GraphWorkerError)throw error;
+  if(error instanceof GraphWorkerError){
+   reportSpatialDiag({stage:'worker',level:error.code==='GRAPH_WORKER_CANCELLED'?'warn':'error',code:error.code,message:error.message,counts:{entityCount},durationMs:Math.round(elapsed()),data:{task}});
+   throw error;
+  }
+  // The worker crashed or replied unexpectedly: work still completes on the UI thread (with a
+  // freeze), but this is exactly the silent fallback we must surface.
+  reportSpatialDiag({stage:'worker',level:'warn',code:'WORKER_CRASHED_FELL_BACK',message:`${task}: ${error instanceof Error?error.message:'worker failed'}; ran on the UI thread`,counts:{entityCount},durationMs:Math.round(elapsed()),data:{task,error:error instanceof Error?error.message:String(error)}});
   return fallback();
  }finally{
   if(deadline!==undefined)clearTimeout(deadline);

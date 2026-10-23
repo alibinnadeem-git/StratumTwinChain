@@ -11,3 +11,9 @@ test-results/
 /public/pdfjs/pdf.worker.min.mjs
 .vercel
 .DS_Store
+
+# Isolated prod build for diagnostics e2e (STRATUM_DIST_DIR)
+.next-prod-baseline/
+
+# Customer drawings (never commit; see qa-brynhurst-golden). Synthetic fixtures (e.g. *.ifc) ARE committed.
+tests/fixtures/spatial/*.pdf

@@ -112,6 +112,13 @@ function bestComponent(entity:SpatialModelEntity){
     };
   }
 
+  // The automatic class/tag bridge is a family candidate. Preserve its new mappings without
+  // letting a generic key override source-reconciled product evidence or assert OEM identity.
+  const libraryComponent=findComponentByKey(clean(meta.libraryComponentKey));
+  if(libraryComponent&&!libraryComponent.manufacturer&&!libraryComponent.modelFamily){
+    return{component:libraryComponent,exact:false,evidence:['Reviewable component-library family '+libraryComponent.key]};
+  }
+
   const familyComponent=resolveElectricalComponent(entity.name);
   if(familyComponent){
     if(familyComponent.manufacturer||familyComponent.modelFamily){
