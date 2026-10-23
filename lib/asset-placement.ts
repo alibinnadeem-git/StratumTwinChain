@@ -1,4 +1,4 @@
-import {resolveElectricalComponent} from './electrical-component-library.ts';
+import {ELECTRICAL_COMPONENTS,resolveElectricalComponent} from './electrical-component-library.ts';
 import type {ElectricalModelConfig} from './electrical-model-registry.ts';
 import type {ZReferencePoint} from './z-resolver.ts';
 
@@ -140,8 +140,16 @@ export function nominalDimensionsFor(name:string):[number,number,number]{
  const component=resolveElectricalComponent(name);return NOMINAL[component?.twinShape||'cabinet']||NOMINAL.cabinet;
 }
 
+const COMPONENT_BY_KEY=new Map(ELECTRICAL_COMPONENTS.map(item=>[item.key,item]));
+// Prefer the Phase 2 reviewable library identity (so a bridged tag like "MS1" resolves to its class
+// twinShape/profile), falling back to name inference. Review candidate only; never physical truth.
+function componentForPlacement(entity:PlacementEntity){
+ const key=entity.meta?.libraryComponentKey;
+ return (typeof key==='string'&&COMPONENT_BY_KEY.get(key))||resolveElectricalComponent(entity.name);
+}
+
 export function resolveAssetPlacement(entity:PlacementEntity,registry?:ElectricalModelConfig|null):AssetPlacement{
- const component=resolveElectricalComponent(entity.name);
+ const component=componentForPlacement(entity);
  const source=sourceDimensions(entity);
  const registryDimensions=tuple(registry?.dimensionsMeters);
  const webReference=webOemDimensions(entity);

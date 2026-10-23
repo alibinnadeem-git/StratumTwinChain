@@ -37,7 +37,9 @@ function findComponentByKey(key:string){
 }
 
 function explicitComponentKey(meta:Record<string,unknown>){
-  for(const key of ['componentKey','electricalComponentKey','componentLibraryKey']){
+  // libraryComponentKey is the Phase 2 reviewable identity (alias or coarse-class bridge). It is a
+  // review candidate, so it is consulted after any stronger explicit key but before name inference.
+  for(const key of ['componentKey','electricalComponentKey','componentLibraryKey','libraryComponentKey']){
     const value=clean(meta[key]);if(value&&findComponentByKey(value))return value;
   }
   return null;

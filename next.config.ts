@@ -11,6 +11,9 @@ const prodAliases={
 };
 const nextConfig:NextConfig={
  reactStrictMode:true,
+ // Allows an isolated prod build/start (STRATUM_DIST_DIR) that does not clobber a running dev
+ // server's .next. Unset in normal builds, so the default .next directory is used.
+ ...(process.env.STRATUM_DIST_DIR?{distDir:process.env.STRATUM_DIST_DIR}:{}),
  turbopack:{
   resolveAlias:process.env.VERCEL_ENV==='preview'?{}:prodAliases
  }

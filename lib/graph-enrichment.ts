@@ -1,5 +1,8 @@
 import {assignZones,buildLinks,type GraphEntity,type GraphLink,type Layer} from './graph-assembly';
 import {reconcileSpatialEquipmentIdentity} from './spatial-equipment-identity';
+import {identifyLibraryComponents} from './library-component-identity';
+import {gateEquipmentCandidates} from './candidate-gating';
+import {applyRelativeStoryDatum} from './relative-story-datum';
 import {enrichCoordinationIntelligence} from './coordination-intelligence';
 import {enrichElectricalDesignIntelligence,type ElectricalDesignIntelligence} from './electrical-design-intelligence-v3';
 import {enrichSpatialProjection} from './spatial-projection';
@@ -54,7 +57,9 @@ export function enrichZCandidates(parsed:GraphEntity[]){
 
 // Full per-asset enrichment used for the accumulated graph (Z candidates + equipment identity).
 export function enrichSpatialEntities(entities:GraphEntity[]):GraphEntity[]{
- return reconcileSpatialEquipmentIdentity(enrichZCandidates(entities));
+ // Relative story datum runs AFTER enrichZCandidates: z-recovery deliberately strips heuristic Z
+ // stacks for floored entities, so the nominal datum is applied once that pass has run.
+ return gateEquipmentCandidates(identifyLibraryComponents(reconcileSpatialEquipmentIdentity(applyRelativeStoryDatum(enrichZCandidates(entities)))));
 }
 
 export type CompileGraphInput={entities:GraphEntity[];sources:Array<{name:string;sha256?:string;discipline?:string;setCompleteness?:{status?:string;missingSheets?:string[]}}>;priorReviewState?:string};
