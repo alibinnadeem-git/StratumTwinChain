@@ -47,7 +47,7 @@ const checks=[
  ['automatic sync never performs review acceptance, approval or DIR finality',!autoSync.includes("method:'PATCH'")&&!autoSync.includes('/api/approvals')&&!autoSync.includes('getLedger')],
  ['browser recovery keeps a last-good and previous graph copy',recovery.includes('SPATIAL_LAST_GOOD_KEY')&&recovery.includes('SPATIAL_PREVIOUS_KEY')],
  ['browser recovery adds IndexedDB protection',recovery.includes("indexedDB.open")&&recovery.includes("idbPut('latest'")],
- ['compiler protects every renderable graph through the primary replacement path',compiler.includes('replaceCurrentSpatialGraph(graph)')&&recovery.includes('await protectSpatialGraph(graph,current)')],
+ ['compiler protects every renderable graph through the primary replacement path',/replaceCurrentSpatialGraph\(graph[,)]/.test(compiler)&&recovery.includes('await protectSpatialGraph(graph,current)')],
  ['Spatial experience auto-restores recovery state before declaring the model missing',experience.includes('restoreBestSpatialGraph')&&experience.includes('await restoreBestSpatialGraph()')],
  ['recovery prefers a graph with renderable entities over a zero-entity current shell',recovery.includes('indexedCurrent&&indexedCurrent.entities.length>0')&&recovery.includes('item.graph.entities.length>0')],
  ['global persistence guard captures graph updates',guard.includes("stratum:graph-updated")&&guard.includes('protectSpatialGraph')],

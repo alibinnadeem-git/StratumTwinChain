@@ -28,7 +28,10 @@ export type CoordinationSnapshot={
  truthBoundary:'COORDINATION_FINDINGS_DO_NOT_ESTABLISH_PHYSICAL_CLASH_CODE_COMPLIANCE_OR_ENGINEERING_APPROVAL';
 };
 
-const TAG_PATTERN=/\b(?:AHU|RTU|MAU|FCU|VAV|EF|SF|RF|PF|FP|JP|SMF|PMP|P|CH|CHLR|CT|CU|HP|WH|UH|HWP|CHWP|FACP|NAC|BMS|DDC|ELEV|EL|EVSE|ATS|UPS|MCC|PDU|MDP|MDB|MSB|XFMR|TX|GEN)[-_ ]?#?[A-Z0-9]+(?:[-_.][A-Z0-9]+)*\b/i;
+// The identifier after the prefix must contain a digit (AHU-1, MDP 2, EF1A) or follow a hard
+// separator (AHU-A, GEN-A). Without that, single-letter prefixes swallow ordinary words
+// (P+LAN, P+DF, P+ANEL, EL+EVATOR) and every drawing line named "...PLAN" became one tag group.
+const TAG_PATTERN=/\b(?:AHU|RTU|MAU|FCU|VAV|EF|SF|RF|PF|FP|JP|SMF|PMP|P|CH|CHLR|CT|CU|HP|WH|UH|HWP|CHWP|FACP|NAC|BMS|DDC|ELEV|EL|EVSE|ATS|UPS|MCC|PDU|MDP|MDB|MSB|XFMR|TX|GEN)(?:[-_ ]?#?[A-Z]*\d[A-Z0-9]*|[-_#]+[A-Z][A-Z0-9]*)(?:[-_.][A-Z0-9]+)*\b/i;
 function norm(value:unknown){return String(value??'').trim().toUpperCase().replace(/\s+/g,' ')}
 function finite(value:unknown){if(value===null||value===undefined||value==='')return null;const n=Number(value);return Number.isFinite(n)?n:null}
 function tag(entity:CoordinationEntity){
@@ -63,7 +66,8 @@ function comparableLocation(value:string|undefined){const n=norm(value);return n
 
 export function buildCoordinationIntelligence(graph:CoordinationGraph):CoordinationSnapshot{
  const findings:CoordinationFinding[]=[];
- const tagged=graph.entities.filter(entity=>entity.meta?.referenceOnly!==true).map(entity=>({entity,tag:tag(entity)})).filter(item=>item.tag);
+ // Source sheet basemap lines are drawing context, not equipment records.
+ const tagged=graph.entities.filter(entity=>entity.meta?.referenceOnly!==true&&!(entity.kind==='line'&&entity.meta?.drawingBasemap===true)).map(entity=>({entity,tag:tag(entity)})).filter(item=>item.tag);
  const byTag=new Map<string,CoordinationEntity[]>();
  for(const item of tagged){const list=byTag.get(item.tag!)||[];list.push(item.entity);byTag.set(item.tag!,list)}
 
@@ -98,11 +102,13 @@ export function buildCoordinationIntelligence(graph:CoordinationGraph):Coordinat
   }
 
   const rated=items.map(item=>({id:item.id,source:item.source,rating:rating(item)}));
+  // Some pair differs beyond tolerance exactly when the spread of the known values does,
+  // so one pass per field replaces the pairwise O(n^2) comparison.
   const conflicts:string[]=[];
-  for(let i=0;i<rated.length;i++)for(let j=i+1;j<rated.length;j++){
-   for(const key of ['voltage','phase','inputKw','inputKva','fla','mca','mocp','motorHp'] as const){
-    if(different(rated[i].rating[key],rated[j].rating[key]))conflicts.push(key);
-   }
+  for(const key of ['voltage','phase','inputKw','inputKva','fla','mca','mocp','motorHp'] as const){
+   let min=Infinity,max=-Infinity;
+   for(const item of rated){const value=item.rating[key];if(value===null)continue;if(value<min)min=value;if(value>max)max=value}
+   if(different(min,max))conflicts.push(key);
   }
   if(conflicts.length){
    findings.push({

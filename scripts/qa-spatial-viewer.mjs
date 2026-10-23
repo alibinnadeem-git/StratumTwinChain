@@ -167,6 +167,9 @@ assert.match(viewer,/ViewMode="MODEL"\|"ELECTRICAL"\|"REVIEW"/);assert.match(vie
 assert.match(viewer,/hiddenSources/,'viewer must track source-specific visibility without deleting model data');
 assert.match(viewer,/const sourceKey=spatialEntitySourceKey\(e,graph\.sources\)/,'source layer visibility must derive immutable per-entity source identity');
 assert.match(viewer,/hiddenSourceSet\.has\(sourceKey\)/,'source layer visibility must filter rendered entities by immutable source identity');
+assert.match(viewer,/const visibleIds=useMemo\(\(\)=>new Set\(visible\.map\(entity=>entity\.id\)\),\[visible\]\)/,'large Spatial graphs must pre-index visible entity IDs for O(1) render membership checks');
+assert.match(viewer,/const isVisible=\(e:Entity\)=>visibleIds\.has\(e\.id\)/,'renderer must use the visible ID index instead of rescanning the full visible array');
+assert.doesNotMatch(viewer,/const isVisible=\(e:Entity\)=>visible\.some\(/,'renderer must not regress to O(n²) visibility membership on large drawing graphs');
 assert.match(viewer,/Source layers · \{sourceLayers\.length-hiddenSources\.length\}\/\{sourceLayers\.length\} visible/,'viewer must expose concise source-layer status');
 assert.match(viewer,/Toggle source \$\{label\}/,'each source revision layer must have an accessible disambiguated on-off control');
 assert.match(viewer,/Show all sources/);assert.match(viewer,/Hide all sources/);

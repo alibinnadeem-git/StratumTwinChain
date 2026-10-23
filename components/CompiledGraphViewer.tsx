@@ -50,6 +50,9 @@ type Graph={
 type RenderStatus="STARTING"|"WEBGL"|"FALLBACK";
 const layerNames:Record<Layer,string>={L0:"Source",L1:"Architectural",L2:"Electrical Physical",L3:"Electrical Logical",L4:"STRATUM Assets"};
 const colors:Record<Layer,number>={L0:0x31566d,L1:0x7f98a6,L2:0xe5a14d,L3:0x62bfff,L4:0x43d98f};
+// SLD sheets can emit many thousands of vector nodes; the SVG mini-map renders one DOM
+// node per entity, so cap it to keep the first paint responsive. The 3D scene remains complete.
+const MINIMAP_MAX_NODES=2500;
 const systemOptions:{id:SystemMode;label:string}[]=[
   {id:"ALL",label:"All systems"},{id:"POWER",label:"Power distribution"},{id:"EMERGENCY",label:"Emergency power"},
   {id:"EV",label:"EV infrastructure"},{id:"LOW_VOLTAGE",label:"Low voltage"},{id:"RENEWABLE",label:"Renewables"},
@@ -214,6 +217,11 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
       return true;
     });
   },[graph,floor,discipline,mode,systemMode,search,sourceDisciplines,hiddenSourceSet,activeSheetFrame]);
+  // A large PDF can produce tens of thousands of retained source entities. Keep
+  // render membership O(1) per entity; scanning the visible array for every
+  // graph entity makes scene construction O(n²) and can leave Spatial looking
+  // empty/partial while the browser is still burning through comparisons.
+  const visibleIds=useMemo(()=>new Set(visible.map(entity=>entity.id)),[visible]);
   const inventory=useMemo(()=>visible.filter(e=>e.kind!=="line"&&e.kind!=="sld-feeder-candidate"&&e.kind!=="wall-segment"&&e.kind!=="source-raster-underlay"&&e.kind!=="elevation-control-point"&&e.kind!=="elevation-review-surface-triangle"),[visible]);
   const identifiedEquipment=useMemo(()=>visible.filter(isIdentifiedProjectEquipment).length,[visible]);
   const visibleLines=useMemo(()=>visible.filter(e=>e.kind==="line").length,[visible]);
@@ -237,6 +245,9 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
   const twinReadiness=useMemo(()=>graph&&!demoMode?deriveDigitalTwinProjectReadiness(graph.entities,projectAssets,registry):null,[graph,projectAssets,registry,demoMode]);
   const fallbackBounds=useMemo(()=>bounds2d(visible),[visible]);
   const renderOrigin=useMemo(()=>deriveRenderLocalOrigin(visible),[visible]);
+  const entityIndex=useMemo(()=>new Map((graph?.entities||[]).map(e=>[e.id,e])),[graph]);
+  const inventoryIndex=useMemo(()=>new Map(inventory.map((e,i)=>[e.id,i] as [string,number])),[inventory]);
+  const miniMapEntities=useMemo(()=>visible.filter(e=>e.kind!=="source-raster-underlay"),[visible]);
 
   useEffect(()=>{
     if(!graph)return;
@@ -295,7 +306,7 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
         }
         return displayElevation(e,mode)+extra(e);
       };
-      const isVisible=(e:Entity)=>visible.some(v=>v.id===e.id);
+      const isVisible=(e:Entity)=>visibleIds.has(e.id);
       const material=(color:number,opacity=1,emissive=0)=>new THREE.MeshStandardMaterial({color,emissive,emissiveIntensity:.2,metalness:.28,roughness:.48,transparent:opacity<1,opacity,depthWrite:opacity>.2});
       const tag=(obj:any,e:Entity)=>{obj.userData.entity=e;entityAnchors.set(e.id,obj);clickableEntities.add(e.id);renderer.domElement.dataset.clickableAssets=String(clickableEntities.size);obj.traverse?.((node:any)=>{if(node.isMesh){node.userData.entity=e;if(!node.userData?.interactionProxy){node.castShadow=true;node.receiveShadow=true}const mats=Array.isArray(node.material)?node.material:[node.material];for(const mat of mats){if(mat?.emissive&&mat.userData?.stratumBaseEmissive===undefined){mat.userData=mat.userData||{};mat.userData.stratumBaseEmissive=mat.emissive.getHex();mat.userData.stratumBaseEmissiveIntensity=Number(mat.emissiveIntensity||0)}}clickable.push(node)}})};
       const interactionProxy=(root:any,target:[number,number,number])=>{const proxy=new THREE.Mesh(new THREE.BoxGeometry(Math.max(target[0]+.3,.8),Math.max(target[1]+.3,.8),Math.max(target[2]+.3,.8)),new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false,colorWrite:false}));proxy.userData.interactionProxy=true;root.add(proxy)};
@@ -346,11 +357,11 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
         root.userData.physicalClashAuthority=false;
         root.userData.asBuiltAuthority=false;
       };
+      const calloutCandidates=inventory.filter(item=>item.kind==='sheet-callout-candidate'||item.kind==='annotated-asset-candidate');
       const fallbackShape=(e:Entity)=>{
         if(e.kind==='sheet-callout-candidate'||e.kind==='annotated-asset-candidate'||(e.kind==='cad-text'&&e.meta?.cadPhysicalAnchor===false)){
           const root=new THREE.Group();
-          const candidates=inventory.filter(item=>item.kind==='sheet-callout-candidate'||item.kind==='annotated-asset-candidate');
-          const nearby=candidates.filter(item=>Math.hypot(item.x-e.x,item.y-e.y)<1);
+          const nearby=calloutCandidates.filter(item=>Math.hypot(item.x-e.x,item.y-e.y)<1);
           const clusterIndex=nearby.findIndex(item=>item.id===e.id);
           const angle=clusterIndex*2.39996;
           const distance=nearby.length>1?.42+Math.sqrt(clusterIndex)*.14:0;
@@ -522,6 +533,9 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
         renderer.domElement.dataset.coordinationAssets="0";
         for(const reviewEntity of visible)reviewMarker(reviewEntity);
       }
+      // Merge flat vector segments (one THREE.Line each is thousands of objects on an SLD).
+      // Keyed by layer; coordinates are stored relative to renderOrigin like the single-line path.
+      const lineBatches=new Map<Layer,number[]>();
       for(const e of graph.entities){
         if(!isVisible(e))continue;
         if(e.kind==="source-raster-underlay"){rasterUnderlay(e);continue}
@@ -550,7 +564,9 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
         if(e.kind==="room-boundary"||e.kind==="floor-boundary"){room(e);continue}
         if(e.kind==="wall-segment"&&Number.isFinite(e.x2)&&Number.isFinite(e.y2)){wall({x:e.x,y:e.y},{x:e.x2!,y:e.y2!},e);continue}
         if((e.kind==="line"||e.kind==="sld-feeder-candidate")&&Number.isFinite(e.x2)&&Number.isFinite(e.y2)){
-          const pts=[new THREE.Vector3(e.x-renderOrigin.x,height(e)+.08,e.y-renderOrigin.y),new THREE.Vector3(e.x2!-renderOrigin.x,n(e.z2,e.z)+extra(e)+.08,e.y2!-renderOrigin.y)];const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:colors[e.layer],transparent:true,opacity:.82}));line.position.set(renderOrigin.x,0,renderOrigin.y);groups[e.layer].add(line);continue;
+          const batch=lineBatches.get(e.layer)||lineBatches.set(e.layer,[]).get(e.layer)!;
+          batch.push(e.x-renderOrigin.x,height(e)+.08,e.y-renderOrigin.y,e.x2!-renderOrigin.x,n(e.z2,e.z)+extra(e)+.08,e.y2!-renderOrigin.y);
+          continue;
         }
         if(e.layer==="L2"){equipment(e);continue}
         if(e.layer==="L4"){
@@ -559,6 +575,12 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
           if(sourceEntity&&isVisible(sourceEntity))continue;
           equipment(e);continue;
         }
+      }
+      for(const [layer,positions] of lineBatches){
+        if(!positions.length)continue;
+        const geometry=new THREE.BufferGeometry();geometry.setAttribute("position",new THREE.Float32BufferAttribute(positions,3));
+        const segments=new THREE.LineSegments(geometry,new THREE.LineBasicMaterial({color:colors[layer],transparent:true,opacity:.82}));
+        segments.position.set(renderOrigin.x,0,renderOrigin.y);groups[layer].add(segments);
       }
       for(const link of graph.links||[]){
         if(!["SAME_TAG","SLD_FEEDS","SOURCE_RELATION"].includes(link.type))continue;const a=entityById.get(link.from),b=entityById.get(link.to);if(!a||!b||!isVisible(a)||!isVisible(b))continue;
@@ -601,7 +623,7 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
       cleanup=()=>{runtime.current=null;cancelAnimationFrame(frame);ro.disconnect();renderer.domElement.removeEventListener("pointerdown",pointerDown);renderer.domElement.removeEventListener("pointermove",pointerMove);renderer.domElement.removeEventListener("pointerup",pointerUp);renderer.domElement.removeEventListener("pointercancel",pointerCancel);renderer.domElement.removeEventListener("click",clickPick);controls.dispose();renderer.dispose();host.replaceChildren()};
     })();
     return()=>{disposed=true;cleanup()};
-  },[graph,registry,mode,environment,systemMode,floor,exploded,xray,labels,visible,levels,renderOrigin.x,renderOrigin.y,demoMode]);
+  },[graph,registry,mode,environment,systemMode,floor,exploded,xray,labels,visibleIds,levels,renderOrigin.x,renderOrigin.y,demoMode]);
 
   useEffect(()=>{
     const r=runtime.current;if(!r?.scene)return;
@@ -741,12 +763,12 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
         {renderStatus!=="FALLBACK"&&<div ref={mount} style={{height:"100%",minHeight:520}}/>}
         {renderStatus==="FALLBACK"&&<div style={{height:"min(72vh,760px)",minHeight:520,padding:14}} role="img" aria-label="2D spatial fallback">
           <svg viewBox="0 0 100 100" width="100%" height="100%" style={{background:"#06141e",borderRadius:12}}>
-            {(graph.links||[]).filter(l=>["SLD_FEEDS","SAME_TAG","SOURCE_RELATION"].includes(l.type)).map(l=>{const a=graph.entities.find(e=>e.id===l.from),b=graph.entities.find(e=>e.id===l.to);if(!a||!b)return null;return <line key={l.id} x1={sx(a.x)} y1={sy(a.y)} x2={sx(b.x)} y2={sy(b.y)} stroke={l.type==="SLD_FEEDS"?"#57baff":"#9a7cff"} strokeWidth=".35" strokeDasharray="1 1"/>})}
+            {(graph.links||[]).filter(l=>["SLD_FEEDS","SAME_TAG","SOURCE_RELATION"].includes(l.type)).map(l=>{const a=entityIndex.get(l.from),b=entityIndex.get(l.to);if(!a||!b)return null;return <line key={l.id} x1={sx(a.x)} y1={sy(a.y)} x2={sx(b.x)} y2={sy(b.y)} stroke={l.type==="SLD_FEEDS"?"#57baff":"#9a7cff"} strokeWidth=".35" strokeDasharray="1 1"/>})}
             {visible.filter(e=>e.kind==="source-raster-underlay"&&typeof e.meta?.embeddedRasterDataUrl==="string"&&Number.isFinite(e.x2)&&Number.isFinite(e.y2)).map(e=><image key={e.id} href={String(e.meta?.embeddedRasterDataUrl)} x={Math.min(sx(e.x),sx(e.x2!))} y={Math.min(sy(e.y),sy(e.y2!))} width={Math.abs(sx(e.x2!)-sx(e.x))} height={Math.abs(sy(e.y2!)-sy(e.y))} opacity=".9" preserveAspectRatio="none"/>)}
-            {visible.filter(e=>e.kind!=="source-raster-underlay").map(e=>(e.kind==="line"||e.kind==="sld-feeder-candidate")&&Number.isFinite(e.x2)&&Number.isFinite(e.y2)?<line key={e.id} x1={sx(e.x)} y1={sy(e.y)} x2={sx(e.x2!)} y2={sy(e.y2!)} stroke={e.layer==="L3"?"#62bfff":"#7895a4"} strokeWidth=".28"/>:<g key={e.id} onClick={()=>setSelected(e)} style={{cursor:"pointer"}}><circle cx={sx(e.x)} cy={sy(e.y)} r={e.layer==="L2"?1.25:.75} fill={e.layer==="L2"?"#e5a14d":e.layer==="L4"?"#43d98f":"#7f98a6"}/>{labels&&e.layer==="L2"&&<text x={sx(e.x)+1.7} y={sy(e.y)-1+Math.max(0,inventory.findIndex(item=>item.id===e.id))*3} fill="#d8edf6" fontSize="2.2">{e.name.slice(0,24)}{physicalElevationKnown(e)?'':' · Z unverified'}</text>}</g>)}
-          </svg><p className="muted" style={{margin:"8px 0 0"}}>Interactive 2D fallback active. Source placement and selection remain available while this device/browser cannot initialize WebGL.</p>
+            {miniMapEntities.slice(0,MINIMAP_MAX_NODES).map(e=>(e.kind==="line"||e.kind==="sld-feeder-candidate")&&Number.isFinite(e.x2)&&Number.isFinite(e.y2)?<line key={e.id} x1={sx(e.x)} y1={sy(e.y)} x2={sx(e.x2!)} y2={sy(e.y2!)} stroke={e.layer==="L3"?"#62bfff":"#7895a4"} strokeWidth=".28"/>:<g key={e.id} onClick={()=>setSelected(e)} style={{cursor:"pointer"}}><circle cx={sx(e.x)} cy={sy(e.y)} r={e.layer==="L2"?1.25:.75} fill={e.layer==="L2"?"#e5a14d":e.layer==="L4"?"#43d98f":"#7f98a6"}/>{labels&&e.layer==="L2"&&<text x={sx(e.x)+1.7} y={sy(e.y)-1+Math.max(0,inventoryIndex.get(e.id)??0)*3} fill="#d8edf6" fontSize="2.2">{e.name.slice(0,24)}{physicalElevationKnown(e)?'':' · Z unverified'}</text>}</g>)}
+          </svg><p className="muted" style={{margin:"8px 0 0"}}>Interactive 2D fallback active. Source placement and selection remain available while this device/browser cannot initialize WebGL.{miniMapEntities.length>MINIMAP_MAX_NODES?` Showing the first ${MINIMAP_MAX_NODES.toLocaleString()} of ${miniMapEntities.length.toLocaleString()} objects in this 2D overview; the 3D view and object list remain complete.`:''}</p>
         </div>}
-        <div className="spatial-hud"><button type="button" className="ghost" aria-expanded={hudOpen} onClick={()=>setHudOpen(value=>!value)}>Infrastructure HUD · {inventory.length} view objects {hudOpen?'▴':'▾'}</button>{hudOpen&&<div className="spatial-hud-body"><small>{renderStatus==="WEBGL"?"3D WEBGL":"2D FALLBACK"} · {mode}</small><div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:"4px 12px",marginTop:6,fontSize:12}}><span>PLAN FRAMES</span><b>{sheetFrames.length}</b><span>NON-SLD PLANS</span><b>{nonSldPlanSheets}</b><span>DRAWING LINES</span><b>{visibleLines}</b><span>DRAWING UNDERLAYS</span><b>{rasterUnderlays}</b><span>VIEW OBJECTS</span><b>{inventory.length}</b><span>IDENTIFIED EQUIPMENT</span><b>{identifiedEquipment}</b><span>SLD</span><b>{sldObjects}</b><span>UNRESOLVED Z</span><b>{unresolvedZ}</b><span>3D MODELS</span><b>{modelMapped}</b>{mode==="REVIEW"&&<><span>COORDINATION</span><b>{[...coordinationReview.values()].filter(item=>visible.some(entity=>entity.id===item.entityId)).length}</b></>}</div></div>}</div>
+        <div className="spatial-hud"><button type="button" className="ghost" aria-expanded={hudOpen} onClick={()=>setHudOpen(value=>!value)}>Infrastructure HUD · {inventory.length} view objects {hudOpen?'▴':'▾'}</button>{hudOpen&&<div className="spatial-hud-body"><small>{renderStatus==="WEBGL"?"3D WEBGL":"2D FALLBACK"} · {mode}</small><div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:"4px 12px",marginTop:6,fontSize:12}}><span>PLAN FRAMES</span><b>{sheetFrames.length}</b><span>NON-SLD PLANS</span><b>{nonSldPlanSheets}</b><span>DRAWING LINES</span><b>{visibleLines}</b><span>DRAWING UNDERLAYS</span><b>{rasterUnderlays}</b><span>VIEW OBJECTS</span><b>{inventory.length}</b><span>IDENTIFIED EQUIPMENT</span><b>{identifiedEquipment}</b><span>SLD</span><b>{sldObjects}</b><span>UNRESOLVED Z</span><b>{unresolvedZ}</b><span>3D MODELS</span><b>{modelMapped}</b>{mode==="REVIEW"&&<><span>COORDINATION</span><b>{[...coordinationReview.values()].filter(item=>visibleIds.has(item.entityId)).length}</b></>}</div></div>}</div>
       </div>
 
       <aside style={{padding:15,borderLeft:"1px solid #17334a",overflow:"auto"}}>

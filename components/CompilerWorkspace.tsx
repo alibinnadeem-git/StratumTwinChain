@@ -4,8 +4,7 @@ import {useRouter} from 'next/navigation';
 import PlanAnnotations from './PlanAnnotations';
 import SheetReview from './SheetReview';
 import SpatialPortableRecovery from './SpatialPortableRecovery';
-import {inferPdfPageFloor,sameSourceFrame,scopeSourceEntities} from '../lib/compiler-source';
-import {reconcileSpatialEquipmentIdentity} from '../lib/spatial-equipment-identity';
+import {inferPdfPageFloor,scopeSourceEntities} from '../lib/compiler-source';
 import {anchorPdfEquipmentToVectorSymbols} from '../lib/pdf-equipment-symbol-anchor';
 import {dxfRawXYToMeters,dxfRecordZ,dxfUnitInfo} from '../lib/dxf-z-semantics';
 import {dxfEquipmentSpatialAuthority} from '../lib/dxf-equipment-authority';
@@ -23,24 +22,24 @@ import {readPrimarySpatialGraph,replaceCurrentSpatialGraph} from '../lib/spatial
 import {encodeGlbBase64,inspectStandaloneGlb} from '../lib/spatial-glb-import';
 import {drawingSourceReprocessReason,findDrawingSourcesNeedingReprocess,inspectDrawingReprocessOutput} from '../lib/spatial-source-reprocess';
 import {archiveSourceBytes,archivedSourceToFile,listArchivedSourceMetadata,readArchivedSource} from '../lib/source-browser-archive';
-import {enrichCoordinationIntelligence} from '../lib/coordination-intelligence';
-import {buildZResolutionIndex,extractZEvidenceFromText,type ZEvidence} from '../lib/z-resolver';
-import {buildEntityZConstraintGraph} from '../lib/z-constraint-graph';
-import {buildProjectDatumSurfaces,datumSurfaceMetadata,projectDatumSurfaceForEntity} from '../lib/project-datum';
+import {detectElectricalLegendPage,detectElectricalSpecificationPage,detectPdfEquipmentMatrixPage,extractElectricalLegendEntries,extractElectricalSpecificationRequirements,extractPdfEquipmentMatrixRecords} from '../lib/electrical-design-intelligence-v3';
+import {buildLegendSymbolFingerprints,matchLegendSymbolFingerprints} from '../lib/electrical-symbol-fingerprint';
+import {buildLegendSegmentFingerprints,matchLegendSegmentFingerprints} from '../lib/electrical-segment-symbol-fingerprint';
+import {rasterFromRgba,detectRasterSymbolCandidates,buildRasterLegendFingerprints,matchRasterLegendFingerprints,type RasterCandidate,type RasterFingerprint} from '../lib/electrical-raster-symbol-fingerprint';
+import {extractZEvidenceFromText,type ZEvidence} from '../lib/z-resolver';
 import {buildElevationTriangles,extractPositionedElevationControls,resolveLocalElevationSurface,type ElevationControlPoint,type ElevationTriangle} from '../lib/elevation-surface';
 import {associateTerrainBreaklines,buildConstrainedElevationTriangles,extractPositionedTerrainSlopeEvidence,type TerrainBreakline,type TerrainSlopeEvidence} from '../lib/terrain-constraints';
 import {enrichSupportBaseOffsets,extractSupportOffsetEvidence,type SupportOffsetEvidence} from '../lib/support-base-evidence';
 import {analyzeDrawingSetCompleteness,type DrawingSetCompleteness} from '../lib/drawing-set-completeness';
 import {pdfIngestionProfile} from '../lib/pdf-ingestion-profile';
-import {enrichZRecovery} from '../lib/z-recovery';
 import {ChangeEvent,DragEvent,useEffect,useMemo,useRef,useState} from 'react';
+import {type GraphEntity,type GraphLink,type Layer,type XY} from '../lib/graph-assembly';
+import {enrichZCandidates} from '../lib/graph-enrichment';
+import {assembleGraphOffThread,compileGraphOffThread,enrichEntitiesOffThread,GraphWorkerError} from '../lib/graph-assembly-client';
+import {graphSignature} from '../lib/graph-signature';
 
-type Layer='L0'|'L1'|'L2'|'L3'|'L4';
 type ParseState='parsed'|'adapter'|'review'|'failed';
-type XY={x:number;y:number};
-type GraphEntity={id:string;source:string;layer:Layer;kind:string;name:string;x:number;y:number;z?:number;x2?:number;y2?:number;z2?:number;rotation?:number;scale?:number;floor?:string;zone?:string;vertices?:XY[];confidence:number;meta?:Record<string,unknown>};
 type SourceFile={name:string;size:number;ext:string;discipline:string;sha256:string;state:ParseState;summary:string;entities:number;floor:string;elevation:number;unitName?:string;unitToMeters?:number;pages?:number;vectors?:number;textItems?:number;sldPages?:number;nonSldPlanPages?:number;planTypes?:string[];setCompleteness?:DrawingSetCompleteness};
-type GraphLink={id:string;from:string;to:string;type:'SAME_TAG'|'DERIVED_ASSET'|'SOURCE_RELATION';confidence:number};
 type CompiledGraph={version:string;createdAt:string;reviewState?:string;sources:SourceFile[];entities:GraphEntity[];links:GraphLink[];stats:Record<Layer,number>};
 
 const NATIVE_ADAPTER=['dwg','rvt'];
@@ -51,11 +50,7 @@ const layerFor=(s:string):Layer=>{const n=s.toLowerCase();if(/wall|door|room|flo
 const roomCandidate=(s:string)=>/room|electrical room|switchgear room|mdf|idf|mechanical room|garage|lobby|corridor|office|lab|data hall|closet|storage/i.test(s);
 const sha=async(buf:ArrayBuffer)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',buf))).map(b=>b.toString(16).padStart(2,'0')).join('');
 const normalize=(v:number,min:number,max:number)=>max===min?0:((v-min)/(max-min)-.5)*20;
-const cleanTag=(s:string)=>s.toUpperCase().replace(/[^A-Z0-9-]/g,'').replace(/^(PANEL|PNL|TRANSFORMER|XFMR|SWITCHBOARD|SWBD|SWITCHGEAR|SWGR|GENERATOR|GEN|ATS|UPS|EVSE|MCC|PDU|VFD|MDP|MDB|MSB|CB|MCCB|ACB)/,'');
-const pointInPolygon=(p:XY,poly:XY[])=>{let inside=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const a=poly[i],b=poly[j];const hit=((a.y>p.y)!==(b.y>p.y))&&(p.x<(b.x-a.x)*(p.y-a.y)/((b.y-a.y)||1e-9)+a.x);if(hit)inside=!inside}return inside};
 const centroid=(poly:XY[])=>poly.reduce((a,p)=>({x:a.x+p.x/poly.length,y:a.y+p.y/poly.length}),{x:0,y:0});
-function assignZones(entities:GraphEntity[]){const rooms=entities.filter(e=>e.kind==='room-boundary'&&e.vertices?.length);const labels=entities.filter(e=>e.kind==='room-label');const namedRooms=rooms.map(r=>{const inside=labels.filter(l=>sameSourceFrame(l,r)&&pointInPolygon({x:l.x,y:l.y},r.vertices!));if(!inside.length)return r;inside.sort((a,b)=>b.confidence-a.confidence);return{...r,name:inside[0].name,zone:inside[0].name}});const replacements=new Map(namedRooms.map(r=>[r.id,r]));return entities.map(original=>{const e=replacements.get(original.id)||original;if(e.meta?.nonSpatial===true||e.layer==='L1'||e.zone)return e;const containing=namedRooms.filter(r=>sameSourceFrame(r,e)&&r.vertices&&pointInPolygon({x:e.x,y:e.y},r.vertices));if(containing.length)return{...e,zone:containing[0].name};const sameLabels=labels.filter(r=>sameSourceFrame(r,e));let best:GraphEntity|undefined,dist=Infinity;for(const r of sameLabels){const d=Math.hypot(e.x-r.x,e.y-r.y);if(d<dist){dist=d;best=r}}return best&&dist<3?{...e,zone:best.name}:e})}
-function buildLinks(entities:GraphEntity[]){const links:GraphLink[]=[];const seen=new Map<string,GraphEntity[]>();for(const e of entities.filter(x=>x.layer==='L2'||x.layer==='L3')){const key=cleanTag(e.name);if(key.length<2)continue;const arr=seen.get(key)||[];arr.push(e);seen.set(key,arr)}for(const [key,arr] of seen){if(arr.length<2)continue;for(let i=1;i<arr.length;i++)links.push({id:`tag-${key}-${i}`,from:arr[0].id,to:arr[i].id,type:'SAME_TAG',confidence:.82})}for(const e of entities.filter(x=>x.layer==='L4')){const from=String(e.meta?.derivedFrom||'');if(from)links.push({id:`asset-${e.id}`,from,to:e.id,type:'DERIVED_ASSET',confidence:.99})}return links}
 
 type PdfParseResult={entities:GraphEntity[];summary:string;pages:number;vectors:number;textItems:number;sldPages:number;nonSldPlanPages:number;planTypes:string[];disciplines:string[];setCompleteness:DrawingSetCompleteness;ocrRequiredPages:number[]};
 type PdfParseProgress={page:number;total:number;phase:string;elapsedMs?:number;processed?:number;workTotal?:number};
@@ -67,7 +62,7 @@ async function parsePdfOffThread(fileName:string,buffer:ArrayBuffer,level:{floor
  if(typeof Worker==='undefined')throw new PdfParseError('WORKER_UNAVAILABLE','This browser cannot start the protected PDF parser worker.');
  const ingestion=pdfIngestionProfile(buffer.byteLength);
  if(!ingestion.accepted)throw new PdfParseError('PDF_FILE_BUDGET',ingestion.reason);
- const requestId=crypto.randomUUID(),worker=new Worker(new URL('../workers/pdf-native-parser.worker.ts',import.meta.url),{type:'module'});
+ const requestId=crypto.randomUUID(),worker=new Worker(new URL('../workers/pdf-native-parser.worker-v2.ts',import.meta.url),{type:'module'});
  return await new Promise<PdfParseResult>((resolve,reject)=>{
   let settled=false,watchdog:number|undefined,hardDeadline:number|undefined;
   const cleanup=()=>{if(watchdog!==undefined)window.clearTimeout(watchdog);if(hardDeadline!==undefined)window.clearTimeout(hardDeadline);signal.removeEventListener('abort',onAbort);worker.terminate()};
@@ -162,6 +157,28 @@ async function parsePdfMainThreadFallback(file:File,level:{floor:string;elevatio
   const labels=[...raw.filter(item=>item.page===page).map(item=>item.str),...(ocrTextByPage.get(page)||[])],vectorCount=pageVectorOps.get(page)||0,{sld,plan}=resolveDrawingPageRecognition(labels,vectorCount);
   pageEvidence.set(page,sld);planEvidence.set(page,plan);
  }
+ for(let page=1;page<=doc.numPages;page++){
+  const labels=[...raw.filter(item=>item.page===page).map(item=>item.str),...(ocrTextByPage.get(page)||[])];
+  const legend=detectElectricalLegendPage(labels);
+  if(legend.isLegend){
+   const nativePositioned=raw.filter(item=>item.page===page).map(item=>({text:item.str,x:item.x,y:item.y,page}));
+   const rasterPositioned=(rasterPreviewByPage.get(page)?.geometryItems||[]).map(item=>({text:item.text,x:(Number(item.x)-.5)*(rasterPreviewByPage.get(page)?.planeWidth||20),y:(.5-Number(item.y))*(rasterPreviewByPage.get(page)?.planeHeight||20),page}));
+   const entries=extractElectricalLegendEntries(nativePositioned.length?nativePositioned:rasterPositioned,page);
+   for(const entry of entries)ocrEntities.push({id:`pdf-${entry.id}`,source:file.name,layer:'L0',kind:'electrical-legend-entry',name:`${entry.abbreviation} · ${entry.description}`,x:entry.anchor.x,y:entry.anchor.y,z:0,floor:'UNRESOLVED',confidence:entry.confidence,meta:{page,nonSpatial:true,sourceType:'ELECTRICAL_LEGEND',legendEntry:entry,legendPageScore:legend.score,physicalTruth:false,reviewRequired:true,spatialPlacementAuthority:'NON_SPATIAL_LEGEND',elevationKnown:false,physicalElevationKnown:false}} as GraphEntity);
+  }
+  const spec=detectElectricalSpecificationPage(labels);
+  if(spec.isSpecification){
+   const requirements=extractElectricalSpecificationRequirements(labels,page);
+   for(const requirement of requirements)ocrEntities.push({id:`pdf-${requirement.id}`,source:file.name,layer:'L0',kind:'electrical-spec-requirement',name:requirement.title,x:0,y:0,z:0,floor:'UNRESOLVED',confidence:requirement.confidence,meta:{page,nonSpatial:true,sourceType:'ELECTRICAL_SPECIFICATION',specRequirement:requirement,specificationSection:requirement.section,physicalTruth:false,reviewRequired:true,spatialPlacementAuthority:'NON_SPATIAL_SPECIFICATION',elevationKnown:false,physicalElevationKnown:false}} as GraphEntity);
+  }
+  const matrix=detectPdfEquipmentMatrixPage(labels);
+  if(matrix.isMatrix){
+   const nativePositioned=raw.filter(item=>item.page===page).map(item=>({text:item.str,x:item.x,y:item.y,page}));
+   const rasterPositioned=(rasterPreviewByPage.get(page)?.geometryItems||[]).map(item=>({text:item.text,x:(Number(item.x)-.5)*(rasterPreviewByPage.get(page)?.planeWidth||20),y:(.5-Number(item.y))*(rasterPreviewByPage.get(page)?.planeHeight||20),page}));
+   const records=extractPdfEquipmentMatrixRecords(nativePositioned.length?nativePositioned:rasterPositioned,page);
+   for(const record of records)ocrEntities.push({id:`pdf-${record.id}`,source:file.name,layer:'L4',kind:'schedule-powered-equipment-candidate',name:[record.tag||record.description,record.tag&&record.description?record.description:''].filter(Boolean).join(' '),x:0,y:0,z:0,floor:'UNRESOLVED',zone:record.location||undefined,confidence:record.confidence,meta:{page,nonSpatial:true,sourceType:'EQUIPMENT_SCHEDULE',scheduleSourceFormat:'PDF_POSITIONAL_TABLE',assetTag:record.scheduleKind==='EQUIPMENT'?(record.tag||undefined):undefined,fixtureMark:record.scheduleKind==='LIGHT_FIXTURE'?(record.tag||undefined):undefined,electricalComponentHint:record.componentHint||undefined,scheduleKind:record.scheduleKind,scheduleDescription:record.description||undefined,manufacturer:record.manufacturer||undefined,model:record.model||undefined,scheduleLocation:record.location||undefined,voltage:record.ratings.voltage,phase:record.ratings.phase,inputKva:record.ratings.kva,inputKw:record.ratings.kw,fla:record.ratings.fla,mca:record.ratings.mca,mocp:record.ratings.mocp,motorHp:record.ratings.hp,pdfEquipmentMatrixRecord:record,physicalTruth:false,reviewRequired:true,spatialPlacementAuthority:'NON_SPATIAL_SCHEDULE',registrationState:'CANDIDATE'}} as GraphEntity);
+  }
+ }
  const planFramesByPage=new Map<number,ReturnType<typeof detectPlanFrames>>();
  for(let page=1;page<=doc.numPages;page++){
   const positioned=raw.filter(item=>item.page===page).map(item=>({text:item.str,x:item.x,y:item.y}));
@@ -169,6 +186,44 @@ async function parsePdfMainThreadFallback(file:File,level:{floor:string;elevatio
  }
  const frameAt=(page:number,x:number,y:number)=>resolvePlanFrameAtPoint(planFramesByPage.get(page)||[],x,y);
  const floorAt=(page:number,x:number,y:number)=>frameAt(page,x,y)?.floor||pageFloors.get(page)||'UNRESOLVED';
+ const fallbackLegendEntries=ocrEntities.filter(entity=>entity.kind==='electrical-legend-entry').map(entity=>entity.meta?.legendEntry).filter(Boolean) as any[];
+ const fallbackLegendPages=new Set(fallbackLegendEntries.map(entry=>Number(entry.page)).filter(Boolean));
+ const fallbackAbbreviationClasses=new Map<string,Set<string>>();
+ const fallbackAbbreviationEntries=new Map<string,any>();
+ for(const entry of fallbackLegendEntries){
+  const key=String(entry?.abbreviation||'').trim().toUpperCase();if(!key||!entry?.componentHint)continue;
+  const set=fallbackAbbreviationClasses.get(key)||new Set<string>();set.add(String(entry.componentHint));fallbackAbbreviationClasses.set(key,set);
+  fallbackAbbreviationEntries.set(key,entry);
+ }
+ const fallbackLegendAbbreviationMap=new Map([...fallbackAbbreviationEntries].filter(([key])=>fallbackAbbreviationClasses.get(key)?.size===1));
+ const fallbackFingerprints=buildLegendSymbolFingerprints({
+  entries:fallbackLegendEntries,
+  polygons:polygons.map((polygon,index)=>({id:`pdf-fallback-poly-${polygon.page}-${index}`,page:polygon.page,vertices:polygon.vertices,confidence:polygon.confidence,planFrameId:null})),
+  segments
+ });
+ const fallbackSymbolMatches=matchLegendSymbolFingerprints({
+  fingerprints:fallbackFingerprints,
+  polygons:polygons.filter(polygon=>Boolean(planEvidence.get(polygon.page)?.isPlan)).map((polygon,index)=>({id:`pdf-fallback-plan-symbol-${polygon.page}-${index}`,page:polygon.page,vertices:polygon.vertices,confidence:polygon.confidence,planFrameId:null})),
+  legendPages:fallbackLegendPages,
+  frameAt:(page,x,y)=>frameAt(page,x,y),
+  segments
+ });
+ for(const fingerprint of fallbackFingerprints)ocrEntities.push({id:`pdf-${fingerprint.id}`,source:file.name,layer:'L0',kind:'electrical-legend-symbol-fingerprint',name:`${fingerprint.componentClass} · legend vector fingerprint`,x:fingerprint.centroid.x,y:fingerprint.centroid.y,z:0,floor:'UNRESOLVED',confidence:fingerprint.confidence,meta:{page:fingerprint.sourcePage,nonSpatial:true,sourceType:'ELECTRICAL_LEGEND_VECTOR_FINGERPRINT',legendSymbolFingerprint:fingerprint,physicalTruth:false,reviewRequired:true,spatialPlacementAuthority:'NON_SPATIAL_LEGEND_SYMBOL_FINGERPRINT',elevationKnown:false,physicalElevationKnown:false}} as GraphEntity);
+ for(const match of fallbackSymbolMatches){
+  const frame=frameAt(match.page,match.x,match.y);
+  ocrEntities.push({id:`pdf-${match.id}`,source:file.name,layer:'L2',kind:'legend-symbol-match-candidate',name:`${match.componentClass} · project legend symbol match`,x:match.x,y:match.y,z:0,floor:frame?.floor||pageFloors.get(match.page)||'UNRESOLVED',confidence:match.confidence,meta:{page:match.page,nonSldPlan:true,planType:planEvidence.get(match.page)?.planType||'PLAN_VIEW_UNCLASSIFIED',planDiscipline:planEvidence.get(match.page)?.discipline||'Electrical',planFrameId:frame?.id||match.planFrameId||null,planFrameFloor:frame?.floor||null,planFrameUnitId:frame?.unitId||null,planFrameUnitPlan:frame?.unitPlan||null,electricalComponentHint:match.componentClass,legendSymbolMatch:match,legendBacked:true,symbolAnchorStatus:'RESOLVED_REVIEW_CANDIDATE',symbolAnchorAuthority:'PROJECT_LEGEND_VECTOR_FINGERPRINT',spatialPlacementAuthority:'PROJECT_LEGEND_VECTOR_SYMBOL_MATCH',physicalTruth:false,reviewRequired:true,elevationKnown:false,physicalElevationKnown:false,registrationState:'CANDIDATE'}} as GraphEntity);
+ }
+ const fallbackSegmentFingerprints=buildLegendSegmentFingerprints({entries:fallbackLegendEntries,segments});
+ const fallbackSegmentMatches=matchLegendSegmentFingerprints({
+  fingerprints:fallbackSegmentFingerprints,segments,legendPages:fallbackLegendPages,
+  planPages:new Set([...planEvidence.entries()].filter(([,evidence])=>evidence.isPlan).map(([page])=>page))
+ });
+ for(const fingerprint of fallbackSegmentFingerprints)ocrEntities.push({id:`pdf-${fingerprint.id}`,source:file.name,layer:'L0',kind:'electrical-legend-segment-fingerprint',name:`${fingerprint.componentClass} · legend segment fingerprint`,x:fingerprint.centroid.x,y:fingerprint.centroid.y,z:0,floor:'UNRESOLVED',confidence:fingerprint.confidence,meta:{page:fingerprint.sourcePage,nonSpatial:true,sourceType:'ELECTRICAL_LEGEND_SEGMENT_FINGERPRINT',legendSegmentFingerprint:fingerprint,physicalTruth:false,reviewRequired:true,spatialPlacementAuthority:'NON_SPATIAL_LEGEND_SEGMENT_FINGERPRINT',elevationKnown:false,physicalElevationKnown:false}} as GraphEntity);
+ for(const match of fallbackSegmentMatches){
+  if(fallbackSymbolMatches.some(existing=>existing.page===match.page&&existing.componentClass===match.componentClass&&Math.hypot(existing.x-match.x,existing.y-match.y)<.07))continue;
+  const frame=frameAt(match.page,match.x,match.y);
+  ocrEntities.push({id:`pdf-${match.id}`,source:file.name,layer:'L2',kind:'legend-symbol-match-candidate',name:`${match.componentClass} · project legend open-vector match`,x:match.x,y:match.y,z:0,floor:frame?.floor||pageFloors.get(match.page)||'UNRESOLVED',confidence:match.confidence,meta:{page:match.page,nonSldPlan:true,planType:planEvidence.get(match.page)?.planType||'PLAN_VIEW_UNCLASSIFIED',planDiscipline:planEvidence.get(match.page)?.discipline||'Electrical',planFrameId:frame?.id||null,planFrameFloor:frame?.floor||null,planFrameUnitId:frame?.unitId||null,planFrameUnitPlan:frame?.unitPlan||null,electricalComponentHint:match.componentClass,legendSegmentSymbolMatch:match,legendBacked:true,symbolAnchorStatus:'RESOLVED_REVIEW_CANDIDATE',symbolAnchorAuthority:'PROJECT_LEGEND_SEGMENT_FINGERPRINT',spatialPlacementAuthority:'PROJECT_LEGEND_SEGMENT_SYMBOL_MATCH',physicalTruth:false,reviewRequired:true,elevationKnown:false,physicalElevationKnown:false,registrationState:'CANDIDATE'}} as GraphEntity);
+ }
  for(const [page,frames] of planFramesByPage){
   for(const frame of frames){
    ocrEntities.push({id:`pdf-plan-frame-${page}-${frame.id}`,source:file.name,layer:'L0',kind:'plan-frame-candidate',name:frame.title,x:frame.anchorX,y:frame.anchorY,z:0,floor:frame.floor||'UNRESOLVED',confidence:frame.confidence,meta:{page,nonSpatial:true,sourceType:'PDF_PLAN_FRAME_TITLE',planFrame:frame,physicalTruth:false,reviewRequired:true,geometryAuthority:'TITLE_ANCHOR_ONLY',spatialPlacementAuthority:'SOURCE_SHEET_TITLE_ANCHOR_ONLY',zPlacementAuthority:'UNVERIFIED_DRAWING_PLANE',elevationKnown:false,physicalElevationKnown:false}} as GraphEntity);
@@ -263,7 +318,14 @@ async function parsePdfMainThreadFallback(file:File,level:{floor:string;elevatio
   entities.push({id:`pdf-plan-line-${segment.page}-${i++}`,source:file.name,layer:'L1',kind:'line',name:`Source plan line · page ${segment.page}`,x:segment.x,y:segment.y,z:0,x2:segment.x2,y2:segment.y2,z2:0,floor:floorAt(segment.page,(segment.x+segment.x2)/2,(segment.y+segment.y2)/2),confidence:.99,meta:{page:segment.page,floorInference:'plan-frame-or-sheet-title-candidate',coordinateUnits:'sheet',sourceType:'PDF source-plan vector line',drawingBasemap:true,pdfTransformsApplied:true,elevationKnown:false,physicalElevationKnown:false,zPlacementAuthority:'UNVERIFIED_DRAWING_PLANE',spatialPlacementAuthority:'SOURCE_SHEET_POSITION_ONLY',physicalTruth:false,reviewRequired:false,scaleValidationEvidence:scaleValidationByPage.get(segment.page),...planMeta(segment.page,(segment.x+segment.x2)/2,(segment.y+segment.y2)/2)}});
  }
  for(const [page,topology] of vectorTopologyByPage){for(const segment of topology.segments){entities.push({id:`pdf-sld-feeder-${page}-${i++}`,source:file.name,layer:'L3',kind:'sld-feeder-candidate',name:`SLD feeder path · page ${page}`,x:segment.x,y:segment.y,z:0,x2:segment.x2,y2:segment.y2,z2:0,floor:pageFloors.get(page),confidence:.88,meta:{page,floorInference:'sheet-title-candidate',elevationKnown:false,coordinateUnits:'sheet',sourceType:'PDF vector electrical path',sldCandidate:true,sldFeederCandidate:true,sldVectorComponent:segment.component,sldVectorAuthority:'PDF_VECTOR_CONNECTED_COMPONENT',reviewRequired:true,physicalTruth:false}})}}
- for(const p of polygons){if(!pageEvidence.get(p.page)?.isSld&&!planEvidence.get(p.page)?.isPlan)continue;const area=Math.abs(p.vertices.reduce((s,v,j)=>{const n=p.vertices[(j+1)%p.vertices.length];return s+v.x*n.y-n.x*v.y},0))/2;if(area<.08||area>190)continue;const c=centroid(p.vertices);entities.push({id:`pdf-room-${p.page}-${i++}`,source:file.name,layer:'L1',kind:'vector-boundary-candidate',name:`PDF closed path · page ${p.page}`,x:c.x,y:c.y,z:0,vertices:p.vertices,floor:floorAt(p.page,c.x,c.y),confidence:p.confidence,meta:{page:p.page,floorInference:'plan-frame-or-sheet-title-candidate',elevationKnown:false,sourceType:'PDF vector path',reconstruction:'heuristic-closed-path',reviewRequired:true,coordinateUnits:'sheet',pdfTransformsApplied:true,geometryValidated:false,...sldMeta(p.page),...planMeta(p.page,c.x,c.y)}})}for(const t of raw){if(/\bcannot locate\b|\bplease advise\b/i.test(t.str)||(!pageEvidence.get(t.page)?.isSld&&!planEvidence.get(t.page)?.isPlan))continue;const equipmentClass=classifyElectricalLabel(t.str),poweredClass=poweredEquipmentClass(t.str),isAsset=Boolean(equipmentClass),isPoweredNonElectrical=Boolean(poweredClass&&!isAsset),isCircuit=isElectricalCircuitLabel(t.str),isRoom=roomCandidate(t.str),vectorAttachment=vectorAttachmentByKey.get(t.key);if(!isAsset&&!isCircuit&&!isRoom&&!isPoweredNonElectrical)continue;const layer:Layer=isRoom?'L1':isPoweredNonElectrical?'L4':isCircuit&&!isAsset?'L3':'L2';entities.push({id:`pdf-${t.page}-${i++}`,source:file.name,layer,kind:isRoom?'room-label':isPoweredNonElectrical?'powered-equipment-candidate':isAsset?'text-asset-candidate':'logical-tag',name:t.str,x:t.x,y:t.y,z:0,floor:floorAt(t.page,t.x,t.y),confidence:isRoom?.7:isPoweredNonElectrical?.72:isAsset?.86:.74,meta:{page:t.page,floorInference:'sheet-title-candidate',elevationKnown:false,coordinateUnits:'sheet',sourceType:'PDF text object',...(poweredClass?{poweredEquipmentClass:poweredClass,registrationState:'CANDIDATE',spatialPlacementAuthority:'SOURCE_SHEET_POSITION_ONLY',physicalTruth:false,reviewRequired:true}:{}),...(equipmentClass?{electricalComponentHint:equipmentClass}:{}),...(vectorAttachment?{sldVectorComponent:vectorAttachment.component,sldVectorDistance:vectorAttachment.distance,sldVectorAuthority:'PDF_VECTOR_CONNECTED_COMPONENT'}:{}),...sldMeta(t.page),...planMeta(t.page,t.x,t.y)}})}
+ for(const p of polygons){if(!pageEvidence.get(p.page)?.isSld&&!planEvidence.get(p.page)?.isPlan)continue;const area=Math.abs(p.vertices.reduce((s,v,j)=>{const n=p.vertices[(j+1)%p.vertices.length];return s+v.x*n.y-n.x*v.y},0))/2;if(area<.08||area>190)continue;const c=centroid(p.vertices);entities.push({id:`pdf-room-${p.page}-${i++}`,source:file.name,layer:'L1',kind:'vector-boundary-candidate',name:`PDF closed path · page ${p.page}`,x:c.x,y:c.y,z:0,vertices:p.vertices,floor:floorAt(p.page,c.x,c.y),confidence:p.confidence,meta:{page:p.page,floorInference:'plan-frame-or-sheet-title-candidate',elevationKnown:false,sourceType:'PDF vector path',reconstruction:'heuristic-closed-path',reviewRequired:true,coordinateUnits:'sheet',pdfTransformsApplied:true,geometryValidated:false,...sldMeta(p.page),...planMeta(p.page,c.x,c.y)}})}for(const t of raw){
+  if(/\bcannot locate\b|\bplease advise\b/i.test(t.str)||(!pageEvidence.get(t.page)?.isSld&&!planEvidence.get(t.page)?.isPlan))continue;
+  const legendEntry=fallbackLegendAbbreviationMap.get(t.str.trim().toUpperCase()),legendClass=legendEntry?.componentHint||null;
+  const equipmentClass=classifyElectricalLabel(t.str)||legendClass,poweredClass=poweredEquipmentClass(t.str),isAsset=Boolean(equipmentClass),isPoweredNonElectrical=Boolean(poweredClass&&!isAsset),isCircuit=isElectricalCircuitLabel(t.str),isRoom=roomCandidate(t.str),vectorAttachment=vectorAttachmentByKey.get(t.key);
+  if(!isAsset&&!isCircuit&&!isRoom&&!isPoweredNonElectrical)continue;
+  const layer:Layer=isRoom?'L1':isPoweredNonElectrical?'L4':isCircuit&&!isAsset?'L3':'L2';
+  entities.push({id:`pdf-${t.page}-${i++}`,source:file.name,layer,kind:isRoom?'room-label':isPoweredNonElectrical?'powered-equipment-candidate':isAsset?'text-asset-candidate':'logical-tag',name:t.str,x:t.x,y:t.y,z:0,floor:floorAt(t.page,t.x,t.y),confidence:isRoom?.7:isPoweredNonElectrical?.72:legendEntry?Math.min(.9,Number(legendEntry.confidence||.8)*.94):isAsset?.86:.74,meta:{page:t.page,floorInference:'sheet-title-candidate',elevationKnown:false,coordinateUnits:'sheet',sourceType:'PDF text object',...(poweredClass?{poweredEquipmentClass:poweredClass,registrationState:'CANDIDATE',spatialPlacementAuthority:'SOURCE_SHEET_POSITION_ONLY',physicalTruth:false,reviewRequired:true}:{}),...(equipmentClass?{electricalComponentHint:equipmentClass}:{}),...(legendEntry?{legendBacked:true,legendEntryId:legendEntry.id,legendAbbreviation:t.str.trim().toUpperCase(),symbolAnchorStatus:'TEXT_ABBREVIATION_REVIEW_CANDIDATE',symbolAnchorAuthority:'PROJECT_LEGEND_TEXT_ABBREVIATION',spatialPlacementAuthority:'SOURCE_TEXT_POSITION_ONLY',physicalTruth:false,reviewRequired:true,registrationState:'CANDIDATE'}:{}),...(vectorAttachment?{sldVectorComponent:vectorAttachment.component,sldVectorDistance:vectorAttachment.distance,sldVectorAuthority:'PDF_VECTOR_CONNECTED_COMPONENT'}:{}),...sldMeta(t.page),...planMeta(t.page,t.x,t.y)}})
+ }
  const symbolAnchorPolygons=polygons.map((polygon,index)=>{
   const center=centroid(polygon.vertices),frame=frameAt(polygon.page,center.x,center.y);
   return{id:`pdf-vector-symbol-${polygon.page}-${index}`,page:polygon.page,vertices:polygon.vertices,confidence:polygon.confidence,planFrameId:frame?.id||null};
@@ -305,44 +367,6 @@ function parseDxf(file:File,text:string,level:{floor:string;elevation:number}){
 
 function withAssetCandidates(parsed:GraphEntity[]){return [...parsed,...parsed.filter(e=>e.layer==='L2'&&e.kind!=='line'&&e.meta?.cadPhysicalAnchor!==false).map((e,i):GraphEntity=>({id:`asset-candidate-${e.id}-${i}`,source:e.source,layer:'L4',kind:'asset-candidate',name:e.name,x:e.x,y:e.y,z:e.z,rotation:e.rotation,scale:e.scale,floor:e.floor,zone:e.zone,confidence:Math.max(.5,e.confidence-.08),meta:{...e.meta,derivedFrom:e.id,registrationState:'CANDIDATE'}}))]}
 
-function withZConstraintGraph(entity:GraphEntity){
- const graph=buildEntityZConstraintGraph(entity);
- return {...entity,meta:{...entity.meta,zConstraintGraph:graph,zConstraintGraphStatus:graph.status,zConstraintBaseCandidateMeters:graph.baseZMeters,zConstraintConflictCount:graph.conflicts.length,zConstraintFrameGapCount:graph.frameGaps.length}};
-}
-
-function enrichZCandidates(parsed:GraphEntity[]){
- const evidence=parsed.flatMap(entity=>entity.meta?.zEvidence?[entity.meta.zEvidence as ZEvidence]:[]);
- const surfaces=buildProjectDatumSurfaces(evidence);
- const recovered=enrichZRecovery(parsed,evidence,surfaces);
- // Source sheet basemap lines are context, not Z-bearing assets. Excluding
- // ~28k drawing segments from the per-asset Z solver avoids enormous
- // main-thread work and does not infer a physical elevation.
- const reviewable=recovered.filter(e=>!(e.kind==='line'&&e.meta?.drawingBasemap===true));
- const index=buildZResolutionIndex(reviewable,evidence);
- return recovered.map(entity=>{
-  if(entity.kind==='line'&&entity.meta?.drawingBasemap===true){
-   return {...entity,meta:{...entity.meta,zResolutionStatus:'UNRESOLVED',
-    zPlacementAuthority:'UNVERIFIED_DRAWING_PLANE',physicalTruth:false,
-    elevationKnown:false,physicalElevationKnown:false}};
-  }
-  const resolution=index.get(entity.id);
-  const surface=projectDatumSurfaceForEntity(entity,surfaces);
-  const surfaceMeta=datumSurfaceMetadata(surface);
-  const xyzGuide=Number.isFinite(Number(entity.meta?.unitToMeters))&&String(entity.meta?.unitName||'')!=='unitless'
-   ?{zScaleGuideMetersPerSourceUnit:Number(entity.meta?.unitToMeters),zScaleGuideAuthority:'XY_AND_Z_SHARE_SOURCE_UNITS'}
-   :{};
-  if(!resolution||resolution.status==='UNRESOLVED'){
-   const inferred=Number.isFinite(Number(entity.meta?.inferredProjectDatumZ));
-   const relative=Number.isFinite(Number(entity.meta?.relativeReviewSurfaceZ));
-   return withZConstraintGraph({...entity,meta:{...entity.meta,...surfaceMeta,...xyzGuide,zResolutionStatus:inferred?'INFERRED_PROJECT_DATUM_CANDIDATE':relative?'RELATIVE_VISUALIZATION_ONLY':'UNRESOLVED',zResolutionConfidence:inferred?Number(entity.meta?.inferredProjectDatumConfidence||0):relative?Number(entity.meta?.relativeReviewSurfaceConfidence||0):0,zResolutionAuthority:inferred?String(entity.meta?.inferredProjectDatumAuthority||'PROJECT_STORY_INTERVAL_EXTRAPOLATION'):relative?String(entity.meta?.relativeReviewSurfaceAuthority||'VISUALIZATION_STORY_STACK_ONLY'):'UNRESOLVED',physicalElevationKnown:false,elevationKnown:false,reviewRequired:true}});
-  }
-  if(resolution.status==='RESOLVED_DESIGN_CANDIDATE'&&resolution.zMeters!==null){
-   return withZConstraintGraph({...entity,meta:{...entity.meta,...surfaceMeta,...xyzGuide,zCandidateMeters:resolution.zMeters,zCandidateReferencePoint:resolution.referencePoint,zResolutionStatus:resolution.status,zResolutionConfidence:resolution.confidence,zResolutionAuthority:resolution.authority,zResolutionEvidence:resolution.evidence,physicalElevationKnown:false,elevationKnown:false,reviewRequired:true}});
-  }
-  return withZConstraintGraph({...entity,meta:{...entity.meta,...surfaceMeta,...xyzGuide,zCandidateReferencePoint:resolution.referencePoint,zResolutionStatus:resolution.status,zResolutionConfidence:resolution.confidence,zResolutionAuthority:resolution.authority,zResolutionEvidence:resolution.evidence,physicalElevationKnown:false,elevationKnown:false,reviewRequired:true}});
- });
-}
-
 type SelectivePdfOcrResult={entities:GraphEntity[];ocrPages:number;textChars:number;nonSldPlanPages:number;planTypes:string[];disciplines:string[];failedPages:number[]};
 
 async function parsePdfSelectedOcrPages(
@@ -366,6 +390,10 @@ async function parsePdfSelectedOcrPages(
  const entities:GraphEntity[]=[],supportOffsets:SupportOffsetEvidence[]=[];
  const planTypes=new Set<string>(),disciplines=new Set<string>();
  const failedPages:number[]=[];let textChars=0,ocrPages=0,nonSldPlanPages=0;
+ const rasterFingerprints:RasterFingerprint[]=[];
+ const rasterPlanCandidates:RasterCandidate[]=[];
+ const rasterPageMeta=new Map<number,{planeWidth:number;planeHeight:number;pixelWidth:number;pixelHeight:number;floor:string;plan:any;frames:ReturnType<typeof detectPlanFrames>}>();
+
  try{
   for(let index=0;index<wanted.length;index++){
    if(signal.aborted)throw new PdfParseError('PDF_PARSE_CANCELLED','Selective scanned-page OCR was canceled. Native parsed content remains retryable.');
@@ -395,12 +423,60 @@ async function parsePdfSelectedOcrPages(
       const x0=Number(bbox.x0),y0=Number(bbox.y0),x1=Number(bbox.x1),y1=Number(bbox.y1);if(![x0,y0,x1,y1].every(Number.isFinite))return[];
       return[{text:label,x:(x0+x1)/2/Math.max(canvas.width,1),y:(y0+y1)/2/Math.max(canvas.height,1),width:Math.abs(x1-x0)/Math.max(canvas.width,1),height:Math.abs(y1-y0)/Math.max(canvas.height,1)}];
     });
-    const positioned=geometryItems.map(item=>({text:item.text,x:(Number(item.x)-.5)*planeWidth,y:(.5-Number(item.y))*planeHeight}));
+    const positioned=geometryItems.map(item=>{
+      const vertical=Number(item.height)>Number(item.width)*1.4;
+      return{text:item.text,x:(Number(item.x)-.5)*planeWidth,y:(.5-Number(item.y))*planeHeight,
+        dirX:vertical?0:1,dirY:vertical?-1:0,textSpan:(vertical?Number(item.height)*planeHeight:Number(item.width)*planeWidth)};
+    });
+    const legend=detectElectricalLegendPage(lines);
+    if(legend.isLegend){
+      const entries=extractElectricalLegendEntries(positioned.map(item=>({...item,page:pageNumber})),pageNumber);
+      for(const entry of entries)entities.push({id:`pdf-${entry.id}`,source:file.name,layer:'L0',kind:'electrical-legend-entry',name:`${entry.abbreviation} · ${entry.description}`,x:entry.anchor.x,y:entry.anchor.y,z:0,floor:'UNRESOLVED',confidence:entry.confidence,meta:{page:pageNumber,nonSpatial:true,sourceType:'ELECTRICAL_LEGEND',legendEntry:entry,legendPageScore:legend.score,ocrAuthority:'REVIEW_ONLY',physicalTruth:false,reviewRequired:true,spatialPlacementAuthority:'NON_SPATIAL_LEGEND',elevationKnown:false,physicalElevationKnown:false}} as GraphEntity);
+    }
+    const specification=detectElectricalSpecificationPage(lines);
+    if(specification.isSpecification){
+      const requirements=extractElectricalSpecificationRequirements(lines,pageNumber);
+      for(const requirement of requirements)entities.push({id:`pdf-${requirement.id}`,source:file.name,layer:'L0',kind:'electrical-spec-requirement',name:requirement.title,x:0,y:0,z:0,floor:'UNRESOLVED',confidence:requirement.confidence,meta:{page:pageNumber,nonSpatial:true,sourceType:'ELECTRICAL_SPECIFICATION',specRequirement:requirement,specificationSection:requirement.section,ocrAuthority:'REVIEW_ONLY',physicalTruth:false,reviewRequired:true,spatialPlacementAuthority:'NON_SPATIAL_SPECIFICATION',elevationKnown:false,physicalElevationKnown:false}} as GraphEntity);
+    }
+    const matrix=detectPdfEquipmentMatrixPage(lines);
+    if(matrix.isMatrix){
+      const records=extractPdfEquipmentMatrixRecords(positioned.map(item=>({...item,page:pageNumber})),pageNumber);
+      for(const record of records)entities.push({id:`pdf-${record.id}`,source:file.name,layer:'L4',kind:'schedule-powered-equipment-candidate',name:[record.tag||record.description,record.tag&&record.description?record.description:''].filter(Boolean).join(' '),x:0,y:0,z:0,floor:'UNRESOLVED',zone:record.location||undefined,confidence:record.confidence,meta:{page:pageNumber,nonSpatial:true,sourceType:'EQUIPMENT_SCHEDULE',scheduleSourceFormat:'PDF_POSITIONAL_TABLE_OCR',ocrAuthority:'REVIEW_ONLY',assetTag:record.scheduleKind==='EQUIPMENT'?(record.tag||undefined):undefined,fixtureMark:record.scheduleKind==='LIGHT_FIXTURE'?(record.tag||undefined):undefined,electricalComponentHint:record.componentHint||undefined,scheduleKind:record.scheduleKind,scheduleDescription:record.description||undefined,manufacturer:record.manufacturer||undefined,model:record.model||undefined,scheduleLocation:record.location||undefined,voltage:record.ratings.voltage,phase:record.ratings.phase,inputKva:record.ratings.kva,inputKw:record.ratings.kw,fla:record.ratings.fla,mca:record.ratings.mca,mocp:record.ratings.mocp,motorHp:record.ratings.hp,pdfEquipmentMatrixRecord:record,physicalTruth:false,reviewRequired:true,spatialPlacementAuthority:'NON_SPATIAL_SCHEDULE',registrationState:'CANDIDATE'}} as GraphEntity);
+    }
     const recognition=resolveDrawingPageRecognition(lines,0);
     if(recognition.plan.isPlan){nonSldPlanPages++;if(recognition.plan.planType)planTypes.add(String(recognition.plan.planType));}
     if(recognition.plan.isPlan&&recognition.plan.discipline)disciplines.add(String(recognition.plan.discipline));
     const frames=detectPlanFrames(positioned,recognition.plan);
     const frameAt=(x:number,y:number)=>resolvePlanFrameAtPoint(frames,x,y);
+    if(legend.isLegend||recognition.plan.isPlan){
+      const rasterMax=760,rasterScale=Math.min(1,rasterMax/Math.max(canvas.width,canvas.height,1));
+      const symbolCanvas=document.createElement('canvas'),symbolCtx=symbolCanvas.getContext('2d',{willReadFrequently:true});
+      symbolCanvas.width=Math.max(1,Math.round(canvas.width*rasterScale));symbolCanvas.height=Math.max(1,Math.round(canvas.height*rasterScale));
+      if(symbolCtx){
+        symbolCtx.drawImage(canvas,0,0,symbolCanvas.width,symbolCanvas.height);
+        const pixels=symbolCtx.getImageData(0,0,symbolCanvas.width,symbolCanvas.height);
+        const image=rasterFromRgba(pixels.data,symbolCanvas.width,symbolCanvas.height);
+        const textBoxes=blockLines.flatMap((line:any)=>{
+          const bbox=line?.bbox;if(!bbox)return[];
+          const x0=Number(bbox.x0)*rasterScale,y0=Number(bbox.y0)*rasterScale,x1=Number(bbox.x1)*rasterScale,y1=Number(bbox.y1)*rasterScale;
+          return [x0,y0,x1,y1].every(Number.isFinite)?[{x0:Math.max(0,Math.floor(x0-2)),y0:Math.max(0,Math.floor(y0-2)),x1:Math.min(symbolCanvas.width,Math.ceil(x1+2)),y1:Math.min(symbolCanvas.height,Math.ceil(y1+2))}]:[];
+        });
+        const candidates=detectRasterSymbolCandidates({image,page:pageNumber,textBoxes,maxPixels:1600});
+        if(legend.isLegend){
+          const entries=extractElectricalLegendEntries(positioned.map(item=>({...item,page:pageNumber})),pageNumber)
+            .filter(entry=>Boolean(entry.componentHint))
+            .map(entry=>({id:entry.id,componentClass:String(entry.componentHint),anchorX:entry.anchor.x,anchorY:entry.anchor.y,dirX:entry.textDirection?.x,dirY:entry.textDirection?.y,confidence:entry.confidence}));
+          rasterFingerprints.push(...buildRasterLegendFingerprints({
+            page:pageNumber,image,entries,candidates,
+            pixelFromAnchor:(x,y)=>({x:(x/planeWidth+.5)*symbolCanvas.width,y:(.5-y/planeHeight)*symbolCanvas.height})
+          }));
+        }
+        if(recognition.plan.isPlan){
+          rasterPlanCandidates.push(...candidates);
+          rasterPageMeta.set(pageNumber,{planeWidth,planeHeight,pixelWidth:symbolCanvas.width,pixelHeight:symbolCanvas.height,floor:pageFloor,plan:recognition.plan,frames});
+        }
+      }
+    }
     const geometryEvidence=extractSheetGeometryEvidence({items:geometryItems,pageWidthPoints:viewport.width,pageHeightPoints:viewport.height});
     const validation=validateIndependentScale({items:geometryItems,segments:[],declaredScale:geometryEvidence.drawingScale.value,pageMaxDimensionPoints:maxSide,normalizedSheetSpan:20,coordinateSpan:1});
     const previewMax=1000,previewScale=Math.min(1,previewMax/Math.max(canvas.width,canvas.height,1)),preview=document.createElement('canvas'),previewCtx=preview.getContext('2d');
@@ -436,6 +512,31 @@ async function parsePdfSelectedOcrPages(
     failedPages.push(pageNumber);
    }finally{page?.cleanup?.()}
   }
+  const rasterMatches=matchRasterLegendFingerprints({fingerprints:rasterFingerprints,candidates:rasterPlanCandidates});
+  for(const match of rasterMatches){
+    const meta=rasterPageMeta.get(match.page);if(!meta)continue;
+    const x=(match.centerX/meta.pixelWidth-.5)*meta.planeWidth,y=(.5-match.centerY/meta.pixelHeight)*meta.planeHeight;
+    const frame=resolvePlanFrameAtPoint(meta.frames,x,y);
+    entities.push({
+      id:`pdf-${match.id}`,source:file.name,layer:'L2',kind:'legend-symbol-match-candidate',
+      name:`${match.componentClass} · project legend raster match`,x,y,z:0,
+      floor:frame?.floor||meta.floor,confidence:match.confidence,
+      meta:{page:match.page,nonSldPlan:true,planType:meta.plan.planType||'PLAN_VIEW_UNCLASSIFIED',
+        planDiscipline:meta.plan.discipline||'Electrical',planFrameId:frame?.id||null,
+        planFrameFloor:frame?.floor||null,planFrameUnitId:frame?.unitId||null,planFrameUnitPlan:frame?.unitPlan||null,
+        electricalComponentHint:match.componentClass,legendRasterSymbolMatch:match,legendBacked:true,
+        symbolAnchorStatus:'RESOLVED_REVIEW_CANDIDATE',symbolAnchorAuthority:'PROJECT_LEGEND_RASTER_FINGERPRINT',
+        spatialPlacementAuthority:'PROJECT_LEGEND_RASTER_SYMBOL_MATCH',ocrAuthority:'REVIEW_ONLY',
+        physicalTruth:false,reviewRequired:true,elevationKnown:false,physicalElevationKnown:false,registrationState:'CANDIDATE'}
+    } as GraphEntity);
+  }
+  for(const fingerprint of rasterFingerprints)entities.push({
+    id:`pdf-${fingerprint.id}`,source:file.name,layer:'L0',kind:'electrical-legend-raster-fingerprint',
+    name:`${fingerprint.componentClass} · legend raster fingerprint`,x:0,y:0,z:0,floor:'UNRESOLVED',confidence:fingerprint.confidence,
+    meta:{page:fingerprint.sourcePage,nonSpatial:true,sourceType:'ELECTRICAL_LEGEND_RASTER_FINGERPRINT',
+      legendRasterFingerprint:fingerprint,ocrAuthority:'REVIEW_ONLY',physicalTruth:false,reviewRequired:true,
+      spatialPlacementAuthority:'NON_SPATIAL_LEGEND_RASTER_FINGERPRINT',elevationKnown:false,physicalElevationKnown:false}
+  } as GraphEntity);
   return{entities:enrichSupportBaseOffsets(entities,supportOffsets),ocrPages,textChars,nonSldPlanPages,planTypes:[...planTypes],disciplines:[...disciplines],failedPages};
  }finally{
   await ocrWorker.terminate().catch(()=>{});
@@ -507,6 +608,7 @@ export default function CompilerWorkspace({safeMode=false}:{safeMode?:boolean}){
  const [workerHealth,setWorkerHealth]=useState<'IDLE'|'STARTING'|'RUNNING'|'STALLED'|'CANCELING'|'FINALIZING'|'TERMINATED'>('IDLE');
  const lastWorkerHeartbeatRef=useRef(0);
  const parseAbortRef=useRef<AbortController|null>(null);
+ const graphAbortRef=useRef<AbortController|null>(null);
  // Synchronous exclusion while React's busy state is still committing.
  const parseBusyRef=useRef(false);
  const [queuedReprocessShas,setQueuedReprocessShas]=useState<string[]>([]);
@@ -585,21 +687,32 @@ export default function CompilerWorkspace({safeMode=false}:{safeMode?:boolean}){
 
  const totals=useMemo(()=>({files:files.length,parsed:files.filter(f=>f.state==='parsed').length,entities:entities.length,assets:entities.filter(e=>e.layer==='L4').length,levels:new Set(entities.map(e=>e.floor).filter(f=>f&&f!=='UNRESOLVED')).size,rooms:entities.filter(e=>e.kind==='room-boundary').length,nonSldPlanPages:files.reduce((sum,file)=>sum+(file.nonSldPlanPages||0),0),reprocess:staleDrawingSources.length}),[files,entities,staleDrawingSources.length]);
  const layerStats=useMemo(()=>['L0','L1','L2','L3','L4'].reduce((a,l)=>({...a,[l]:entities.filter(e=>e.layer===l).length}),{} as Record<string,number>),[entities]);
- async function saveGraph(nextFiles:SourceFile[],rawEntities:GraphEntity[],replaceSources:{sha256:string;name:string}[]=[]){
-  const saved=(await readPrimarySpatialGraph()||{}) as Partial<CompiledGraph>;
-  if(saved.entities&&!Array.isArray(saved.entities))throw new Error('Saved graph is invalid; import was not written.');
-  const replaceShas=new Set(replaceSources.map(item=>item.sha256)),replaceNames=new Set(replaceSources.map(item=>item.name));
-  const current:GraphEntity[]=(saved.entities as GraphEntity[]||[]).filter(entity=>!replaceShas.has(String(entity.meta?.sourceSha256||''))&&!replaceNames.has(entity.source));
-  const merged=[...new Map([...current,...rawEntities.filter(e=>e.meta?.sourceType!=='MANUAL_IMAGE_ANNOTATION')].map(e=>[e.id,e])).values()];
-  const zoned=assignZones(merged),links=buildLinks(zoned);
-  const priorSources=(saved.sources||[]).filter(source=>!replaceShas.has(source.sha256)&&!replaceNames.has(source.name));
-  const sources=[...new Map([...priorSources,...nextFiles].map(f=>[f.sha256,f])).values()];
-  const base={...saved,coordinationIntelligence:undefined,reviewState:zoned.some(e=>e.layer==='L2'||e.layer==='L4')?'REVIEW_REQUIRED':saved.reviewState,version:'1.2',createdAt:new Date().toISOString(),sources,entities:zoned,links,stats:{L0:sources.length,L1:zoned.filter(e=>e.layer==='L1').length,L2:zoned.filter(e=>e.layer==='L2').length,L3:zoned.filter(e=>e.layer==='L3').length,L4:zoned.filter(e=>e.layer==='L4').length}};
-  const graph=enrichCoordinationIntelligence(base as any) as CompiledGraph;
-  await replaceCurrentSpatialGraph(graph);
-  setEntities(graph.entities as GraphEntity[]);
+ async function saveGraph(nextFiles:SourceFile[],rawEntities:GraphEntity[],replaceSources:{sha256:string;name:string}[]=[],signal?:AbortSignal){
+  // The compile runs off the UI thread, so a review panel can write the graph meanwhile. Commit
+  // only against the graph this compile was built from; on a conflict, rebuild from the latest.
+  for(let attempt=1;;attempt++){
+   const stored=await readPrimarySpatialGraph();
+   const saved=(stored||{}) as Partial<CompiledGraph>;
+   if(saved.entities&&!Array.isArray(saved.entities))throw new Error('Saved graph is invalid; import was not written.');
+   const replaceShas=new Set(replaceSources.map(item=>item.sha256)),replaceNames=new Set(replaceSources.map(item=>item.name));
+   const current:GraphEntity[]=(saved.entities as GraphEntity[]||[]).filter(entity=>!replaceShas.has(String(entity.meta?.sourceSha256||''))&&!replaceNames.has(entity.source));
+   const merged=[...new Map([...current,...rawEntities.filter(e=>e.meta?.sourceType!=='MANUAL_IMAGE_ANNOTATION')].map(e=>[e.id,e])).values()];
+   const priorSources=(saved.sources||[]).filter(source=>!replaceShas.has(source.sha256)&&!replaceNames.has(source.name));
+   const sources=[...new Map([...priorSources,...nextFiles].map(f=>[f.sha256,f])).values()];
+   const _tCompile=performance.now();
+   const compiled=await compileGraphOffThread({entities:merged,sources,priorReviewState:saved.reviewState},signal);
+   const _tPersist=performance.now();
+   const graph={...saved,version:'1.2',createdAt:new Date().toISOString(),sources,entities:compiled.zoned,links:compiled.links,coordinationIntelligence:compiled.coordinationIntelligence,electricalIntelligence:compiled.electricalIntelligence,reviewState:compiled.reviewState,stats:compiled.stats} as CompiledGraph;
+   if(!await replaceCurrentSpatialGraph(graph,graphSignature(stored))){
+    if(attempt>=3)throw new Error('The saved graph kept changing during import; nothing was overwritten.');
+    continue;
+   }
+   setEntities(graph.entities as GraphEntity[]);
+   console.info(`[stratum perf] saveGraph ${merged.length} entities · compile(worker) ${Math.round(_tPersist-_tCompile)}ms · persist ${Math.round(performance.now()-_tPersist)}ms`);
+   return{zoned:compiled.zoned,links:compiled.links};
+  }
  }
- async function processFiles(incoming:File[]){if(parseBusyRef.current||busy||!incoming.length)return;parseBusyRef.current=true;setBusy(true);let nextFiles=[...files],nextEntities=[...entities],fileFailures:string[]=[];for(const file of incoming){const ext=(file.name.split('.').pop()||'').toLowerCase();if(!ACCEPTED.has(ext)){setMessage(`${file.name} skipped: unsupported source format.`);continue}let buf:ArrayBuffer;try{buf=await file.arrayBuffer()}catch{setMessage(`${file.name} could not be read.`);continue}let digest:string;try{digest=await sha(buf)}catch{setMessage(`${file.name}: fingerprint failed; retry the import.`);continue}const archiveResult=await archiveSourceBytes({sha256:digest,name:file.name,mimeType:file.type,size:file.size,ext,bytes:buf});if(archiveResult.archived)setArchivedShas(current=>{const next=new Set(current);next.add(digest);return next});else setArchiveNote(`${file.name} was parsed without a protected browser-local source copy: ${archiveResult.reason}`);const discipline=classify(file.name),level=inferLevel(file.name);let replacementSource:{sha256:string;name:string}|null=null,replacementBackup:{source:SourceFile;entities:GraphEntity[]}|null=null;
+ async function processFiles(incoming:File[]){if(parseBusyRef.current||busy||!incoming.length)return;parseBusyRef.current=true;setBusy(true);let nextFiles=[...files],nextEntities=[...entities],fileFailures:string[]=[],lastAssembly:{zoned:GraphEntity[];links:GraphLink[]}|null=null;for(const file of incoming){const ext=(file.name.split('.').pop()||'').toLowerCase();if(!ACCEPTED.has(ext)){setMessage(`${file.name} skipped: unsupported source format.`);continue}let buf:ArrayBuffer;try{buf=await file.arrayBuffer()}catch{setMessage(`${file.name} could not be read.`);continue}let digest:string;try{digest=await sha(buf)}catch{setMessage(`${file.name}: fingerprint failed; retry the import.`);continue}const archiveResult=await archiveSourceBytes({sha256:digest,name:file.name,mimeType:file.type,size:file.size,ext,bytes:buf});if(archiveResult.archived)setArchivedShas(current=>{const next=new Set(current);next.add(digest);return next});else setArchiveNote(`${file.name} was parsed without a protected browser-local source copy: ${archiveResult.reason}`);const discipline=classify(file.name),level=inferLevel(file.name);let replacementSource:{sha256:string;name:string}|null=null,replacementBackup:{source:SourceFile;entities:GraphEntity[]}|null=null;
  const priorFailed=nextFiles.find(source=>source.sha256===digest&&source.state==='failed');
  if(priorFailed){nextFiles=nextFiles.filter(source=>source.sha256!==digest);nextEntities=nextEntities.filter(entity=>String(entity.meta?.sourceSha256||'')!==digest&&entity.source!==priorFailed.name)}
  const existing=nextFiles.find(source=>source.sha256===digest&&source.state!=='failed');if(existing){const reason=drawingSourceReprocessReason(existing,nextEntities);if(!reason)continue;replacementSource={sha256:digest,name:existing.name};replacementBackup={source:existing,entities:nextEntities.filter(entity=>String(entity.meta?.sourceSha256||'')===digest||entity.source===existing.name)};nextFiles=nextFiles.filter(source=>source.sha256!==digest);nextEntities=nextEntities.filter(entity=>String(entity.meta?.sourceSha256||'')!==digest&&entity.source!==existing.name);setMessage(`${file.name}: reprocessing saved drawing with the current basemap/non-SLD pipeline…`)}let sf:SourceFile={name:file.name,size:file.size,ext,discipline,sha256:digest,state:'review',summary:'Format requires review',entities:0,floor:level.floor,elevation:level.elevation};try{if(ext==='pdf'){
@@ -643,10 +756,24 @@ export default function CompilerWorkspace({safeMode=false}:{safeMode?:boolean}){
  await new Promise<void>(resolve=>window.setTimeout(resolve,0));
  setMessage(`${file.name}: indexing Z source evidence for ${graph.length} review objects…`);
  const zGraph=enrichZCandidates(graph);const reprocessAudit=replacementBackup?inspectDrawingReprocessOutput(zGraph):null;nextEntities=[...nextEntities,...zGraph];sf={...sf,discipline:parsed.disciplines.length>1?'Multi-discipline':parsed.disciplines[0]||discipline,state:'parsed',floor:[...new Set(graph.map(e=>e.floor))].join(', ')||'UNRESOLVED',summary:`${parsed.summary} · elevations and cross-sheet alignment unverified · ${graph.filter(x=>x.layer==='L4').length} L4 candidates${reprocessAudit?' · '+reprocessAudit.summary:''}`,entities:zGraph.length,pages:parsed.pages,vectors:parsed.vectors,textItems:parsed.textItems,sldPages:parsed.sldPages,nonSldPlanPages:parsed.nonSldPlanPages,planTypes:parsed.planTypes,setCompleteness:parsed.setCompleteness}}else if(ext==='dxf'){const parsed=parseDxf(file,await file.text(),level),graph=withAssetCandidates(scopeSourceEntities(parsed.entities,digest));nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:`${parsed.summary} · floor label ${level.floor}; Z remains source-driven/reviewed · ${graph.filter(x=>x.layer==='L4').length} L4 candidates`,entities:graph.length,unitName:parsed.unitName,unitToMeters:parsed.unitToMeters}}else if(['png','jpg','jpeg'].includes(ext)){const parsed=await parseImage(file,level,discipline,message=>setMessage(`${file.name}: ${message}`)),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,discipline:parsed.planDiscipline||discipline,state:parsed.ocrSucceeded?'parsed':'review',summary:parsed.summary,entities:graph.length,nonSldPlanPages:parsed.planType?1:0,planTypes:parsed.planType?[parsed.planType]:[]}}else if(['csv','txt'].includes(ext)){const parsed=parseEquipmentScheduleText(await file.text(),file.name,discipline,level.floor),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:parsed.summary,entities:graph.length}}else if(ext==='xlsx'){const parsed=parseXlsxBytes(new Uint8Array(buf),file.name,discipline,level.floor),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:parsed.summary,entities:graph.length}}else if(ext==='docx'){const parsed=parseDocxBytes(new Uint8Array(buf),file.name,discipline,level.floor),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:parsed.summary,entities:graph.length}}else if(ext==='ifc'){const parsed=parseIfcText(await file.text(),file.name,discipline),graph=withAssetCandidates(scopeSourceEntities(parsed.entities,digest) as GraphEntity[]);nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',discipline:discipline==='Unclassified'?'BIM / Multi-discipline':discipline,summary:parsed.summary,entities:graph.length,unitName:parsed.unitName,unitToMeters:parsed.unitToMeters||undefined}}else if(ext==='glb'){const model=await parseGlb(file,buf,digest,level);const existing=nextEntities.filter(e=>e.meta?.nonSpatial!==true);if(existing.length){const xs=existing.flatMap(e=>[e.x,...(Number.isFinite(e.x2)?[e.x2!]:[])]);model.x=Math.max(...xs)+3;model.y=existing.reduce((sum,e)=>sum+e.y,0)/existing.length;}nextEntities=[...nextEntities,model];sf={...sf,state:'parsed',summary:'Renderable 3D geometry imported · placement unverified · no registered asset inferred',entities:1,unitName:'m',unitToMeters:1}}else if(ext==='gltf')sf={...sf,state:'adapter',summary:'Use a self-contained .glb export. Standalone .gltf may reference external textures or buffers and cannot be safely restored as one file.'};else if(ext==='xls')sf={...sf,state:'adapter',summary:'Legacy XLS fingerprinted. Binary BIFF adapter or conversion to XLSX is required; no structured engineering fields were invented.'};else if(NATIVE_ADAPTER.includes(ext))sf={...sf,state:'adapter',summary:`${ext.toUpperCase()} fingerprinted. Native adapter required before spatial claims.`};else sf={...sf,state:'review',summary:'Source preserved; format-specific extraction required.'}}catch(err){const failure=err instanceof Error?err.message:'Parser failed';fileFailures.push(`${file.name}: ${failure}`);if(replacementBackup){nextEntities=nextEntities.filter(entity=>String(entity.meta?.sourceSha256||'')!==digest&&entity.source!==replacementBackup!.source.name);nextEntities=[...nextEntities,...replacementBackup.entities];sf=replacementBackup.source;replacementSource=null;setMessage(`${file.name}: reprocess failed; the previous saved compilation was preserved. ${failure}`)}else sf={...sf,state:'failed',summary:failure}}nextFiles=[...nextFiles,sf];await new Promise<void>(resolve=>window.setTimeout(resolve,0));
- nextEntities=reconcileSpatialEquipmentIdentity(enrichZCandidates(nextEntities));setFiles(nextFiles);
- setWorkerHealth('FINALIZING');setMessage(`${file.name}: saving ${nextEntities.length} objects; prior graph protected…`);
- await new Promise<void>(resolve=>window.setTimeout(resolve,0));
- try{await saveGraph(nextFiles,nextEntities,replacementSource?[replacementSource]:[])}catch{setEntities(nextEntities);parseBusyRef.current=false;setBusy(false);setDragging(false);setMessage('Import could not be saved. Existing saved work is unchanged; imported objects remain in this session. Browser storage may be full or unavailable.');return}}parseBusyRef.current=false;setBusy(false);setDragging(false);setCanCancel(false);setParseProgress(null);parseAbortRef.current=null;setWorkerHealth('IDLE');const zoned=assignZones(nextEntities),links=buildLinks(zoned);setMessage(fileFailures.length?`Import finished with ${fileFailures.length} review exception${fileFailures.length===1?'':'s'}. ${fileFailures.join(' · ')} Retry is available without reloading.`:`Source compilation updated: ${nextFiles.filter(f=>f.state==='parsed').length}/${nextFiles.length} sources · ${new Set(zoned.map(e=>e.floor).filter(f=>f&&f!=='UNRESOLVED')).size} identified floor label(s) · ${zoned.filter(e=>e.kind==='room-boundary').length} reconstructed rooms · ${zoned.length} entities · ${links.length} relationships.`)}
+ // Graph finalization runs in a worker with a hard deadline and stays cancelable, so a silent
+ // worker cannot leave upload and cancel disabled.
+ const graphController=new AbortController();graphAbortRef.current=graphController;setCanCancel(true);
+ try{
+  {const _t=performance.now();nextEntities=await enrichEntitiesOffThread(nextEntities,graphController.signal);console.info(`[stratum perf] enrichZ+reconcile(worker) ${Math.round(performance.now()-_t)}ms · ${nextEntities.length} entities`);}setFiles(nextFiles);
+  setWorkerHealth('FINALIZING');setMessage(`${file.name}: saving ${nextEntities.length} objects; prior graph protected…`);
+  await new Promise<void>(resolve=>window.setTimeout(resolve,0));
+  lastAssembly=await saveGraph(nextFiles,nextEntities,replacementSource?[replacementSource]:[],graphController.signal);
+ }catch(error){
+  parseBusyRef.current=false;setBusy(false);setDragging(false);setCanCancel(false);setParseProgress(null);
+  if(error instanceof GraphWorkerError){
+   // The saved graph and this session's prior state are untouched, so the same file can be retried.
+   setWorkerHealth('TERMINATED');
+   setMessage(`${file.name}: ${error.message} Existing saved work is unchanged; retry is available without reloading.`);
+   return;
+  }
+  setWorkerHealth('IDLE');setFiles(nextFiles);setEntities(nextEntities);setMessage('Import could not be saved. Existing saved work is unchanged; imported objects remain in this session. Browser storage may be full or unavailable.');return
+ }finally{if(graphAbortRef.current===graphController)graphAbortRef.current=null}}parseBusyRef.current=false;setBusy(false);setDragging(false);setCanCancel(false);setParseProgress(null);parseAbortRef.current=null;setWorkerHealth('IDLE');const {zoned,links}=lastAssembly??await assembleGraphOffThread(nextEntities);setMessage(fileFailures.length?`Import finished with ${fileFailures.length} review exception${fileFailures.length===1?'':'s'}. ${fileFailures.join(' · ')} Retry is available without reloading.`:`Source compilation updated: ${nextFiles.filter(f=>f.state==='parsed').length}/${nextFiles.length} sources · ${new Set(zoned.map(e=>e.floor).filter(f=>f&&f!=='UNRESOLVED')).size} identified floor label(s) · ${zoned.filter(e=>e.kind==='room-boundary').length} reconstructed rooms · ${zoned.length} entities · ${links.length} relationships.`)}
  async function renderSpatial(){
   if(busy||!entities.length)return;
   setMessage('Preparing the latest compiled graph for Spatial…');
@@ -675,9 +802,17 @@ export default function CompilerWorkspace({safeMode=false}:{safeMode?:boolean}){
   queueArchivedReprocess(archivedStaleSources.map(item=>String(item.source.sha256||'')));
  }
  function cancelActiveParse(){
-  if(!parseAbortRef.current){setMessage('No active PDF worker to cancel. Saved-graph finalization may be running.');return}
-  setWorkerHealth('CANCELING');setMessage('Canceling PDF worker; previous compilation protected…');
-  parseAbortRef.current.abort();
+  if(parseAbortRef.current){
+   setWorkerHealth('CANCELING');setMessage('Canceling PDF worker; previous compilation protected…');
+   parseAbortRef.current.abort();
+   return;
+  }
+  if(graphAbortRef.current){
+   setWorkerHealth('CANCELING');setMessage('Canceling graph finalization; previous compilation protected…');
+   graphAbortRef.current.abort();
+   return;
+  }
+  setMessage('No active import step to cancel.');
  }
  async function addFiles(e:ChangeEvent<HTMLInputElement>){await processFiles(Array.from(e.target.files||[]));e.target.value=''}async function drop(e:DragEvent<HTMLLabelElement>){e.preventDefault();setDragging(false);await processFiles(Array.from(e.dataTransfer.files||[]))}
  async function addTeslaReference(){

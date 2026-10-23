@@ -82,3 +82,65 @@ test('native PDF worker stays responsive, can cancel, and retries the same file 
  await expect(page.locator('section.import-primary input[type=file][accept*=".pdf"]')).toBeEnabled();
  await page.evaluate(()=>window.clearInterval((window as any).__stratumHeartbeatTimer));
 });
+
+// Graph finalization (enrich/compile/project) runs in its own worker after the PDF parse. A real
+// worker is used for the PDF; only graph-task messages are swallowed, so that worker never replies.
+async function stallGraphWorker(page:import('@playwright/test').Page){
+ await page.evaluate(()=>{
+  const ActualWorker=window.Worker;
+  const graphTasks=new Set(['enrich','compile','assemble','project']);
+  let stalled=0,terminated=0;
+  class StallingGraphWorker extends ActualWorker{
+   private swallowed=false;
+   postMessage(message:any,options?:any){
+    if(graphTasks.has(message?.type)){this.swallowed=true;stalled++;return}
+    super.postMessage(message,options);
+   }
+   terminate(){if(this.swallowed)terminated++;super.terminate()}
+  }
+  window.Worker=StallingGraphWorker as unknown as typeof Worker;
+  (window as any).__graphStalled=()=>stalled;
+  (window as any).__graphTerminated=()=>terminated;
+  (window as any).__restoreWorker=()=>{window.Worker=ActualWorker};
+ });
+}
+
+test('silent graph worker is stopped by its deadline and the same PDF retries without reload',async({page},testInfo)=>{
+ test.setTimeout(120000);
+ if(testInfo.project.name!=='desktop-chromium')return;
+ await page.goto('/import');
+ await page.clock.install();
+ await stallGraphWorker(page);
+ const pdf=syntheticVectorPdf(1,1200);
+ const input=page.locator('section.import-primary input[type=file][accept*=".pdf"]');
+ await input.setInputFiles({name:'graph-stall.pdf',mimeType:'application/pdf',buffer:pdf});
+ await expect.poll(()=>page.evaluate(()=>(window as any).__graphStalled()),{timeout:60000}).toBeGreaterThan(0);
+ await expect(page.getByRole('button',{name:'Cancel current PDF parse'})).toBeEnabled();
+ // Ten simulated minutes: the three-minute graph deadline must release the import.
+ for(let i=0;i<20;i++)await page.clock.fastForward(30000);
+ await expect(page.getByRole('status').filter({hasText:/did not finish within 3 minutes/})).toBeVisible();
+ await expect(page.getByRole('status').filter({hasText:/Existing saved work is unchanged; retry is available/})).toBeVisible();
+ await expect(input).toBeEnabled();
+ expect(await page.evaluate(()=>(window as any).__graphTerminated())).toBeGreaterThan(0);
+
+ await page.evaluate(()=>(window as any).__restoreWorker());
+ await input.setInputFiles({name:'graph-stall.pdf',mimeType:'application/pdf',buffer:pdf});
+ await expect(page.getByRole('status').filter({hasText:/Source compilation updated/})).toBeVisible({timeout:60000});
+ await expect(page.getByText('PARSED',{exact:true})).toBeVisible();
+ await expect(input).toBeEnabled();
+});
+
+test('graph finalization can be canceled and leaves upload available',async({page},testInfo)=>{
+ test.setTimeout(90000);
+ if(testInfo.project.name!=='desktop-chromium')return;
+ await page.goto('/import');
+ await stallGraphWorker(page);
+ const input=page.locator('section.import-primary input[type=file][accept*=".pdf"]');
+ await input.setInputFiles({name:'graph-cancel.pdf',mimeType:'application/pdf',buffer:syntheticVectorPdf(1,1200)});
+ await expect.poll(()=>page.evaluate(()=>(window as any).__graphStalled()),{timeout:60000}).toBeGreaterThan(0);
+ await page.getByRole('button',{name:'Cancel current PDF parse'}).click();
+ await expect(page.getByRole('status').filter({hasText:/Graph finalization was canceled/})).toBeVisible({timeout:10000});
+ await expect(input).toBeEnabled();
+ expect(await page.evaluate(()=>(window as any).__graphTerminated())).toBeGreaterThan(0);
+ await page.evaluate(()=>(window as any).__restoreWorker());
+});

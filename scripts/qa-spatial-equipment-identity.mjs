@@ -69,8 +69,10 @@ const unrelated={...spatial,id:'pdf-ats-1',name:'ATS-1 AUTOMATIC TRANSFER SWITCH
 const unrelatedResult=reconcileSpatialEquipmentIdentity([unrelated,schedule]).find(entity=>entity.id==='pdf-ats-1');
 assert.equal(unrelatedResult?.meta?.productIdentityStatus,undefined);
 
-const compiler=fs.readFileSync('components/CompilerWorkspace.tsx','utf8');
-assert.match(compiler,/reconcileSpatialEquipmentIdentity/);
-assert.match(compiler,/reconcileSpatialEquipmentIdentity\(enrichZCandidates\(nextEntities\)\)/);
+// Equipment-identity reconciliation over the accumulated graph moved into
+// lib/graph-enrichment.ts (enrichSpatialEntities) so it can run in the graph worker.
+const enrichment=fs.readFileSync('lib/graph-enrichment.ts','utf8');
+assert.match(enrichment,/reconcileSpatialEquipmentIdentity/);
+assert.match(enrichment,/reconcileSpatialEquipmentIdentity\(enrichZCandidates\(entities\)\)/);
 
 console.log('Spatial equipment identity reconciliation passed: same-tag schedule evidence enriches positioned equipment for exact product-model resolution, conflicts fail closed without silent manufacturer/model selection, existing source evidence is preserved, and physical installed identity remains unverified.');

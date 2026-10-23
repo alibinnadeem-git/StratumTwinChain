@@ -141,11 +141,13 @@ for(const label of ['197.65 FT EG','197.96 FT FG','194.61 FT TC','193.78 FT FL']
 }
 
 const compiler=fs.readFileSync('components/CompilerWorkspace.tsx','utf8');
+// Per-asset Z enrichment now lives in lib/graph-enrichment.ts so it can run in the graph worker.
+const enrichment=fs.readFileSync('lib/graph-enrichment.ts','utf8');
 assert.doesNotMatch(compiler,/elevation:\s*12/);
 assert.doesNotMatch(compiler,/elevation:\s*-4/);
 assert.doesNotMatch(compiler,/\(f-1\)\*4/);
 assert.match(compiler,/extractZEvidenceFromText/);
-assert.match(compiler,/zCandidateMeters/);
+assert.match(enrichment,/zCandidateMeters/);
 assert.match(compiler,/SOURCE_DXF_DESIGN_Z/);
 assert.match(compiler,/explicitSourceZ/);
 assert.match(compiler,/physicalElevationKnown:false/);

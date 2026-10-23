@@ -2,6 +2,7 @@ import {CHUNKED_GRAPH_THRESHOLD,getChunkedGraph,getChunkedGraphHead,putChunkedGr
 
 import {requireExportAuthority} from './spatial-authority-io.ts';
 import {assertRealWritePayload} from './spatial-provenance.ts';
+import {graphSignature} from './graph-signature.ts';
 export type SpatialGraphLike={
   version?:string;
   createdAt?:string;
@@ -143,7 +144,34 @@ export function assertNonSyntheticSpatialGraph(graph:SpatialGraphLike):void{
     throw new Error('DEMO / SYNTHETIC graphs are ineligible for persisted Spatial or authoritative source records.');
 }
 
+// Primary-graph writes run one at a time so a compare-and-write (writePrimarySpatialGraphIfUnchanged,
+// replaceCurrentSpatialGraph with an expected signature) cannot have another write land between
+// its check and its write.
+let primaryWriteQueue:Promise<unknown>=Promise.resolve();
+function serializePrimaryWrite<T>(task:()=>Promise<T>):Promise<T>{
+  const run=primaryWriteQueue.then(task,task);
+  primaryWriteQueue=run.catch(()=>{});
+  return run;
+}
+
 export async function writePrimarySpatialGraph(graph:SpatialGraphLike,storage:Storage=localStorage){
+  return serializePrimaryWrite(()=>writePrimarySpatialGraphNow(graph,storage));
+}
+
+/**
+ * Writes graph only if the stored primary graph still has expectedSignature (graphSignature of the
+ * graph the caller derived from). Returns false, writing nothing, when another writer got there first.
+ */
+export function writePrimarySpatialGraphIfUnchanged(graph:SpatialGraphLike,expectedSignature:string,storage:Storage=localStorage){
+  return serializePrimaryWrite(async()=>{
+    const latest=await readPrimarySpatialGraph(storage);
+    if(graphSignature(latest)!==expectedSignature)return false;
+    await writePrimarySpatialGraphNow(graph,storage);
+    return true;
+  });
+}
+
+async function writePrimarySpatialGraphNow(graph:SpatialGraphLike,storage:Storage){
   if(!isSpatialGraph(graph))throw new Error('This file is not a valid STRATUM Spatial graph.');
   assertNonSyntheticSpatialGraph(graph);
   if(graph.entities.length>=CHUNKED_GRAPH_THRESHOLD){
@@ -339,12 +367,23 @@ export async function restoreSpatialRecoveryBundle(value:unknown,storage:Storage
   return{graph:primary,summary:bundle.summary};
 }
 
-export async function replaceCurrentSpatialGraph(graph:SpatialGraphLike){
+/**
+ * With expectedSignature, replaces the graph only if the stored one still matches it and returns
+ * false otherwise, so a caller that derived graph from an older read cannot revert newer work.
+ */
+export async function replaceCurrentSpatialGraph(graph:SpatialGraphLike,expectedSignature?:string):Promise<boolean>{
   if(!isSpatialGraph(graph))throw new Error('This file is not a valid STRATUM Spatial graph.');
-  const previousChunkHead=await getChunkedGraphHead(PRIMARY_KEY).catch(()=>null);
-  const current=await readPrimarySpatialGraph();
-  await writePrimarySpatialGraph(graph);
+  const replaced=await serializePrimaryWrite(async()=>{
+    const previousChunkHead=await getChunkedGraphHead(PRIMARY_KEY).catch(()=>null);
+    const current=await readPrimarySpatialGraph();
+    if(expectedSignature!==undefined&&graphSignature(current)!==expectedSignature)return null;
+    await writePrimarySpatialGraphNow(graph,localStorage);
+    return {current,previousChunkHead};
+  });
+  if(!replaced)return false;
+  const {current,previousChunkHead}=replaced;
   await protectSpatialGraph(graph,current,previousChunkHead);
   window.dispatchEvent(new Event('stratum:graph-updated'));
   window.dispatchEvent(new Event(SPATIAL_RECOVERY_EVENT));
+  return true;
 }

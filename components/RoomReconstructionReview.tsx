@@ -1,29 +1,46 @@
 'use client';
 
-import {useEffect,useState} from 'react';
+import {useEffect,useRef,useState} from 'react';
 import {proposeRooms,reconstructWallLoopCandidates,type RoomEntity,type RoomProposal} from '@/lib/room-reconstruction';
-import {readPrimarySpatialGraph,writePrimarySpatialGraph} from '@/lib/spatial-browser-recovery';
+import {readPrimarySpatialGraph,writePrimarySpatialGraphIfUnchanged} from '@/lib/spatial-browser-recovery';
+import {entitiesSignature,graphSignature} from '@/lib/graph-signature';
 
 type Graph={entities?:RoomEntity[];roomReconstructionProposals?:RoomProposal[];[key:string]:unknown};
 
 export default function RoomReconstructionReview(){
  const [proposals,setProposals]=useState<RoomProposal[]>([]);
+ const runningRef=useRef(false);
  async function refresh(){
-  const graph=(await readPrimarySpatialGraph()||{}) as Graph;
+  if(runningRef.current)return; // never overlap: avoids duplicate writes during a cascade
+  runningRef.current=true;
+  let rerun=false;
+  try{
+  const stored=await readPrimarySpatialGraph();
+  const graph=(stored||{}) as Graph;
   const base=(graph.entities||[]).filter(entity=>entity.meta?.reconstruction!=='wall-segment-loop');
   const stitched=reconstructWallLoopCandidates(base);
   const combined=[...base,...stitched];
   const next=proposeRooms(combined);
   const proposalMap=new Map(next.map(item=>[item.candidateId,item]));
   const entities=combined.map(entity=>entity.kind==='vector-boundary-candidate'?{...entity,meta:{...(entity.meta||{}),automaticRoomProposal:proposalMap.get(entity.id)||null}}:entity);
-  const changed=JSON.stringify(graph.roomReconstructionProposals||[])!==JSON.stringify(next)||JSON.stringify(graph.entities||[])!==JSON.stringify(entities);
-  if(changed){
-   await writePrimarySpatialGraph({...graph,entities,roomReconstructionProposals:next} as any);
+  const changed=JSON.stringify(graph.roomReconstructionProposals||[])!==JSON.stringify(next)||entitiesSignature(graph.entities||[])!==entitiesSignature(entities);
+  // A human review (e.g. a room confirmation) written while this pass ran must not be reverted:
+  // write only against the graph read above, otherwise recompute from the latest.
+  if(changed&&!await writePrimarySpatialGraphIfUnchanged({...graph,entities,roomReconstructionProposals:next} as any,graphSignature(stored))){
+   rerun=true;return;
   }
   setProposals(next);
   if(changed)window.dispatchEvent(new Event('stratum:graph-updated'));
+  }finally{runningRef.current=false;if(rerun)void refresh()}
  }
- useEffect(()=>{const run=()=>{void refresh()};run();window.addEventListener('stratum:graph-updated',run);return()=>window.removeEventListener('stratum:graph-updated',run)},[]);
+ useEffect(()=>{
+  // Debounce graph-updated bursts into a single reconstruction pass.
+  let timer:ReturnType<typeof setTimeout>|null=null;
+  const run=()=>{if(timer)clearTimeout(timer);timer=setTimeout(()=>void refresh(),250)};
+  void refresh();
+  window.addEventListener('stratum:graph-updated',run);
+  return()=>{if(timer)clearTimeout(timer);window.removeEventListener('stratum:graph-updated',run)};
+ },[]);
  const eligible=proposals.filter(item=>item.eligible);
  const stitchedCount=proposals.filter(item=>item.candidateId.startsWith('wall-loop-')).length;
  return <section className="card" style={{marginTop:16}} aria-label="Automatic room reconstruction review">

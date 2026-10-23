@@ -4,6 +4,8 @@ import fs from 'node:fs';
 const compiler=fs.readFileSync('components/CompilerWorkspace.tsx','utf8');
 const worker=fs.readFileSync('workers/pdf-native-parser.worker.ts','utf8');
 const assets=fs.readFileSync('scripts/prepare-pdf-assets.mjs','utf8');
+// Z-recovery enrichment moved to lib/graph-enrichment.ts so it can run in the graph worker.
+const enrichment=fs.readFileSync('lib/graph-enrichment.ts','utf8');
 
 const checks=[
  ['native PDF path uses a dedicated Worker',/new Worker\(new URL\('\.\.\/workers\/pdf-native-parser\.worker\.ts'/.test(compiler)],
@@ -22,7 +24,7 @@ const checks=[
  ['worker caps retained analysis geometry by ingestion profile',/ingestion\.maxAnalysisSegmentsPerPage/.test(worker)&&/ingestion\.maxAnalysisSegmentsTotal/.test(worker)&&/ingestion\.maxPolygonsPerPage/.test(worker)],
  ['worker reports actionable budget failures',/split the set and retry/i.test(worker)&&/export a lighter PDF/i.test(worker)],
  ['worker reports bounded protected-ingestion failures without forcing normal large sources to be split',/protected native-ingestion ceiling/i.test(worker)&&/bounded parser envelope/i.test(worker)],
- ['z-recovery enrichment runs before the basemap-excluded Z index',/enrichZRecovery/.test(compiler)&&/drawingBasemap===true/.test(compiler)],
+ ['z-recovery enrichment runs before the basemap-excluded Z index',/enrichZRecovery/.test(enrichment)&&/drawingBasemap===true/.test(enrichment)],
  ['failed same-SHA source can be retried without reload',/priorFailed/.test(compiler)&&/source\.state==='failed'/.test(compiler)&&/Retry is available without reloading/.test(compiler)],
  ['pdf.js worker asset is shipped',/pdf\.worker\.min\.mjs/.test(assets)],
  ['native parse result states standard/large parsing ran off the UI thread',/large-source bounded parse/.test(worker)&&/standard parse/.test(worker)&&/off the UI thread/.test(worker)],

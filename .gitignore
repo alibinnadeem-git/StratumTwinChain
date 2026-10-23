@@ -8,4 +8,6 @@ test-results/
 
 # Generated from the installed PDF.js dependency
 /public/pdfjs/wasm/
+/public/pdfjs/pdf.worker.min.mjs
 .vercel
+.DS_Store

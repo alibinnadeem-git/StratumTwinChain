@@ -10,6 +10,7 @@ import {
   writePrimarySpatialGraph,
   SPATIAL_GRAPH_KEY,
 } from '@/lib/spatial-browser-recovery';
+import {graphSignature} from '@/lib/graph-signature';
 
 export default function SpatialPersistenceGuard(){
   const last=useRef<Awaited<ReturnType<typeof readPrimarySpatialGraph>>>(null);
@@ -31,7 +32,7 @@ export default function SpatialPersistenceGuard(){
         const local=parseSpatialGraph(localStorage.getItem(SPATIAL_GRAPH_KEY));
         const indexed=await readIndexedCurrentSpatialGraph();
         if(!active)return;
-        const differs=Boolean(local&&(!indexed||JSON.stringify(local)!==JSON.stringify(indexed)));
+        const differs=Boolean(local&&(!indexed||graphSignature(local)!==graphSignature(indexed)));
         // Explicit same-tab graph updates may promote a legacy compatibility writer.
         // Generic cross-tab storage events never receive that authority.
         const graph=differs?local:(indexed||local);
@@ -40,7 +41,7 @@ export default function SpatialPersistenceGuard(){
         if(differs&&local)await writePrimarySpatialGraph(local);
         else if(indexed)await writePrimarySpatialGraph(indexed);
         last.current=graph;
-        await protectSpatialGraph(graph,previous&&JSON.stringify(previous)!==JSON.stringify(graph)?previous:null);
+        await protectSpatialGraph(graph,previous&&graphSignature(previous)!==graphSignature(graph)?previous:null);
       })();
     };
 
@@ -51,7 +52,7 @@ export default function SpatialPersistenceGuard(){
         await writePrimarySpatialGraph(indexed);
         const previous=last.current;
         last.current=indexed;
-        await protectSpatialGraph(indexed,previous&&JSON.stringify(previous)!==JSON.stringify(indexed)?previous:null);
+        await protectSpatialGraph(indexed,previous&&graphSignature(previous)!==graphSignature(indexed)?previous:null);
       })();
     };
 

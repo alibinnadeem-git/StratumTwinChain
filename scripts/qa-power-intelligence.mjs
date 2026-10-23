@@ -50,7 +50,11 @@ assert.equal(result.truthBoundary,'EXPECTED_POWER_IS_ADVISORY_UNTIL_QUALIFIED_EN
 const compiler=fs.readFileSync('components/CompilerWorkspace.tsx','utf8');
 const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
 const engine=fs.readFileSync('components/SpatialProjectionEngine.tsx','utf8');
+// Projection enrichment moved into lib/graph-enrichment.ts (projectGraph) so it runs in the
+// graph worker; the engine drives it off the main thread via projectGraphOffThread.
+const enrichment=fs.readFileSync('lib/graph-enrichment.ts','utf8');
 assert.match(compiler,/Render Spatial Environment/);
 assert.match(viewer,/Discipline isolation/);
-assert.match(engine,/enrichPowerIntelligence/);
+assert.match(enrichment,/enrichPowerIntelligence/);
+assert.match(engine,/projectGraphOffThread/);
 console.log('✓ expected power discovery, missing-feed reconciliation, rating conflicts and truth boundaries passed');

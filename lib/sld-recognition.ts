@@ -18,7 +18,7 @@ const RULES:[SldEquipmentClass,RegExp][]=[
  ['UPS',/\bUPS(?:[-_ ]?[A-Z0-9]+)?\b/i],
  ['TRANSFORMER',/\b(?:TRANSFORMER|XFMR|XFR)(?:[-_ ]?[A-Z0-9]+)?\b/i],
  ['SWITCHGEAR',/\b(?:SWITCHGEAR|SWGR|SWG)(?:[-_ ]?[A-Z0-9]+)?\b/i],
- ['SWITCHBOARD',/\b(?:SWITCHBOARD|SWBD|MSB|MDB|MDP)(?:[-_ ]?[A-Z0-9]+)?\b/i],
+ ['SWITCHBOARD',/\b(?:SWITCHBOARD|SWBD|MSB|MDB|MDP|MS\d+)(?:[-_ ]?[A-Z0-9]+)?\b/i],
  ['ATS',/\b(?:ATS|AUTOMATIC\s+TRANSFER\s+SWITCH)(?:[-_ ]?[A-Z0-9]+)?\b/i],
  ['BREAKER',/\b(?:BREAKER|MCCB|ACB|MCB|CB)(?:[-_ ]?[A-Z0-9]+)?\b/i],
  ['MCC',/\b(?:MCC|MOTOR\s+CONTROL\s+CENTER)(?:[-_ ]?[A-Z0-9]+)?\b/i],

@@ -7,6 +7,7 @@ import SpatialAutoSync from '@/components/SpatialAutoSync';
 import SpatialServerHydrator from '@/components/SpatialServerHydrator';
 import PowerIntelligencePanel from '@/components/PowerIntelligencePanel';
 import CoordinationFindingsPanel from '@/components/CoordinationFindingsPanel';
+import ElectricalEvidencePanel from '@/components/ElectricalEvidencePanel';
 import TrustBadge from '@/components/TrustBadge';
 import ZResolutionReview from '@/components/ZResolutionReview';
 import {type RegisteredSpatialAsset} from '@/lib/spatial-asset-link';
@@ -59,6 +60,7 @@ export default async function SpatialPage(){
   <SpatialExperience assets={assets} authenticated={Boolean(session)} previewDemoEnabled={process.env.VERCEL_ENV==='preview'}/>
   <PowerIntelligencePanel/>
   <CoordinationFindingsPanel/>
+  <ElectricalEvidencePanel/>
 
   <details className="secondary-details card">
    <summary>Review & trust details</summary>

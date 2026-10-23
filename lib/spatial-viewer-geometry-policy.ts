@@ -34,6 +34,14 @@ export function decideSourceModelVisual(entity:SpatialModelEntity,registry:Elect
  const generic=classKey?registry.find(m=>m.componentKey===classKey&&permittedGeneric(m))||null:null;
  const classEvidence=Boolean(explicitKey||resolved.componentKey);
  if(!classEvidence||!generic)return blank(classKey||null,'No licensed in-house/CC0 model for a defensible exact component class; preserve ghost/sheet pin.');
+ const evidenceGate=toStr(meta.electricalEvidenceGate);
+ const audioEvidenceWorkflow=meta.electricalTakeoffIncluded===true;
+ if(audioEvidenceWorkflow&&evidenceGate==='BLOCKED_CONFLICT')
+  return {...blank(classKey||null,'Electrical design sources conflict across the legend/plan/matrix/SLD/specification evidence chain. Exact-product/model promotion is blocked pending review.'),label:'BLOCKED · ELECTRICAL SOURCE CONFLICT'};
+ if(audioEvidenceWorkflow&&evidenceGate&&evidenceGate!=='EVIDENCE_RECONCILED_REVIEW')
+  return {model:generic,componentKey:classKey,tier:'UNRESOLVED_CLASS_PREVIEW',label:'UNRESOLVED · EVIDENCE CHAIN INCOMPLETE',
+   physicalTruth:false,reviewRequired:true,takeoffEligible:false,measurementEligible:false,exportEligible:false,
+   reason:'The project legend/plan/matrix/SLD/specification evidence chain is incomplete. A licensed class model may be shown only as a review preview.'};
  const score=toNum(meta.resolutionScore),margin=toNum(meta.resolutionMargin);
  const witnesses=independent(meta.resolutionEvidenceKinds);
  const thresholds=score!==null&&score>=.85&&margin!==null&&margin>=.15&&witnesses>=2;

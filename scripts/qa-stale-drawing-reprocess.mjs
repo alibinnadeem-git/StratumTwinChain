@@ -22,17 +22,20 @@ assert.equal(findDrawingSourcesNeedingReprocess([stalePdf,modernPdf,sld],modernE
 
 const compiler=fs.readFileSync('components/CompilerWorkspace.tsx','utf8');
 const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
+// Graph compilation (assemble + coordination) moved to lib/graph-enrichment.ts (compileGraph)
+// so it can run in the graph worker; the commit still discards stale coordination.
+const enrichment=fs.readFileSync('lib/graph-enrichment.ts','utf8');
 
 assert.match(compiler,/drawingSourceReprocessReason\(existing,nextEntities\)/,'duplicate SHA path must consult stale-drawing detector');
 assert.match(compiler,/replacementSource=\{sha256:digest,name:existing\.name\}/,'stale same-file import must enter replacement mode');
 assert.match(compiler,/replacementBackup=\{source:existing,entities:/,'reprocess must retain an in-memory backup of the previous source compilation');
 assert.match(compiler,/nextEntities=nextEntities\.filter\(entity=>String\(entity\.meta\?\.sourceSha256\|\|''\)!==digest&&entity\.source!==existing\.name\)/,'stale source entities must be removed before reparse');
-assert.match(compiler,/saveGraph\(nextFiles,nextEntities,replacementSource\?\[replacementSource\]:\[\]\)/,'replacement intent must reach graph persistence');
+assert.match(compiler,/saveGraph\(nextFiles,nextEntities,replacementSource\?\[replacementSource\]:\[\][,)]/,'replacement intent must reach graph persistence');
 assert.match(compiler,/reprocess failed; the previous saved compilation was preserved/i,'failed reprocessing must restore the previous compiled source rather than delete it');
 assert.match(compiler,/replaceShas=new Set\(replaceSources\.map/,'saved graph must exclude replaced source entities and metadata');
 assert.match(compiler,/version:'1\.2'/,'fresh compilation must advance graph schema marker');
-assert.match(compiler,/coordinationIntelligence:undefined/,'authoritative source saves must discard stale derived coordination before recomputation');
-assert.match(compiler,/enrichCoordinationIntelligence\(base as any\)/,'coordination intelligence must be rebuilt from the exact graph being committed without legacy demo injection');
+assert.match(compiler,/coordinationIntelligence:compiled\.coordinationIntelligence/,'authoritative source saves must overwrite stale derived coordination with the freshly compiled value');
+assert.match(enrichment,/enrichCoordinationIntelligence\(\{entities:zoned,sources,links\} as any\)/,'coordination intelligence must be rebuilt from the exact graph being committed without legacy demo injection');
 assert.match(compiler,/REPROCESS SAVED DRAWING/,'Import UI must tell the user why the original file is needed');
 assert.match(compiler,/staleReason&&archivedShas\.has\(f\.sha256\)/,'stale source row must only offer reprocess when source bytes are archived');
 

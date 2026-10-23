@@ -39,6 +39,15 @@ assert.equal(exactTesla.tier,'EXACT_PRODUCT_VISUALIZATION');
 assert.match(exactTesla.geometryAuthority,/EXACT_PRODUCT_/);
 assert.equal(exactTesla.physicalIdentityVerified,false);
 
+const specCandidate=resolveSpatialModel({
+  name:'EV CHARGER EV-03',
+  meta:{manufacturer:'Tesla',model:'Universal Wall Connector Gen 3',productIdentityAuthority:'DESIGN_SPECIFICATION'}
+},registry);
+assert.equal(specCandidate.componentKey,'evse-tesla-wall-connector-gen3');
+assert.equal(specCandidate.exactProductIdentity,true);
+assert.equal(specCandidate.identityAuthority,'DESIGN_SPECIFICATION');
+assert.equal(specCandidate.physicalIdentityVerified,false);
+
 const exactTeslaFromLabel=resolveSpatialModel({
   name:'TESLA SUPERCHARGER V3',
   meta:{}
