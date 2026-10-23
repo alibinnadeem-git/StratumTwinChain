@@ -3,6 +3,7 @@ import {CHUNKED_GRAPH_THRESHOLD,getChunkedGraph,getChunkedGraphHead,putChunkedGr
 import {requireExportAuthority} from './spatial-authority-io.ts';
 import {assertRealWritePayload} from './spatial-provenance.ts';
 import {graphSignature} from './graph-signature.ts';
+import {reportSpatialDiag} from './spatial-diagnostics.ts';
 export type SpatialGraphLike={
   version?:string;
   createdAt?:string;
@@ -132,9 +133,14 @@ export async function readPrimarySpatialGraph(storage:Storage=localStorage):Prom
         const serialized=JSON.stringify(indexed);
         if(storage.getItem(SPATIAL_GRAPH_KEY)!==serialized)storage.setItem(SPATIAL_GRAPH_KEY,serialized);
       }
-    }catch{}
+    }catch(error){
+      reportSpatialDiag({stage:'persist',level:'warn',code:'READ_SHADOW_HEAL_FAILED',message:'Could not refresh the localStorage compatibility shadow from IndexedDB',data:{error:error instanceof Error?error.message:String(error)}});
+    }
     return indexed;
   }
+  // IndexedDB had nothing after retries but a localStorage shadow exists: authority is being
+  // served from the non-durable shadow. Surfaced because it usually signals IDB unavailability.
+  if(shadow)reportSpatialDiag({stage:'persist',level:'warn',code:'READ_SERVED_SHADOW',message:'Primary graph served from localStorage shadow (IndexedDB returned nothing)',counts:{entities:shadow.entities.length}});
   return shadow;
 }
 
@@ -196,6 +202,7 @@ async function writePrimarySpatialGraphNow(graph:SpatialGraphLike,storage:Storag
     // it for a legacy compatibility write and promotes it over this graph,
     // deleting the chunked head and reverting the workspace to the old graph.
     try{storage.removeItem(SPATIAL_GRAPH_KEY)}catch{}
+    reportSpatialDiag({stage:'persist',level:'info',code:'WRITE_OK',message:'Primary graph written to chunked IndexedDB',counts:{entities:graph.entities.length},data:{store:'chunked'}});
     return {indexed:true,shadowed:false};
   }
   let indexed=false;
@@ -203,10 +210,18 @@ async function writePrimarySpatialGraphNow(graph:SpatialGraphLike,storage:Storag
     await idbPut(PRIMARY_KEY,graph);
     await setChunkedGraphHead(PRIMARY_KEY,null);
     indexed=true;
-  }catch{}
-  try{storage.setItem(SPATIAL_GRAPH_KEY,JSON.stringify(graph));}catch{
-    if(!indexed)throw new Error('Browser storage is full and IndexedDB is unavailable. Export your model backup before importing more sources.');
+  }catch(error){
+    // Durable write failed; we continue to the localStorage shadow below, but this is the silent
+    // path where authority quietly moves off IndexedDB — surface it.
+    reportSpatialDiag({stage:'persist',level:'warn',code:'WRITE_IDB_FAILED',message:'IndexedDB primary write failed; relying on localStorage shadow',counts:{entities:graph.entities.length},data:{error:error instanceof Error?error.message:String(error)}});
   }
+  try{storage.setItem(SPATIAL_GRAPH_KEY,JSON.stringify(graph));}catch{
+    if(!indexed){
+      reportSpatialDiag({stage:'persist',level:'error',code:'WRITE_FAILED',message:'Both IndexedDB and localStorage writes failed',counts:{entities:graph.entities.length}});
+      throw new Error('Browser storage is full and IndexedDB is unavailable. Export your model backup before importing more sources.');
+    }
+  }
+  reportSpatialDiag({stage:'persist',level:'info',code:'WRITE_OK',message:'Primary graph written',counts:{entities:graph.entities.length},data:{store:indexed?'indexeddb':'localStorage-shadow'}});
   return{indexed,shadowed:Boolean(parseSpatialGraph(storage.getItem(SPATIAL_GRAPH_KEY)))};
 }
 
@@ -292,7 +307,11 @@ export async function protectSpatialGraph(graph:SpatialGraphLike,previous:Spatia
     }else{await idbPut('latest',graph);await setChunkedGraphHead('latest',null)}
     localStorage.removeItem(SPATIAL_LAST_GOOD_KEY);
     if(previous)localStorage.removeItem(SPATIAL_PREVIOUS_KEY);
-  }catch{/* Keep legacy recovery copies if IndexedDB is unavailable. */}
+  }catch(error){
+    // Keep legacy recovery copies if IndexedDB is unavailable — but record that durable
+    // recovery generations were not refreshed for this write.
+    reportSpatialDiag({stage:'persist',level:'warn',code:'PROTECT_FAILED',message:'Could not update durable recovery generations (IndexedDB unavailable)',counts:{entities:graph.entities.length},data:{error:error instanceof Error?error.message:String(error)}});
+  }
   window.dispatchEvent(new Event(SPATIAL_RECOVERY_EVENT));
 }
 

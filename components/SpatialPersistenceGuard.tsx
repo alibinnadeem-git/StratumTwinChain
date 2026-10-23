@@ -44,7 +44,9 @@ export default function SpatialPersistenceGuard(){
         if(!graph)return;
         const previous=last.current;
         if(differs&&local)await writePrimarySpatialGraph(local);
-        else if(indexed)await writePrimarySpatialGraph(indexed);
+        // IndexedDB is already durable. Writing this asynchronously read snapshot back to
+        // primary can revert a newer projection/review and adds another large chunked save.
+        // Only a genuinely newer legacy compatibility write needs primary promotion here.
         last.current=graph;
         await protectSpatialGraph(graph,previous&&graphSignature(previous)!==graphSignature(graph)?previous:null);
       })();

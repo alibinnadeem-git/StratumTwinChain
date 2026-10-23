@@ -28,6 +28,8 @@ import {
   ElectricalModelConfig,
   normalizeElectricalModelRegistry,
 } from "@/lib/electrical-model-registry";
+import {reportSpatialDiag,startSpatialDiagTimer} from "@/lib/spatial-diagnostics";
+import SpatialDiagnosticsHud from "@/components/SpatialDiagnosticsHud";
 
 type Layer="L0"|"L1"|"L2"|"L3"|"L4";
 type ViewMode="MODEL"|"ELECTRICAL"|"REVIEW";
@@ -84,6 +86,18 @@ function displayElevation(e:Entity,mode:ViewMode){
     if(reviewSurface!==null)return reviewSurface;
   }
   return base;
+}
+// Single source of truth for an entity's render base elevation, shared by mesh placement (`height`)
+// and camera-on-select so they can't diverge. Equipment (L2/L4) uses the reconciled Z-solution baseZ
+// (what meshes already use); non-equipment keeps the review-surface logic in `displayElevation`. The
+// SLD logical-depth lift (ELECTRICAL mode) is applied consistently to meshes, links and camera.
+function entityRenderBaseZ(e:Entity,mode:ViewMode,registry:ElectricalModelConfig[]){
+  const sldLift=mode==="ELECTRICAL"&&isSld(e)?(metaNumber(e,"sldLogicalDepth")??0)*2.4:0;
+  if(e.layer==="L2"||e.layer==="L4"){
+    const cfg=resolveSpatialModel(e,registry).model;
+    return resolveReconciledAssetPlacement({name:e.name,floor:e.floor,z:e.z,meta:e.meta},{registry:cfg}).placement.baseZ+sldLift;
+  }
+  return displayElevation(e,mode);
 }
 function entitySystem(e:Entity):SystemMode{
   const def=resolveElectricalComponent(e.name),name=`${e.name} ${def?.category||""}`.toLowerCase();
@@ -224,6 +238,12 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
   const visibleIds=useMemo(()=>new Set(visible.map(entity=>entity.id)),[visible]);
   const inventory=useMemo(()=>visible.filter(e=>e.kind!=="line"&&e.kind!=="sld-feeder-candidate"&&e.kind!=="wall-segment"&&e.kind!=="source-raster-underlay"&&e.kind!=="elevation-control-point"&&e.kind!=="elevation-review-surface-triangle"),[visible]);
   const identifiedEquipment=useMemo(()=>visible.filter(isIdentifiedProjectEquipment).length,[visible]);
+  // Phase 4 candidate-role partition: only INSTANCEs are drawn as 3D equipment; LABELs stay review-only.
+  const spatialInstances=useMemo(()=>visible.filter(e=>e.meta?.candidateRole==="INSTANCE").length,[visible]);
+  const reviewLabels=useMemo(()=>visible.filter(e=>e.meta?.candidateRole==="LABEL").length,[visible]);
+  // Phase 8: identified instances across the whole project (not just the active sheet frame), so we can
+  // hint when the current frame has none but the equipment lives on another sheet.
+  const totalInstances=useMemo(()=>graph?.entities.filter(e=>e.meta?.candidateRole==="INSTANCE").length||0,[graph]);
   const visibleLines=useMemo(()=>visible.filter(e=>e.kind==="line").length,[visible]);
   const rasterUnderlays=useMemo(()=>visible.filter(e=>e.kind==="source-raster-underlay").length,[visible]);
   const rooms=useMemo(()=>graph?.entities.filter(e=>e.kind==="room-boundary").length||0,[graph]);
@@ -270,9 +290,11 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
       const {GLTFLoader}=await import("three/examples/jsm/loaders/GLTFLoader.js");
       if(disposed||!mount.current)return;
       const host=mount.current;host.replaceChildren();
+      const renderElapsed=startSpatialDiagTimer();
+      reportSpatialDiag({stage:'render',level:'info',code:'RENDER_START',message:`Building ${mode} scene`,counts:{entities:graph.entities.length,visible:visible.length},data:{mode,demoMode}});
       let renderer:any;
       try{renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:"high-performance",alpha:false});}
-      catch{setRenderStatus("FALLBACK");return}
+      catch(error){setRenderStatus("FALLBACK");reportSpatialDiag({stage:'render',level:'warn',code:'WEBGL_UNAVAILABLE_FALLBACK',message:'WebGL could not initialize; 2D fallback active',data:{error:error instanceof Error?error.message:String(error)}});return}
       setRenderStatus("WEBGL");
       const scene=new THREE.Scene();
       scene.background=new THREE.Color(environment==="NIGHT"?0x02070b:environment==="EMERGENCY"?0x130504:0x07131d);
@@ -299,13 +321,7 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
       const clickable:any[]=[];const clickableEntities=new Set<string>();const entityAnchors=new Map<string,any>();const coordinationAnchors=new Map<string,any>();
       const floorIndex=new Map(levels.map(([name],i)=>[name,i]));
       const extra=(e:Entity)=>exploded?(floorIndex.get(e.floor||"UNRESOLVED")||0)*2.6:0;
-      const height=(e:Entity)=>{
-        if(e.layer==="L2"||e.layer==="L4"){
-          const cfg=resolveSpatialModel(e,registry).model;
-          return resolveReconciledAssetPlacement({name:e.name,floor:e.floor,z:e.z,meta:e.meta},{registry:cfg}).placement.baseZ+extra(e);
-        }
-        return displayElevation(e,mode)+extra(e);
-      };
+      const height=(e:Entity)=>entityRenderBaseZ(e,mode,registry)+extra(e);
       const isVisible=(e:Entity)=>visibleIds.has(e.id);
       const material=(color:number,opacity=1,emissive=0)=>new THREE.MeshStandardMaterial({color,emissive,emissiveIntensity:.2,metalness:.28,roughness:.48,transparent:opacity<1,opacity,depthWrite:opacity>.2});
       const tag=(obj:any,e:Entity)=>{obj.userData.entity=e;entityAnchors.set(e.id,obj);clickableEntities.add(e.id);renderer.domElement.dataset.clickableAssets=String(clickableEntities.size);obj.traverse?.((node:any)=>{if(node.isMesh){node.userData.entity=e;if(!node.userData?.interactionProxy){node.castShadow=true;node.receiveShadow=true}const mats=Array.isArray(node.material)?node.material:[node.material];for(const mat of mats){if(mat?.emissive&&mat.userData?.stratumBaseEmissive===undefined){mat.userData=mat.userData||{};mat.userData.stratumBaseEmissive=mat.emissive.getHex();mat.userData.stratumBaseEmissiveIntensity=Number(mat.emissiveIntensity||0)}}clickable.push(node)}})};
@@ -380,7 +396,7 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
         const root=new THREE.Group(),op=.27;
         let geo:any;if(shape==="transformer")geo=new THREE.BoxGeometry(1.7,1.55,1.25);else if(shape==="generator")geo=new THREE.BoxGeometry(2.2,1.2,1.1);else if(shape==="motor")geo=new THREE.CylinderGeometry(.48,.48,1.15,20);else if(shape==="evse")geo=new THREE.BoxGeometry(.62,1.4,.44);else geo=new THREE.BoxGeometry(1.05,1.8,.62);
         const mesh=new THREE.Mesh(geo,material(colors.L2,op,0x211000));if(shape==="motor")mesh.rotation.z=Math.PI/2;root.add(mesh);
-        try{fitProceduralObjectToMeters(root,target)}catch{}
+        try{fitProceduralObjectToMeters(root,target)}catch(error){reportSpatialDiag({stage:'render',level:'warn',code:'PROCEDURAL_FIT_FAILED',message:`Could not fit procedural envelope for ${e.name}`,data:{entityId:e.id,error:error instanceof Error?error.message:String(error)}});}
         root.position.set(e.x,placement.baseZ,e.y);root.rotation.y=THREE.MathUtils.degToRad(-(e.rotation||0));
         root.userData.dimensionAuthority=placement.dimensions.authority;root.userData.targetDimensionsMeters=target;root.userData.zPlacementAuthority=placement.zAuthority;root.userData.zPlacementConfidence=placement.zConfidence;root.userData.zSolutionStatus=reconciled.solution.status;root.userData.zSolutionConflicts=reconciled.solution.conflicts.length;
         root.userData.modelResolutionTier=modelResolution.tier;root.userData.modelGeometryAuthority=modelResolution.geometryAuthority;root.userData.modelIdentityAuthority=modelResolution.identityAuthority;root.userData.exactProductIdentity=modelResolution.exactProductIdentity;root.userData.modelComponentKey=modelResolution.componentKey;root.userData.physicalIdentityVerified=false;
@@ -435,6 +451,10 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
       const equipment=(e:Entity)=>{
         if(!isVisible(e))return;
         if(demoMode){previewFixtureEquipment(e);return;}
+        // Phase 4: only gated INSTANCEs render as 3D equipment. LABEL / REGISTRATION_SHADOW candidates
+        // stay in the review list (inspector) but are not drawn, preventing duplicated/label phantoms.
+        const role=e.meta?.candidateRole;
+        if(role==='LABEL'||role==='REGISTRATION_SHADOW')return;
         const provisional=unresolvedAssetVisual(e);
         const visual=decideSourceModelVisual(e,registry);
         if(provisional.kind==='SHEET_PIN'&&!isSld(e)){
@@ -595,6 +615,31 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
       for(const [name,z] of levels){const y=(z??0)+(exploded?(floorIndex.get(name)||0)*2.6:0),grid=new THREE.GridHelper(Math.max(span*1.15,20),20,0x244d61,0x102c39);grid.position.set(center.x,y,center.z);grid.material.transparent=true;grid.material.opacity=.18;spatialRoot.add(grid);label(z===null?`${name} · Z unverified`:`${name} · ${z.toFixed(2)} m`,minX+.8,y,minZ,"#7be0b1")}
       const fit=()=>{const absoluteCenter=bounds.getCenter(new THREE.Vector3()),c=new THREE.Vector3(absoluteCenter.x-renderOrigin.x,absoluteCenter.y,absoluteCenter.z-renderOrigin.y),s=bounds.getSize(new THREE.Vector3()),d=Math.max(s.x,s.y,s.z,8);controls.target.copy(c);camera.position.set(c.x+d*.9,c.y+d*.72+4,c.z+d);camera.near=.05;camera.far=Math.max(1000,d*20);camera.updateProjectionMatrix();controls.update()};fit();
       runtime.current.fit=fit;runtime.current.clickable=clickable;
+      // Observability: scene-build summary + the Z-solution status distribution over the
+      // equipment actually rendered. RENDER_Z_SUMMARY is the Phase-0 read on Z accuracy; a
+      // visible count that exceeds tagged anchors means entities were silently dropped.
+      try{
+        const equipmentEntities=inventory.filter(e=>e.layer==="L2"||e.layer==="L4");
+        const zStatus:Record<string,number>={};
+        for(const e of equipmentEntities){
+          const cfg=resolveSpatialModel(e,registry).model;
+          const status=resolveReconciledAssetPlacement({name:e.name,floor:e.floor,z:e.z,meta:e.meta},{registry:cfg}).solution.status;
+          zStatus[status]=(zStatus[status]||0)+1;
+        }
+        const size=bounds.getSize(new THREE.Vector3());
+        reportSpatialDiag({stage:"render",level:"info",code:"RENDER_BUILT",message:`${mode} scene built`,counts:{visible:visible.length,tagged:clickableEntities.size,anchors:entityAnchors.size,lineBatchLayers:lineBatches.size,equipment:equipmentEntities.length},durationMs:Math.round(renderElapsed()),data:{mode,boundsMeters:[Math.round(size.x),Math.round(size.y),Math.round(size.z)]}});
+        const zResolved=(zStatus.RESOLVED_CANDIDATE||0)+(zStatus.REVIEW_RESOLVED_CANDIDATE||0);
+        reportSpatialDiag({stage:"render",level:equipmentEntities.length>0&&zResolved===0?"warn":"info",code:"RENDER_Z_SUMMARY",message:"Z-solution status distribution over rendered equipment",counts:zStatus,data:{equipment:equipmentEntities.length,resolved:zResolved}});
+        // Which visible INSTANCEs are not yet tagged at this synchronous snapshot? GLB/GLTF-backed
+        // instances tag in their async loader callback (after this runs), so they are "async-pending",
+        // not a real gap. Only an untagged instance with no async model is a genuine render drop.
+        const visibleInstances=visible.filter(e=>e.meta?.candidateRole==="INSTANCE");
+        const untagged=visibleInstances.filter(e=>!clickableEntities.has(e.id));
+        const hasAsyncModel=(e:Entity)=>{const m=decideSourceModelVisual(e,registry).model;return Boolean(m&&m.modelUrl?.trim()&&["GLB","GLTF"].includes(m.format))};
+        const pendingAsync=untagged.filter(hasAsyncModel);
+        const realGap=untagged.filter(e=>!hasAsyncModel(e)).map(e=>({id:e.id,kind:e.kind,layer:e.layer,name:String(e.name).slice(0,40),finiteXY:Number.isFinite(e.x)&&Number.isFinite(e.y),sld:isSld(e),page:Number(e.meta?.page||0)}));
+        reportSpatialDiag({stage:"render",level:realGap.length?"warn":"info",code:"RENDER_INSTANCE_GAP",message:`${visibleInstances.length-untagged.length} drawn sync · ${pendingAsync.length} async model pending · ${realGap.length} real gap`,counts:{visibleInstances:visibleInstances.length,drawnSync:visibleInstances.length-untagged.length,pendingAsyncModel:pendingAsync.length,realGap:realGap.length},data:{realGap}});
+      }catch(error){reportSpatialDiag({stage:"render",level:"warn",code:"RENDER_SUMMARY_FAILED",message:"Could not compute render summary",data:{error:error instanceof Error?error.message:String(error)}});}
       renderer.domElement.setAttribute("aria-label","Interactive Spatial model");
       renderer.domElement.setAttribute("role","application");
       renderer.domElement.style.cursor="grab";
@@ -624,6 +669,11 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
     })();
     return()=>{disposed=true;cleanup()};
   },[graph,registry,mode,environment,systemMode,floor,exploded,xray,labels,visibleIds,levels,renderOrigin.x,renderOrigin.y,demoMode]);
+
+  useEffect(()=>{
+    if(modelLoadErrors.length===0)return;
+    reportSpatialDiag({stage:"render",level:"warn",code:"MODEL_LOAD_FAILED",message:`${modelLoadErrors.length} uploaded/library 3D model(s) could not be rendered`,counts:{failed:modelLoadErrors.length},data:{entityIds:modelLoadErrors.slice(0,20)}});
+  },[modelLoadErrors]);
 
   useEffect(()=>{
     const r=runtime.current;if(!r?.scene)return;
@@ -656,8 +706,8 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
 
   useEffect(()=>{runtime.current?.fit?.()},[fitRevision]);
   useEffect(()=>{
-    const r=runtime.current;if(!r||!selected)return;const y=displayElevation(selected,mode),origin=r.renderOrigin||{x:0,y:0},target=new r.THREE.Vector3(selected.x-origin.x,y+1,selected.y-origin.y),span=5;r.controls.target.copy(target);r.camera.position.copy(target).add(new r.THREE.Vector3(span,span*.75,span));r.controls.update();
-  },[selected?.id,mode]);
+    const r=runtime.current;if(!r||!selected)return;const y=entityRenderBaseZ(selected,mode,registry),origin=r.renderOrigin||{x:0,y:0},target=new r.THREE.Vector3(selected.x-origin.x,y+1,selected.y-origin.y),span=5;r.controls.target.copy(target);r.camera.position.copy(target).add(new r.THREE.Vector3(span,span*.75,span));r.controls.update();
+  },[selected?.id,mode,registry]);
 
   if(!graph||!Array.isArray(graph.entities)||graph.entities.length===0)return <section className="card" style={{marginBottom:18}}><div className="eyebrow">Spatial viewer</div><h2>No compiled spatial objects yet</h2><p className="subtitle">Import and successfully extract a drawing, SLD or DXF first. A source fingerprint by itself does not unlock the project viewer.</p><Link className="action" href="/compiler">Review engineering sources</Link></section>;
 
@@ -698,6 +748,15 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
       <p className="muted">This browser model predates the current retained-basemap/non-SLD pipeline. Existing extracted objects remain inspectable; refresh the retained source when available to rebuild the drawing frame with current semantics. This is a migration task, not a failed parse.</p>
       <div className="button-row"><Link className="ghost" href="/import">Refresh drawing source</Link></div>
     </details>}
+
+    {!demoMode&&spatialInstances===0&&totalInstances>0&&<div className="notice" role="status" style={{margin:"8px 14px"}}>
+      <strong>IDENTIFIED EQUIPMENT IS ON ANOTHER SHEET</strong>
+      <span>This drawing frame has no identified equipment instances. {totalInstances} identified instance{totalInstances===1?"":"s"} {totalInstances===1?"is":"are"} on other sheet frame{totalInstances===1?"":"s"} (e.g. the one-line) — choose another frame above, or “All sheet frames”, to view {totalInstances===1?"it":"them"}.</span>
+    </div>}
+    {!demoMode&&spatialInstances>0&&<div className="notice" role="status" style={{margin:"8px 14px"}}>
+      <strong>NOMINAL LIBRARY SIZE · NOT CALIBRATED TO SHEET SCALE</strong>
+      <span>{spatialInstances} identified equipment instance{spatialInstances===1?"":"s"} shown at representative library dimensions; a verified sheet scale is not established, so size and placement are review candidates — not metric or physical truth.{reviewLabels>0?` ${reviewLabels} unplaced drawing label${reviewLabels===1?"":"s"} are kept in the object list for review, not drawn.`:""}</span>
+    </div>}
 
     <div className="spatial-mode-tabs" role="group" aria-label="Spatial view mode">
       <button type="button" className={mode==="MODEL"?"action":"ghost"} aria-pressed={mode==="MODEL"} onMouseDown={event=>event.preventDefault()} onClick={()=>setMode("MODEL")}><b>Model</b><small>Rooms and source placement</small></button>
@@ -750,6 +809,7 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
 
     <div className="compiled-twin-grid" style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) minmax(270px,340px)"}}>
       <div className="spatial-viewer-stage" style={{position:"relative",minHeight:520,background:"#041019"}}>
+        <SpatialDiagnosticsHud renderStatus={renderStatus} mode={mode}/>
         {demoMode&&<div aria-label="DEMO watermark" style={{position:"absolute",top:14,left:14,zIndex:50,
           pointerEvents:"none",border:"1px solid #f0a96c",borderRadius:8,background:"rgba(67,25,19,.84)",
           color:"#ffe2b1",fontWeight:900,letterSpacing:".12em",padding:"7px 12px"}}>

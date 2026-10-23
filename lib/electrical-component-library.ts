@@ -87,7 +87,7 @@ export const ELECTRICAL_COMPONENTS:ElectricalComponent[]=[
  {key:'earth-pit',name:'Earth Pit / Ground Well',category:'Earthing & Bonding',aliases:['earth pit','ground well'],twinShape:'ground',trackAsAsset:false},
 
  {key:'data-cabinet',name:'Data / Communications Cabinet',category:'Low Voltage Systems',aliases:['data cabinet','communications cabinet','network rack'],twinShape:'rack',trackAsAsset:true},
- {key:'fire-alarm',name:'Fire Alarm Control Panel',category:'Low Voltage Systems',aliases:['fire alarm panel','facp'],twinShape:'panel',trackAsAsset:true},
+ {key:'fire-alarm',name:'Fire Alarm Control Panel',category:'Low Voltage Systems',aliases:['fire alarm','facp'],twinShape:'panel',trackAsAsset:true},
  {key:'security-panel',name:'Security Panel',category:'Low Voltage Systems',aliases:['security panel'],twinShape:'panel',trackAsAsset:true},
  {key:'access-control',name:'Access Control Panel',category:'Low Voltage Systems',aliases:['access control panel'],twinShape:'panel',trackAsAsset:true},
  {key:'intercom',name:'Intercom / PA System',category:'Low Voltage Systems',aliases:['intercom','pa system','public address'],twinShape:'rack',trackAsAsset:true},
