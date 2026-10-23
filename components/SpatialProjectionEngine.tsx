@@ -26,6 +26,7 @@ function projectionCounts(graph:any):Record<string,number>{
 
 export default function SpatialProjectionEngine(){
  useEffect(()=>{
+  let active=true;
   let applying=false;
   // Signature of the graph we last wrote. Our own write dispatches graph-updated, which would retrigger
   // projection and re-serialize the whole graph to the worker only to find no change. Skipping that
@@ -33,11 +34,11 @@ export default function SpatialProjectionEngine(){
   // those always re-project.
   let lastAppliedSignature:string|null=null;
   const apply=async()=>{
-   if(applying)return;
+   if(!active||applying)return;
    applying=true;
    const elapsed=startSpatialDiagTimer();
    try{
-    const graph=await readPrimarySpatialGraph();if(!graph||!Array.isArray(graph.entities))return;
+    const graph=await readPrimarySpatialGraph();if(!active||!graph||!Array.isArray(graph.entities))return;
     const storedRegistry=localStorage.getItem(ELECTRICAL_MODEL_REGISTRY_STORAGE_KEY);
     const registry=storedRegistry?normalizeElectricalModelRegistry(JSON.parse(storedRegistry)):DEFAULT_ELECTRICAL_MODEL_REGISTRY;
     const before=graphSignature(graph);
@@ -47,6 +48,7 @@ export default function SpatialProjectionEngine(){
     }
     reportSpatialDiag({stage:'project',level:'info',code:'PROJECT_START',counts:{entities:graph.entities.length}});
     const enriched=await projectGraphOffThread(graph as any,registry);
+    if(!active)return;
     if(graphSignature(enriched)===before){
      reportSpatialDiag({stage:'project',level:'info',code:'PROJECT_NO_OP',message:'Projection produced no change',counts:projectionCounts(enriched),durationMs:Math.round(elapsed())});
      return;
@@ -64,6 +66,7 @@ export default function SpatialProjectionEngine(){
     reportSpatialDiag({stage:'project',level:'info',code:'PROJECT_APPLIED',message:'Projection enrichment written',counts:projectionCounts(enriched),durationMs:Math.round(elapsed())});
     window.dispatchEvent(new Event('stratum:graph-updated'));
    }catch(error){
+    if(!active)return;
     // Source graph is preserved if projection enrichment cannot be evaluated — but the failure
     // is no longer silent: without this the entire render falls back to un-projected geometry.
     reportSpatialDiag({stage:'project',level:'error',code:'PROJECT_FAILED',message:error instanceof Error?error.message:'Projection enrichment failed',durationMs:Math.round(elapsed()),data:{error:error instanceof Error?error.message:String(error)}});
@@ -72,7 +75,7 @@ export default function SpatialProjectionEngine(){
   // Debounce so a burst of graph-updated events (including derived writes from other
   // reactive panels) coalesces into a single projection pass instead of a cascade storm.
   let timer:ReturnType<typeof setTimeout>|null=null;
-  const refresh=(delay:number=DEBOUNCE_MS)=>{if(timer)clearTimeout(timer);timer=setTimeout(()=>void apply(),delay)};
+  const refresh=(delay:number=DEBOUNCE_MS)=>{if(!active)return;if(timer)clearTimeout(timer);timer=setTimeout(()=>void apply(),delay)};
   // A registry or external-storage change can alter the projection even when the graph is unchanged,
   // so clear the self-echo guard to force a re-project.
   const refreshExternal=()=>{lastAppliedSignature=null;refresh()};
@@ -82,7 +85,7 @@ export default function SpatialProjectionEngine(){
   window.addEventListener('stratum:graph-updated',onGraphUpdated);
   window.addEventListener(REGISTRY_EVENT,refreshExternal);
   window.addEventListener('storage',refreshExternal);
-  return()=>{if(timer)clearTimeout(timer);window.removeEventListener('stratum:graph-updated',onGraphUpdated);window.removeEventListener(REGISTRY_EVENT,refreshExternal);window.removeEventListener('storage',refreshExternal)};
+  return()=>{active=false;if(timer)clearTimeout(timer);window.removeEventListener('stratum:graph-updated',onGraphUpdated);window.removeEventListener(REGISTRY_EVENT,refreshExternal);window.removeEventListener('storage',refreshExternal)};
  },[]);
  return null;
 }

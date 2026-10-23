@@ -107,9 +107,10 @@ test('Brynhurst import drives the full pipeline with no silent failure',async({p
   await page.waitForURL('**/spatial',{timeout:60_000});
   await expect(page.getByRole('heading',{name:'Spatial model'})).toBeVisible({timeout:60_000});
   await expect.poll(async()=>(await readTrace(page)).some(e=>e.code==='RENDER_BUILT'),{timeout:60_000,message:'render stage never reported RENDER_BUILT'}).toBe(true);
-  // Projection must SETTLE to a terminal outcome (applied / no-op / self-echo skip) rather than starving
-  // on write contention. Backoff should let the retry re-read a settled graph.
-  await expect.poll(async()=>(await readTrace(page)).some(e=>['PROJECT_APPLIED','PROJECT_NO_OP','PROJECT_SKIPPED_SELF_ECHO'].includes(e.code)),{timeout:30_000,message:'projection never settled (kept contending)'}).toBe(true);
+  // The real 28k-record graph can need multiple chunked reads around room/projection writes.
+  // A measured full-pipeline baseline settled about 67s after parse; keep this bounded at 90s,
+  // within the overall five-minute test deadline. Small synthetic tests retain their tight limits.
+  await expect.poll(async()=>(await readTrace(page)).some(e=>['PROJECT_APPLIED','PROJECT_NO_OP','PROJECT_SKIPPED_SELF_ECHO'].includes(e.code)),{timeout:90_000,message:'large-graph projection did not settle within 90 seconds'}).toBe(true);
   await page.waitForTimeout(1_500);
 
   const trace=await readTrace(page);

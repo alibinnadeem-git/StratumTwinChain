@@ -160,4 +160,32 @@ globalThis.setTimeout=realSetTimeout;
  cleanup();
 }
 
-console.log('Graph review concurrency passed: stale projections and recovery captures cannot revert human reviews, writes are serialized, and silent graph workers stop at the deadline or on cancel.');
+// Navigating away while a worker projects must discard that page's result instead of starting
+// another stale writer/retry loop after unmount. The newly mounted Spatial page owns projection.
+{
+ let effect,release,started,writes=0;
+ const held=new Promise(resolve=>{release=resolve});
+ const running=new Promise(resolve=>{started=resolve});
+ const module={exports:{}};
+ const compiled=ts.transpileModule(fs.readFileSync('components/SpatialProjectionEngine.tsx','utf8'),{
+  compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022},
+ }).outputText;
+ vm.runInNewContext(compiled,{
+  module,exports:module.exports,localStorage:memoryStorage(),setTimeout:realSetTimeout,clearTimeout,Event,
+  window:{addEventListener:()=>{},removeEventListener:()=>{},dispatchEvent:()=>{}},
+  require:id=>{
+   if(id==='react')return{useEffect:fn=>{effect=fn}};
+   if(id==='@/lib/electrical-model-registry')return{DEFAULT_ELECTRICAL_MODEL_REGISTRY:[],normalizeElectricalModelRegistry:()=>[]};
+   if(id==='@/lib/spatial-browser-recovery')return{readPrimarySpatialGraph:async()=>base,writePrimarySpatialGraphIfUnchanged:async()=>{writes++;return true}};
+   if(id==='@/lib/graph-assembly-client')return{projectGraphOffThread:async()=>{started();await held;return project(base)}};
+   if(id==='@/lib/graph-signature')return{graphSignature};
+   if(id==='@/lib/spatial-diagnostics')return{reportSpatialDiag:()=>{},startSpatialDiagTimer:()=>()=>0};
+   throw new Error('Unexpected projection import '+id);
+  },
+ });
+ module.exports.default();const cleanup=effect();await running;
+ cleanup();release();await new Promise(resolve=>realSetTimeout(resolve,0));
+ assert.equal(writes,0,'an unmounted projection must not write its worker result');
+}
+
+console.log('Graph review concurrency passed: stale projections and recovery captures cannot revert human reviews, unmounted projections stop, writes are serialized, and silent graph workers stop at the deadline or on cancel.');
