@@ -191,6 +191,11 @@ async function writePrimarySpatialGraphNow(graph:SpatialGraphLike,storage:Storag
     // Failure is fail-closed: never fall back to one giant synchronous
     // structuredClone/localStorage.stringify on the UI thread.
     await putChunkedGraph(PRIMARY_KEY,graph);
+    // A chunked graph has no localStorage shadow. Remove any stale shadow left
+    // by an earlier small graph: if it lingers, the persistence guard mistakes
+    // it for a legacy compatibility write and promotes it over this graph,
+    // deleting the chunked head and reverting the workspace to the old graph.
+    try{storage.removeItem(SPATIAL_GRAPH_KEY)}catch{}
     return {indexed:true,shadowed:false};
   }
   let indexed=false;
