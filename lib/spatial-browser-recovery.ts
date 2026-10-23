@@ -91,7 +91,7 @@ export async function readIndexedCurrentSpatialGraph():Promise<SpatialGraphLike|
   try{
     const chunked=await getChunkedGraph(PRIMARY_KEY);
     if(chunked)return chunked;
-  }catch{return null}
+  }catch{/* A torn chunked read must not end the lookup: fall through to the plain IndexedDB copy. */}
   try{return await idbGet(PRIMARY_KEY)}catch{return null}
 }
 
@@ -112,6 +112,19 @@ export async function readPrimarySpatialGraph(storage:Storage=localStorage):Prom
       indexed=await readIndexedCurrentSpatialGraph();
     }
   }
+  let fromRecovery=false;
+  if(!indexed){
+    // Current is unavailable or torn. The protected recovery generations hold
+    // complete earlier snapshots (protectSpatialGraph); consult them before
+    // the localStorage compatibility shadow, which for large graphs is stale
+    // or absent and otherwise resurrects an ancient graph. Read-only: the
+    // fallback is never written back over current here; promotion happens
+    // only through restoreBestSpatialGraph.
+    indexed=await readIndexedRecovery('latest');
+    if(!indexed)indexed=await readIndexedRecovery('previous');
+    fromRecovery=Boolean(indexed);
+  }
+  if(indexed&&fromRecovery)return indexed;
   if(indexed){
     // IndexedDB is authoritative. Heal any stale compatibility shadow immediately.
     try{
