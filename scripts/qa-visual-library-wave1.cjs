@@ -46,7 +46,7 @@ function inspect(file){
 let mapped=0,held=0;
 for(const item of manifest.models){
  const file=path.join(root,'public',item.url.replace(/^\/+/,''));assert(fs.existsSync(file),file);
- const stats=inspect(file),d=item.referenceDimensionsMeters,goal=[d.width,d.height,d.depth];
+ const stats=inspect(file),d=item.visualAssemblyBoundsMeters||item.referenceDimensionsMeters,goal=[d.width,d.height,d.depth];
  const relative=stats.bounds.map((v,i)=>Math.abs(v-goal[i])/goal[i]);
  assert(stats.triangleCount>100&&stats.triangleCount<=50000,'triangle budget outside limits: '+item.componentKey);
  assert(stats.doc.nodes[0]?.extras?.reviewStatus==='REVIEW_REQUIRED','provenance review gate missing');

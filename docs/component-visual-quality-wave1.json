@@ -138,7 +138,14 @@
       "autoResolveExactOEM": false,
       "measurementEligible": false,
       "exportEligible": false,
-      "manufacturerAndSKU": "UNRESOLVED"
+      "manufacturerAndSKU": "UNRESOLVED",
+      "visualAssemblyBoundsMeters": {
+        "width": 0.2,
+        "height": 0.2,
+        "depth": 0.112
+      },
+      "visualAssemblyBoundsAuthority": "PROCEDURAL_GEOMETRY_INCLUDES_TWO_CONDUIT_BOSSES",
+      "assemblyNotes": "Rigid box body remains 200×200×100 mm; two top/bottom conduit bosses extend overall assembly depth to 112 mm, without enlarging the enclosure body."
     },
     {
       "componentKey": "cable-tray",
