@@ -318,7 +318,8 @@ export async function protectSpatialGraph(graph:SpatialGraphLike,previous:Spatia
 export async function restoreBestSpatialGraph(){
   const indexedCurrent=await readIndexedCurrentSpatialGraph();
   if(indexedCurrent&&indexedCurrent.entities.length>0){
-    await writePrimarySpatialGraph(indexedCurrent);
+    // Durable current is already authoritative. Rewriting an asynchronously read
+    // snapshot here can revert a projection or human review that landed meanwhile.
     return{graph:indexedCurrent,source:'current' as const};
   }
   const current=readCurrentSpatialGraph();
@@ -329,15 +330,16 @@ export async function restoreBestSpatialGraph(){
   const graph=(indexed&&indexed.entities.length>0?indexed:null)||localCandidate||indexed||current;
   if(!graph)return{graph:null,source:null};
 
-  // Initialization may overlap a newer writer. Re-check IndexedDB immediately
-  // before promoting any legacy/recovery fallback so authority cannot move backward.
-  const concurrentCurrent=await readIndexedCurrentSpatialGraph();
-  if(concurrentCurrent){
-    await writePrimarySpatialGraph(concurrentCurrent);
-    return{graph:concurrentCurrent,source:'current' as const};
-  }
+  // Fallback promotion must share the primary-write queue. A newer current
+  // snapshot wins even if it arrived after recovery initialization began.
+  const promoted=await serializePrimaryWrite(async()=>{
+    const concurrentCurrent=await readIndexedCurrentSpatialGraph();
+    if(concurrentCurrent)return{graph:concurrentCurrent,promoted:false};
+    await writePrimarySpatialGraphNow(graph,localStorage);
+    return{graph,promoted:true};
+  });
+  if(!promoted.promoted)return{graph:promoted.graph,source:'current' as const};
 
-  await writePrimarySpatialGraph(graph);
   await protectSpatialGraph(graph,current);
   window.dispatchEvent(new Event('stratum:graph-updated'));
   window.dispatchEvent(new Event(SPATIAL_RECOVERY_EVENT));
