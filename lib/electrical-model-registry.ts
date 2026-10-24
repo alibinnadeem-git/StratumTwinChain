@@ -1,6 +1,7 @@
 import {ACTIVATED_OEM_MODELS} from './oem-activated-models.ts';
 import {ELECTRICAL_COMPONENTS} from './electrical-component-library.ts';
 import {OEM_SOURCES} from './oem-source-catalog.ts';
+import {OEM_CAD_CANDIDATES} from './oem-cad-candidates.ts';
 
 export type ElectricalModelFormat='GLB'|'GLTF'|'USD'|'USDZ';
 export type ElectricalModelConfig={
@@ -186,6 +187,13 @@ export function oemModelBinding(sourceId:string,registry:ElectricalModelConfig[]
  // may advertise MODEL_MAPPED in the manufacturer source directory.
  const matchedManufacturerModel=models.some(model=>{
    if(!model.modelUrl.trim())return false;
+   // Pinned approved CAD can be hosted on the manufacturer's GitHub account
+   // rather than its product-site hostname (for example Adafruit_CAD_Parts).
+   const approved=OEM_CAD_CANDIDATES.some(item=>
+     item.status==='GLB_APPROVED'&&item.sourceId===source.id&&
+     item.componentKey===model.componentKey&&item.modelUrl===model.modelUrl
+   );
+   if(approved)return true;
    if(!model.sourceUrl)return false;
    try{
      const normalizeHost=(url:string)=>new URL(url).hostname.toLowerCase().replace(/^www\./,'');
