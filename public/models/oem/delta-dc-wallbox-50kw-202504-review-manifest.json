@@ -20,7 +20,7 @@
   "assetUp": "+Y",
   "origin": "cabinet bottom center (not floor-mounted)",
   "autoResolve": false,
-  "renderingDefault": "/models/oem/delta-dc-wallbox-50kw-202504-cabinet-review.glb",
+  "renderingDefault": "/models/oem/delta-dc-wallbox-50kw-202504-dualgun-review.glb",
   "variants": [
     {
       "file": "/models/oem/delta-dc-wallbox-50kw-202504-cabinet-review.glb",
@@ -53,5 +53,14 @@
   "sourceUrls": [
     "https://www.delta-americas.com/en-US/products/EV-Charging/DC-Wallbox-50kW"
   ],
-  "deploymentGate": "DO_NOT_RELEASE_UNTIL_MODEL_BOUNDS_AND_VISUAL_REVIEW_AND_CI_PASSED"
+  "deploymentGate": "DO_NOT_RELEASE_UNTIL_MODEL_BOUNDS_AND_VISUAL_REVIEW_AND_CI_PASSED",
+  "modelScaleBasis": "CABINET_WITH_ACCESSORIES",
+  "selectedByUserReference": "Dual-gun with hanging cables and holsters shown in attached screenshot",
+  "uploadedReferenceGlb": {
+    "name": "stlib-ele-evse-delta-dc-wallbox-50kw-na-202504-dualgun-v1.glb",
+    "sha256": "42fbdb7d1a0ce862bea29ef168e5c011ce3bf8f5676bdae0d159bf7adabc82f5",
+    "sizeBytes": 114056,
+    "contentStatus": "USER_UPLOADED_REFERENCE_NOT_YET_IMPORTED_BIT_FOR_BIT"
+  },
+  "notes": "The selected repository candidate includes dual-gun accessory geometry. The uploaded reference GLB remains a distinct binary and MUST be compared/added before any claim of exact bit-for-bit matching."
 }

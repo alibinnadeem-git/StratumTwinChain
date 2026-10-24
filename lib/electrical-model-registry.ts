@@ -14,6 +14,8 @@ export type ElectricalModelConfig={
   offset:[number,number,number];
   /** Physical width, height and depth in meters. */
   dimensionsMeters?:[number,number,number];
+  /** Prevent entire cable/holster assembly from being scaled to cabinet envelope. */
+  meterScaleBasis?:'ENTIRE_MODEL'|'CABINET_WITH_ACCESSORIES';
   dimensionsSource?:string;
   dimensionsConfidence?:number;
   lod?:'LOW'|'MEDIUM'|'HIGH';
@@ -43,7 +45,7 @@ const PRODUCTION_MODEL_DEFAULTS:Record<string,Partial<ElectricalModelConfig>>={
   'battery-bank':{modelUrl:'/models/equipment/battery-cabinet.glb',dimensionsMeters:[1,1.86,.936],dimensionsConfidence:.5,dimensionsSource:'STRATUM representative battery cabinet envelope; replace with OEM submittal',source:'STRATUM general equipment model pack',license:'STRATUM-authored geometry',geometryStatus:'DIMENSIONAL_VISUALIZATION',notes:'Representative battery cabinet with visible module layout. Chemistry, capacity and hazard classification remain project inputs.'},
   'evse-kempower-satellite-v2':{modelUrl:'/models/oem/kempower-satellite-v2.glb',dimensionsMeters:[.3,1.738,.3],dimensionsConfidence:.98,dimensionsSource:'Kempower Satellite V2 product specification',source:'Kempower product specifications',sourceUrl:'https://kempower.com/solution/kempower-satellite/',license:'STRATUM-authored geometry; OEM trademarks remain property of Kempower',geometryStatus:'DIMENSIONAL_VISUALIZATION',notes:'Browser-optimized external geometry reconstructed to published physical dimensions; not an OEM-supplied CAD file.'},
   'evse-alpitronic-hyc400-s2':{modelUrl:'/models/oem/alpitronic-hyc400-s2.glb',dimensionsMeters:[.732,2.185,.663],dimensionsConfidence:.98,dimensionsSource:'Alpitronic HYC400 Series 2 product page',source:'Alpitronic product specifications',sourceUrl:'https://www.alpitronic.it/en/hypercharger/',license:'STRATUM-authored geometry; OEM trademarks remain property of Alpitronic',geometryStatus:'DIMENSIONAL_VISUALIZATION',notes:'Browser-optimized external geometry reconstructed to published physical dimensions; not an OEM-supplied CAD file.'},
-  'evse-delta-dc-wallbox-50':{modelUrl:'/models/oem/delta-dc-wallbox-50kw-202504-cabinet-review.glb',dimensionsMeters:[.65,1.02,.25],dimensionsConfidence:.95,dimensionsSource:'Delta Electronics DC Wallbox 50 kW North America product leaflet (April 2025); November 26, 2025 edition pending comparison',source:'Delta Electronics product specifications (NA April 2025)',sourceUrl:'https://www.delta-americas.com/en-US/products/EV-Charging/DC-Wallbox-50kW',license:'STRATUM-authored dimensional visualization; Delta trademarks and visual design belong to Delta Electronics',geometryStatus:'DIMENSIONAL_VISUALIZATION',notes:'REVIEW_REQUIRED: cabinet-only 650 W x 1020 H x 250 D mm reference model; no pedestal, no floor-height assertion. Wall mounted with cabinet bottom-center model origin; installation Z requires project evidence. Cabling and optional emergency-stop appearance are separate provisional 2025-04 review variants; do NOT normalize assemblies by cabinet bounding dimensions. Not OEM CAD or verified as visually identical to 2025-11-26 leaflet.'},
+  'evse-delta-dc-wallbox-50':{modelUrl:'/models/oem/delta-dc-wallbox-50kw-202504-dualgun-review.glb',meterScaleBasis:'CABINET_WITH_ACCESSORIES',dimensionsMeters:[.65,1.02,.25],dimensionsConfidence:.95,dimensionsSource:'Delta Electronics DC Wallbox 50 kW North America product leaflet (April 2025); November 26, 2025 edition pending comparison',source:'Delta Electronics product specifications (NA April 2025)',sourceUrl:'https://www.delta-americas.com/en-US/products/EV-Charging/DC-Wallbox-50kW',license:'STRATUM-authored dimensional visualization; Delta trademarks and visual design belong to Delta Electronics',geometryStatus:'DIMENSIONAL_VISUALIZATION',notes:'REVIEW_REQUIRED: default full visual assembly has a dimensioned 650 W x 1020 H x 250 D mm cabinet plus illustrative external dual guns, holsters, and hanging cables. Preserve GLB meter units and cabinet bottom-center origin. Never uniformly shrink the entire assembly to cabinet dimensions, and do not use extra cable bounds as equipment footprint or installation Z. Comparison against 2025-11-26 OEM leaflet is pending; not OEM CAD nor certified exact visual identity.'},
   'evse-abb-terra-360':{modelUrl:'/models/oem/abb-terra-360.glb',dimensionsMeters:[.72,2.2,.71],dimensionsConfidence:.95,dimensionsSource:'ABB Terra 360 product specification',source:'ABB E-mobility product specifications',sourceUrl:'https://global.abb/group/en/media/press-releases/abb-launches-the-worlds-fastest-electric-car-charger',license:'STRATUM-authored geometry; OEM trademarks remain property of ABB',geometryStatus:'DIMENSIONAL_VISUALIZATION',notes:'Browser-optimized external geometry reconstructed to published physical dimensions; not an OEM-supplied CAD file.'},
   'evse-tesla-supercharger-v3':{modelUrl:'/models/oem/tesla-supercharger-v3-community.glb',dimensionsMeters:[.82,1.73,.23],dimensionsConfidence:.8,dimensionsSource:'Model-space bounds; field dimensions require project verification',source:'Sketchfab community model via TeslaHub',sourceUrl:'https://sketchfab.com/3d-models/tesla-super-charger-low-poly-b9fc975778f542babbb2e861d32b1acd',license:'CC BY 4.0',attribution:'“Tesla Super Charger (low-poly)” by Suyog modak, modified for TeslaHub and reused under CC BY 4.0.',geometryStatus:'LICENSED_COMMUNITY',notes:'Licensed community visualization, not proprietary Tesla CAD. Verify field dimensions before engineering use.'},
   'evse-tesla-wall-connector-gen3':{modelUrl:'/models/equipment/panelboard-representative.gltf',format:'GLTF',dimensionsMeters:[.155,.345,.15],dimensionsConfidence:.88,dimensionsSource:'Tesla Universal Wall Connector official product specifications',source:'STRATUM representative enclosure geometry fitted to Tesla published physical envelope',sourceUrl:'https://energylibrary.tesla.com/docs/Public/Charging/WallConnector/Gen3/Install/UniversalWC/en-us/GUID-4A3BDFAA-7DBB-48CB-852C-BF1473EC4945.html',license:'STRATUM-authored representative geometry; Tesla trademarks and product design remain property of Tesla',geometryStatus:'DIMENSIONAL_VISUALIZATION',notes:'Representative enclosure geometry scaled to Tesla published dimensions for Spatial review. Not OEM CAD and not approved for installation, clearance, or construction decisions.'},
@@ -135,7 +137,17 @@ export function normalizeElectricalModelRegistry(input:unknown):ElectricalModelC
     );
     // Old browser registries stored blank procedural defaults. Newly shipped production
     // mappings must supersede those stale blank defaults without overwriting real user/OEM edits.
-    const value:any=!base.modelUrl||storedHasAuthoredModel?stored:{...stored,...base};
+    // Upgrade STRATUM's own earlier Delta GLB defaults, but NEVER overwrite a user-supplied URL.
+    const previousDeltaDefaults=new Set([
+      '/models/oem/delta-dc-wallbox-50kw.glb',
+      '/models/oem/delta-dc-wallbox-50kw-202504-cabinet-review.glb',
+    ]);
+    const shouldUpgradeBuiltInDelta=base.componentKey==='evse-delta-dc-wallbox-50'&&
+      typeof stored.modelUrl==='string'&&previousDeltaDefaults.has(stored.modelUrl)&&
+      (!stored.source||stored.source==='STRATUM procedural fallback'||stored.source.includes('Delta Electronics'));
+    const value:any=shouldUpgradeBuiltInDelta
+      ?{...stored,...base}
+      :(!base.modelUrl||storedHasAuthoredModel?stored:{...stored,...base});
     const dimensions=Array.isArray(value.dimensionsMeters)&&value.dimensionsMeters.length===3&&value.dimensionsMeters.every((item:any)=>Number(item)>0)
       ?[Number(value.dimensionsMeters[0]),Number(value.dimensionsMeters[1]),Number(value.dimensionsMeters[2])] as [number,number,number]
       :base.dimensionsMeters;
@@ -147,6 +159,8 @@ export function normalizeElectricalModelRegistry(input:unknown):ElectricalModelC
       rotation:tuple(value.rotation),
       offset:tuple(value.offset),
       dimensionsMeters:dimensions,
+      meterScaleBasis:value.meterScaleBasis==='CABINET_WITH_ACCESSORIES'&&
+        value.modelUrl===base.modelUrl?'CABINET_WITH_ACCESSORIES':'ENTIRE_MODEL',
       dimensionsSource:typeof value.dimensionsSource==='string'?value.dimensionsSource:base.dimensionsSource,
       dimensionsConfidence:Number.isFinite(Number(value.dimensionsConfidence))?Math.max(0,Math.min(1,Number(value.dimensionsConfidence))):base.dimensionsConfidence,
       lod:['LOW','MEDIUM','HIGH'].includes(value.lod)?value.lod:base.lod,

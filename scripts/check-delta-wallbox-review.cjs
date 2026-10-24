@@ -42,4 +42,12 @@ for(const name of names){
  }
  console.log('PASS',name, 'positions',count,'bbox_m',size.map(x=>x.toFixed(6)).join(' × '));
 }
+const registryText=fs.readFileSync(path.join(root,'lib/electrical-model-registry.ts'),'utf8');
+assert.match(registryText,/evse-delta-dc-wallbox-50[^\n]*202504-dualgun-review\.glb/);
+assert.match(registryText,/meterScaleBasis:'CABINET_WITH_ACCESSORIES'/);
+const viewerText=fs.readFileSync(path.join(root,'components/CompiledGraphViewer.tsx'),'utf8');
+assert.match(viewerText,/preserveCabinetAccessoryAssemblyMeters\(model,cfg\.dimensionsMeters,target/);
+const normalizerText=fs.readFileSync(path.join(root,'lib/three-model-normalization.ts'),'utf8');
+assert.match(normalizerText,/dimensionFitMode='CABINET_ENVELOPE_PRESERVE_ACCESSORIES_METERS'/);
+console.log('PASS: dual gun default and meter-space preservation policy');
 console.log('Review gate passed: visual identity and 2025-11-26 SKU remain unverified.');
