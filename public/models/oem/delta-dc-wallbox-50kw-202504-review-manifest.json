@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "componentKey": "evse-delta-dc-wallbox-50",
+  "product": "Delta DC Wallbox 50 kW",
+  "market": "North America",
+  "referenceEdition": "April 2025",
+  "requestedEdition": "2025-11-26 leaflet",
+  "requestedEditionVerification": "PENDING",
+  "designEvidence": "PUBLISHED_CABINET_ENVELOPE_PROVISIONAL_VISUAL",
+  "geometryStatus": "DIMENSIONAL_VISUALIZATION",
+  "reviewStatus": "REVIEW_REQUIRED",
+  "verifiedExactVisual": false,
+  "cabinetWidthHeightDepthMeters": [
+    0.65,
+    1.02,
+    0.25
+  ],
+  "unit": "meter",
+  "assetFront": "+Z",
+  "assetUp": "+Y",
+  "origin": "cabinet bottom center (not floor-mounted)",
+  "autoResolve": false,
+  "renderingDefault": "/models/oem/delta-dc-wallbox-50kw-202504-cabinet-review.glb",
+  "variants": [
+    {
+      "file": "/models/oem/delta-dc-wallbox-50kw-202504-cabinet-review.glb",
+      "gitBlobSha": "82fd001914b02b20db48f787deb2c40f368f8ba4",
+      "scope": "cabinet only; dimensional reference",
+      "usableForCabinetDimensions": true
+    },
+    {
+      "file": "/models/oem/delta-dc-wallbox-50kw-202504-dualgun-review.glb",
+      "gitBlobSha": "a5fa6266df978ab38fbc4e46c7140ba32e5ed9e5",
+      "scope": "illustrative external cables, holsters and two charging guns",
+      "usableForCabinetDimensions": false
+    },
+    {
+      "file": "/models/oem/delta-dc-wallbox-50kw-202504-optional-estop-review.glb",
+      "gitBlobSha": "fc3493bf31e4b33ca685abbcc26a9a48053aaba8",
+      "scope": "illustrative alternative with e-stop, SKU not proven",
+      "usableForCabinetDimensions": false
+    }
+  ],
+  "limitations": [
+    "Actual November 26 2025 leaflet not accessible; prior North America April 2025 dimensions are used",
+    "Procedural visual reconstruction; NOT OEM CAD, approved submittal, or a visually identical replica",
+    "Cable pose and connector anatomy are representative only",
+    "Body screen and fine details are approximated",
+    "Side accessories expand the assembly bounds and must not be used to autoscale the cabinet",
+    "Mount height/elevation Z stays UNRESOLVED without site evidence",
+    "Emergency-stop availability differs among published product imagery and spec revisions"
+  ],
+  "sourceUrls": [
+    "https://www.delta-americas.com/en-US/products/EV-Charging/DC-Wallbox-50kW"
+  ],
+  "deploymentGate": "DO_NOT_RELEASE_UNTIL_MODEL_BOUNDS_AND_VISUAL_REVIEW_AND_CI_PASSED"
+}
