@@ -1,6 +1,7 @@
 import {ACTIVATED_OEM_MODELS} from './oem-activated-models.ts';
 import {ELECTRICAL_COMPONENTS} from './electrical-component-library.ts';
 import {OEM_SOURCES} from './oem-source-catalog.ts';
+import {OEM_CAD_CANDIDATES} from './oem-cad-candidates.ts';
 
 export type ElectricalModelFormat='GLB'|'GLTF'|'USD'|'USDZ';
 export type ElectricalModelConfig={
@@ -103,6 +104,17 @@ const REPRESENTATIVE_FAMILY_DEFAULTS:Record<string,Partial<ElectricalModelConfig
  'energy-meter':representative('/models/equipment/power-meter-representative.gltf',[.24,.32,.14],'Representative energy meter envelope; replace with OEM data','Detailed meter face with display and controls.'),
 };
 
+/** T1 authored visuals improve class recognition, not dimensions or product identity. */
+const VISUAL_WAVE1_REVIEW_DEFAULTS:Record<string,Partial<ElectricalModelConfig>>={
+  'mcb':{modelUrl:'/models/equipment/stlib-ele-mcb-t1-v1.glb',format:'GLB',dimensionsMeters:[0.018,0.086,0.075],dimensionsConfidence:.2,dimensionsSource:'STRATUM class representative envelope ONLY; actual manufacturer and field dimensions unresolved',source:'STRATUM authored visual-quality wave 1 (T1)',license:'STRATUM INHOUSE',geometryStatus:'DIMENSIONAL_VISUALIZATION',notes:'T1 CLASS MODEL — REVIEW REQUIRED. DIN-rail module with actuator and terminals. Physical envelope and styling are illustrative class geometry, NOT OEM product, approved placement, or an authoritative clearance. Use only as 3D visual until source-confirmed SKU and dimensions are supplied.'},
+  'contactor':{modelUrl:'/models/equipment/stlib-ele-contactor-t1-v1.glb',format:'GLB',dimensionsMeters:[0.055,0.086,0.089],dimensionsConfidence:.2,dimensionsSource:'STRATUM class representative envelope ONLY; actual manufacturer and field dimensions unresolved',source:'STRATUM authored visual-quality wave 1 (T1)',license:'STRATUM INHOUSE',geometryStatus:'DIMENSIONAL_VISUALIZATION',notes:'T1 CLASS MODEL — REVIEW REQUIRED. 3-pole contactor with terminal openings and coil markings. Physical envelope and styling are illustrative class geometry, NOT OEM product, approved placement, or an authoritative clearance. Use only as 3D visual until source-confirmed SKU and dimensions are supplied.'},
+  'gfci':{modelUrl:'/models/equipment/stlib-ele-gfci-t1-v1.glb',format:'GLB',dimensionsMeters:[0.07,0.114,0.041],dimensionsConfidence:.2,dimensionsSource:'STRATUM class representative envelope ONLY; actual manufacturer and field dimensions unresolved',source:'STRATUM authored visual-quality wave 1 (T1)',license:'STRATUM INHOUSE',geometryStatus:'DIMENSIONAL_VISUALIZATION',notes:'T1 CLASS MODEL — REVIEW REQUIRED. Duplex front with GFCI TEST/RESET and mounting screws. Physical envelope and styling are illustrative class geometry, NOT OEM product, approved placement, or an authoritative clearance. Use only as 3D visual until source-confirmed SKU and dimensions are supplied.'},
+  'junction-box':{modelUrl:'/models/equipment/stlib-ele-junction-box-t1-v1.glb',format:'GLB',dimensionsMeters:[0.2,0.2,0.1],dimensionsConfidence:.2,dimensionsSource:'STRATUM class representative envelope ONLY; actual manufacturer and field dimensions unresolved',source:'STRATUM authored visual-quality wave 1 (T1)',license:'STRATUM INHOUSE',geometryStatus:'DIMENSIONAL_VISUALIZATION',notes:'T1 CLASS MODEL — REVIEW REQUIRED. Metal enclosure with screwed cover and conduit bosses. Physical envelope and styling are illustrative class geometry, NOT OEM product, approved placement, or an authoritative clearance. Use only as 3D visual until source-confirmed SKU and dimensions are supplied.'},
+  'cable-tray':{modelUrl:'/models/equipment/stlib-ele-cable-tray-t1-v1.glb',format:'GLB',dimensionsMeters:[0.6,0.11,1.2],dimensionsConfidence:.2,dimensionsSource:'STRATUM class representative envelope ONLY; actual manufacturer and field dimensions unresolved',source:'STRATUM authored visual-quality wave 1 (T1)',license:'STRATUM INHOUSE',geometryStatus:'DIMENSIONAL_VISUALIZATION',notes:'T1 CLASS MODEL — REVIEW REQUIRED. Straight aluminum ladder-tray segment with side rails, rungs and mount straps. Physical envelope and styling are illustrative class geometry, NOT OEM product, approved placement, or an authoritative clearance. Use only as 3D visual until source-confirmed SKU and dimensions are supplied.'},
+  'high-bay':{modelUrl:'/models/equipment/stlib-ele-high-bay-t1-v1.glb',format:'GLB',dimensionsMeters:[0.4,0.23,0.4],dimensionsConfidence:.2,dimensionsSource:'STRATUM class representative envelope ONLY; actual manufacturer and field dimensions unresolved',source:'STRATUM authored visual-quality wave 1 (T1)',license:'STRATUM INHOUSE',geometryStatus:'DIMENSIONAL_VISUALIZATION',notes:'T1 CLASS MODEL — REVIEW REQUIRED. Suspended circular LED luminaire with finned housing and lens. Physical envelope and styling are illustrative class geometry, NOT OEM product, approved placement, or an authoritative clearance. Use only as 3D visual until source-confirmed SKU and dimensions are supplied.'},
+  'exit-sign':{modelUrl:'/models/equipment/stlib-ele-exit-sign-t1-v1.glb',format:'GLB',dimensionsMeters:[0.33,0.2,0.055],dimensionsConfidence:.2,dimensionsSource:'STRATUM class representative envelope ONLY; actual manufacturer and field dimensions unresolved',source:'STRATUM authored visual-quality wave 1 (T1)',license:'STRATUM INHOUSE',geometryStatus:'DIMENSIONAL_VISUALIZATION',notes:'T1 CLASS MODEL — REVIEW REQUIRED. Illuminated EXIT sign enclosure, lettering and bracket. Physical envelope and styling are illustrative class geometry, NOT OEM product, approved placement, or an authoritative clearance. Use only as 3D visual until source-confirmed SKU and dimensions are supplied.'},
+};
+
 export const DEFAULT_ELECTRICAL_MODEL_REGISTRY:ElectricalModelConfig[]=ELECTRICAL_COMPONENTS.map(component=>({
   componentKey:component.key,
   oemSourceIds:OEM_SOURCES.filter(source=>source.componentKeys.includes(component.key)).map(source=>source.id),
@@ -116,6 +128,7 @@ export const DEFAULT_ELECTRICAL_MODEL_REGISTRY:ElectricalModelConfig[]=ELECTRICA
   geometryStatus:'PROCEDURAL',
   notes:'',
   ...(REPRESENTATIVE_FAMILY_DEFAULTS[component.key]||{}),
+  ...(VISUAL_WAVE1_REVIEW_DEFAULTS[component.key]||{}),
   ...(PRODUCTION_MODEL_DEFAULTS[component.key]||{}),
 }));
 
@@ -169,5 +182,25 @@ export function oemModelBinding(sourceId:string,registry:ElectricalModelConfig[]
  const source=OEM_SOURCES.find(item=>item.id===sourceId);
  if(!source)return null;
  const models=source.componentKeys.map(key=>registry.find(model=>model.componentKey===key)).filter((model):model is ElectricalModelConfig=>Boolean(model));
- return {source,models,status:source.componentKeys.length===0?'CLASS_PENDING':models.some(model=>model.modelUrl.trim())?'MODEL_MAPPED':'MODEL_PENDING'} as const;
+ // A class representative visual does not establish a model from *this* manufacturer.
+ // Only official product-source host corroboration or independently approved OEM CAD
+ // may advertise MODEL_MAPPED in the manufacturer source directory.
+ const matchedManufacturerModel=models.some(model=>{
+   if(!model.modelUrl.trim())return false;
+   // Pinned approved CAD can be hosted on the manufacturer's GitHub account
+   // rather than its product-site hostname (for example Adafruit_CAD_Parts).
+   const approved=OEM_CAD_CANDIDATES.some(item=>
+     item.status==='GLB_APPROVED'&&item.sourceId===source.id&&
+     item.componentKey===model.componentKey&&item.modelUrl===model.modelUrl
+   );
+   if(approved)return true;
+   if(!model.sourceUrl)return false;
+   try{
+     const normalizeHost=(url:string)=>new URL(url).hostname.toLowerCase().replace(/^www\./,'');
+     const modelHost=normalizeHost(model.sourceUrl);
+     const sourceHost=normalizeHost(source.url);
+     return modelHost===sourceHost||modelHost.endsWith('.'+sourceHost)||sourceHost.endsWith('.'+modelHost);
+   }catch{return false;}
+ });
+ return {source,models,status:source.componentKeys.length===0?'CLASS_PENDING':matchedManufacturerModel?'MODEL_MAPPED':'MODEL_PENDING'} as const;
 }

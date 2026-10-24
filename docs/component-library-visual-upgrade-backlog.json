@@ -1,0 +1,1518 @@
+{
+  "version": "2026-10-23-wave1",
+  "totalTaxonomyClasses": 100,
+  "disciplineCounts": {
+    "ELE": 62,
+    "ARC": 14,
+    "MEC": 12,
+    "PLB": 6,
+    "FPR": 6
+  },
+  "baseline": {
+    "existingGlbFilesInMain": 34,
+    "explicitElectricalEntriesWithoutDefaultModelOnMain": 26,
+    "existingCandidateFamiliesAwaitingIntake": 12
+  },
+  "wave1": {
+    "newT1Glbs": 8,
+    "newReviewBranchDefaultMappings": 7,
+    "heldForGeometryRefinement": [
+      "industrial-receptacle"
+    ],
+    "branch": "feature/electrical-visual-library-wave1-20261023"
+  },
+  "authoringPhases": [
+    {
+      "priority": 0,
+      "name": "Existing electrical model refinement",
+      "scope": "Switchgear, transformers, MCCs, ATS, UPS, generators; verify existing 12 candidate model families against source and improve visual quality"
+    },
+    {
+      "priority": 1,
+      "name": "Unmapped electrical components",
+      "scope": "26 explicit electrical class keys lacking direct model defaults on baseline main; first wave tackles eight"
+    },
+    {
+      "priority": 2,
+      "name": "OEM-specific variants",
+      "scope": "Source exact manufacturer SKU and revision, derive dimensions and appearance from licensed manufacturer CAD, datasheets or product elevations"
+    },
+    {
+      "priority": 3,
+      "name": "Multidiscipline backlog",
+      "scope": "Complete architectural, mechanical, plumbing and fire-protection classes after electrical-first acceptance"
+    }
+  ],
+  "qualityRules": [
+    "Manufacturer and SKU must not be inferred solely from class geometry",
+    "Generic/representative dimensions do not authorize field scale, takeoffs or clash decisions",
+    "Do not derive Z from model bounding height without an installation datum",
+    "Cables and other flexible accessories are not part of rigid cabinet dimension fit",
+    "New T1 geometry requires GLB audit, front/side inspection, origin and mount review",
+    "Promote to OEM visual matching only after exact product revision and evidence comparison",
+    "Preserve user-authored or already-approved GLBs until the replacement passes review",
+    "Do not merge red CI or release untested GLBs"
+  ],
+  "classes": [
+    {
+      "taxonomyId": "E-01",
+      "discipline": "ELE",
+      "className": "Pad-mount transformer",
+      "drawingCues": "Rectangle with coil symbol on the site plan; PMT, XFMR, UTILITY XFMR",
+      "ifcCandidate": "IfcTransformer (VOLTAGE)",
+      "sourceCandidates": "OEM: ABB, Eaton (Cooper Power), Siemens",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P0_ELECTRICAL_EQUIPMENT",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-02",
+      "discipline": "ELE",
+      "className": "Medium-voltage switchgear",
+      "drawingCues": "Long rectangle with line-up sections; MVSWGR, MV SWGR, 15KV",
+      "ifcCandidate": "IfcElectricDistributionBoard (SWITCHBOARD)",
+      "sourceCandidates": "OEM: Eaton, Siemens, ABB, Schneider Electric",
+      "relatedExistingT1Candidates": [
+        {
+          "name": "mv-switchgear-lineup",
+          "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE"
+        }
+      ],
+      "proposedSequence": "P0_ELECTRICAL_EQUIPMENT",
+      "geometryGate": "VERIFY_EXISTING_CANDIDATE",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-03",
+      "discipline": "ELE",
+      "className": "Low-voltage switchgear",
+      "drawingCues": "Rectangle with breaker cells; SWGR, LVSWGR, drawout",
+      "ifcCandidate": "IfcElectricDistributionBoard (SWITCHBOARD)",
+      "sourceCandidates": "OEM: Eaton, Square D (Schneider Electric), Siemens, ABB",
+      "relatedExistingT1Candidates": [
+        {
+          "name": "lv-switchgear-lineup",
+          "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE"
+        }
+      ],
+      "proposedSequence": "P0_ELECTRICAL_EQUIPMENT",
+      "geometryGate": "VERIFY_EXISTING_CANDIDATE",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-04",
+      "discipline": "ELE",
+      "className": "Main switchboard",
+      "drawingCues": "Large rectangle; MSB, MDP, SWBD, MDB",
+      "ifcCandidate": "IfcElectricDistributionBoard (SWITCHBOARD)",
+      "sourceCandidates": "OEM: Eaton, Square D, Siemens, ABB",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P0_ELECTRICAL_EQUIPMENT",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-05",
+      "discipline": "ELE",
+      "className": "Distribution panelboard",
+      "drawingCues": "Rectangle with panel name; DP, DP-1, PNL",
+      "ifcCandidate": "IfcElectricDistributionBoard (DISTRIBUTIONBOARD)",
+      "sourceCandidates": "OEM: Square D, Eaton, Siemens",
+      "relatedExistingT1Candidates": [
+        {
+          "name": "panelboard-full",
+          "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE"
+        }
+      ],
+      "proposedSequence": "P0_ELECTRICAL_EQUIPMENT",
+      "geometryGate": "VERIFY_EXISTING_CANDIDATE",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-06",
+      "discipline": "ELE",
+      "className": "Branch panelboard or load center",
+      "drawingCues": "Filled rectangle with panel name; LP, LP-1, PP, RP, PNL",
+      "ifcCandidate": "IfcElectricDistributionBoard (DISTRIBUTIONBOARD)",
+      "sourceCandidates": "OEM: Square D, Eaton, Siemens",
+      "relatedExistingT1Candidates": [
+        {
+          "name": "panelboard-full",
+          "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE"
+        }
+      ],
+      "proposedSequence": "P0_ELECTRICAL_EQUIPMENT",
+      "geometryGate": "VERIFY_EXISTING_CANDIDATE",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-07",
+      "discipline": "ELE",
+      "className": "Motor control center",
+      "drawingCues": "Rectangle divided into buckets; MCC",
+      "ifcCandidate": "IfcElectricDistributionBoard (MOTORCONTROLCENTRE)",
+      "sourceCandidates": "OEM: Eaton, Square D, Siemens, ABB",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P0_ELECTRICAL_EQUIPMENT",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-08",
+      "discipline": "ELE",
+      "className": "Busway segment",
+      "drawingCues": "Double line with tap-off boxes; BD, BUSWAY, BUS DUCT",
+      "ifcCandidate": "IfcCableSegment (BUSBARSEGMENT)",
+      "sourceCandidates": "OEM: Eaton (Pow-R-Way), Siemens (Sentron), Schneider Electric (Canalis, I-Line)",
+      "relatedExistingT1Candidates": [
+        {
+          "name": "busway-tapoffs",
+          "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE"
+        }
+      ],
+      "proposedSequence": "P0_ELECTRICAL_EQUIPMENT",
+      "geometryGate": "VERIFY_EXISTING_CANDIDATE",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-09",
+      "discipline": "ELE",
+      "className": "Dry-type transformer",
+      "drawingCues": "Square with two coils; XFMR, T-1, TR",
+      "ifcCandidate": "IfcTransformer (VOLTAGE)",
+      "sourceCandidates": "OEM: Eaton, Square D, ABB, Hammond Power Solutions",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P0_ELECTRICAL_EQUIPMENT",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-10",
+      "discipline": "ELE",
+      "className": "Meter and CT cabinet",
+      "drawingCues": "Circle with M, or box with CT; M, MTR, CT CAB",
+      "ifcCandidate": "IfcFlowMeter (ENERGYMETER)",
+      "sourceCandidates": "OEM: Eaton, Milbank, Siemens",
+      "relatedExistingT1Candidates": [
+        {
+          "name": "meter-ct-cabinet",
+          "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE"
+        }
+      ],
+      "proposedSequence": "P0_ELECTRICAL_EQUIPMENT",
+      "geometryGate": "VERIFY_EXISTING_CANDIDATE",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-11",
+      "discipline": "ELE",
+      "className": "Disconnect switch",
+      "drawingCues": "Switch blade with fuse mark and rating such as 60A/3P; DS, DISC, SW",
+      "ifcCandidate": "IfcSwitchingDevice (SWITCHDISCONNECTOR)",
+      "sourceCandidates": "OEM: Eaton, Square D, Siemens",
+      "relatedExistingT1Candidates": [
+        {
+          "name": "disconnect-breaker-generic",
+          "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE"
+        }
+      ],
+      "proposedSequence": "P0_ELECTRICAL_EQUIPMENT",
+      "geometryGate": "VERIFY_EXISTING_CANDIDATE",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-12",
+      "discipline": "ELE",
+      "className": "Enclosed circuit breaker",
+      "drawingCues": "Breaker symbol in a box with frame and trip such as 100AF/80AT; CB, MCCB",
+      "ifcCandidate": "IfcProtectiveDevice (CIRCUITBREAKER)",
+      "sourceCandidates": "OEM: Eaton, Square D, Siemens, ABB",
+      "relatedExistingT1Candidates": [
+        {
+          "name": "disconnect-breaker-generic",
+          "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE"
+        }
+      ],
+      "proposedSequence": "P0_ELECTRICAL_EQUIPMENT",
+      "geometryGate": "VERIFY_EXISTING_CANDIDATE",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-13",
+      "discipline": "ELE",
+      "className": "Automatic transfer switch",
+      "drawingCues": "Box with ATS",
+      "ifcCandidate": "IfcSwitchingDevice (SWITCHDISCONNECTOR)",
+      "sourceCandidates": "OEM: ASCO, Eaton, Cummins, Generac",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-14",
+      "discipline": "ELE",
+      "className": "Surge protective device",
+      "drawingCues": "Box with SPD or TVSS",
+      "ifcCandidate": "IfcProtectiveDevice (VARISTOR)",
+      "sourceCandidates": "OEM: Eaton, Square D, Siemens",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-15",
+      "discipline": "ELE",
+      "className": "Standby generator",
+      "drawingCues": "Circle with G; GEN, EG",
+      "ifcCandidate": "IfcElectricGenerator (ENGINEGENERATOR)",
+      "sourceCandidates": "OEM: Cummins, Generac, Caterpillar, Kohler",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-16",
+      "discipline": "ELE",
+      "className": "UPS",
+      "drawingCues": "Box with UPS",
+      "ifcCandidate": "IfcElectricFlowStorageDevice (UPS)",
+      "sourceCandidates": "OEM: Eaton, Schneider Electric (APC), Vertiv",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-17",
+      "discipline": "ELE",
+      "className": "Battery energy storage system",
+      "drawingCues": "Box or enclosure with BESS, BAT",
+      "ifcCandidate": "IfcElectricFlowStorageDevice (BATTERY)",
+      "sourceCandidates": "OEM: Tesla, Fluence, Eaton. Confirm per SKU",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-18",
+      "discipline": "ELE",
+      "className": "Solar PV inverter",
+      "drawingCues": "Box with INV, PVI",
+      "ifcCandidate": "IfcBuildingElementProxy (no native IFC4 class)",
+      "sourceCandidates": "OEM: Enphase, SolarEdge, SMA",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-19",
+      "discipline": "ELE",
+      "className": "VFD or motor starter",
+      "drawingCues": "Box with VFD, MS, MCP",
+      "ifcCandidate": "IfcSwitchingDevice (STARTER)",
+      "sourceCandidates": "OEM: ABB, Danfoss, Eaton, Siemens",
+      "relatedExistingT1Candidates": [
+        {
+          "name": "vfd-starter",
+          "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE"
+        }
+      ],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "VERIFY_EXISTING_CANDIDATE",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-20",
+      "discipline": "ELE",
+      "className": "EV charger",
+      "drawingCues": "Box or pedestal on the site plan; EVSE, EV",
+      "ifcCandidate": "IfcBuildingElementProxy (no native IFC4 class)",
+      "sourceCandidates": "OEM: ChargePoint, ABB, Tesla (Wall Connector)",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-21",
+      "discipline": "ELE",
+      "className": "Cable tray segment",
+      "drawingCues": "Double line along its path with width such as 12\"; CT, CBL TRAY, LADDER, TROUGH",
+      "ifcCandidate": "IfcCableCarrierSegment (CABLETRAYSEGMENT, CABLELADDERSEGMENT)",
+      "sourceCandidates": "OEM: Eaton (B-Line), Legrand (Cablofil)",
+      "relatedExistingT1Candidates": [
+        {
+          "name": "cable-tray-family",
+          "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE"
+        }
+      ],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "VERIFY_EXISTING_CANDIDATE",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-22",
+      "discipline": "ELE",
+      "className": "Cable tray fitting",
+      "drawingCues": "Elbow, tee, cross, reducer or riser at a change in the run",
+      "ifcCandidate": "IfcCableCarrierFitting (BEND, TEE, CROSS, REDUCER)",
+      "sourceCandidates": "OEM: Eaton (B-Line), Legrand (Cablofil)",
+      "relatedExistingT1Candidates": [
+        {
+          "name": "cable-tray-family",
+          "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE"
+        }
+      ],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "VERIFY_EXISTING_CANDIDATE",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-23",
+      "discipline": "ELE",
+      "className": "Wire basket tray",
+      "drawingCues": "Narrow double line; WB, BASKET",
+      "ifcCandidate": "IfcCableCarrierSegment (CABLETRAYSEGMENT)",
+      "sourceCandidates": "OEM: Legrand (Cablofil), Eaton (B-Line)",
+      "relatedExistingT1Candidates": [
+        {
+          "name": "cable-tray-family",
+          "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE"
+        }
+      ],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "VERIFY_EXISTING_CANDIDATE",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-24",
+      "discipline": "ELE",
+      "className": "Wireway",
+      "drawingCues": "Thin box line with size such as 4x4; WW, WIREWAY",
+      "ifcCandidate": "IfcCableCarrierSegment (CABLETRUNKINGSEGMENT)",
+      "sourceCandidates": "OEM: nVent (Hoffman), Eaton, Schneider Electric (Square D)",
+      "relatedExistingT1Candidates": [
+        {
+          "name": "cable-tray-family",
+          "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE"
+        }
+      ],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "VERIFY_EXISTING_CANDIDATE",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-25",
+      "discipline": "ELE",
+      "className": "Conduit riser or stub-up",
+      "drawingCues": "Circle with arrow; UP, DN, STUB-UP, size such as 2\"C",
+      "ifcCandidate": "IfcCableCarrierSegment (CONDUITSEGMENT)",
+      "sourceCandidates": "RVT, NBS; OEM: Atkore, Allied Tube (Atkore)",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-26",
+      "discipline": "ELE",
+      "className": "Conduit body",
+      "drawingCues": "Fitting at a turn; LB, LL, LR, T, C",
+      "ifcCandidate": "IfcCableCarrierFitting (JUNCTION)",
+      "sourceCandidates": "OEM: Crouse-Hinds (Eaton), Appleton (Emerson), ABB (Thomas & Betts)",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-27",
+      "discipline": "ELE",
+      "className": "Junction or pull box",
+      "drawingCues": "Square with J and size such as 12x12x6; J, JB, PB",
+      "ifcCandidate": "IfcJunctionBox",
+      "sourceCandidates": "OEM: nVent (Hoffman), Hubbell, ABB (Thomas & Betts)",
+      "relatedExistingT1Candidates": [
+        {
+          "name": "meter-ct-cabinet",
+          "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE"
+        }
+      ],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "VERIFY_EXISTING_CANDIDATE",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-28",
+      "discipline": "ELE",
+      "className": "Handhole",
+      "drawingCues": "Small square on the site plan; HH, PB",
+      "ifcCandidate": "IfcJunctionBox",
+      "sourceCandidates": "OEM: Hubbell (Quazite), Oldcastle Infrastructure",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-29",
+      "discipline": "ELE",
+      "className": "Manhole or electrical vault",
+      "drawingCues": "Circle or rectangle on the site plan; MH, EMH, VAULT",
+      "ifcCandidate": "IfcBuildingElementProxy",
+      "sourceCandidates": "OEM: Oldcastle Infrastructure, Hubbell (Quazite)",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-30",
+      "discipline": "ELE",
+      "className": "Ground rod",
+      "drawingCues": "Ground symbol on a rod; GR, GND ROD, size such as 3/4\" x 10'",
+      "ifcCandidate": "IfcBuildingElementProxy (no native IFC4 class)",
+      "sourceCandidates": "OEM: nVent (ERICO), Harger Lightning & Grounding",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-31",
+      "discipline": "ELE",
+      "className": "Ground test well",
+      "drawingCues": "Circle with G inside a square; GW, TW, GRD WELL",
+      "ifcCandidate": "IfcBuildingElementProxy (no native IFC4 class)",
+      "sourceCandidates": "OEM: nVent (ERICO), Hubbell (Quazite)",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-32",
+      "discipline": "ELE",
+      "className": "Grounding bus bar",
+      "drawingCues": "Thin rectangle with ground symbol; MGB, TMGB, TGB, GB",
+      "ifcCandidate": "IfcBuildingElementProxy (no native IFC4 class)",
+      "sourceCandidates": "OEM: Panduit, Chatsworth, nVent (ERICO)",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-33",
+      "discipline": "ELE",
+      "className": "Air terminal",
+      "drawingCues": "Vertical dash with circle on the roof plan; AT, LP, AIR TERM",
+      "ifcCandidate": "IfcBuildingElementProxy (no native IFC4 class)",
+      "sourceCandidates": "OEM: nVent (ERICO), Harger Lightning & Grounding",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-34",
+      "discipline": "ELE",
+      "className": "Duplex receptacle",
+      "drawingCues": "Circle with two parallel lines; R, DUP, REC, NEMA 5-20R",
+      "ifcCandidate": "IfcOutlet (POWEROUTLET)",
+      "sourceCandidates": "NBS, RVT; OEM: Leviton, Hubbell, Legrand",
+      "relatedExistingT1Candidates": [
+        {
+          "name": "wall-device-plate",
+          "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE"
+        }
+      ],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "VERIFY_EXISTING_CANDIDATE",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-35",
+      "discipline": "ELE",
+      "className": "GFCI receptacle",
+      "drawingCues": "Duplex symbol with GFI or GFCI; WP for weatherproof",
+      "ifcCandidate": "IfcOutlet (POWEROUTLET)",
+      "sourceCandidates": "NBS, RVT; OEM: Leviton, Hubbell",
+      "relatedExistingT1Candidates": [
+        {
+          "name": "wall-device-plate",
+          "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE"
+        }
+      ],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "VERIFY_EXISTING_CANDIDATE",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-36",
+      "discipline": "ELE",
+      "className": "240 V receptacle (range, dryer, welder)",
+      "drawingCues": "Circle with three lines; 240V, 220V, NEMA 14-50",
+      "ifcCandidate": "IfcOutlet (POWEROUTLET)",
+      "sourceCandidates": "NBS; OEM: Leviton, Hubbell",
+      "relatedExistingT1Candidates": [
+        {
+          "name": "wall-device-plate",
+          "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE"
+        }
+      ],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "VERIFY_EXISTING_CANDIDATE",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-37",
+      "discipline": "ELE",
+      "className": "Floor box",
+      "drawingCues": "Rectangle or circle in the floor; FB, FLR BOX",
+      "ifcCandidate": "IfcOutlet (POWEROUTLET)",
+      "sourceCandidates": "OEM: Legrand (Wiremold), Hubbell",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-38",
+      "discipline": "ELE",
+      "className": "Light switch (single-pole, 3-way, 4-way)",
+      "drawingCues": "S with subscript 3 or 4; S, S3, S4",
+      "ifcCandidate": "IfcSwitchingDevice (TOGGLESWITCH)",
+      "sourceCandidates": "NBS, RVT; OEM: Leviton, Lutron, Legrand",
+      "relatedExistingT1Candidates": [
+        {
+          "name": "wall-device-plate",
+          "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE"
+        }
+      ],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "VERIFY_EXISTING_CANDIDATE",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-39",
+      "discipline": "ELE",
+      "className": "Dimmer",
+      "drawingCues": "S with a D subscript; SD, DIM",
+      "ifcCandidate": "IfcSwitchingDevice (DIMMERSWITCH)",
+      "sourceCandidates": "OEM: Lutron, Leviton",
+      "relatedExistingT1Candidates": [
+        {
+          "name": "wall-device-plate",
+          "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE"
+        }
+      ],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "VERIFY_EXISTING_CANDIDATE",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-40",
+      "discipline": "ELE",
+      "className": "Occupancy or vacancy sensor",
+      "drawingCues": "Circle or wall box with OS; OS, OCC, VS",
+      "ifcCandidate": "IfcSensor (MOVEMENTSENSOR)",
+      "sourceCandidates": "OEM: Lutron, Acuity (nLight), Leviton",
+      "relatedExistingT1Candidates": [
+        {
+          "name": "ceiling-device-puck",
+          "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE"
+        }
+      ],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "VERIFY_EXISTING_CANDIDATE",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-41",
+      "discipline": "ELE",
+      "className": "Photocell or daylight sensor",
+      "drawingCues": "Circle with PC; PC, PE, PHOTOCELL",
+      "ifcCandidate": "IfcSensor (LIGHTSENSOR)",
+      "sourceCandidates": "OEM: Intermatic, Tork, Acuity (nLight), Lutron",
+      "relatedExistingT1Candidates": [
+        {
+          "name": "ceiling-device-puck",
+          "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE"
+        }
+      ],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "VERIFY_EXISTING_CANDIDATE",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-42",
+      "discipline": "ELE",
+      "className": "Lighting control panel",
+      "drawingCues": "Rectangle with LCP, RP",
+      "ifcCandidate": "IfcUnitaryControlElement (CONTROLPANEL)",
+      "sourceCandidates": "OEM: Lutron, Acuity (nLight), Eaton",
+      "relatedExistingT1Candidates": [
+        {
+          "name": "panelboard-full",
+          "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE"
+        }
+      ],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "VERIFY_EXISTING_CANDIDATE",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-43",
+      "discipline": "ELE",
+      "className": "Emergency stop or pushbutton station",
+      "drawingCues": "Circle with PB or ES; PB, ES, E-STOP",
+      "ifcCandidate": "IfcSwitchingDevice (EMERGENCYSTOP)",
+      "sourceCandidates": "OEM: Eaton, Siemens, ABB",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-44",
+      "discipline": "ELE",
+      "className": "Data outlet",
+      "drawingCues": "Triangle; D, DATA, RJ45",
+      "ifcCandidate": "IfcOutlet (DATAOUTLET)",
+      "sourceCandidates": "OEM: Leviton, Panduit, Legrand",
+      "relatedExistingT1Candidates": [
+        {
+          "name": "wall-device-plate",
+          "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE"
+        }
+      ],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "VERIFY_EXISTING_CANDIDATE",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-45",
+      "discipline": "ELE",
+      "className": "Network rack or IDF/MDF cabinet",
+      "drawingCues": "Rectangle; IDF, MDF, TR, RACK",
+      "ifcCandidate": "IfcBuildingElementProxy",
+      "sourceCandidates": "OEM: Chatsworth, Panduit, Schneider Electric (APC NetShelter)",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-46",
+      "discipline": "ELE",
+      "className": "Wireless access point",
+      "drawingCues": "Circle with signal arcs; WAP, AP",
+      "ifcCandidate": "IfcCommunicationsAppliance (NETWORKAPPLIANCE)",
+      "sourceCandidates": "OEM: Cisco, HPE Aruba, Ubiquiti. Confirm per SKU",
+      "relatedExistingT1Candidates": [
+        {
+          "name": "ceiling-device-puck",
+          "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE"
+        }
+      ],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "VERIFY_EXISTING_CANDIDATE",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-47",
+      "discipline": "ELE",
+      "className": "CCTV camera",
+      "drawingCues": "Triangle or dome; CAM, CCTV",
+      "ifcCandidate": "IfcAudioVisualAppliance (CAMERA)",
+      "sourceCandidates": "OEM: Axis, Hanwha, Bosch",
+      "relatedExistingT1Candidates": [
+        {
+          "name": "ceiling-device-puck",
+          "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE"
+        }
+      ],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "VERIFY_EXISTING_CANDIDATE",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-48",
+      "discipline": "ELE",
+      "className": "Card reader",
+      "drawingCues": "Small box; CR, RDR, AC",
+      "ifcCandidate": "IfcSensor (IDENTIFIERSENSOR)",
+      "sourceCandidates": "OEM: HID, Allegion, ASSA ABLOY",
+      "relatedExistingT1Candidates": [
+        {
+          "name": "wall-device-plate",
+          "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE"
+        }
+      ],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "VERIFY_EXISTING_CANDIDATE",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-49",
+      "discipline": "ELE",
+      "className": "Recessed downlight",
+      "drawingCues": "Circle with cross; DL, fixture-type letter such as A, B",
+      "ifcCandidate": "IfcLightFixture (POINTSOURCE)",
+      "sourceCandidates": "NBS; OEM: Lithonia (Acuity), Halo (Eaton), Signify",
+      "relatedExistingT1Candidates": [
+        {
+          "name": "luminaire-family",
+          "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE"
+        }
+      ],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "VERIFY_EXISTING_CANDIDATE",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-50",
+      "discipline": "ELE",
+      "className": "Troffer (2x4 and 2x2)",
+      "drawingCues": "Rectangle with diagonal or cross lines; 2X4, 2X2, fixture tag",
+      "ifcCandidate": "IfcLightFixture",
+      "sourceCandidates": "NBS; OEM: Lithonia, Metalux (Eaton), Signify",
+      "relatedExistingT1Candidates": [
+        {
+          "name": "luminaire-family",
+          "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE"
+        }
+      ],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "VERIFY_EXISTING_CANDIDATE",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-51",
+      "discipline": "ELE",
+      "className": "Linear pendant or strip",
+      "drawingCues": "Long thin rectangle; LIN, L1",
+      "ifcCandidate": "IfcLightFixture",
+      "sourceCandidates": "OEM: Lithonia, Signify, Eaton",
+      "relatedExistingT1Candidates": [
+        {
+          "name": "luminaire-family",
+          "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE"
+        }
+      ],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "VERIFY_EXISTING_CANDIDATE",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-52",
+      "discipline": "ELE",
+      "className": "Wall pack or sconce",
+      "drawingCues": "Semicircle against a wall; WP, WS",
+      "ifcCandidate": "IfcLightFixture",
+      "sourceCandidates": "OEM: Lithonia, Eaton",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-53",
+      "discipline": "ELE",
+      "className": "High-bay luminaire",
+      "drawingCues": "Circle with filled quadrants; HB",
+      "ifcCandidate": "IfcLightFixture",
+      "sourceCandidates": "OEM: Lithonia, Eaton, Signify",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-54",
+      "discipline": "ELE",
+      "className": "Pole luminaire",
+      "drawingCues": "Circle on a pole with arm on the site plan; PL, POLE, SL",
+      "ifcCandidate": "IfcLightFixture",
+      "sourceCandidates": "OEM: Lithonia, Eaton, Signify, Hubbell",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-55",
+      "discipline": "ELE",
+      "className": "Bollard",
+      "drawingCues": "Circle with a filled quarter; BOL, BOLLARD",
+      "ifcCandidate": "IfcLightFixture",
+      "sourceCandidates": "OEM: Lithonia, Eaton, Signify",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-56",
+      "discipline": "ELE",
+      "className": "Exit sign",
+      "drawingCues": "Box with X or arrow; EXIT",
+      "ifcCandidate": "IfcLightFixture (SECURITYLIGHTING)",
+      "sourceCandidates": "OEM: Lithonia, Cooper (Sure-Lites)",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-57",
+      "discipline": "ELE",
+      "className": "Emergency light unit",
+      "drawingCues": "Twin shaded heads; EM, EL",
+      "ifcCandidate": "IfcLightFixture (SECURITYLIGHTING)",
+      "sourceCandidates": "OEM: Lithonia, Cooper (Sure-Lites)",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-58",
+      "discipline": "ELE",
+      "className": "Fire alarm control panel",
+      "drawingCues": "Rectangle with FACP, FA, FCP",
+      "ifcCandidate": "IfcUnitaryControlElement (ALARMPANEL)",
+      "sourceCandidates": "OEM: Notifier (Honeywell), Siemens, Edwards",
+      "relatedExistingT1Candidates": [
+        {
+          "name": "fire-alarm-control-panel",
+          "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE"
+        }
+      ],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "VERIFY_EXISTING_CANDIDATE",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-59",
+      "discipline": "ELE",
+      "className": "Smoke detector",
+      "drawingCues": "Circle with S; SD",
+      "ifcCandidate": "IfcSensor (SMOKESENSOR)",
+      "sourceCandidates": "OEM: System Sensor, Notifier, Siemens",
+      "relatedExistingT1Candidates": [
+        {
+          "name": "ceiling-device-puck",
+          "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE"
+        }
+      ],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "VERIFY_EXISTING_CANDIDATE",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-60",
+      "discipline": "ELE",
+      "className": "Heat detector",
+      "drawingCues": "Circle with H; HD",
+      "ifcCandidate": "IfcSensor (HEATSENSOR)",
+      "sourceCandidates": "OEM: System Sensor, Notifier",
+      "relatedExistingT1Candidates": [
+        {
+          "name": "ceiling-device-puck",
+          "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE"
+        }
+      ],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "VERIFY_EXISTING_CANDIDATE",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-61",
+      "discipline": "ELE",
+      "className": "Manual pull station",
+      "drawingCues": "Square with F; PS, MPS",
+      "ifcCandidate": "IfcAlarm (MANUALPULLBOX)",
+      "sourceCandidates": "OEM: System Sensor, Notifier",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "E-62",
+      "discipline": "ELE",
+      "className": "Horn or strobe",
+      "drawingCues": "Box or trapezoid; H/S, HS, S, NA",
+      "ifcCandidate": "IfcAlarm (SIREN)",
+      "sourceCandidates": "OEM: System Sensor, Wheelock (Eaton), Gentex",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P1_ELECTRICAL_COMPLETION",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "A-01",
+      "discipline": "ARC",
+      "className": "Single swing door",
+      "drawingCues": "Quarter-circle swing arc in a wall opening; door tag D-101, 101A; DR",
+      "ifcCandidate": "IfcDoor",
+      "sourceCandidates": "NBS, RVT, BSM; OEM: Masonite, ASSA ABLOY, Allegion (hardware)",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "A-02",
+      "discipline": "ARC",
+      "className": "Double swing door",
+      "drawingCues": "Two opposing swing arcs; PR, DBL",
+      "ifcCandidate": "IfcDoor",
+      "sourceCandidates": "NBS, RVT, BSM; OEM: ASSA ABLOY",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "A-03",
+      "discipline": "ARC",
+      "className": "Sliding, pocket or bi-fold door",
+      "drawingCues": "Leaf beside the opening with arrow, dashed leaf in the wall, or zig-zag leaves; SLDG, PKT, BF",
+      "ifcCandidate": "IfcDoor",
+      "sourceCandidates": "NBS, RVT, BSM",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "A-04",
+      "discipline": "ARC",
+      "className": "Overhead or rolling door",
+      "drawingCues": "Dashed door outline above the opening; OHD, O.H., RSD, ROLL-UP",
+      "ifcCandidate": "IfcDoor",
+      "sourceCandidates": "OEM: Clopay, Overhead Door Company, Wayne Dalton (BO, BSM)",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "A-05",
+      "discipline": "ARC",
+      "className": "Storefront or glazed entrance",
+      "drawingCues": "Thin glazing lines with door swing; SF, STOREFRONT, ENT",
+      "ifcCandidate": "IfcDoor",
+      "sourceCandidates": "OEM: Kawneer, YKK AP (BO)",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "A-06",
+      "discipline": "ARC",
+      "className": "Fixed window",
+      "drawingCues": "Triple line in the wall; tag W-1, FX",
+      "ifcCandidate": "IfcWindow",
+      "sourceCandidates": "NBS, RVT, BSM",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "A-07",
+      "discipline": "ARC",
+      "className": "Operable window",
+      "drawingCues": "Triple line with sash marks; CSMT, DH, SL, AWN",
+      "ifcCandidate": "IfcWindow",
+      "sourceCandidates": "NBS, RVT; OEM: Andersen, Pella, Marvin",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "A-08",
+      "discipline": "ARC",
+      "className": "Stair",
+      "drawingCues": "Parallel treads; UP, DN, riser count such as 14 R",
+      "ifcCandidate": "IfcStair",
+      "sourceCandidates": "RVT, NBS. Parametric from run and rise",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "A-09",
+      "discipline": "ARC",
+      "className": "Guardrail or handrail",
+      "drawingCues": "Line with HR, GR, 42\" GR",
+      "ifcCandidate": "IfcRailing",
+      "sourceCandidates": "RVT, NBS",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "A-10",
+      "discipline": "ARC",
+      "className": "Elevator",
+      "drawingCues": "Box with diagonal X; ELEV, EL-1",
+      "ifcCandidate": "IfcTransportElement (ELEVATOR)",
+      "sourceCandidates": "RVT; OEM: KONE, Otis, Schindler",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "A-11",
+      "discipline": "ARC",
+      "className": "Ceiling grid and tile",
+      "drawingCues": "2x2 or 2x4 grid hatch on the reflected ceiling plan; ACT",
+      "ifcCandidate": "IfcCovering (CEILING)",
+      "sourceCandidates": "NBS, RVT; OEM: Armstrong, USG",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "A-12",
+      "discipline": "ARC",
+      "className": "Casework (base and wall cabinets)",
+      "drawingCues": "Rectangles along a wall, dashed uppers; BC, WC, CAB",
+      "ifcCandidate": "IfcFurniture",
+      "sourceCandidates": "RVT, NBS, ARCAT",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "A-13",
+      "discipline": "ARC",
+      "className": "Furniture (desk, table, chair)",
+      "drawingCues": "Outlines on furniture plans; DESK, TBL, CH",
+      "ifcCandidate": "IfcFurniture",
+      "sourceCandidates": "KEN, QUA, PPZ; OEM: Steelcase, Herman Miller (BO)",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "A-14",
+      "discipline": "ARC",
+      "className": "Kitchen and laundry appliances",
+      "drawingCues": "Rectangles with R, REF, RNG, OVEN, DW, W, D, W/D",
+      "ifcCandidate": "IfcElectricAppliance (REFRIGERATOR, ELECTRICCOOKER, DISHWASHER, WASHINGMACHINE, TUMBLEDRYER)",
+      "sourceCandidates": "KEN, BSM, BO",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "M-01",
+      "discipline": "MEC",
+      "className": "Air handling unit",
+      "drawingCues": "Large rectangle; AHU, AHU-1, AC-1",
+      "ifcCandidate": "IfcUnitaryEquipment (AIRHANDLER)",
+      "sourceCandidates": "OEM: Trane, Carrier, Daikin, Johnson Controls (York)",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "M-02",
+      "discipline": "MEC",
+      "className": "Rooftop unit",
+      "drawingCues": "Rectangle on the roof plan; RTU, RTU-1",
+      "ifcCandidate": "IfcUnitaryEquipment (ROOFTOPUNIT)",
+      "sourceCandidates": "OEM: Trane, Carrier, Lennox, Daikin",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "M-03",
+      "discipline": "MEC",
+      "className": "Fan coil or mini-split indoor unit",
+      "drawingCues": "Small rectangle with coil lines; FCU, FC-1, IDU, MS",
+      "ifcCandidate": "IfcUnitaryEquipment (AIRCONDITIONINGUNIT, SPLITSYSTEM)",
+      "sourceCandidates": "OEM: Trane, Carrier, Daikin, Mitsubishi Electric",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "M-04",
+      "discipline": "MEC",
+      "className": "VAV box",
+      "drawingCues": "Rectangle in a duct run; VAV, VAV-1",
+      "ifcCandidate": "IfcAirTerminalBox",
+      "sourceCandidates": "OEM: Titus, Price, Nailor, Trane",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "M-05",
+      "discipline": "MEC",
+      "className": "Exhaust fan",
+      "drawingCues": "Circle with blades; EF, EF-1",
+      "ifcCandidate": "IfcFan",
+      "sourceCandidates": "OEM: Greenheck, Loren Cook",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "M-06",
+      "discipline": "MEC",
+      "className": "Ceiling diffuser",
+      "drawingCues": "Square with X and size/CFM tag such as 12x12 / 250; SD, SA, CD",
+      "ifcCandidate": "IfcAirTerminal (DIFFUSER)",
+      "sourceCandidates": "NBS; OEM: Titus, Price, Krueger",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "M-07",
+      "discipline": "MEC",
+      "className": "Return or exhaust grille",
+      "drawingCues": "Square or rectangle with a single diagonal; RG, EG, TG",
+      "ifcCandidate": "IfcAirTerminal (GRILLE)",
+      "sourceCandidates": "NBS; OEM: Titus, Price",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "M-08",
+      "discipline": "MEC",
+      "className": "Fire or smoke damper",
+      "drawingCues": "Duct with diagonal and label; FD, SD, FSD",
+      "ifcCandidate": "IfcDamper (FIREDAMPER, SMOKEDAMPER, FIRESMOKEDAMPER)",
+      "sourceCandidates": "OEM: Ruskin, Greenheck, Nailor",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "M-09",
+      "discipline": "MEC",
+      "className": "Outdoor condensing or heat-pump unit",
+      "drawingCues": "Square on the site or roof plan; CU, ODU, HP",
+      "ifcCandidate": "IfcUnitaryEquipment (SPLITSYSTEM)",
+      "sourceCandidates": "OEM: Trane, Carrier, Daikin",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "M-10",
+      "discipline": "MEC",
+      "className": "Boiler",
+      "drawingCues": "Rectangle or circle with flame mark; B, BLR, B-1",
+      "ifcCandidate": "IfcBoiler",
+      "sourceCandidates": "OEM: Lochinvar, AERCO, Cleaver-Brooks, Burnham",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "M-11",
+      "discipline": "MEC",
+      "className": "Chiller",
+      "drawingCues": "Rectangle with CH, CH-1",
+      "ifcCandidate": "IfcChiller",
+      "sourceCandidates": "OEM: Trane, Carrier, Johnson Controls (York), Daikin",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "M-12",
+      "discipline": "MEC",
+      "className": "Pump",
+      "drawingCues": "Circle with a flow arrow; P, P-1, CHWP, HWP",
+      "ifcCandidate": "IfcPump",
+      "sourceCandidates": "OEM: Grundfos, Bell & Gossett (Xylem), Armstrong Fluid Technology, Taco",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "P-01",
+      "discipline": "PLB",
+      "className": "Water closet",
+      "drawingCues": "Oval bowl with tank; WC, WC-1",
+      "ifcCandidate": "IfcSanitaryTerminal (TOILETPAN)",
+      "sourceCandidates": "NBS, RVT; OEM: Kohler, American Standard, TOTO",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "P-02",
+      "discipline": "PLB",
+      "className": "Lavatory or sink",
+      "drawingCues": "Oval basin or rectangle with one or two bowls; LAV, L-1, SK, S-1",
+      "ifcCandidate": "IfcSanitaryTerminal (WASHHANDBASIN, SINK)",
+      "sourceCandidates": "NBS, RVT; OEM: Kohler, American Standard, Elkay",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "P-03",
+      "discipline": "PLB",
+      "className": "Floor drain",
+      "drawingCues": "Circle with square or X; FD",
+      "ifcCandidate": "IfcWasteTerminal (FLOORTRAP)",
+      "sourceCandidates": "OEM: Zurn, Watts, Jay R. Smith, Sioux Chief",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "P-04",
+      "discipline": "PLB",
+      "className": "Storage water heater",
+      "drawingCues": "Circle with WH; WH, WH-1",
+      "ifcCandidate": "IfcBoiler (WATER)",
+      "sourceCandidates": "OEM: A. O. Smith, Rheem, Bradford White",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "P-05",
+      "discipline": "PLB",
+      "className": "Backflow preventer",
+      "drawingCues": "Valve symbol with RPZ or DCVA; BFP",
+      "ifcCandidate": "IfcValve (CHECK)",
+      "sourceCandidates": "OEM: Watts, Zurn Wilkins, Febco",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "P-06",
+      "discipline": "PLB",
+      "className": "Isolation, check or pressure-reducing valve",
+      "drawingCues": "Bow-tie (gate), filled bow-tie (ball), check arrow, PRV; GV, BV, CV, PRV",
+      "ifcCandidate": "IfcValve (ISOLATING, CHECK, PRESSUREREDUCING)",
+      "sourceCandidates": "OEM: NIBCO, Apollo (Conbraco), Victaulic, Watts",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "FP-01",
+      "discipline": "FPR",
+      "className": "Sprinkler head",
+      "drawingCues": "Small circle with cross; SP, PEND, UPRT, SW (sidewall)",
+      "ifcCandidate": "IfcFireSuppressionTerminal (SPRINKLER)",
+      "sourceCandidates": "OEM: Viking, Tyco (Johnson Controls), Reliable, Victaulic",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "FP-02",
+      "discipline": "FPR",
+      "className": "Riser or alarm check valve assembly",
+      "drawingCues": "Vertical pipe with valve symbols; FR, RISER, ACV",
+      "ifcCandidate": "IfcValve (CHECK)",
+      "sourceCandidates": "OEM: Viking, Tyco, Victaulic",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "FP-03",
+      "discipline": "FPR",
+      "className": "Fire pump",
+      "drawingCues": "Circle with FP; FP, FP-1",
+      "ifcCandidate": "IfcPump",
+      "sourceCandidates": "OEM: Patterson, Aurora (Pentair), Armstrong, Clarke",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "FP-04",
+      "discipline": "FPR",
+      "className": "Fire hydrant",
+      "drawingCues": "Circle with cross and arms on the site plan; FH, HYD",
+      "ifcCandidate": "IfcFireSuppressionTerminal (FIREHYDRANT)",
+      "sourceCandidates": "OEM: Mueller, American AVK, Clow",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "FP-05",
+      "discipline": "FPR",
+      "className": "Fire extinguisher or cabinet",
+      "drawingCues": "Triangle or rectangle; FE, FEC",
+      "ifcCandidate": "IfcFireSuppressionTerminal (FIREEXTINGUISHER)",
+      "sourceCandidates": "OEM: JL Industries, Larsen's, Potter Roemer",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    },
+    {
+      "taxonomyId": "FP-06",
+      "discipline": "FPR",
+      "className": "Flow or tamper switch",
+      "drawingCues": "Small box on a sprinkler pipe labelled FS, TS",
+      "ifcCandidate": "IfcSensor (FLOWSENSOR)",
+      "sourceCandidates": "OEM: System Sensor, Potter Electric Signal",
+      "relatedExistingT1Candidates": [],
+      "proposedSequence": "P2_MULTI_DISCIPLINE",
+      "geometryGate": "FIND_OR_BUILD_CLASS_MODEL",
+      "sourceGate": "OEM_SKU_AND_SUBMITTAL_REQUIRED_FOR_EXACT_PRODUCT",
+      "viewerGate": "SCALE_XYZ_Z_AND_DIR_UAT_NOT_VERIFIED"
+    }
+  ]
+}
