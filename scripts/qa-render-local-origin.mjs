@@ -36,7 +36,7 @@ const zero=deriveRenderLocalOrigin([]);
 assert.deepEqual(zero,{x:0,y:0,authority:'RENDER_ONLY_BOUNDING_CENTER',sourcePointCount:0});
 
 const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
-assert.match(viewer,/deriveRenderLocalOrigin\(visible\)/);
+assert.match(viewer,/deriveRenderLocalOrigin\(renderEntities\)/);
 assert.match(viewer,/STRATUM_RENDER_LOCAL_ROOT/);
 assert.match(viewer,/spatialRoot\.position\.set\(-renderOrigin\.x,0,-renderOrigin\.y\)/);
 assert.match(viewer,/dataset\.renderOriginAuthority=renderOrigin\.authority/);
@@ -47,7 +47,7 @@ assert.match(viewer,/e\.x-renderOrigin\.x,height\(e\)\+\.08,e\.y-renderOrigin\.y
 assert.match(viewer,/a\.x-renderOrigin\.x,height\(a\)\+\.65,a\.y-renderOrigin\.y/,'logical link vertices must be localized');
 assert.match(viewer,/leaderStart=new THREE\.Vector3\(x-renderOrigin\.x[\s\S]*leaderEnd=new THREE\.Vector3\(sprite\.position\.x-renderOrigin\.x/,'label leader vertices must be localized before Float32 upload');
 assert.match(viewer,/absoluteCenter\.x-renderOrigin\.x/,'camera fit must target render-local world coordinates');
-assert.match(viewer,/selected\.x-origin\.x[\s\S]*selected\.y-origin\.y/,'selected-asset focus must target render-local coordinates');
+assert.match(viewer,/shown\.x-origin\.x[\s\S]*shown\.y-origin\.y/,'selected-asset focus must target render-local coordinates including review-layout offsets');
 assert.match(viewer,/renderedBox\.translate\(new THREE\.Vector3\(renderOrigin\.x,0,renderOrigin\.y\)\)/,'async model bounds must be converted back to authoritative coordinates before union');
 assert.doesNotMatch(viewer,/localStorage\.setItem\([^\n]*renderOrigin/,'render origin is view-only and must never persist into the authoritative graph');
 

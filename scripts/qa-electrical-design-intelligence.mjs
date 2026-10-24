@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import {classifyElectricalLabel} from '../lib/sld-recognition.ts';
 import {
  detectElectricalLegendPage,extractElectricalLegendEntries,
  detectElectricalSpecificationPage,extractElectricalSpecificationRequirements,
@@ -212,3 +213,33 @@ assert.match(geometryPolicy,/BLOCKED · ELECTRICAL SOURCE CONFLICT/);
 assert.match(geometryPolicy,/EVIDENCE CHAIN INCOMPLETE/);
 
 console.log('Electrical evidence compiler passed: project legend extraction, floor takeoff, equipment-matrix reconciliation, SLD cross-check, specification comparison, evidence gating, and fail-open review semantics are all active without inventing physical truth.');
+
+const wrappedLegend=extractElectricalLegendEntries([
+ {text:'GENERAL SYMBOLS',x:0,y:10,page:1},
+ {text:'SINGLE POLE',x:1,y:8,page:1},{text:'SWITCH',x:1,y:7.9,page:1},
+ {text:'4-WAY SWITCH',x:2,y:8,page:1},
+ {text:'OCCUPANCY',x:1,y:7,page:1},{text:'SENSOR SWITCH',x:1,y:6.9,page:1},
+],1);
+assert.ok(wrappedLegend.some(e=>e.componentHint==='SWITCH_SINGLE_POLE'&&e.description==='SINGLE POLE SWITCH'));
+assert.ok(wrappedLegend.some(e=>e.componentHint==='SWITCH_OCCUPANCY'));
+assert.ok(!wrappedLegend.some(e=>e.abbreviation==='SINGLE POLE'&&e.componentHint==='SWITCH_4WAY'),'neighboring symbol descriptions must not be paired as abbreviation/definition');
+assert.equal(classifyElectricalLabel('GENERAL PURPOSE RECEPTACLES'),null,'GENERAL cannot be classified as a GEN identifier');
+
+const descriptionWords=extractElectricalLegendEntries([
+ {text:'DIMMER',x:1,y:8,page:1},{text:'SWITCH',x:1,y:7.92,page:1},
+ {text:'2-POLE',x:2,y:8,page:1},{text:'SWITCH',x:2,y:7.92,page:1},
+ {text:'SUB-PANEL (LOAD CENTER) SURFACE MOUNTED',x:1,y:7,page:1},
+ {text:'HALF-HOT (SWITCHED) DUPLEX RECEPTACLE',x:1,y:6,page:1},
+ {text:'ATS - AUTOMATIC TRANSFER SWITCH',x:1,y:5,page:1},
+],1);
+assert.ok(!descriptionWords.some(e=>['DIMMER','SWITCH','2-POLE','SUB','HALF'].includes(e.abbreviation)));
+assert.ok(descriptionWords.some(e=>e.description==='DIMMER SWITCH'&&e.componentHint==='SWITCH_DIMMER'));
+assert.ok(descriptionWords.some(e=>e.description==='SUB-PANEL (LOAD CENTER) SURFACE MOUNTED'&&e.componentHint==='PANEL'));
+assert.ok(descriptionWords.some(e=>e.abbreviation==='ATS'));
+
+const wrappedDetector=extractElectricalLegendEntries([
+ {text:'SD',x:1,y:8,page:1},
+ {text:'HARD-WIRED SMOKE DETECTOR W/ BATTERY BACK',x:1.3,y:8.038,page:1},
+ {text:'UP. INTERCONNECTED WITHIN RESIDENTIAL UNIT.',x:1.3,y:7.966,page:1},
+],1);
+assert.equal(wrappedDetector.find(e=>e.abbreviation==='SD')?.componentHint,'SMOKE_DETECTOR');

@@ -91,9 +91,10 @@ export function detectElectricalLegendPage(labels:string[]){
 
 function abbreviationCandidate(value:string){
  const v=clean(value);
- if(!v||v.length>24||/\d{3,}/.test(v))return false;
- if(/^(?:DESCRIPTION|SYMBOL|ABBREVIATION|LEGEND|ELECTRICAL|NOTES?)$/i.test(v))return false;
- return /^[A-Z0-9][A-Z0-9 ._\-/()#]{0,22}$/.test(v.toUpperCase())&&/[A-Z]/.test(v);
+ if(!v||v.length>12||/\d{3,}/.test(v))return false;
+ if(/^(?:DESCRIPTION|SYMBOL|ABBREVIATION|LEGEND|ELECTRICAL|NOTES?|SWITCH|DIMMER|KEY|[234]-POLE|[34]-WAY|OCCUPANCY|SENSOR|RECEPTACLE|DETECTOR|PANEL|MOTOR|THERMOSTAT)$/i.test(v))return false;
+ // A complete device description is not an abbreviation for a neighboring legend column.
+ return /^[A-Z0-9]{1,8}(?:[._\-/][A-Z0-9]{1,6})?$/.test(v.toUpperCase())&&/[A-Z]/.test(v);
 }
 
 function descriptionCandidate(value:string){
@@ -122,8 +123,8 @@ export function extractElectricalLegendEntries(items:PositionedElectricalText[],
   const left=pageItems[i],token=clean(left.text);
   if(!abbreviationCandidate(token))continue;
   const near=pageItems.map((item,index)=>({item,index,dx:item.x-left.x,dy:Math.abs(item.y-left.y)}))
-   .filter(candidate=>candidate.index!==i&&candidate.dx>0&&candidate.dx<7&&candidate.dy<.28&&descriptionCandidate(candidate.item.text))
-   .sort((a,b)=>a.dy-b.dy||a.dx-b.dx)[0];
+   .filter(candidate=>candidate.index!==i&&candidate.dx>0&&candidate.dx<2.5&&candidate.dy<.1&&descriptionCandidate(candidate.item.text))
+   .sort((a,b)=>Number(Boolean(classifyElectricalLegendDescription(b.item.text)))-Number(Boolean(classifyElectricalLegendDescription(a.item.text)))||a.dy-b.dy||a.dx-b.dx)[0];
   if(!near)continue;
   const description=clean(near.item.text);
   if(legendPairNoise(token,description))continue;
@@ -140,7 +141,7 @@ export function extractElectricalLegendEntries(items:PositionedElectricalText[],
  for(let i=0;i<pageItems.length;i++){
   if(consumed.has(i))continue;
   const value=clean(pageItems[i].text);
-  const match=value.match(/^([A-Z0-9][A-Z0-9 ._\-/()#]{0,20})\s*(?:-|–|—|:)\s*(.{4,160})$/);
+  const match=value.match(/^([A-Z0-9][A-Z0-9 ._\-/()#]{0,20}?)(?:\s+[-–—]\s+|\s*:\s*)(.{4,160})$/);
   if(!match||!abbreviationCandidate(match[1])||!descriptionCandidate(match[2])||legendPairNoise(match[1],match[2]))continue;
   const componentHint=classifyElectricalLegendDescription(match[1]+' '+match[2]);
   out.push({
@@ -152,7 +153,9 @@ export function extractElectricalLegendEntries(items:PositionedElectricalText[],
  }
  // Capture description-only legend rows whose graphical symbol is the primary key.
  for(const item of pageItems){
-  const description=clean(item.text),componentHint=classifyElectricalLegendDescription(description);
+  const value=clean(item.text);
+  const continuation=pageItems.find(other=>other!==item&&Math.abs(other.x-item.x)<.08&&item.y-other.y>.025&&item.y-other.y<.18&&/^(?:SWITCH|SENSOR SWITCH|RECEPTACLE|DETECTOR)$/i.test(clean(other.text)));
+  const description=continuation?clean(value+' '+continuation.text):value,componentHint=classifyElectricalLegendDescription(description);
   if(!componentHint||legendPairNoise('',description))continue;
   if(abbreviationCandidate(description)&&description.split(/\s+/).length===1)continue;
   if(out.some(entry=>norm(entry.description)===norm(description)))continue;

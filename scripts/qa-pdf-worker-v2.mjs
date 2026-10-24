@@ -1,6 +1,9 @@
+import {pdfWasmAssetUrl} from '../lib/pdf-runtime-assets.ts';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 await import('./qa-pdf-text-content.mjs');
+await import('./qa-source-failure-retention.mjs');
+await import('./qa-project-display-layout.mjs');
 
 const compiler=fs.readFileSync('components/CompilerWorkspace.tsx','utf8');
 const workerPath=/pdf-native-parser\.worker-v2\.ts/.test(compiler)?'workers/pdf-native-parser.worker-v2.ts':'workers/pdf-native-parser.worker.ts';
@@ -36,3 +39,6 @@ const checks=[
 
 for(const [name,ok] of checks){console.log(`${ok?'✓':'✗'} ${name}`);assert.ok(ok,name)}
 console.log('\nPDF worker responsiveness contract passed: native/vector parsing stays off-thread, large/hybrid files queue only low-text pages for selective OCR, cancellation/retry remain available, and whole-file fallback is no longer the normal scanned-page path.');
+
+assert.equal(pdfWasmAssetUrl('https://example.test/_next/static/worker.js'),'https://example.test/pdfjs/wasm/');
+assert.equal(pdfWasmAssetUrl('https://example.test/compiler'),'https://example.test/pdfjs/wasm/');

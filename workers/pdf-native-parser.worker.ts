@@ -1,5 +1,7 @@
+import {pdfWasmAssetUrl} from '../lib/pdf-runtime-assets';
 import {inferPdfPageFloor} from '../lib/compiler-source';
 import {readPdfTextContent} from '../lib/pdf-text-content';
+import {anchorPdfEquipmentToVectorSymbols} from '../lib/pdf-equipment-symbol-anchor';
 import {classifyElectricalLabel,isElectricalAssetLabel,isElectricalCircuitLabel} from '../lib/sld-recognition';
 import {detectPlanFrames,resolveDrawingPageRecognition,resolvePlanFrameAtPoint} from '../lib/plan-recognition';
 import {extractSheetGeometryEvidence,extractSheetIdentity,type PositionedSheetText} from '../lib/title-block';
@@ -42,7 +44,7 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
  if(typeof PromiseWithResolvers.withResolvers!=='function')PromiseWithResolvers.withResolvers=()=>{let resolve:any,reject:any;const promise=new Promise((ok,fail)=>{resolve=ok;reject=fail});return{promise,resolve,reject}};
  const pdfjs:any=await import('pdfjs-dist/legacy/build/pdf.mjs');
  try{pdfjs.GlobalWorkerOptions.workerSrc='/pdfjs/pdf.worker.min.mjs'}catch{}
- const task=pdfjs.getDocument({data:new Uint8Array(buffer),wasmUrl:'/pdfjs/wasm/'});
+ const task=pdfjs.getDocument({data:new Uint8Array(buffer),wasmUrl:pdfWasmAssetUrl()});
  const doc=await task.promise;
  if(doc.numPages>ingestion.maxPages){await doc.destroy();fail('PDF_PAGE_BUDGET',`PDF has ${doc.numPages} pages; ${ingestion.mode.toLowerCase().replace('_',' ')} parsing is capped at ${ingestion.maxPages} pages. Split only if the protected source exceeds this bounded parser envelope.`)}
 
@@ -319,7 +321,9 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
   for(const p of polygons){if(!pageEvidence.get(p.page)?.isSld&&!planEvidence.get(p.page)?.isPlan)continue;const area=Math.abs(p.vertices.reduce((s,v,j)=>{const n=p.vertices[(j+1)%p.vertices.length];return s+v.x*n.y-n.x*v.y},0))/2;if(area<.08||area>190)continue;const c=centroid(p.vertices);entities.push({id:`pdf-room-${p.page}-${i++}`,source:fileName,layer:'L1',kind:'vector-boundary-candidate',name:`PDF closed path · page ${p.page}`,x:c.x,y:c.y,z:0,vertices:p.vertices,floor:floorAt(p.page,c.x,c.y),confidence:p.confidence,meta:{page:p.page,floorInference:'plan-frame-or-sheet-title-candidate',elevationKnown:false,sourceType:'PDF vector path',reconstruction:'heuristic-closed-path',reviewRequired:true,coordinateUnits:'sheet',pdfTransformsApplied:true,geometryValidated:false,...sldMeta(p.page),...planMeta(p.page,c.x,c.y)}})}
   for(const t of raw){if(/\bcannot locate\b|\bplease advise\b/i.test(t.str)||(!pageEvidence.get(t.page)?.isSld&&!planEvidence.get(t.page)?.isPlan))continue;const equipmentClass=classifyElectricalLabel(t.str),poweredClass=poweredEquipmentClass(t.str),isAsset=Boolean(equipmentClass),isPoweredNonElectrical=Boolean(poweredClass&&!isAsset),isCircuit=isElectricalCircuitLabel(t.str),isRoom=roomCandidate(t.str),vectorAttachment=vectorAttachmentByKey.get(t.key);if(!isAsset&&!isCircuit&&!isRoom&&!isPoweredNonElectrical)continue;const layer:Layer=isRoom?'L1':isPoweredNonElectrical?'L4':isCircuit&&!isAsset?'L3':'L2';entities.push({id:`pdf-${t.page}-${i++}`,source:fileName,layer,kind:isRoom?'room-label':isPoweredNonElectrical?'powered-equipment-candidate':isAsset?'text-asset-candidate':'logical-tag',name:t.str,x:t.x,y:t.y,z:0,floor:floorAt(t.page,t.x,t.y),confidence:isRoom?.7:isPoweredNonElectrical?.72:isAsset?.86:.74,meta:{page:t.page,floorInference:'sheet-title-candidate',elevationKnown:false,coordinateUnits:'sheet',sourceType:'PDF text object',...(poweredClass?{poweredEquipmentClass:poweredClass,registrationState:'CANDIDATE',spatialPlacementAuthority:'SOURCE_SHEET_POSITION_ONLY',physicalTruth:false,reviewRequired:true}:{}),...(equipmentClass?{electricalComponentHint:equipmentClass}:{}),...(vectorAttachment?{sldVectorComponent:vectorAttachment.component,sldVectorDistance:vectorAttachment.distance,sldVectorAuthority:'PDF_VECTOR_CONNECTED_COMPONENT'}:{}),...sldMeta(t.page),...planMeta(t.page,t.x,t.y)}})}
 
-  for(const entity of entities){
+  const symbolAnchorPolygons=polygons.map((polygon,index)=>{const c=centroid(polygon.vertices);return{id:`pdf-native-symbol-${polygon.page}-${index}`,page:polygon.page,vertices:polygon.vertices,confidence:polygon.confidence,planFrameId:frameAt(polygon.page,c.x,c.y)?.id||null}});
+  const anchoredEntities=anchorPdfEquipmentToVectorSymbols(entities,symbolAnchorPolygons);
+  for(const entity of anchoredEntities){
    if(entity.meta?.nonSpatial===true||entity.kind==='elevation-control-point'||entity.kind==='elevation-review-surface-triangle')continue;
    const page=Number(entity.meta?.page||0);if(!page)continue;
    const controls=elevationControlsByPage.get(page)||[],triangles=elevationTrianglesByPage.get(page)||[];
@@ -331,7 +335,7 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
    entity.meta={...entity.meta,localReviewSurfaceZ:local.zMeters,localReviewSurfaceKind:local.kind,localReviewSurfaceAuthority:local.authority,localReviewSurfaceConfidence:local.confidence,localReviewSurfaceTriangleId:local.triangleId,localReviewSurfaceControlPointIds:local.controlPointIds,physicalTruth:false,reviewRequired:true};
   }
   await semanticsHeartbeat(sourcePlanSegments,segments.length);
-  const supportEnriched=enrichSupportBaseOffsets(entities,[...supportOffsetsByPage.values()].flat());
+  const supportEnriched=enrichSupportBaseOffsets(anchoredEntities,[...supportOffsetsByPage.values()].flat());
   post({type:'heartbeat',requestId,page:doc.numPages,total:doc.numPages,
     phase:'returning source graph',processed:supportEnriched.length,workTotal:supportEnriched.length});
   const pageLabels=Array.from({length:doc.numPages},(_,index)=>raw.filter(item=>item.page===index+1).map(item=>item.str));

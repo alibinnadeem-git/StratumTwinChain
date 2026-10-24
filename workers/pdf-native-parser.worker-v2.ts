@@ -1,5 +1,7 @@
+import {pdfWasmAssetUrl} from '../lib/pdf-runtime-assets';
 import {inferPdfPageFloor} from '../lib/compiler-source';
 import {readPdfTextContent} from '../lib/pdf-text-content';
+import {anchorPdfEquipmentToVectorSymbols} from '../lib/pdf-equipment-symbol-anchor';
 import {classifyElectricalLabel,isElectricalAssetLabel,isElectricalCircuitLabel} from '../lib/sld-recognition';
 import {detectPlanFrames,resolveDrawingPageRecognition,resolvePlanFrameAtPoint} from '../lib/plan-recognition';
 import {extractSheetGeometryEvidence,extractSheetIdentity,type PositionedSheetText} from '../lib/title-block';
@@ -42,7 +44,7 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
  if(typeof PromiseWithResolvers.withResolvers!=='function')PromiseWithResolvers.withResolvers=()=>{let resolve:any,reject:any;const promise=new Promise((ok,fail)=>{resolve=ok;reject=fail});return{promise,resolve,reject}};
  const pdfjs:any=await import('pdfjs-dist/legacy/build/pdf.mjs');
  try{pdfjs.GlobalWorkerOptions.workerSrc='/pdfjs/pdf.worker.min.mjs'}catch{}
- const task=pdfjs.getDocument({data:new Uint8Array(buffer),wasmUrl:'/pdfjs/wasm/'});
+ const task=pdfjs.getDocument({data:new Uint8Array(buffer),wasmUrl:pdfWasmAssetUrl()});
  const doc=await task.promise;
  if(doc.numPages>ingestion.maxPages){await doc.destroy();fail('PDF_PAGE_BUDGET',`PDF has ${doc.numPages} pages; ${ingestion.mode.toLowerCase().replace('_',' ')} parsing is capped at ${ingestion.maxPages} pages. Split only if the protected source exceeds this bounded parser envelope.`)}
 
@@ -352,7 +354,9 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
    entities.push({id:`pdf-${t.page}-${i++}`,source:fileName,layer,kind:isRoom?'room-label':isPoweredNonElectrical?'powered-equipment-candidate':isAsset?'text-asset-candidate':'logical-tag',name:t.str,x:t.x,y:t.y,z:0,floor:floorAt(t.page,t.x,t.y),confidence:isRoom?.7:isPoweredNonElectrical?.72:legendEntry?Math.min(.9,legendEntry.confidence*.94):isAsset?.86:.74,meta:{page:t.page,floorInference:'sheet-title-candidate',elevationKnown:false,coordinateUnits:'sheet',sourceType:'PDF text object',...(poweredClass?{poweredEquipmentClass:poweredClass,registrationState:'CANDIDATE',spatialPlacementAuthority:'SOURCE_SHEET_POSITION_ONLY',physicalTruth:false,reviewRequired:true}:{}),...(equipmentClass?{electricalComponentHint:equipmentClass}:{}),...(legendEntry?{legendBacked:true,legendEntryId:legendEntry.id,legendAbbreviation:t.str.trim().toUpperCase(),symbolAnchorStatus:'TEXT_ABBREVIATION_REVIEW_CANDIDATE',symbolAnchorAuthority:'PROJECT_LEGEND_TEXT_ABBREVIATION',spatialPlacementAuthority:'SOURCE_TEXT_POSITION_ONLY',physicalTruth:false,reviewRequired:true,registrationState:'CANDIDATE'}:{}),...(vectorAttachment?{sldVectorComponent:vectorAttachment.component,sldVectorDistance:vectorAttachment.distance,sldVectorAuthority:'PDF_VECTOR_CONNECTED_COMPONENT'}:{}),...sldMeta(t.page),...planMeta(t.page,t.x,t.y)}})
   }
 
-  for(const entity of entities){
+  const symbolAnchorPolygons=polygons.map((polygon,index)=>{const c=centroid(polygon.vertices);return{id:`pdf-native-symbol-${polygon.page}-${index}`,page:polygon.page,vertices:polygon.vertices,confidence:polygon.confidence,planFrameId:frameAt(polygon.page,c.x,c.y)?.id||null}});
+  const anchoredEntities=anchorPdfEquipmentToVectorSymbols(entities,symbolAnchorPolygons);
+  for(const entity of anchoredEntities){
    if(entity.meta?.nonSpatial===true||entity.kind==='elevation-control-point'||entity.kind==='elevation-review-surface-triangle')continue;
    const page=Number(entity.meta?.page||0);if(!page)continue;
    const controls=elevationControlsByPage.get(page)||[],triangles=elevationTrianglesByPage.get(page)||[];
@@ -364,7 +368,7 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
    entity.meta={...entity.meta,localReviewSurfaceZ:local.zMeters,localReviewSurfaceKind:local.kind,localReviewSurfaceAuthority:local.authority,localReviewSurfaceConfidence:local.confidence,localReviewSurfaceTriangleId:local.triangleId,localReviewSurfaceControlPointIds:local.controlPointIds,physicalTruth:false,reviewRequired:true};
   }
   await semanticsHeartbeat(sourcePlanSegments,segments.length);
-  const supportEnriched=enrichSupportBaseOffsets(entities,[...supportOffsetsByPage.values()].flat());
+  const supportEnriched=enrichSupportBaseOffsets(anchoredEntities,[...supportOffsetsByPage.values()].flat());
   post({type:'heartbeat',requestId,page:doc.numPages,total:doc.numPages,
     phase:'returning source graph',processed:supportEnriched.length,workTotal:supportEnriched.length});
   const pageLabels=Array.from({length:doc.numPages},(_,index)=>raw.filter(item=>item.page===index+1).map(item=>item.str));

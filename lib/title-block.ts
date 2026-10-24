@@ -70,9 +70,10 @@ const ntsPattern=/^(?:NTS|NOT TO SCALE)$/i;
 const scalePattern=(value:string)=>architecturalScalePattern.test(compact(value))||metricScalePattern.test(compact(value))||ntsPattern.test(compact(value));
 
 function inferSheetNumber(items:PositionedSheetText[]){
-  const labeled=labeledField(items,/^(?:SHEET(?: NO\.?| NUMBER)?|DRAWING(?: NO\.?| NUMBER)?)\b/i,value=>sheetPattern.test(value),.97);if(labeled)return labeled;
-  const candidates=items.filter(item=>sheetPattern.test(upper(item.text))&&/\d/.test(item.text)).sort((a,b)=>(b.x+b.y)-(a.x+a.y));
-  return candidates[0]?field(upper(candidates[0].text),.72,[compact(candidates[0].text)],'STANDALONE_PATTERN'):field(null,0,[],'UNRESOLVED');
+  const canonical=(value:string)=>upper(value).replace(/\s+/g,'');
+  const labeled=labeledField(items,/^(?:SHEET(?: NO\.?| NUMBER)?|DRAWING(?: NO\.?| NUMBER)?)(?:\s*[:#]\s*.+)?$/i,value=>sheetPattern.test(canonical(value)),.97);if(labeled)return{...labeled,value:canonical(labeled.value!)};
+  const candidates=items.filter(item=>!/^SHEET\b|^DRAWING\b/i.test(upper(item.text))&&sheetPattern.test(canonical(item.text))&&/\d/.test(item.text)).sort((a,b)=>(b.x+b.y)-(a.x+a.y));
+  return candidates[0]?field(canonical(candidates[0].text),.72,[compact(candidates[0].text)],'STANDALONE_PATTERN'):field(null,0,[],'UNRESOLVED');
 }
 
 function inferRevision(items:PositionedSheetText[]){
