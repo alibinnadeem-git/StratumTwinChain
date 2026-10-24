@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+await import('./qa-pdf-text-content.mjs');
 
 const compiler=fs.readFileSync('components/CompilerWorkspace.tsx','utf8');
 const workerPath=/pdf-native-parser\.worker-v2\.ts/.test(compiler)?'workers/pdf-native-parser.worker-v2.ts':'workers/pdf-native-parser.worker.ts';

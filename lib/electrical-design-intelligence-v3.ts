@@ -209,7 +209,8 @@ export function extractPdfEquipmentMatrixRecords(items:PositionedElectricalText[
  if(!pageItems.length)return[];
  const rows:{y:number;items:PositionedElectricalText[]}[]=[];
  for(const item of pageItems){
-  let row=rows.find(candidate=>Math.abs(candidate.y-item.y)<=.16);
+  // A .16 sheet-unit band merged adjacent A/B fixture rows on dense engineering schedules.
+  let row=rows.find(candidate=>Math.abs(candidate.y-item.y)<=.045);
   if(!row){row={y:item.y,items:[]};rows.push(row)}
   row.items.push(item);row.y=(row.y*(row.items.length-1)+item.y)/row.items.length;
  }
@@ -223,10 +224,18 @@ export function extractPdfEquipmentMatrixRecords(items:PositionedElectricalText[
  const records:PdfEquipmentMatrixRecord[]=[];
  const isLightFixtureSchedule=pageItems.some(item=>/\bLIGHT\s+FIXTURE\s+SCHEDULE\b/i.test(clean(item.text)));
  const ordered=[...header.columns].sort((a,b)=>a.x-b.x);
- const rowCandidates=rows.filter(row=>row.y<header!.row.y-.12);
+ const distinctX=[...new Set(ordered.map(column=>column.x))].sort((a,b)=>a-b);
+ const left=distinctX[0]-(distinctX.length>1?(distinctX[1]-distinctX[0])/2:.3);
+ const right=distinctX.at(-1)!+(distinctX.length>1?(distinctX.at(-1)!-distinctX.at(-2)!)/2:.3);
+ // Stop at the next section heading in this table's column. Other notes/details on the sheet are not rows.
+ const sectionHeading=/^(?:NOTES?\b|ARTICLE\s+\d+\b|[A-Z0-9 (),&/-]+\b(?:NOTES|DETAILS?|INDEX|SYMBOLS|CONTACTS|CODE)\b)/i;
+ const nextSection=pageItems.filter(item=>item.y<header!.row.y-.12&&item.x>=left&&item.x<=distinctX[0]+.8&&sectionHeading.test(clean(item.text)))
+  .reduce((y,item)=>Math.max(y,item.y),-Infinity);
+ const rowCandidates=rows.filter(row=>row.y<header!.row.y-.08&&row.y>nextSection+.045);
  for(const row of rowCandidates){
   const cells:Record<string,string>={};
   for(const item of row.items){
+   if(item.x<left||item.x>right)continue;
    let best=ordered[0],distance=Infinity;
    for(const column of ordered){const d=Math.abs(item.x-column.x);if(d<distance){distance=d;best=column}}
    if(distance>2.8)continue;
@@ -234,6 +243,7 @@ export function extractPdfEquipmentMatrixRecords(items:PositionedElectricalText[
   }
   const tag=clean(cells.tag)||null,description=clean(cells.description)||null;
   if(!tag&&!description)continue;
+  if(isLightFixtureSchedule&&(!tag||!/^[A-Z0-9]{1,5}(?:[-.][A-Z0-9]{1,5})?$/i.test(tag)))continue;
   const identity=isLightFixtureSchedule?'LIGHT_FIXTURE':classifyElectricalLabel([tag,description].filter(Boolean).join(' '));
   const ratings:Record<string,number>={};
   for(const key of ['voltage','phase','kva','kw','watts','fla','mca','mocp','hp']){const value=firstNumber(cells[key]);if(value!==null)ratings[key]=value}
@@ -244,7 +254,7 @@ export function extractPdfEquipmentMatrixRecords(items:PositionedElectricalText[
    page,tag,description,manufacturer:clean(cells.manufacturer)||null,model:clean(cells.model)||null,
    location:clean(cells.location)||null,componentHint:identity||null,scheduleKind:isLightFixtureSchedule?'LIGHT_FIXTURE':'EQUIPMENT',
    ratings,confidence:tag&&identity ? .94 : tag ? .86 : .74,
-   sourceEvidence:[row.items.map(item=>clean(item.text)).join(' | ')]
+   sourceEvidence:[row.items.filter(item=>item.x>=left&&item.x<=right).map(item=>clean(item.text)).join(' | ')]
   });
  }
  return records.slice(0,1000);

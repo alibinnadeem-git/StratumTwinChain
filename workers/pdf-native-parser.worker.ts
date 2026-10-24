@@ -1,4 +1,5 @@
 import {inferPdfPageFloor} from '../lib/compiler-source';
+import {readPdfTextContent} from '../lib/pdf-text-content';
 import {classifyElectricalLabel,isElectricalAssetLabel,isElectricalCircuitLabel} from '../lib/sld-recognition';
 import {detectPlanFrames,resolveDrawingPageRecognition,resolvePlanFrameAtPoint} from '../lib/plan-recognition';
 import {extractSheetGeometryEvidence,extractSheetIdentity,type PositionedSheetText} from '../lib/title-block';
@@ -63,7 +64,7 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
    post({type:'progress',requestId,page:p,total:doc.numPages,phase:'text'});
    const page=await doc.getPage(p);
    const viewport=page.getViewport({scale:1});
-   const text=await page.getTextContent();
+   const text:any=await readPdfTextContent(page);
    pageGeometryByPage.set(p,{width:viewport.width,height:viewport.height,max:Math.max(viewport.width,viewport.height)});
    const items=Array.isArray(text.items)?text.items:[];
    const nativeText=items.map((item:any)=>String(item?.str||'').trim()).filter(Boolean);

@@ -62,7 +62,8 @@ const POWERED_CLASSES:PoweredClass[]=[
 ];
 
 const ELECTRICAL_SUPPLY=/\b(?:panel|panelboard|switchboard|switchgear|breaker|circuit|feeder|disconnect|mcc|pdu|rpp|transformer|xfmr|ats|ups)\b/i;
-const TAG_PATTERN=/\b(?:AHU|RTU|MAU|FCU|VAV|EF|SF|RF|PF|FP|JP|SMF|P|PMP|CH|CHLR|CT|CU|HP|WH|UH|HWP|CHWP|FACP|NAC|BMS|DDC|ELEV|EL|EVSE)[-_ ]?#?[A-Z0-9]+(?:[-_.][A-Z0-9]+)*\b/i;
+// Inferred tags require a numbered identifier: P must not consume PLAN, nor EL consume ELEVATOR.
+const TAG_PATTERN=/\b(?:AHU|RTU|MAU|FCU|VAV|EF|SF|RF|PF|FP|JP|SMF|P|PMP|CH|CHLR|CT|CU|HP|WH|UH|HWP|CHWP|FACP|NAC|BMS|DDC|ELEV|EL|EVSE)[-_ ]?#?[A-Z]*\d[A-Z0-9]*(?:[-_.][A-Z0-9]+)*\b/i;
 
 function finite(value:unknown){if(value===null||value===undefined||value==='')return null;const n=Number(value);return Number.isFinite(n)?n:null}
 function firstMeta(entity:PowerEntity,keys:string[]){for(const key of keys){const n=finite(entity.meta?.[key]);if(n!==null)return n}return null}
@@ -72,6 +73,17 @@ function equipmentClass(name:string){return POWERED_CLASSES.find(item=>item.patt
 export function poweredEquipmentClass(value:string){return equipmentClass(String(value||''))?.key||null}
 function sourceDiscipline(graph:PowerGraph,entity:PowerEntity){
  const source=(graph.sources||[]).find(item=>item.name===entity.source);
+ const clues=[entity.meta?.planDiscipline,entity.meta?.discipline,entity.meta?.workbookSheet,source?.discipline];
+ for(const clue of clues){
+  const value=String(clue||'').trim();
+  if(!value||/^(?:Unclassified|Multi-discipline|Unresolved|Unknown)$/i.test(value))continue;
+  // Worksheet titles can establish a discipline even when the workbook filename cannot.
+  const disciplines=[['Electrical',/\belectrical\b/i],['Mechanical',/\b(?:mechanical|hvac)\b/i],['Plumbing',/\bplumbing\b/i],['Fire Protection',/\bfire protection\b/i],['Controls',/\bcontrols\b/i],['Architectural',/\barchitectural\b/i]] as const;
+  const matches=disciplines.filter(([,pattern])=>pattern.test(value));
+  if(matches.length===1)return matches[0][0];
+  if(matches.length>1)continue;
+  if(clue!==entity.meta?.workbookSheet)return value;
+ }
  return String(source?.discipline||entity.meta?.discipline||'Unclassified');
 }
 function tagFor(entity:PowerEntity){
@@ -104,11 +116,20 @@ function apparentKva(values:ReturnType<typeof electricalValues>){
  if(values.voltage!==null&&current!==null&&values.phase===1)return{value:values.voltage*current/1000,basis:values.fla!==null?'1PH_VOLTAGE_X_FLA':'1PH_VOLTAGE_X_RLA'};
  return{value:null,basis:null};
 }
-function comparableTag(name:string,tag:string|null){if(!tag)return false;return normalized(name).includes(normalized(tag))}
+function comparableTag(name:string,tag:string|null){if(!tag)return false;return (' '+normalized(name)+' ').includes(' '+normalized(tag)+' ')}
 function likelySupply(entity:PowerEntity){return entity.meta?.referenceOnly!==true&&(entity.layer==='L2'||entity.layer==='L3'||ELECTRICAL_SUPPLY.test(entity.name))}
 
+function powerCandidate(entity:PowerEntity){
+ if(entity.meta?.referenceOnly===true||entity.meta?.drawingBasemap===true)return false;
+ const sourceType=String(entity.meta?.sourceType||'');
+ if(/^ELECTRICAL_LEGEND|^ELECTRICAL_SPECIFICATION/.test(sourceType)||/legend|spec-requirement|room-label/.test(entity.kind))return false;
+ // An untagged legend/instruction line describes a class; it does not establish an installed load.
+ if(!tagFor(entity)&&/\b(?:AS NOTED|SEE .{0,60}PLANS?|GENERAL NOTES?|LEGEND)\b/i.test(entity.name))return false;
+ return Boolean(equipmentClass(entity.name));
+}
+
 export function buildPowerIntelligence(graph:PowerGraph):PowerIntelligenceSnapshot{
- const candidates=graph.entities.filter(entity=>entity.meta?.referenceOnly!==true&&Boolean(equipmentClass(entity.name)));
+ const candidates=graph.entities.filter(powerCandidate);
  const requirements:ExpectedPowerRequirement[]=[];
  const findings:PowerGapFinding[]=[];
  for(const entity of candidates){
@@ -124,7 +145,7 @@ export function buildPowerIntelligence(graph:PowerGraph):PowerIntelligenceSnapsh
   ));
   const voltageConflicts=matches.filter(other=>{const v=electricalValues(other);return values.voltage!==null&&v.voltage!==null&&Math.abs(values.voltage-v.voltage)>.5});
   const phaseConflicts=matches.filter(other=>{const v=electricalValues(other);return values.phase!==null&&v.phase!==null&&values.phase!==v.phase});
-  const nonElectricalSource=!/electrical/i.test(discipline);
+  const nonElectricalSource=/\b(?:mechanical|hvac|plumbing|fire protection|fire\/life safety|controls|security|telecom|architectural)\b/i.test(discipline)&&!/electrical/i.test(discipline);
   const status:ExpectedPowerStatus=matches.length?(voltageConflicts.length||phaseConflicts.length?'CONFLICTED':'MATCHED'):(nonElectricalSource&&tag?'MISSING':'EXPECTED');
   const assumptions:string[]=[];
   if(values.mca!==null&&values.inputKw===null&&values.inputKva===null)assumptions.push('MCA is retained as circuit-sizing evidence and is not treated as actual demand.');

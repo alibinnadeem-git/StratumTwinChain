@@ -1,4 +1,5 @@
 import {inferPdfPageFloor} from '../lib/compiler-source';
+import {readPdfTextContent} from '../lib/pdf-text-content';
 import {classifyElectricalLabel,isElectricalAssetLabel,isElectricalCircuitLabel} from '../lib/sld-recognition';
 import {detectPlanFrames,resolveDrawingPageRecognition,resolvePlanFrameAtPoint} from '../lib/plan-recognition';
 import {extractSheetGeometryEvidence,extractSheetIdentity,type PositionedSheetText} from '../lib/title-block';
@@ -63,7 +64,7 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
    post({type:'progress',requestId,page:p,total:doc.numPages,phase:'text'});
    const page=await doc.getPage(p);
    const viewport=page.getViewport({scale:1});
-   const text=await page.getTextContent();
+   const text:any=await readPdfTextContent(page);
    pageGeometryByPage.set(p,{width:viewport.width,height:viewport.height,max:Math.max(viewport.width,viewport.height)});
    const items=Array.isArray(text.items)?text.items:[];
    const nativeText=items.map((item:any)=>String(item?.str||'').trim()).filter(Boolean);
@@ -125,9 +126,9 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
   }
 
   post({type:'progress',requestId,page:doc.numPages,total:doc.numPages,phase:'spatial semantics'});
-  const semanticsHeartbeat=async(processed:number,total:number)=>{
+  const semanticsHeartbeat=async(processed:number,total:number,phase='spatial semantics')=>{
    post({type:'heartbeat',requestId,page:doc.numPages,total:doc.numPages,
-     phase:'spatial semantics',processed,workTotal:total});
+     phase,processed,workTotal:total});
    await new Promise<void>(resolve=>setTimeout(resolve,0));
   };
   const planFramesByPage=new Map<number,ReturnType<typeof detectPlanFrames>>();
@@ -199,6 +200,7 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
    polygons:polygons.map((polygon,index)=>({id:`pdf-poly-${polygon.page}-${index}`,page:polygon.page,vertices:polygon.vertices,confidence:polygon.confidence,planFrameId:null})),
    segments
   });
+  await semanticsHeartbeat(0,polygons.length,'legend closed-vector matching');
   const symbolMatches=matchLegendSymbolFingerprints({
    fingerprints:symbolFingerprints,
    polygons:polygons
@@ -233,6 +235,7 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
    });
   }
   const segmentFingerprints=buildLegendSegmentFingerprints({entries:legendEntries,segments});
+  await semanticsHeartbeat(0,segments.length,'legend open-vector matching');
   const segmentMatches=matchLegendSegmentFingerprints({
    fingerprints:segmentFingerprints,segments,legendPages:legendPageSet,
    planPages:new Set([...planEvidence.entries()].filter(([,evidence])=>evidence.isPlan).map(([page])=>page))
@@ -264,6 +267,7 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
   }
 
   const zEvidence:ZEvidence[]=[];
+  await semanticsHeartbeat(0,doc.numPages,'sheet elevation and scale evidence');
   for(let page=1;page<=doc.numPages;page++){
    const labels=raw.filter(item=>item.page===page).map(item=>item.str);
    zEvidence.push(...extractZEvidenceFromText(labels.join('\n'),{source:fileName,floor:pageFloors.get(page)||'UNRESOLVED',idPrefix:`pdf-z-${page}`}));

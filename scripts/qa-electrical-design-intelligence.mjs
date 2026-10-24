@@ -65,6 +65,26 @@ assert.equal(fixtureRecords[0]?.scheduleKind,'LIGHT_FIXTURE');
 assert.equal(fixtureRecords[0]?.componentHint,'LIGHT_FIXTURE');
 assert.equal(fixtureRecords[0]?.tag,'A');
 
+const denseSchedule=[
+ {text:'COMMON AREA (HOUSE) LIGHT FIXTURE SCHEDULE',x:.95,y:6.39,page:1},
+ {text:'FIXTURE',x:.68,y:6.22,page:1},{text:'DESCRIPTION',x:1.14,y:6.22,page:1},
+ {text:'MANUFACTURER',x:2.46,y:6.25,page:1},{text:'CATALOG NUMBER',x:2.46,y:6.18,page:1},
+ {text:'WATTS',x:3.1,y:6.19,page:1},{text:'VOLTS',x:3.48,y:6.22,page:1},
+ ...['A','B','C','D','E','F'].flatMap((text,i)=>[
+  {text,x:.74,y:6.09-i*.14,page:1},
+  {text:'E-'+(i+1),x:4.55,y:6.09-i*.14,page:1},
+  {text:'UNRELATED SHEET INDEX',x:4.93,y:6.09-i*.14,page:1},
+ ]),
+ {text:'11',x:.65,y:2.16,page:1},{text:'ARTICLE 9, GENERAL BUILDING CODE:',x:.95,y:2.18,page:1},
+ {text:'EM',x:.74,y:1,page:1},
+ {text:'12',x:.65,y:-.3,page:1},{text:'RESIDENTIAL ENERGY NOTES',x:.95,y:-.29,page:1},
+ {text:'SD',x:.74,y:-5.55,page:1},{text:'SD',x:2.46,y:-5.55,page:1},
+];
+const denseRecords=extractPdfEquipmentMatrixRecords(denseSchedule,1);
+assert.deepEqual(denseRecords.map(item=>item.tag),['A','B','C','D','E','F'],'dense fixture rows stay separate, bounded to the table and above the next section');
+assert.ok(denseRecords.every(item=>Object.keys(item.ratings).length===0),'sheet numbers must not become negative fixture voltages');
+assert.ok(denseRecords.every(item=>!item.sourceEvidence.join(' ').includes('INDEX')),'evidence must exclude adjacent sheet-index cells');
+
 const legendEntities=legendEntries.map((entry,index)=>({
  id:'legend-'+index,source:'E-001.pdf',layer:'L0',kind:'electrical-legend-entry',name:entry.description,x:entry.anchor.x,y:entry.anchor.y,confidence:entry.confidence,
  meta:{nonSpatial:true,sourceType:'ELECTRICAL_LEGEND',legendEntry:entry}
