@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import {classifyElectricalLabel} from '../lib/sld-recognition.ts';
 import {
  detectElectricalLegendPage,extractElectricalLegendEntries,
  detectElectricalSpecificationPage,extractElectricalSpecificationRequirements,
@@ -64,6 +65,26 @@ const fixtureRecords=extractPdfEquipmentMatrixRecords(fixtureSchedule,1);
 assert.equal(fixtureRecords[0]?.scheduleKind,'LIGHT_FIXTURE');
 assert.equal(fixtureRecords[0]?.componentHint,'LIGHT_FIXTURE');
 assert.equal(fixtureRecords[0]?.tag,'A');
+
+const denseSchedule=[
+ {text:'COMMON AREA (HOUSE) LIGHT FIXTURE SCHEDULE',x:.95,y:6.39,page:1},
+ {text:'FIXTURE',x:.68,y:6.22,page:1},{text:'DESCRIPTION',x:1.14,y:6.22,page:1},
+ {text:'MANUFACTURER',x:2.46,y:6.25,page:1},{text:'CATALOG NUMBER',x:2.46,y:6.18,page:1},
+ {text:'WATTS',x:3.1,y:6.19,page:1},{text:'VOLTS',x:3.48,y:6.22,page:1},
+ ...['A','B','C','D','E','F'].flatMap((text,i)=>[
+  {text,x:.74,y:6.09-i*.14,page:1},
+  {text:'E-'+(i+1),x:4.55,y:6.09-i*.14,page:1},
+  {text:'UNRELATED SHEET INDEX',x:4.93,y:6.09-i*.14,page:1},
+ ]),
+ {text:'11',x:.65,y:2.16,page:1},{text:'ARTICLE 9, GENERAL BUILDING CODE:',x:.95,y:2.18,page:1},
+ {text:'EM',x:.74,y:1,page:1},
+ {text:'12',x:.65,y:-.3,page:1},{text:'RESIDENTIAL ENERGY NOTES',x:.95,y:-.29,page:1},
+ {text:'SD',x:.74,y:-5.55,page:1},{text:'SD',x:2.46,y:-5.55,page:1},
+];
+const denseRecords=extractPdfEquipmentMatrixRecords(denseSchedule,1);
+assert.deepEqual(denseRecords.map(item=>item.tag),['A','B','C','D','E','F'],'dense fixture rows stay separate, bounded to the table and above the next section');
+assert.ok(denseRecords.every(item=>Object.keys(item.ratings).length===0),'sheet numbers must not become negative fixture voltages');
+assert.ok(denseRecords.every(item=>!item.sourceEvidence.join(' ').includes('INDEX')),'evidence must exclude adjacent sheet-index cells');
 
 const legendEntities=legendEntries.map((entry,index)=>({
  id:'legend-'+index,source:'E-001.pdf',layer:'L0',kind:'electrical-legend-entry',name:entry.description,x:entry.anchor.x,y:entry.anchor.y,confidence:entry.confidence,
@@ -192,3 +213,33 @@ assert.match(geometryPolicy,/BLOCKED · ELECTRICAL SOURCE CONFLICT/);
 assert.match(geometryPolicy,/EVIDENCE CHAIN INCOMPLETE/);
 
 console.log('Electrical evidence compiler passed: project legend extraction, floor takeoff, equipment-matrix reconciliation, SLD cross-check, specification comparison, evidence gating, and fail-open review semantics are all active without inventing physical truth.');
+
+const wrappedLegend=extractElectricalLegendEntries([
+ {text:'GENERAL SYMBOLS',x:0,y:10,page:1},
+ {text:'SINGLE POLE',x:1,y:8,page:1},{text:'SWITCH',x:1,y:7.9,page:1},
+ {text:'4-WAY SWITCH',x:2,y:8,page:1},
+ {text:'OCCUPANCY',x:1,y:7,page:1},{text:'SENSOR SWITCH',x:1,y:6.9,page:1},
+],1);
+assert.ok(wrappedLegend.some(e=>e.componentHint==='SWITCH_SINGLE_POLE'&&e.description==='SINGLE POLE SWITCH'));
+assert.ok(wrappedLegend.some(e=>e.componentHint==='SWITCH_OCCUPANCY'));
+assert.ok(!wrappedLegend.some(e=>e.abbreviation==='SINGLE POLE'&&e.componentHint==='SWITCH_4WAY'),'neighboring symbol descriptions must not be paired as abbreviation/definition');
+assert.equal(classifyElectricalLabel('GENERAL PURPOSE RECEPTACLES'),null,'GENERAL cannot be classified as a GEN identifier');
+
+const descriptionWords=extractElectricalLegendEntries([
+ {text:'DIMMER',x:1,y:8,page:1},{text:'SWITCH',x:1,y:7.92,page:1},
+ {text:'2-POLE',x:2,y:8,page:1},{text:'SWITCH',x:2,y:7.92,page:1},
+ {text:'SUB-PANEL (LOAD CENTER) SURFACE MOUNTED',x:1,y:7,page:1},
+ {text:'HALF-HOT (SWITCHED) DUPLEX RECEPTACLE',x:1,y:6,page:1},
+ {text:'ATS - AUTOMATIC TRANSFER SWITCH',x:1,y:5,page:1},
+],1);
+assert.ok(!descriptionWords.some(e=>['DIMMER','SWITCH','2-POLE','SUB','HALF'].includes(e.abbreviation)));
+assert.ok(descriptionWords.some(e=>e.description==='DIMMER SWITCH'&&e.componentHint==='SWITCH_DIMMER'));
+assert.ok(descriptionWords.some(e=>e.description==='SUB-PANEL (LOAD CENTER) SURFACE MOUNTED'&&e.componentHint==='PANEL'));
+assert.ok(descriptionWords.some(e=>e.abbreviation==='ATS'));
+
+const wrappedDetector=extractElectricalLegendEntries([
+ {text:'SD',x:1,y:8,page:1},
+ {text:'HARD-WIRED SMOKE DETECTOR W/ BATTERY BACK',x:1.3,y:8.038,page:1},
+ {text:'UP. INTERCONNECTED WITHIN RESIDENTIAL UNIT.',x:1.3,y:7.966,page:1},
+],1);
+assert.equal(wrappedDetector.find(e=>e.abbreviation==='SD')?.componentHint,'SMOKE_DETECTOR');

@@ -2,6 +2,7 @@
 
 import {ChangeEvent,useEffect,useMemo,useState} from 'react';
 import {extractSheetIdentity,type PositionedSheetText,type SheetIdentityCandidate} from '@/lib/title-block';
+import {readPdfTextContent} from '@/lib/pdf-text-content';
 import {readPrimarySpatialGraph,writePrimarySpatialGraph} from '@/lib/spatial-browser-recovery';
 
 type StoredSheetIdentity=SheetIdentityCandidate&{confirmedAt?:string};
@@ -49,7 +50,7 @@ async function inspectPdf(file:File,onProgress:(label:string)=>void):Promise<Sto
       const page=await document.getPage(pageNumber);
       try{
         const viewport=page.getViewport({scale:1});
-        const text=await page.getTextContent();
+        const text:any=await readPdfTextContent(page);
         const items:PositionedSheetText[]=(text.items||[]).flatMap((item:any)=>{
           const value=String(item?.str||'').trim();if(!value)return[];
           const transform=item.transform||[1,0,0,1,0,0];

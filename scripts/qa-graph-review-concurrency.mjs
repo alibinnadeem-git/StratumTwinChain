@@ -189,3 +189,34 @@ globalThis.setTimeout=realSetTimeout;
 }
 
 console.log('Graph review concurrency passed: stale projections and recovery captures cannot revert human reviews, unmounted projections stop, writes are serialized, and silent graph workers stop at the deadline or on cancel.');
+
+// Recovery startup must not rewrite a durable current snapshot captured before a newer writer.
+// Execute the real recovery module with deterministic chunk-store interleavings.
+{
+ const compiled=ts.transpileModule(fs.readFileSync('lib/spatial-browser-recovery.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+ const large={...base,entities:Array.from({length:10000},(_,i)=>({...base.entities[0],id:'room-'+i}))};
+ const newer={...large,links:[{id:'reviewed',from:'room-0',to:'room-1',type:'REVIEWED'}],reviewState:'CONFIRMED'};
+ function load(chunked,storage=memoryStorage()){
+  const module={exports:{}};
+  vm.runInNewContext(compiled,{module,exports:module.exports,localStorage:storage,setTimeout,Event,window:{dispatchEvent(){}},require(name){
+   if(name.includes('spatial-chunked-graph'))return{CHUNKED_GRAPH_THRESHOLD:10000,...chunked};
+   if(name.includes('graph-signature'))return{graphSignature};
+   if(name.includes('spatial-provenance'))return{assertRealWritePayload(){}};
+   if(name.includes('spatial-diagnostics'))return{reportSpatialDiag(){}};
+   return{};
+  }});return module.exports;
+ }
+ let current=large,writes=0,release,started;
+ const held=new Promise(resolve=>{release=resolve}),reading=new Promise(resolve=>{started=resolve});
+ let first=true;
+ const recovery=load({getChunkedGraph:async key=>{if(key!=='current')return null;const captured=current;if(first){first=false;started();await held}return captured},putChunkedGraph:async(key,value)=>{if(key==='current'){current=value;writes++}}});
+ const pending=recovery.restoreBestSpatialGraph();await reading;current=newer;release();await pending;
+ assert.equal(writes,0,'durable current recovery must be read-only');assert.equal(current,newer,'startup cannot revert newer links or human reviews');
+ let reads=0;current=null;writes=0;
+ const fallbackRace=load({getChunkedGraph:async key=>{if(key==='latest')return large;if(key==='current'){reads++;if(reads===2)current=newer;return current}return null},putChunkedGraph:async(key,value)=>{if(key==='current'){current=value;writes++}}});
+ assert.equal((await fallbackRace.restoreBestSpatialGraph()).graph,newer);assert.equal(writes,0,'a current revision arriving during fallback lookup wins');
+ current=null;writes=0;
+ const empty=load({getChunkedGraph:async key=>key==='current'?current:key==='latest'?large:null,putChunkedGraph:async(key,value)=>{if(key==='current'){current=value;writes++}},copyChunkedGraphHead:async()=>true});
+ assert.equal((await empty.restoreBestSpatialGraph()).graph,large);assert.equal(current,large);assert.equal(writes,1,'missing current still promotes the protected fallback exactly once');
+}
+console.log('Recovery initialization passed: authoritative current is read-only, newer concurrent revisions win, and protected fallback promotion remains available.');

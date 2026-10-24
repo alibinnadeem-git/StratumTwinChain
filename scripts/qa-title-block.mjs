@@ -109,3 +109,9 @@ ok('title-block component cannot call asset/lifecycle/chain mutation APIs',!/["'
 ok('server compilation schema preserves reviewed extension fields',persistence.includes('}).passthrough();'));
 
 console.log('\nTitle-block intelligence and review safety contract passed.');
+
+const spacedTitle=extractSheetIdentity({page:4,sourceName:'Bid set.pdf',sourceSha256:'spaced',items:[
+ {text:'SHEET A502',x:.53,y:.4},{text:'HP1-1',x:.58,y:.45},
+ {text:'E - 4',x:.96,y:.97},{text:'FIRST FLOOR ELECTRICAL POWER PLAN',x:.96,y:.82},
+]});
+assert.equal(spacedTitle.sheetNumber.value,'E-4','spaced title-block identifiers must win over equipment tags and sheet cross-references');

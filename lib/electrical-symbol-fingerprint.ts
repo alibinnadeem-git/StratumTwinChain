@@ -97,6 +97,16 @@ function arrayDistance(a:number[],b:number[]){
  for(let i=0;i<n;i++)total+=Math.abs((a[i]||0)-(b[i]||0));
  return total/n;
 }
+
+function segmentsByPage(segments:SymbolSegment[]){
+ const pages=new Map<number,SymbolSegment[]>();
+ for(const segment of segments){
+  let page=pages.get(segment.page);
+  if(!page){page=[];pages.set(segment.page,page)}
+  page.push(segment);
+ }
+ return pages;
+}
 function similarity(fp:SymbolFingerprint,m:NonNullable<ReturnType<typeof metrics>>,neighbor:{count:number;lengths:number[];histogram:number[]}){
  const vertexScore=1-Math.min(1,Math.abs(fp.vertexCount-m.vertexCount)/Math.max(fp.vertexCount,m.vertexCount,4));
  const aspectScore=1-Math.min(1,Math.abs(fp.aspect-m.aspect)/.55);
@@ -120,6 +130,7 @@ export function buildLegendSymbolFingerprints(args:{
  segments?:SymbolSegment[];
 }):SymbolFingerprint[]{
  const out:SymbolFingerprint[]=[];
+ const pageSegments=segmentsByPage(args.segments||[]);
  for(const entry of args.entries){
   if(!entry.componentHint)continue;
   const dir=entry.textDirection,mag=dir?Math.hypot(dir.x,dir.y):0,unit=dir&&mag>.1?{x:dir.x/mag,y:dir.y/mag}:null;
@@ -139,7 +150,7 @@ export function buildLegendSymbolFingerprints(args:{
   const best=candidates[0];if(!best)continue;
   const ambiguous=candidates[1]&&Math.abs(candidates[1].score-best.score)<.12;
   if(ambiguous)continue;
-  const neighbor=neighborhoodMetrics(entry.page,best.m,args.segments||[]);
+  const neighbor=neighborhoodMetrics(entry.page,best.m,pageSegments.get(entry.page)||[]);
   out.push({
    id:`legend-fingerprint-${entry.id}`,sourcePage:entry.page,legendEntryId:entry.id,componentClass:entry.componentHint,
    centroid:best.m.centroid,vertexCount:best.m.vertexCount,size:best.m.size,aspect:best.m.aspect,compactness:best.m.compactness,
@@ -159,9 +170,11 @@ export function matchLegendSymbolFingerprints(args:{
  minScore?:number;
 }):SymbolMatch[]{
  const minScore=args.minScore??.84,out:SymbolMatch[]=[];
+ if(!args.fingerprints.length)return out;
+ const pageSegments=segmentsByPage(args.segments||[]);
  const prepared=args.polygons.filter(p=>!args.legendPages.has(p.page)).map(p=>({p,m:metrics(p)}))
   .filter((x):x is {p:SymbolPolygon;m:NonNullable<ReturnType<typeof metrics>>}=>Boolean(x.m))
-  .map(x=>({...x,neighbor:neighborhoodMetrics(x.p.page,x.m,args.segments||[])}));
+  .map(x=>({...x,neighbor:neighborhoodMetrics(x.p.page,x.m,pageSegments.get(x.p.page)||[])}));
  for(const candidate of prepared){
   const ranked=args.fingerprints.map(fp=>({fp,score:similarity(fp,candidate.m,candidate.neighbor)})).sort((a,b)=>b.score-a.score);
   const best=ranked[0],second=ranked[1];if(!best||best.score<minScore)continue;

@@ -9,6 +9,7 @@ import {unresolvedAssetVisual} from "@/lib/unresolved-asset-visual";
 import {deriveSpatialEvidenceEnvelope} from "@/lib/spatial-evidence-envelope";
 import {deriveDigitalTwinProjectReadiness} from "@/lib/digital-twin-readiness";
 import {deriveRenderLocalOrigin} from "@/lib/render-local-origin";
+import {projectDisplayLayout,displayedEntity} from "@/lib/project-display-layout";
 import {resolveReconciledAssetPlacement} from "@/lib/z-solution-chain";
 import {fitProceduralObjectToMeters,normalizeObjectToMeters} from "@/lib/three-model-normalization";
 import {decodeGlbBase64,inspectStandaloneGlb} from "@/lib/spatial-glb-import";
@@ -110,7 +111,7 @@ function entitySystem(e:Entity):SystemMode{
 function bounds2d(entities:Entity[]){
   const pts=entities.flatMap(e=>[{x:e.x,y:e.y},...(Number.isFinite(e.x2)&&Number.isFinite(e.y2)?[{x:e.x2!,y:e.y2!}]:[])]);
   if(!pts.length)return{minX:-10,maxX:10,minY:-10,maxY:10};
-  let minX=Math.min(...pts.map(p=>p.x)),maxX=Math.max(...pts.map(p=>p.x)),minY=Math.min(...pts.map(p=>p.y)),maxY=Math.max(...pts.map(p=>p.y));
+  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;for(const p of pts){if(!Number.isFinite(p.x)||!Number.isFinite(p.y))continue;minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y)}if(!Number.isFinite(minX))return{minX:-10,maxX:10,minY:-10,maxY:10};
   if(maxX-minX<1){minX-=1;maxX+=1}if(maxY-minY<1){minY-=1;maxY+=1}
   return{minX,maxX,minY,maxY};
 }
@@ -126,7 +127,7 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
   const [systemMode,setSystemMode]=useState<SystemMode>("ALL");
   const [floor,setFloor]=useState("ALL");
   const [discipline,setDiscipline]=useState("ALL");
-  const [sheetFrame,setSheetFrame]=useState("AUTO");
+  const [sheetFrame,setSheetFrame]=useState("PROJECT");
   const [hiddenSources,setHiddenSources]=useState<string[]>([]);
   const [exploded,setExploded]=useState(false);
   const [xray,setXray]=useState(false);
@@ -191,7 +192,7 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
     return[...map.values()].sort((a,b)=>a.source.localeCompare(b.source)||a.page-b.page);
   },[graph,sourceDisciplines]);
   const activeSheetFrame=useMemo(()=>{
-    if(sheetFrame==="ALL")return null;
+    if(sheetFrame==="ALL"||sheetFrame==="PROJECT")return null;
     if(sheetFrame!=="AUTO")return sheetFrame;
     if(sheetFrames.length<=1)return null;
     const preferred=mode==="ELECTRICAL"
@@ -236,6 +237,9 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
   // graph entity makes scene construction O(n²) and can leave Spatial looking
   // empty/partial while the browser is still burning through comparisons.
   const visibleIds=useMemo(()=>new Set(visible.map(entity=>entity.id)),[visible]);
+  const displayLayout=useMemo(()=>projectDisplayLayout(visible,sheetFrame==="PROJECT"),[visible,sheetFrame]);
+  const renderEntities=useMemo(()=>visible.map(entity=>displayedEntity(entity,displayLayout.offsets.get(entity.id))),[visible,displayLayout]);
+  const renderEntityIndex=useMemo(()=>new Map(renderEntities.map(entity=>[entity.id,entity])),[renderEntities]);
   const inventory=useMemo(()=>visible.filter(e=>e.kind!=="line"&&e.kind!=="sld-feeder-candidate"&&e.kind!=="wall-segment"&&e.kind!=="source-raster-underlay"&&e.kind!=="elevation-control-point"&&e.kind!=="elevation-review-surface-triangle"),[visible]);
   const identifiedEquipment=useMemo(()=>visible.filter(isIdentifiedProjectEquipment).length,[visible]);
   // Phase 4 candidate-role partition: only INSTANCEs are drawn as 3D equipment; LABELs stay review-only.
@@ -263,17 +267,17 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
   const matching=useMemo(()=>inventory,[inventory]);
   const projectAssets=useMemo(()=>demoMode?[]:activeProjectId?registeredAssets.filter(asset=>asset.project_id===activeProjectId&&!/^STR-UAT-/i.test(asset.asset_code)):[],[activeProjectId,registeredAssets,demoMode]);
   const twinReadiness=useMemo(()=>graph&&!demoMode?deriveDigitalTwinProjectReadiness(graph.entities,projectAssets,registry):null,[graph,projectAssets,registry,demoMode]);
-  const fallbackBounds=useMemo(()=>bounds2d(visible),[visible]);
-  const renderOrigin=useMemo(()=>deriveRenderLocalOrigin(visible),[visible]);
+  const fallbackBounds=useMemo(()=>bounds2d(renderEntities),[renderEntities]);
+  const renderOrigin=useMemo(()=>deriveRenderLocalOrigin(renderEntities),[renderEntities]);
   const entityIndex=useMemo(()=>new Map((graph?.entities||[]).map(e=>[e.id,e])),[graph]);
   const inventoryIndex=useMemo(()=>new Map(inventory.map((e,i)=>[e.id,i] as [string,number])),[inventory]);
-  const miniMapEntities=useMemo(()=>visible.filter(e=>e.kind!=="source-raster-underlay"),[visible]);
+  const miniMapEntities=useMemo(()=>renderEntities.filter(e=>e.kind!=="source-raster-underlay"),[renderEntities]);
 
   useEffect(()=>{
     if(!graph)return;
     const valid=new Set(graph.sources.map(source=>spatialSourceKey(source)));
     setHiddenSources(current=>current.filter(source=>valid.has(source)));
-    if(sheetFrame!=="AUTO"&&sheetFrame!=="ALL"&&!sheetFrames.some(frame=>frame.key===sheetFrame))setSheetFrame("AUTO");
+    if(sheetFrame!=="AUTO"&&sheetFrame!=="ALL"&&sheetFrame!=="PROJECT"&&!sheetFrames.some(frame=>frame.key===sheetFrame))setSheetFrame("PROJECT");
   },[graph?.createdAt,sheetFrames,sheetFrame]);
 
   function toggleSource(key:string){
@@ -318,13 +322,14 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
       (Object.keys(groups) as Layer[]).forEach(l=>spatialRoot.add(groups[l]));
       groups.L0.visible=mode!=="ELECTRICAL";groups.L1.visible=mode!=="ELECTRICAL";groups.L2.visible=true;groups.L3.visible=true;groups.L4.visible=true;
       const entityById=new Map(graph.entities.map(e=>[e.id,e]));
-      const clickable:any[]=[];const clickableEntities=new Set<string>();const entityAnchors=new Map<string,any>();const coordinationAnchors=new Map<string,any>();
+      const clickable:any[]=[];const clickableEntities=new Set<string>();const reviewCandidateIds=new Set<string>();const entityAnchors=new Map<string,any>();const coordinationAnchors=new Map<string,any>();
+      const canonical=(e:Entity)=>entityById.get(e.id)||e;
       const floorIndex=new Map(levels.map(([name],i)=>[name,i]));
       const extra=(e:Entity)=>exploded?(floorIndex.get(e.floor||"UNRESOLVED")||0)*2.6:0;
       const height=(e:Entity)=>entityRenderBaseZ(e,mode,registry)+extra(e);
       const isVisible=(e:Entity)=>visibleIds.has(e.id);
       const material=(color:number,opacity=1,emissive=0)=>new THREE.MeshStandardMaterial({color,emissive,emissiveIntensity:.2,metalness:.28,roughness:.48,transparent:opacity<1,opacity,depthWrite:opacity>.2});
-      const tag=(obj:any,e:Entity)=>{obj.userData.entity=e;entityAnchors.set(e.id,obj);clickableEntities.add(e.id);renderer.domElement.dataset.clickableAssets=String(clickableEntities.size);obj.traverse?.((node:any)=>{if(node.isMesh){node.userData.entity=e;if(!node.userData?.interactionProxy){node.castShadow=true;node.receiveShadow=true}const mats=Array.isArray(node.material)?node.material:[node.material];for(const mat of mats){if(mat?.emissive&&mat.userData?.stratumBaseEmissive===undefined){mat.userData=mat.userData||{};mat.userData.stratumBaseEmissive=mat.emissive.getHex();mat.userData.stratumBaseEmissiveIntensity=Number(mat.emissiveIntensity||0)}}clickable.push(node)}})};
+      const tag=(obj:any,e:Entity)=>{e=canonical(e);obj.userData.entity=e;entityAnchors.set(e.id,obj);if(e.meta?.candidateRole==="LABEL")reviewCandidateIds.add(e.id);else clickableEntities.add(e.id);if(clickableEntities.size)renderer.domElement.dataset.clickableAssets=String(clickableEntities.size);renderer.domElement.dataset.reviewCandidates=String(reviewCandidateIds.size);obj.traverse?.((node:any)=>{if(node.isMesh){node.userData.entity=e;if(!node.userData?.interactionProxy){node.castShadow=true;node.receiveShadow=true}const mats=Array.isArray(node.material)?node.material:[node.material];for(const mat of mats){if(mat?.emissive&&mat.userData?.stratumBaseEmissive===undefined){mat.userData=mat.userData||{};mat.userData.stratumBaseEmissive=mat.emissive.getHex();mat.userData.stratumBaseEmissiveIntensity=Number(mat.emissiveIntensity||0)}}clickable.push(node)}})};
       const interactionProxy=(root:any,target:[number,number,number])=>{const proxy=new THREE.Mesh(new THREE.BoxGeometry(Math.max(target[0]+.3,.8),Math.max(target[1]+.3,.8),Math.max(target[2]+.3,.8)),new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false,colorWrite:false}));proxy.userData.interactionProxy=true;root.add(proxy)};
       const reviewMarker=(e:Entity)=>{
         if(mode!=="REVIEW")return;
@@ -403,7 +408,7 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
         root.userData.visibleAuthorityLabel='UNVERIFIED · NO MODEL · PROXY';
         root.userData.authorityEligible=false;root.userData.takeoffEligible=false;
         root.userData.measurementEligible=false;root.userData.exportEligible=false;
-        attachSpatialEvidence(root,e,modelResolution);
+        attachSpatialEvidence(root,canonical(e),modelResolution);
         interactionProxy(root,target);tag(root,e);groups[e.layer==="L4"?"L4":"L2"].add(root);label(e.name+' · UNVERIFIED · PROXY',e.x,placement.baseZ,e.y,isSld(e)?"#8fcfff":"#ffd08a",e);
       };
       // UI-only review geometry: never enters the source graph, canonical XYZ,
@@ -451,10 +456,11 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
       const equipment=(e:Entity)=>{
         if(!isVisible(e))return;
         if(demoMode){previewFixtureEquipment(e);return;}
-        // Phase 4: only gated INSTANCEs render as 3D equipment. LABEL / REGISTRATION_SHADOW candidates
-        // stay in the review list (inspector) but are not drawn, preventing duplicated/label phantoms.
+        // Instances receive equipment geometry; labels remain visible as review pins.
+        // Derived registration shadows never duplicate their source object.
         const role=e.meta?.candidateRole;
-        if(role==='LABEL'||role==='REGISTRATION_SHADOW')return;
+        if(role==='REGISTRATION_SHADOW')return;
+        if(role==='LABEL'){renderProvisionalMarker(e,'SHEET_PIN');return;}
         const provisional=unresolvedAssetVisual(e);
         const visual=decideSourceModelVisual(e,registry);
         if(provisional.kind==='SHEET_PIN'&&!isSld(e)){
@@ -488,7 +494,7 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
                 root.userData.targetDimensionsMeters=target;
                 root.userData.normalization={scalar:normalized.scalar,ratioSpread:normalized.ratioSpread,reviewRequired:true};
                 root.userData.zDisplayAuthority=placement.zAuthority;root.userData.zPlacementConfidence=placement.zConfidence;root.userData.zSolutionStatus=reconciled.solution.status;root.userData.zSolutionConflicts=reconciled.solution.conflicts.length;
-                attachSpatialEvidence(root,e,null);
+                attachSpatialEvidence(root,canonical(e),null);
                 root.add(model);interactionProxy(root,target);tag(root,e);
                 groups.L2.add(root);label(e.name,e.x,placement.baseZ,e.y,'#ffd08a',e);
                 const renderedBox=new THREE.Box3().setFromObject(root);if(!renderedBox.isEmpty()){renderedBox.translate(new THREE.Vector3(renderOrigin.x,0,renderOrigin.y));bounds.union(renderedBox);}
@@ -526,7 +532,7 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
             root.userData.exportEligible=false;
             root.userData.authorityEligible=false;
             root.userData.geometryIsRepresentative=true;
-            attachSpatialEvidence(root,e,modelResolution);
+            attachSpatialEvidence(root,canonical(e),modelResolution);
             root.userData.normalization={scalar:normalized.scalar,ratioSpread:normalized.ratioSpread,reviewRequired:normalized.reviewRequired};
             if(normalized.reviewRequired)console.warn("STRATUM model dimension mismatch requires review",{component:e.name,target,intrinsic:normalized.intrinsic,ratios:normalized.ratios,ratioSpread:normalized.ratioSpread});
             if(provisional.kind!=='NONE'||visual.tier==='UNRESOLVED_CLASS_PREVIEW'){
@@ -556,7 +562,7 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
       // Merge flat vector segments (one THREE.Line each is thousands of objects on an SLD).
       // Keyed by layer; coordinates are stored relative to renderOrigin like the single-line path.
       const lineBatches=new Map<Layer,number[]>();
-      for(const e of graph.entities){
+      for(const e of renderEntities){
         if(!isVisible(e))continue;
         if(e.kind==="source-raster-underlay"){rasterUnderlay(e);continue}
         if(e.kind==="elevation-review-surface-triangle"&&Array.isArray(e.vertices)&&e.vertices.length===3){
@@ -581,6 +587,10 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
           }
           continue;
         }
+        if(e.kind==="vector-boundary-candidate"&&e.vertices&&e.vertices.length>=3){
+          const outline=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(e.vertices.map(p=>new THREE.Vector3(p.x-renderOrigin.x,height(e)+.03,p.y-renderOrigin.y))),new THREE.LineBasicMaterial({color:0x647f97,transparent:true,opacity:.45}));
+          outline.position.set(renderOrigin.x,0,renderOrigin.y);groups.L1.add(outline);continue;
+        }
         if(e.kind==="room-boundary"||e.kind==="floor-boundary"){room(e);continue}
         if(e.kind==="wall-segment"&&Number.isFinite(e.x2)&&Number.isFinite(e.y2)){wall({x:e.x,y:e.y},{x:e.x2!,y:e.y2!},e);continue}
         if((e.kind==="line"||e.kind==="sld-feeder-candidate")&&Number.isFinite(e.x2)&&Number.isFinite(e.y2)){
@@ -603,10 +613,10 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
         segments.position.set(renderOrigin.x,0,renderOrigin.y);groups[layer].add(segments);
       }
       for(const link of graph.links||[]){
-        if(!["SAME_TAG","SLD_FEEDS","SOURCE_RELATION"].includes(link.type))continue;const a=entityById.get(link.from),b=entityById.get(link.to);if(!a||!b||!isVisible(a)||!isVisible(b))continue;
+        if(!["SAME_TAG","SLD_FEEDS","SOURCE_RELATION"].includes(link.type))continue;const a=renderEntityIndex.get(link.from),b=renderEntityIndex.get(link.to);if(!a||!b||!isVisible(a)||!isVisible(b))continue;
         const pts=[new THREE.Vector3(a.x-renderOrigin.x,height(a)+.65,a.y-renderOrigin.y),new THREE.Vector3(b.x-renderOrigin.x,height(b)+.65,b.y-renderOrigin.y)];const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineDashedMaterial({color:link.type==="SLD_FEEDS"?0x56b9ff:0xa57cff,dashSize:.28,gapSize:.14,transparent:true,opacity:.78}));line.position.set(renderOrigin.x,0,renderOrigin.y);line.computeLineDistances();groups.L3.add(line);
       }
-      const visiblePoints=visible.flatMap(e=>[{x:e.x,y:height(e),z:e.y},...(Number.isFinite(e.x2)&&Number.isFinite(e.y2)?[{x:e.x2!,y:n(e.z2,e.z)+extra(e),z:e.y2!}]:[])]);
+      const visiblePoints=renderEntities.flatMap(e=>[{x:e.x,y:height(e),z:e.y},...(Number.isFinite(e.x2)&&Number.isFinite(e.y2)?[{x:e.x2!,y:n(e.z2,e.z)+extra(e),z:e.y2!}]:[])]);
       visiblePoints.forEach(p=>bounds.expandByPoint(new THREE.Vector3(p.x,p.y,p.z)));
       if(bounds.isEmpty())bounds.expandByPoint(new THREE.Vector3(-5,0,-5)).expandByPoint(new THREE.Vector3(5,5,5));
       const center=bounds.getCenter(new THREE.Vector3()),size=bounds.getSize(new THREE.Vector3()),span=Math.max(size.x,size.y,size.z,8);
@@ -640,12 +650,14 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
         const realGap=untagged.filter(e=>!hasAsyncModel(e)).map(e=>({id:e.id,kind:e.kind,layer:e.layer,name:String(e.name).slice(0,40),finiteXY:Number.isFinite(e.x)&&Number.isFinite(e.y),sld:isSld(e),page:Number(e.meta?.page||0)}));
         reportSpatialDiag({stage:"render",level:realGap.length?"warn":"info",code:"RENDER_INSTANCE_GAP",message:`${visibleInstances.length-untagged.length} drawn sync · ${pendingAsync.length} async model pending · ${realGap.length} real gap`,counts:{visibleInstances:visibleInstances.length,drawnSync:visibleInstances.length-untagged.length,pendingAsyncModel:pendingAsync.length,realGap:realGap.length},data:{realGap}});
       }catch(error){reportSpatialDiag({stage:"render",level:"warn",code:"RENDER_SUMMARY_FAILED",message:"Could not compute render summary",data:{error:error instanceof Error?error.message:String(error)}});}
+      renderer.domElement.dataset.sourceSheets=String(new Set(renderEntities.map(sheetPageKey).filter(Boolean)).size);
+      renderer.domElement.dataset.displayLayout=sheetFrame==="PROJECT"?"ENTIRE_PROJECT":"ISOLATED_OR_OVERLAY";
       renderer.domElement.setAttribute("aria-label","Interactive Spatial model");
       renderer.domElement.setAttribute("role","application");
       renderer.domElement.style.cursor="grab";
       const ray=new THREE.Raycaster(),pointer=new THREE.Vector2();
       const hitEntity=(ev:PointerEvent|MouseEvent)=>{const rect=renderer.domElement.getBoundingClientRect();if(!rect.width||!rect.height)return null;pointer.x=((ev.clientX-rect.left)/rect.width)*2-1;pointer.y=-((ev.clientY-rect.top)/rect.height)*2+1;ray.setFromCamera(pointer,camera);const hit=ray.intersectObjects(clickable,true)[0];let node:any=hit?.object;while(node&&!node.userData?.entity)node=node.parent;return node?.userData?.entity as Entity|undefined};
-      const selectAt=(ev:PointerEvent|MouseEvent)=>{const entity=hitEntity(ev);if(entity){renderer.domElement.dataset.selectedAsset=entity.id;setSelected(entity);return true}return false};
+      const selectAt=(ev:PointerEvent|MouseEvent)=>{const entity=hitEntity(ev);if(entity){renderer.domElement.dataset.selectedAsset=entity.id;setSelected(canonical(entity));return true}return false};
       let down:{x:number;y:number}|null=null,moved=false,ignoreNextClick=false;
       const pointerDown=(ev:PointerEvent)=>{down={x:ev.clientX,y:ev.clientY};moved=false;renderer.domElement.style.cursor="grabbing"};
       const pointerMove=(ev:PointerEvent)=>{if(down){if(Math.hypot(ev.clientX-down.x,ev.clientY-down.y)>6)moved=true;return}renderer.domElement.style.cursor=hitEntity(ev)?"pointer":"grab"};
@@ -659,16 +671,19 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
       renderer.domElement.addEventListener("click",clickPick);
       const ro=new ResizeObserver(()=>{if(!host.clientWidth||!host.clientHeight)return;camera.aspect=host.clientWidth/host.clientHeight;camera.updateProjectionMatrix();renderer.setSize(host.clientWidth,host.clientHeight)});ro.observe(host);
       const publishPrimaryHit=()=>{
-        const first=[...entityAnchors.entries()][0];
+        const first=[...entityAnchors.entries()].find(([id])=>clickableEntities.has(id));
         if(first){const [id,obj]=first,p=new THREE.Vector3();obj.getWorldPosition(p);p.project(camera);renderer.domElement.dataset.primaryAsset=id;renderer.domElement.dataset.primaryHitX=String(((p.x+1)/2)*renderer.domElement.clientWidth);renderer.domElement.dataset.primaryHitY=String(((-p.y+1)/2)*renderer.domElement.clientHeight)}
         const review=[...coordinationAnchors.entries()][0];
         if(review){const [id,obj]=review,p=new THREE.Vector3();obj.getWorldPosition(p);p.project(camera);renderer.domElement.dataset.coordinationAsset=id;renderer.domElement.dataset.coordinationHitX=String(((p.x+1)/2)*renderer.domElement.clientWidth);renderer.domElement.dataset.coordinationHitY=String(((-p.y+1)/2)*renderer.domElement.clientHeight)}
       };
       let frame=0;const animate=()=>{controls.update();publishPrimaryHit();renderer.render(scene,camera);frame=requestAnimationFrame(animate)};animate();
-      cleanup=()=>{runtime.current=null;cancelAnimationFrame(frame);ro.disconnect();renderer.domElement.removeEventListener("pointerdown",pointerDown);renderer.domElement.removeEventListener("pointermove",pointerMove);renderer.domElement.removeEventListener("pointerup",pointerUp);renderer.domElement.removeEventListener("pointercancel",pointerCancel);renderer.domElement.removeEventListener("click",clickPick);controls.dispose();renderer.dispose();host.replaceChildren()};
+      cleanup=()=>{runtime.current=null;cancelAnimationFrame(frame);ro.disconnect();renderer.domElement.removeEventListener("pointerdown",pointerDown);renderer.domElement.removeEventListener("pointermove",pointerMove);renderer.domElement.removeEventListener("pointerup",pointerUp);renderer.domElement.removeEventListener("pointercancel",pointerCancel);renderer.domElement.removeEventListener("click",clickPick);controls.dispose();
+        const geometries=new Set<any>(),materials=new Set<any>(),textures=new Set<any>();
+        scene.traverse((node:any)=>{if(node.geometry)geometries.add(node.geometry);for(const mat of (Array.isArray(node.material)?node.material:node.material?[node.material]:[])){materials.add(mat);for(const value of Object.values(mat))if((value as any)?.isTexture)textures.add(value)}});
+        for(const value of geometries)value.dispose();for(const value of materials)value.dispose();for(const value of textures)value.dispose();renderer.dispose();host.replaceChildren()};
     })();
     return()=>{disposed=true;cleanup()};
-  },[graph,registry,mode,environment,systemMode,floor,exploded,xray,labels,visibleIds,levels,renderOrigin.x,renderOrigin.y,demoMode]);
+  },[graph,registry,mode,environment,systemMode,floor,exploded,xray,labels,visibleIds,renderEntities,renderEntityIndex,levels,renderOrigin.x,renderOrigin.y,demoMode]);
 
   useEffect(()=>{
     if(modelLoadErrors.length===0)return;
@@ -706,8 +721,8 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
 
   useEffect(()=>{runtime.current?.fit?.()},[fitRevision]);
   useEffect(()=>{
-    const r=runtime.current;if(!r||!selected)return;const y=entityRenderBaseZ(selected,mode,registry),origin=r.renderOrigin||{x:0,y:0},target=new r.THREE.Vector3(selected.x-origin.x,y+1,selected.y-origin.y),span=5;r.controls.target.copy(target);r.camera.position.copy(target).add(new r.THREE.Vector3(span,span*.75,span));r.controls.update();
-  },[selected?.id,mode,registry]);
+    const r=runtime.current;if(!r||!selected)return;const shown=renderEntityIndex.get(selected.id)||selected,y=entityRenderBaseZ(selected,mode,registry),origin=r.renderOrigin||{x:0,y:0},target=new r.THREE.Vector3(shown.x-origin.x,y+1,shown.y-origin.y),span=5;r.controls.target.copy(target);r.camera.position.copy(target).add(new r.THREE.Vector3(span,span*.75,span));r.controls.update();
+  },[selected?.id,mode,registry,renderEntityIndex]);
 
   if(!graph||!Array.isArray(graph.entities)||graph.entities.length===0)return <section className="card" style={{marginBottom:18}}><div className="eyebrow">Spatial viewer</div><h2>No compiled spatial objects yet</h2><p className="subtitle">Import and successfully extract a drawing, SLD or DXF first. A source fingerprint by itself does not unlock the project viewer.</p><Link className="action" href="/compiler">Review engineering sources</Link></section>;
 
@@ -755,7 +770,7 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
     </div>}
     {!demoMode&&spatialInstances>0&&<div className="notice" role="status" style={{margin:"8px 14px"}}>
       <strong>NOMINAL LIBRARY SIZE · NOT CALIBRATED TO SHEET SCALE</strong>
-      <span>{spatialInstances} identified equipment instance{spatialInstances===1?"":"s"} shown at representative library dimensions; a verified sheet scale is not established, so size and placement are review candidates — not metric or physical truth.{reviewLabels>0?` ${reviewLabels} unplaced drawing label${reviewLabels===1?"":"s"} are kept in the object list for review, not drawn.`:""}</span>
+      <span>{spatialInstances} identified equipment instance{spatialInstances===1?"":"s"} shown at representative library dimensions; a verified sheet scale is not established, so size and placement are review candidates — not metric or physical truth.{reviewLabels>0?` ${reviewLabels} unplaced drawing label${reviewLabels===1?"":"s"} are shown as selectable review pins.`:""}</span>
     </div>}
 
     <div className="spatial-mode-tabs" role="group" aria-label="Spatial view mode">
@@ -764,6 +779,7 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
       <button type="button" className={mode==="REVIEW"?"action":"ghost"} aria-pressed={mode==="REVIEW"} onMouseDown={event=>event.preventDefault()} onClick={()=>setMode("REVIEW")}><b>Review</b><small>Source candidates</small></button>
     </div>
 
+    {sheetFrame==="PROJECT"&&displayLayout.separatedSheets>0&&<p className="muted" style={{padding:"0 14px",fontSize:12,margin:"8px 0"}}>Entire project · {displayLayout.separatedSheets} independent source sheets are displayed alongside the assembled model. These display offsets preserve drawing coordinates and do not establish physical alignment.</p>}
     {sheetFrames.length>1&&sheetFrame==="AUTO"&&activeSheetFrame&&<p className="muted" style={{padding:'0 14px',fontSize:11,margin:'8px 0'}}>Multiple drawing frames were recognized. Auto-safe isolation is showing one sheet frame at a time so unrelated plans do not stack at the same origin. Choose another sheet above, or explicitly select the review overlay.</p>}
     {sheetFrames.length>1&&sheetFrame==="ALL"&&<p className="muted" style={{padding:'0 14px',fontSize:11,margin:'8px 0'}}>Review overlay is showing multiple source sheets together. Overlap is not evidence of shared coordinates, physical alignment, clash, or as-built position unless the individual sheet transforms have been reviewed.</p>}
     {graph.entities.some(e=>e.meta?.drawingBasemap===true)&&<p className="muted" style={{padding:'0 14px',fontSize:11,margin:'8px 0'}}>Source drawing basemap is shown on the drawing plane. Sheet/image XY is preserved for review; physical scale/alignment and Z remain unverified until calibrated or otherwise source-established.</p>}
@@ -774,9 +790,9 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
     <div style={{display:"flex",gap:8,padding:"10px 12px",alignItems:"center",flexWrap:"wrap",borderBottom:"1px solid #17334a"}}>
       <select aria-label="Floor isolation" value={floor} onChange={e=>setFloor(e.target.value)}><option value="ALL">All floors</option>{levels.map(([f])=><option key={f} value={f}>{f}</option>)}</select>
       <select aria-label="Discipline isolation" value={discipline} onChange={e=>setDiscipline(e.target.value)}><option value="ALL">All disciplines</option>{disciplines.map(value=><option key={value} value={value}>{value}</option>)}</select>
-      <select aria-label="Sheet page isolation" value={sheetFrame} onChange={e=>setSheetFrame(e.target.value)} style={{maxWidth:360}}><option value="AUTO">Auto-safe sheet isolation</option>{sheetFrames.length>1&&<option value="ALL">All sheet frames · review overlay</option>}{sheetFrames.map(frame=><option key={frame.key} value={frame.key}>{frame.source} · p{frame.page} · {frame.title}{frame.floor?` · ${frame.floor}`:''}{frame.aligned?' · aligned':''}</option>)}</select>
+      <select aria-label="Sheet page isolation" value={sheetFrame} onChange={e=>setSheetFrame(e.target.value)} style={{maxWidth:360}}><option value="PROJECT">Entire project</option><option value="AUTO">Auto-safe sheet isolation</option>{sheetFrames.length>1&&<option value="ALL">All sheet frames · review overlay</option>}{sheetFrames.map(frame=><option key={frame.key} value={frame.key}>{frame.source} · p{frame.page} · {frame.title}{frame.floor?` · ${frame.floor}`:''}{frame.aligned?' · aligned':''}</option>)}</select>
       <input aria-label="Search objects" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search equipment, room or source" style={{minWidth:220,flex:"1 1 240px"}}/>
-      <button className="ghost" onClick={()=>setFitRevision(v=>v+1)}>Fit model</button>
+      <button className="ghost" onClick={()=>setFitRevision(v=>v+1)}>Fit model</button><button className="ghost" onClick={()=>{setSheetFrame("PROJECT");setFloor("ALL");setDiscipline("ALL");setSystemMode("ALL");setSearch("");setHiddenSources([]);setSelected(null);setMode("MODEL");setFitRevision(v=>v+1)}}>Show entire model</button>
       <button className="ghost" onClick={()=>setLabels(v=>!v)}>{labels?"Hide labels":"Show labels"}</button>
     </div>
 
@@ -824,8 +840,8 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
         {renderStatus==="FALLBACK"&&<div style={{height:"min(72vh,760px)",minHeight:520,padding:14}} role="img" aria-label="2D spatial fallback">
           <svg viewBox="0 0 100 100" width="100%" height="100%" style={{background:"#06141e",borderRadius:12}}>
             {(graph.links||[]).filter(l=>["SLD_FEEDS","SAME_TAG","SOURCE_RELATION"].includes(l.type)).map(l=>{const a=entityIndex.get(l.from),b=entityIndex.get(l.to);if(!a||!b)return null;return <line key={l.id} x1={sx(a.x)} y1={sy(a.y)} x2={sx(b.x)} y2={sy(b.y)} stroke={l.type==="SLD_FEEDS"?"#57baff":"#9a7cff"} strokeWidth=".35" strokeDasharray="1 1"/>})}
-            {visible.filter(e=>e.kind==="source-raster-underlay"&&typeof e.meta?.embeddedRasterDataUrl==="string"&&Number.isFinite(e.x2)&&Number.isFinite(e.y2)).map(e=><image key={e.id} href={String(e.meta?.embeddedRasterDataUrl)} x={Math.min(sx(e.x),sx(e.x2!))} y={Math.min(sy(e.y),sy(e.y2!))} width={Math.abs(sx(e.x2!)-sx(e.x))} height={Math.abs(sy(e.y2!)-sy(e.y))} opacity=".9" preserveAspectRatio="none"/>)}
-            {miniMapEntities.slice(0,MINIMAP_MAX_NODES).map(e=>(e.kind==="line"||e.kind==="sld-feeder-candidate")&&Number.isFinite(e.x2)&&Number.isFinite(e.y2)?<line key={e.id} x1={sx(e.x)} y1={sy(e.y)} x2={sx(e.x2!)} y2={sy(e.y2!)} stroke={e.layer==="L3"?"#62bfff":"#7895a4"} strokeWidth=".28"/>:<g key={e.id} onClick={()=>setSelected(e)} style={{cursor:"pointer"}}><circle cx={sx(e.x)} cy={sy(e.y)} r={e.layer==="L2"?1.25:.75} fill={e.layer==="L2"?"#e5a14d":e.layer==="L4"?"#43d98f":"#7f98a6"}/>{labels&&e.layer==="L2"&&<text x={sx(e.x)+1.7} y={sy(e.y)-1+Math.max(0,inventoryIndex.get(e.id)??0)*3} fill="#d8edf6" fontSize="2.2">{e.name.slice(0,24)}{physicalElevationKnown(e)?'':' · Z unverified'}</text>}</g>)}
+            {renderEntities.filter(e=>e.kind==="source-raster-underlay"&&typeof e.meta?.embeddedRasterDataUrl==="string"&&Number.isFinite(e.x2)&&Number.isFinite(e.y2)).map(e=><image key={e.id} href={String(e.meta?.embeddedRasterDataUrl)} x={Math.min(sx(e.x),sx(e.x2!))} y={Math.min(sy(e.y),sy(e.y2!))} width={Math.abs(sx(e.x2!)-sx(e.x))} height={Math.abs(sy(e.y2!)-sy(e.y))} opacity=".9" preserveAspectRatio="none"/>)}
+            {miniMapEntities.slice(0,MINIMAP_MAX_NODES).map(e=>(e.kind==="line"||e.kind==="sld-feeder-candidate")&&Number.isFinite(e.x2)&&Number.isFinite(e.y2)?<line key={e.id} x1={sx(e.x)} y1={sy(e.y)} x2={sx(e.x2!)} y2={sy(e.y2!)} stroke={e.layer==="L3"?"#62bfff":"#7895a4"} strokeWidth=".28"/>:<g key={e.id} onClick={()=>setSelected(entityIndex.get(e.id)||e)} style={{cursor:"pointer"}}><circle cx={sx(e.x)} cy={sy(e.y)} r={e.layer==="L2"?1.25:.75} fill={e.layer==="L2"?"#e5a14d":e.layer==="L4"?"#43d98f":"#7f98a6"}/>{labels&&e.layer==="L2"&&<text x={sx(e.x)+1.7} y={sy(e.y)-1+Math.max(0,inventoryIndex.get(e.id)??0)*3} fill="#d8edf6" fontSize="2.2">{e.name.slice(0,24)}{physicalElevationKnown(e)?'':' · Z unverified'}</text>}</g>)}
           </svg><p className="muted" style={{margin:"8px 0 0"}}>Interactive 2D fallback active. Source placement and selection remain available while this device/browser cannot initialize WebGL.{miniMapEntities.length>MINIMAP_MAX_NODES?` Showing the first ${MINIMAP_MAX_NODES.toLocaleString()} of ${miniMapEntities.length.toLocaleString()} objects in this 2D overview; the 3D view and object list remain complete.`:''}</p>
         </div>}
         <div className="spatial-hud"><button type="button" className="ghost" aria-expanded={hudOpen} onClick={()=>setHudOpen(value=>!value)}>Infrastructure HUD · {inventory.length} view objects {hudOpen?'▴':'▾'}</button>{hudOpen&&<div className="spatial-hud-body"><small>{renderStatus==="WEBGL"?"3D WEBGL":"2D FALLBACK"} · {mode}</small><div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:"4px 12px",marginTop:6,fontSize:12}}><span>PLAN FRAMES</span><b>{sheetFrames.length}</b><span>NON-SLD PLANS</span><b>{nonSldPlanSheets}</b><span>DRAWING LINES</span><b>{visibleLines}</b><span>DRAWING UNDERLAYS</span><b>{rasterUnderlays}</b><span>VIEW OBJECTS</span><b>{inventory.length}</b><span>IDENTIFIED EQUIPMENT</span><b>{identifiedEquipment}</b><span>SLD</span><b>{sldObjects}</b><span>UNRESOLVED Z</span><b>{unresolvedZ}</b><span>3D MODELS</span><b>{modelMapped}</b>{mode==="REVIEW"&&<><span>COORDINATION</span><b>{[...coordinationReview.values()].filter(item=>visibleIds.has(item.entityId)).length}</b></>}</div></div>}</div>
