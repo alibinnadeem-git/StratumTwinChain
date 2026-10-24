@@ -142,6 +142,8 @@ jobs:
         run: npm run qa:scale-validation
       - name: Reviewed PDF metric frame conformance
         run: npm run qa:metric-frame
+      - name: Delta DC Wallbox 50 kW GLB bounds and provenance gate
+        run: node scripts/check-delta-wallbox-review.cjs
       - name: Spatial component to 3D model resolution conformance
         run: npm run qa:spatial-model-resolution
       - name: Schedule to positioned equipment identity reconciliation
