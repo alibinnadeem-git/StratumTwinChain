@@ -181,5 +181,18 @@ export function oemModelBinding(sourceId:string,registry:ElectricalModelConfig[]
  const source=OEM_SOURCES.find(item=>item.id===sourceId);
  if(!source)return null;
  const models=source.componentKeys.map(key=>registry.find(model=>model.componentKey===key)).filter((model):model is ElectricalModelConfig=>Boolean(model));
- return {source,models,status:source.componentKeys.length===0?'CLASS_PENDING':models.some(model=>model.modelUrl.trim())?'MODEL_MAPPED':'MODEL_PENDING'} as const;
+ // A class representative visual does not establish a model from *this* manufacturer.
+ // Only official product-source host corroboration or independently approved OEM CAD
+ // may advertise MODEL_MAPPED in the manufacturer source directory.
+ const matchedManufacturerModel=models.some(model=>{
+   if(!model.modelUrl.trim())return false;
+   if(!model.sourceUrl)return false;
+   try{
+     const normalizeHost=(url:string)=>new URL(url).hostname.toLowerCase().replace(/^www\./,'');
+     const modelHost=normalizeHost(model.sourceUrl);
+     const sourceHost=normalizeHost(source.url);
+     return modelHost===sourceHost||modelHost.endsWith('.'+sourceHost)||sourceHost.endsWith('.'+modelHost);
+   }catch{return false;}
+ });
+ return {source,models,status:source.componentKeys.length===0?'CLASS_PENDING':matchedManufacturerModel?'MODEL_MAPPED':'MODEL_PENDING'} as const;
 }
