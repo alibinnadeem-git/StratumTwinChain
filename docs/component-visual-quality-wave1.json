@@ -1,0 +1,254 @@
+{
+  "name": "STRATUM Electrical Visual Quality Wave 1",
+  "version": "1.0.0",
+  "assetFamily": "STRATUM-authored T1 representatives",
+  "status": "REVIEW_REQUIRED",
+  "createdOn": "2026-10-23",
+  "treatment": "Visual library representations only; exact OEM design, dimensions, mounting, cable routing and product identity are NOT verified",
+  "designRules": {
+    "unit": "meter",
+    "up": "+Y",
+    "front": "+Z",
+    "origin": "HOST_CONTACT_REVIEW",
+    "assetGeometry": "T1_GENERIC_CLASS",
+    "envelopeSource": "STRATUM_REPRESENTATIVE_ASSUMPTION",
+    "manufacturerClaim": "NONE",
+    "intake": "Must pass independent GLB binary audit and user visual approval before production",
+    "placement": "Not a basis for installed Z, clearance, collisions or quantity",
+    "labels": "generic/no manufacturer trademarks",
+    "scale": "Uniform only when corroborated project/OEM source; never conceal mismatch"
+  },
+  "referenceExamples": [
+    {
+      "class": "contactor",
+      "url": "https://www.se.com/ww/en/product-range/1842-tesys-d/",
+      "role": "visual family research only; not SKU provenance"
+    },
+    {
+      "class": "gfci",
+      "url": "https://www.hubbell.com/hubbell/en/products/heavy-duty-commercial-autoguard-self-test-gfci-receptacle-15a-ivory/p/19405450",
+      "role": "visual family research only"
+    },
+    {
+      "class": "high-bay",
+      "url": "https://lithonia.acuitybrands.com/products/detail/560426/lithonia-lighting/jcbl/led-high-bay",
+      "role": "visual family research only"
+    }
+  ],
+  "models": [
+    {
+      "componentKey": "mcb",
+      "displayName": "Single-pole MCB",
+      "url": "/models/equipment/stlib-ele-mcb-t1-v1.glb",
+      "gitBlobSha": "bcfbd372e3a0bdf8d99aa375d9711a270651e648",
+      "referenceDimensionsMeters": {
+        "width": 0.018,
+        "height": 0.086,
+        "depth": 0.075
+      },
+      "dimensionAuthority": "REPRESENTATIVE_ASSUMPTION",
+      "shapeFeatures": [
+        "single DIN module",
+        "toggle switch",
+        "line/load terminals",
+        "front rating strip"
+      ],
+      "triangleCount": 804,
+      "mount": "DIN_RAIL",
+      "reviewStatus": "MAPPED_ON_REVIEW_BRANCH",
+      "visualQuality": "T1_CLASS_REPRESENTATIVE",
+      "autoResolveExactOEM": false,
+      "measurementEligible": false,
+      "exportEligible": false,
+      "manufacturerAndSKU": "UNRESOLVED"
+    },
+    {
+      "componentKey": "contactor",
+      "displayName": "3-pole contactor",
+      "url": "/models/equipment/stlib-ele-contactor-t1-v1.glb",
+      "gitBlobSha": "7c224bc75c98599517980f6984900ae4c955301c",
+      "referenceDimensionsMeters": {
+        "width": 0.055,
+        "height": 0.086,
+        "depth": 0.089
+      },
+      "dimensionAuthority": "REPRESENTATIVE_ASSUMPTION",
+      "shapeFeatures": [
+        "three power terminals",
+        "coil indicators",
+        "front control window",
+        "DIN rear housing"
+      ],
+      "triangleCount": 1980,
+      "mount": "DIN_RAIL",
+      "reviewStatus": "MAPPED_ON_REVIEW_BRANCH",
+      "visualQuality": "T1_CLASS_REPRESENTATIVE",
+      "autoResolveExactOEM": false,
+      "measurementEligible": false,
+      "exportEligible": false,
+      "manufacturerAndSKU": "UNRESOLVED"
+    },
+    {
+      "componentKey": "gfci",
+      "displayName": "GFCI duplex receptacle",
+      "url": "/models/equipment/stlib-ele-gfci-t1-v1.glb",
+      "gitBlobSha": "2be2f0aac18f65302df7c05cd3ba2523a93ff13c",
+      "referenceDimensionsMeters": {
+        "width": 0.07,
+        "height": 0.114,
+        "depth": 0.041
+      },
+      "dimensionAuthority": "REPRESENTATIVE_ASSUMPTION",
+      "shapeFeatures": [
+        "duplex apertures",
+        "TEST/RESET buttons",
+        "faceplate",
+        "mount screws"
+      ],
+      "triangleCount": 1948,
+      "mount": "WALL_FACE",
+      "reviewStatus": "MAPPED_ON_REVIEW_BRANCH",
+      "visualQuality": "T1_CLASS_REPRESENTATIVE",
+      "autoResolveExactOEM": false,
+      "measurementEligible": false,
+      "exportEligible": false,
+      "manufacturerAndSKU": "UNRESOLVED"
+    },
+    {
+      "componentKey": "junction-box",
+      "displayName": "Surface junction enclosure",
+      "url": "/models/equipment/stlib-ele-junction-box-t1-v1.glb",
+      "gitBlobSha": "c494f036aed856c60585e60d2b26c96980a87c45",
+      "referenceDimensionsMeters": {
+        "width": 0.2,
+        "height": 0.2,
+        "depth": 0.1
+      },
+      "dimensionAuthority": "REPRESENTATIVE_ASSUMPTION",
+      "shapeFeatures": [
+        "sheet metal enclosure",
+        "screwed cover",
+        "conduit bosses",
+        "JB identification"
+      ],
+      "triangleCount": 944,
+      "mount": "WALL_FACE",
+      "reviewStatus": "MAPPED_ON_REVIEW_BRANCH",
+      "visualQuality": "T1_CLASS_REPRESENTATIVE",
+      "autoResolveExactOEM": false,
+      "measurementEligible": false,
+      "exportEligible": false,
+      "manufacturerAndSKU": "UNRESOLVED",
+      "visualAssemblyBoundsMeters": {
+        "width": 0.2,
+        "height": 0.2,
+        "depth": 0.112
+      },
+      "visualAssemblyBoundsAuthority": "PROCEDURAL_GEOMETRY_INCLUDES_TWO_CONDUIT_BOSSES",
+      "assemblyNotes": "Rigid box body remains 200×200×100 mm; two top/bottom conduit bosses extend overall assembly depth to 112 mm, without enlarging the enclosure body."
+    },
+    {
+      "componentKey": "cable-tray",
+      "displayName": "Ladder cable tray",
+      "url": "/models/equipment/stlib-ele-cable-tray-t1-v1.glb",
+      "gitBlobSha": "c2e5535ec5dbcd2ad50fb49ff1dc1dd8b8a9b5a4",
+      "referenceDimensionsMeters": {
+        "width": 0.6,
+        "height": 0.11,
+        "depth": 1.2
+      },
+      "dimensionAuthority": "REPRESENTATIVE_ASSUMPTION",
+      "shapeFeatures": [
+        "side rails",
+        "eleven cross-rungs",
+        "mount strips",
+        "ventilated ladder profile"
+      ],
+      "triangleCount": 552,
+      "mount": "SUPPORT_TRAY",
+      "reviewStatus": "MAPPED_ON_REVIEW_BRANCH",
+      "visualQuality": "T1_CLASS_REPRESENTATIVE",
+      "autoResolveExactOEM": false,
+      "measurementEligible": false,
+      "exportEligible": false,
+      "manufacturerAndSKU": "UNRESOLVED"
+    },
+    {
+      "componentKey": "high-bay",
+      "displayName": "Round LED high-bay",
+      "url": "/models/equipment/stlib-ele-high-bay-t1-v1.glb",
+      "gitBlobSha": "1c1a7b6d02bfbd25d4c6e6bec15e0bbc3ef2cada",
+      "referenceDimensionsMeters": {
+        "width": 0.4,
+        "height": 0.23,
+        "depth": 0.4
+      },
+      "dimensionAuthority": "REPRESENTATIVE_ASSUMPTION",
+      "shapeFeatures": [
+        "circular LED diffuser",
+        "finned heat sink",
+        "driver",
+        "hanging loop"
+      ],
+      "triangleCount": 1640,
+      "mount": "CEILING_SUSPENDED",
+      "reviewStatus": "MAPPED_ON_REVIEW_BRANCH",
+      "visualQuality": "T1_CLASS_REPRESENTATIVE",
+      "autoResolveExactOEM": false,
+      "measurementEligible": false,
+      "exportEligible": false,
+      "manufacturerAndSKU": "UNRESOLVED"
+    },
+    {
+      "componentKey": "exit-sign",
+      "displayName": "Illuminated EXIT sign",
+      "url": "/models/equipment/stlib-ele-exit-sign-t1-v1.glb",
+      "gitBlobSha": "58e2ae58d1d295f955c94a344b00c1b384cfcf02",
+      "referenceDimensionsMeters": {
+        "width": 0.33,
+        "height": 0.2,
+        "depth": 0.055
+      },
+      "dimensionAuthority": "REPRESENTATIVE_ASSUMPTION",
+      "shapeFeatures": [
+        "red sign face",
+        "raised EXIT letterforms",
+        "top bracket"
+      ],
+      "triangleCount": 768,
+      "mount": "WALL_FACE",
+      "reviewStatus": "MAPPED_ON_REVIEW_BRANCH",
+      "visualQuality": "T1_CLASS_REPRESENTATIVE",
+      "autoResolveExactOEM": false,
+      "measurementEligible": false,
+      "exportEligible": false,
+      "manufacturerAndSKU": "UNRESOLVED"
+    },
+    {
+      "componentKey": "industrial-receptacle",
+      "displayName": "Industrial locking receptacle",
+      "url": "/models/equipment/stlib-ele-industrial-receptacle-t1-v1.glb",
+      "gitBlobSha": "04c805bdaa1965adc977cf1305be1284c5098598",
+      "referenceDimensionsMeters": {
+        "width": 0.105,
+        "height": 0.142,
+        "depth": 0.095
+      },
+      "dimensionAuthority": "REPRESENTATIVE_ASSUMPTION",
+      "shapeFeatures": [
+        "round pin-and-sleeve face",
+        "locking ring",
+        "three recessed contacts",
+        "strain-relief housing"
+      ],
+      "triangleCount": 1152,
+      "mount": "WALL_FACE",
+      "reviewStatus": "HELD_IN_REVIEW_UNTIL_BOUNDING_AND_ORIENTATION_FIX",
+      "visualQuality": "T1_CLASS_REPRESENTATIVE",
+      "autoResolveExactOEM": false,
+      "measurementEligible": false,
+      "exportEligible": false,
+      "manufacturerAndSKU": "UNRESOLVED"
+    }
+  ]
+}
