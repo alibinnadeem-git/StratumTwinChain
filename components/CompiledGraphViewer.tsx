@@ -11,7 +11,7 @@ import {deriveDigitalTwinProjectReadiness} from "@/lib/digital-twin-readiness";
 import {deriveRenderLocalOrigin} from "@/lib/render-local-origin";
 import {projectDisplayLayout,displayedEntity} from "@/lib/project-display-layout";
 import {resolveReconciledAssetPlacement} from "@/lib/z-solution-chain";
-import {fitProceduralObjectToMeters,normalizeObjectToMeters} from "@/lib/three-model-normalization";
+import {fitProceduralObjectToMeters,normalizeObjectToMeters,preserveCabinetAccessoryAssemblyMeters} from "@/lib/three-model-normalization";
 import {decodeGlbBase64,inspectStandaloneGlb} from "@/lib/spatial-glb-import";
 import SpatialAssetInspector from "@/components/SpatialAssetInspector";
 import PreviewDemoAssetInspector from "@/components/PreviewDemoAssetInspector";
@@ -515,12 +515,14 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
             const model=gltf.scene;
             model.position.set(0,0,0);model.scale.set(1,1,1);
             model.rotation.set(THREE.MathUtils.degToRad(cfg.rotation[0]),THREE.MathUtils.degToRad(cfg.rotation[1]),THREE.MathUtils.degToRad(cfg.rotation[2]));
-            const normalized=normalizeObjectToMeters(model,target,.05);
+            const normalized=cfg.meterScaleBasis==='CABINET_WITH_ACCESSORIES'&&cfg.dimensionsMeters
+              ?preserveCabinetAccessoryAssemblyMeters(model,cfg.dimensionsMeters,target,.05)
+              :normalizeObjectToMeters(model,target,.05);
             const root=new THREE.Group();
             root.position.set(e.x+cfg.offset[0],placement.baseZ+cfg.offset[1],e.y+cfg.offset[2]);
             root.rotation.y=THREE.MathUtils.degToRad(-(e.rotation||0));
             root.userData.dimensionAuthority=placement.dimensions.authority;
-            root.userData.targetDimensionsMeters=target;root.userData.zPlacementAuthority=placement.zAuthority;root.userData.zPlacementConfidence=placement.zConfidence;root.userData.zSolutionStatus=reconciled.solution.status;root.userData.zSolutionConflicts=reconciled.solution.conflicts.length;
+            root.userData.targetDimensionsMeters=target;root.userData.modelScaleBasis=cfg.meterScaleBasis||'ENTIRE_MODEL';root.userData.accessoryGeometryIncluded=cfg.meterScaleBasis==='CABINET_WITH_ACCESSORIES';root.userData.zPlacementAuthority=placement.zAuthority;root.userData.zPlacementConfidence=placement.zConfidence;root.userData.zSolutionStatus=reconciled.solution.status;root.userData.zSolutionConflicts=reconciled.solution.conflicts.length;
             root.userData.modelResolutionTier=modelResolution.tier;root.userData.modelGeometryAuthority=modelResolution.geometryAuthority;root.userData.modelIdentityAuthority=modelResolution.identityAuthority;root.userData.exactProductIdentity=modelResolution.exactProductIdentity;root.userData.modelComponentKey=modelResolution.componentKey;root.userData.modelResolutionConfidence=modelResolution.confidence;root.userData.physicalIdentityVerified=false;
             root.userData.visibleAuthorityLabel=visual.label;
             root.userData.resolutionDisplayTier=visual.tier;
@@ -534,7 +536,7 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
             root.userData.geometryIsRepresentative=true;
             attachSpatialEvidence(root,canonical(e),modelResolution);
             root.userData.normalization={scalar:normalized.scalar,ratioSpread:normalized.ratioSpread,reviewRequired:normalized.reviewRequired};
-            if(normalized.reviewRequired)console.warn("STRATUM model dimension mismatch requires review",{component:e.name,target,intrinsic:normalized.intrinsic,ratios:normalized.ratios,ratioSpread:normalized.ratioSpread});
+            if(normalized.reviewRequired)console.warn("STRATUM cabinet dimensions conflict with source equipment record; manual review required",{component:e.name,target,intrinsic:normalized.intrinsic,ratios:normalized.ratios,ratioSpread:normalized.ratioSpread});
             if(provisional.kind!=='NONE'||visual.tier==='UNRESOLVED_CLASS_PREVIEW'){
               model.traverse((node:any)=>{
                 if(!node.isMesh)return;
