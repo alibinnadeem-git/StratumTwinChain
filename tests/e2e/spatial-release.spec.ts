@@ -109,7 +109,8 @@ test('multi-plan electrical sheet renders L2 and L3 as independent Spatial viewp
  const selector=page.getByLabel('Sheet page isolation');
  await expect(selector).toContainText(/SECOND FLOOR PLAN/i);
  await expect(selector).toContainText(/THIRD FLOOR PLAN/i);
- await expect(selector.locator('option')).toHaveCount(4);
+ await expect(selector.locator('option')).toHaveCount(5);
+ await expect(selector).toHaveValue('PROJECT');
 });
 
 test('public product routes expose import, field, docs and sign-in instead of moved-workspace dead ends',async({page})=>{

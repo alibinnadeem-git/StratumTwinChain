@@ -91,9 +91,10 @@ export function detectElectricalLegendPage(labels:string[]){
 
 function abbreviationCandidate(value:string){
  const v=clean(value);
- if(!v||v.length>24||/\d{3,}/.test(v))return false;
- if(/^(?:DESCRIPTION|SYMBOL|ABBREVIATION|LEGEND|ELECTRICAL|NOTES?)$/i.test(v))return false;
- return /^[A-Z0-9][A-Z0-9 ._\-/()#]{0,22}$/.test(v.toUpperCase())&&/[A-Z]/.test(v);
+ if(!v||v.length>12||/\d{3,}/.test(v))return false;
+ if(/^(?:DESCRIPTION|SYMBOL|ABBREVIATION|LEGEND|ELECTRICAL|NOTES?|SWITCH|DIMMER|KEY|[234]-POLE|[34]-WAY|OCCUPANCY|SENSOR|RECEPTACLE|DETECTOR|PANEL|MOTOR|THERMOSTAT)$/i.test(v))return false;
+ // A complete device description is not an abbreviation for a neighboring legend column.
+ return /^[A-Z0-9]{1,8}(?:[._\-/][A-Z0-9]{1,6})?$/.test(v.toUpperCase())&&/[A-Z]/.test(v);
 }
 
 function descriptionCandidate(value:string){
@@ -122,8 +123,8 @@ export function extractElectricalLegendEntries(items:PositionedElectricalText[],
   const left=pageItems[i],token=clean(left.text);
   if(!abbreviationCandidate(token))continue;
   const near=pageItems.map((item,index)=>({item,index,dx:item.x-left.x,dy:Math.abs(item.y-left.y)}))
-   .filter(candidate=>candidate.index!==i&&candidate.dx>0&&candidate.dx<7&&candidate.dy<.28&&descriptionCandidate(candidate.item.text))
-   .sort((a,b)=>a.dy-b.dy||a.dx-b.dx)[0];
+   .filter(candidate=>candidate.index!==i&&candidate.dx>0&&candidate.dx<2.5&&candidate.dy<.1&&descriptionCandidate(candidate.item.text))
+   .sort((a,b)=>Number(Boolean(classifyElectricalLegendDescription(b.item.text)))-Number(Boolean(classifyElectricalLegendDescription(a.item.text)))||a.dy-b.dy||a.dx-b.dx)[0];
   if(!near)continue;
   const description=clean(near.item.text);
   if(legendPairNoise(token,description))continue;
@@ -140,7 +141,7 @@ export function extractElectricalLegendEntries(items:PositionedElectricalText[],
  for(let i=0;i<pageItems.length;i++){
   if(consumed.has(i))continue;
   const value=clean(pageItems[i].text);
-  const match=value.match(/^([A-Z0-9][A-Z0-9 ._\-/()#]{0,20})\s*(?:-|–|—|:)\s*(.{4,160})$/);
+  const match=value.match(/^([A-Z0-9][A-Z0-9 ._\-/()#]{0,20}?)(?:\s+[-–—]\s+|\s*:\s*)(.{4,160})$/);
   if(!match||!abbreviationCandidate(match[1])||!descriptionCandidate(match[2])||legendPairNoise(match[1],match[2]))continue;
   const componentHint=classifyElectricalLegendDescription(match[1]+' '+match[2]);
   out.push({
@@ -152,7 +153,9 @@ export function extractElectricalLegendEntries(items:PositionedElectricalText[],
  }
  // Capture description-only legend rows whose graphical symbol is the primary key.
  for(const item of pageItems){
-  const description=clean(item.text),componentHint=classifyElectricalLegendDescription(description);
+  const value=clean(item.text);
+  const continuation=pageItems.find(other=>other!==item&&Math.abs(other.x-item.x)<.08&&item.y-other.y>.025&&item.y-other.y<.18&&/^(?:SWITCH|SENSOR SWITCH|RECEPTACLE|DETECTOR)$/i.test(clean(other.text)));
+  const description=continuation?clean(value+' '+continuation.text):value,componentHint=classifyElectricalLegendDescription(description);
   if(!componentHint||legendPairNoise('',description))continue;
   if(abbreviationCandidate(description)&&description.split(/\s+/).length===1)continue;
   if(out.some(entry=>norm(entry.description)===norm(description)))continue;
@@ -209,7 +212,8 @@ export function extractPdfEquipmentMatrixRecords(items:PositionedElectricalText[
  if(!pageItems.length)return[];
  const rows:{y:number;items:PositionedElectricalText[]}[]=[];
  for(const item of pageItems){
-  let row=rows.find(candidate=>Math.abs(candidate.y-item.y)<=.16);
+  // A .16 sheet-unit band merged adjacent A/B fixture rows on dense engineering schedules.
+  let row=rows.find(candidate=>Math.abs(candidate.y-item.y)<=.045);
   if(!row){row={y:item.y,items:[]};rows.push(row)}
   row.items.push(item);row.y=(row.y*(row.items.length-1)+item.y)/row.items.length;
  }
@@ -223,10 +227,18 @@ export function extractPdfEquipmentMatrixRecords(items:PositionedElectricalText[
  const records:PdfEquipmentMatrixRecord[]=[];
  const isLightFixtureSchedule=pageItems.some(item=>/\bLIGHT\s+FIXTURE\s+SCHEDULE\b/i.test(clean(item.text)));
  const ordered=[...header.columns].sort((a,b)=>a.x-b.x);
- const rowCandidates=rows.filter(row=>row.y<header!.row.y-.12);
+ const distinctX=[...new Set(ordered.map(column=>column.x))].sort((a,b)=>a-b);
+ const left=distinctX[0]-(distinctX.length>1?(distinctX[1]-distinctX[0])/2:.3);
+ const right=distinctX.at(-1)!+(distinctX.length>1?(distinctX.at(-1)!-distinctX.at(-2)!)/2:.3);
+ // Stop at the next section heading in this table's column. Other notes/details on the sheet are not rows.
+ const sectionHeading=/^(?:NOTES?\b|ARTICLE\s+\d+\b|[A-Z0-9 (),&/-]+\b(?:NOTES|DETAILS?|INDEX|SYMBOLS|CONTACTS|CODE)\b)/i;
+ const nextSection=pageItems.filter(item=>item.y<header!.row.y-.12&&item.x>=left&&item.x<=distinctX[0]+.8&&sectionHeading.test(clean(item.text)))
+  .reduce((y,item)=>Math.max(y,item.y),-Infinity);
+ const rowCandidates=rows.filter(row=>row.y<header!.row.y-.08&&row.y>nextSection+.045);
  for(const row of rowCandidates){
   const cells:Record<string,string>={};
   for(const item of row.items){
+   if(item.x<left||item.x>right)continue;
    let best=ordered[0],distance=Infinity;
    for(const column of ordered){const d=Math.abs(item.x-column.x);if(d<distance){distance=d;best=column}}
    if(distance>2.8)continue;
@@ -234,6 +246,7 @@ export function extractPdfEquipmentMatrixRecords(items:PositionedElectricalText[
   }
   const tag=clean(cells.tag)||null,description=clean(cells.description)||null;
   if(!tag&&!description)continue;
+  if(isLightFixtureSchedule&&(!tag||!/^[A-Z0-9]{1,5}(?:[-.][A-Z0-9]{1,5})?$/i.test(tag)))continue;
   const identity=isLightFixtureSchedule?'LIGHT_FIXTURE':classifyElectricalLabel([tag,description].filter(Boolean).join(' '));
   const ratings:Record<string,number>={};
   for(const key of ['voltage','phase','kva','kw','watts','fla','mca','mocp','hp']){const value=firstNumber(cells[key]);if(value!==null)ratings[key]=value}
@@ -244,7 +257,7 @@ export function extractPdfEquipmentMatrixRecords(items:PositionedElectricalText[
    page,tag,description,manufacturer:clean(cells.manufacturer)||null,model:clean(cells.model)||null,
    location:clean(cells.location)||null,componentHint:identity||null,scheduleKind:isLightFixtureSchedule?'LIGHT_FIXTURE':'EQUIPMENT',
    ratings,confidence:tag&&identity ? .94 : tag ? .86 : .74,
-   sourceEvidence:[row.items.map(item=>clean(item.text)).join(' | ')]
+   sourceEvidence:[row.items.filter(item=>item.x>=left&&item.x<=right).map(item=>clean(item.text)).join(' | ')]
   });
  }
  return records.slice(0,1000);

@@ -16,7 +16,11 @@ const segLen=(s:Segment)=>Math.hypot(s.x2-s.x,s.y2-s.y);
 function clusterSegments(segments:Segment[],tolerance=.045):Cluster[]{
  const usable=segments.filter(s=>segLen(s)>=.015&&segLen(s)<=.75);
  const byPage=new Map<number,Segment[]>();
- for(const s of usable)byPage.set(s.page,[...(byPage.get(s.page)||[]),s]);
+ for(const s of usable){
+  let pageSegments=byPage.get(s.page);
+  if(!pageSegments){pageSegments=[];byPage.set(s.page,pageSegments)}
+  pageSegments.push(s);
+ }
  const out:Cluster[]=[];
  const cell=tolerance;
  const key=(x:number,y:number)=>`${Math.floor(x/cell)}:${Math.floor(y/cell)}`;
@@ -96,7 +100,8 @@ export function buildLegendSegmentFingerprints(args:{
  entries:Array<{id:string;page:number;componentHint:string|null;anchor:{x:number;y:number};textDirection?:{x:number;y:number};textSpan?:number;confidence:number}>;
  segments:Segment[];
 }):SegmentFingerprint[]{
- const clusters=clusterSegments(args.segments),out:SegmentFingerprint[]=[];
+ const legendPages=new Set(args.entries.filter(entry=>entry.componentHint).map(entry=>entry.page));
+ const clusters=clusterSegments(args.segments.filter(segment=>legendPages.has(segment.page))),out:SegmentFingerprint[]=[];
  for(const entry of args.entries){
   if(!entry.componentHint)continue;
   const dir=entry.textDirection,mag=dir?Math.hypot(dir.x,dir.y):0,unit=dir&&mag>.1?{x:dir.x/mag,y:dir.y/mag}:null;
@@ -122,7 +127,8 @@ export function buildLegendSegmentFingerprints(args:{
 export function matchLegendSegmentFingerprints(args:{
  fingerprints:SegmentFingerprint[];segments:Segment[];legendPages:Set<number>;planPages:Set<number>;minScore?:number;
 }):SegmentSymbolMatch[]{
- const minScore=args.minScore??.86,clusters=clusterSegments(args.segments).filter(c=>args.planPages.has(c.page)&&!args.legendPages.has(c.page)),out:SegmentSymbolMatch[]=[];
+ if(!args.fingerprints.length)return[];
+ const minScore=args.minScore??.86,clusters=clusterSegments(args.segments.filter(segment=>args.planPages.has(segment.page)&&!args.legendPages.has(segment.page))),out:SegmentSymbolMatch[]=[];
  for(const c of clusters){
   const ranked=args.fingerprints.map(fp=>({fp,score:similarity(fp,c)})).sort((a,b)=>b.score-a.score);
   const best=ranked[0],second=ranked[1];if(!best||best.score<minScore)continue;

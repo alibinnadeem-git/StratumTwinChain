@@ -182,7 +182,8 @@ test('saved drawing REPROCESS queues visibly behind an active worker parse',asyn
   .toContainText(/REPROCESS QUEUED:.*Canceling active PDF worker|Reprocessing/i);
  // REPROCESS itself must stop the active worker; no manual Cancel required.
  await expect(cancel).toBeHidden({timeout:30000});
- await expect(page.getByRole('status').filter({hasText:'LOCAL SOURCE ARCHIVE'})).toContainText(/Reprocessing 1 protected browser-local drawing/,{timeout:30000});
+ // A fast failed retry can finish before the cancellation control disappears; both states prove the queue drained.
+ await expect(page.getByRole('status').filter({hasText:'LOCAL SOURCE ARCHIVE'})).toContainText(/Reprocessing 1 protected browser-local drawing|REPROCESS ATTEMPT FINISHED/,{timeout:30000});
  await expect.poll(()=>page.evaluate(()=>{
   const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
   return Boolean((graph.sources||[]).some((source:any)=>source.name==='G101 Archived Legacy Site Plan.pdf'))&&

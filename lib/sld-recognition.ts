@@ -12,7 +12,7 @@ export type SldPageEvidence={
 
 const RULES:[SldEquipmentClass,RegExp][]=[
  ['UTILITY_SOURCE',/\b(?:UTILITY|GRID|INCOMING|SERVICE(?:\s+ENTRANCE)?|SOURCE)\b/i],
- ['GENERATOR_SOURCE',/\b(?:GENERATOR|GENSET|GEN(?:[-_ ]?[A-Z0-9]+))\b/i],
+ ['GENERATOR_SOURCE',/\b(?:GENERATOR|GENSET|GEN(?:[-_ ]?\d[A-Z0-9]*|[-_][A-Z][A-Z0-9]*)?)\b/i],
  ['PV_SOURCE',/\b(?:SOLAR|PHOTOVOLTAIC|PV(?:[-_ ]?[A-Z0-9]+)?)\b/i],
  ['BATTERY_SOURCE',/\b(?:BATTERY|BATTERIES|BESS|ESS)\b/i],
  ['UPS',/\bUPS(?:[-_ ]?[A-Z0-9]+)?\b/i],

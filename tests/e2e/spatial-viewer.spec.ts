@@ -169,9 +169,11 @@ test('multi-discipline non-SLD plan set isolates sheet frames instead of stackin
   window.dispatchEvent(new Event('stratum:graph-updated'));
  });
  await expect(page.getByText(/4 drawing frames · 4 non-SLD plans/i)).toBeVisible();
- await expect(page.getByText(/Multiple drawing frames were recognized/i)).toBeVisible();
  const frame=page.getByLabel('Sheet page isolation');
- await expect(frame).toHaveValue('AUTO');
+ await expect(frame).toHaveValue('PROJECT');
+ await expect(page.getByLabel('Imported object').locator('option').filter({hasText:'WHEEL BALANCER'})).toHaveCount(1);
+ await frame.selectOption('AUTO');
+ await expect(page.getByText(/Multiple drawing frames were recognized/i)).toBeVisible();
  await expect(page.getByLabel('Imported object').locator('option').filter({hasText:'WHEEL BALANCER'})).toHaveCount(0);
  await frame.selectOption('full-rev-3-fixture:147');
  await expect(page.getByLabel('Imported object').locator('option').filter({hasText:'WHEEL BALANCER'})).toHaveCount(1);
