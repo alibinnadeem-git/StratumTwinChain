@@ -27,7 +27,7 @@
     "qa:spatial-viewer": "node --experimental-strip-types scripts/qa-spatial-viewer.mjs && npm run qa:spatial-chunked-graph",
     "qa:site-plan-basemap": "node scripts/qa-site-plan-basemap.mjs",
     "qa:non-sld-plans": "node --experimental-strip-types scripts/qa-non-sld-plan-recognition.mjs",
-    "qa:stale-drawing-reprocess": "node --experimental-strip-types scripts/qa-stale-drawing-reprocess.mjs",
+    "qa:stale-drawing-reprocess": "node --experimental-strip-types scripts/qa-stale-drawing-reprocess.mjs && npm run qa:reprocess-recovery",
     "qa:reprocess-recovery": "node --experimental-strip-types scripts/qa-reprocess-recovery.mjs",
     "qa:source-browser-archive": "node --experimental-strip-types scripts/qa-source-browser-archive.mjs",
     "qa:source-layer": "node --experimental-strip-types scripts/qa-spatial-source-layer.mjs",
