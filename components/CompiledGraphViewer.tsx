@@ -332,7 +332,7 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
       const height=(e:Entity)=>entityRenderBaseZ(e,mode,registry)+extra(e);
       const isVisible=(e:Entity)=>visibleIds.has(e.id);
       const material=(color:number,opacity=1,emissive=0)=>new THREE.MeshStandardMaterial({color,emissive,emissiveIntensity:.2,metalness:.28,roughness:.48,transparent:opacity<1,opacity,depthWrite:opacity>.2});
-      const tag=(obj:any,e:Entity)=>{e=canonical(e);obj.userData.entity=e;entityAnchors.set(e.id,obj);if(e.meta?.candidateRole==="LABEL")reviewCandidateIds.add(e.id);else clickableEntities.add(e.id);if(clickableEntities.size)renderer.domElement.dataset.clickableAssets=String(clickableEntities.size);renderer.domElement.dataset.reviewCandidates=String(reviewCandidateIds.size);obj.traverse?.((node:any)=>{if(node.isMesh){node.userData.entity=e;if(!node.userData?.interactionProxy){node.castShadow=true;node.receiveShadow=true}const mats=Array.isArray(node.material)?node.material:[node.material];for(const mat of mats){if(mat?.emissive&&mat.userData?.stratumBaseEmissive===undefined){mat.userData=mat.userData||{};mat.userData.stratumBaseEmissive=mat.emissive.getHex();mat.userData.stratumBaseEmissiveIntensity=Number(mat.emissiveIntensity||0)}}clickable.push(node)}})};
+      const tag=(obj:any,e:Entity)=>{e=canonical(e);obj.userData.entity=e;entityAnchors.set(e.id,obj);if(e.meta?.candidateRole==="LABEL"&&e.kind!=="imported-3d-model")reviewCandidateIds.add(e.id);else clickableEntities.add(e.id);if(clickableEntities.size)renderer.domElement.dataset.clickableAssets=String(clickableEntities.size);renderer.domElement.dataset.reviewCandidates=String(reviewCandidateIds.size);obj.traverse?.((node:any)=>{if(node.isMesh){node.userData.entity=e;if(!node.userData?.interactionProxy){node.castShadow=true;node.receiveShadow=true}const mats=Array.isArray(node.material)?node.material:[node.material];for(const mat of mats){if(mat?.emissive&&mat.userData?.stratumBaseEmissive===undefined){mat.userData=mat.userData||{};mat.userData.stratumBaseEmissive=mat.emissive.getHex();mat.userData.stratumBaseEmissiveIntensity=Number(mat.emissiveIntensity||0)}}clickable.push(node)}})};
       const interactionProxy=(root:any,target:[number,number,number])=>{const proxy=new THREE.Mesh(new THREE.BoxGeometry(Math.max(target[0]+.3,.8),Math.max(target[1]+.3,.8),Math.max(target[2]+.3,.8)),new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false,colorWrite:false}));proxy.userData.interactionProxy=true;root.add(proxy)};
       const reviewMarker=(e:Entity)=>{
         if(mode!=="REVIEW")return;
@@ -463,7 +463,7 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
         // Derived registration shadows never duplicate their source object.
         const role=e.meta?.candidateRole;
         if(role==='REGISTRATION_SHADOW')return;
-        if(role==='LABEL'){renderProvisionalMarker(e,'SHEET_PIN');return;}
+        if(role==='LABEL'&&e.kind!=='imported-3d-model'){renderProvisionalMarker(e,'SHEET_PIN');return;}
         const provisional=unresolvedAssetVisual(e);
         const visual=decideSourceModelVisual(e,registry);
         if(provisional.kind==='SHEET_PIN'&&!isSld(e)){
