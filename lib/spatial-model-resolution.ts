@@ -159,7 +159,7 @@ export function resolveSpatialModel(entity:SpatialModelEntity,registry:Electrica
 
   const tier=geometryTier(model,match.exact);
   const geometryStatus=String(model?.geometryStatus||'PROCEDURAL').toUpperCase();
-  const hasRenderable=Boolean(model?.modelUrl.trim()&&['GLB','GLTF'].includes(model.format));
+  const hasRenderable=Boolean(model?.modelUrl.trim()&&['GLB','GLTF','USD','USDA','USDC','USDZ'].includes(model.format));
   const confidence=finiteConfidence(
     match.exact
       ?(geometryStatus==='OEM_SUPPLIED'?.98:geometryStatus==='LICENSED_COMMUNITY'?.82:.9)
