@@ -16,11 +16,12 @@ test('native USDA import survives source archive and displays review-only geomet
    const tx=db.transaction('sources','readonly'),req=tx.objectStore('sources').getAll();
    req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);
   });db.close();
-  return records.find(record=>record.name==='native-usd-cube.usda')||null;
+  const record=records.find(record=>record.name==='native-usd-cube.usda');
+  return record?{sha256:record.sha256,ext:record.ext,byteLength:record.bytes?.byteLength??0}:null;
  });
  expect(source?.sha256).toMatch(/^[0-9a-f]{64}$/);
  expect(source?.ext).toBe('usda');
- expect(source?.bytes?.byteLength).toBeGreaterThan(100);
+ expect(source?.byteLength).toBeGreaterThan(100);
  await page.goto('/spatial');
  const canvas=page.locator('canvas[aria-label="Interactive Spatial model"]');
  await expect(canvas).toBeVisible({timeout:25_000});
