@@ -2,6 +2,9 @@ import {test,expect} from '@playwright/test';
 import path from 'node:path';
 
 test('native USDA import survives source archive and displays review-only geometry in Spatial',async({page})=>{
+ const browserErrors:string[]=[];
+ page.on('console',m=>{if(['error','warning'].includes(m.type()))browserErrors.push(m.type()+': '+m.text().slice(0,600));});
+ page.on('pageerror',e=>browserErrors.push('pageerror: '+e.message.slice(0,600)));
  await page.goto('/compiler');
  const picker=page.locator('input[type="file"][accept*=".usda"]').first();
  await expect(picker).toHaveCount(1);
@@ -25,6 +28,21 @@ test('native USDA import survives source archive and displays review-only geomet
  await page.goto('/spatial');
  const canvas=page.locator('canvas[aria-label="Interactive Spatial model"]');
  await expect(canvas).toBeVisible({timeout:25_000});
- await expect.poll(async()=>Number(await canvas.getAttribute('data-clickable-assets')||0),{timeout:25_000}).toBeGreaterThan(0);
+ try{
+  await expect.poll(async()=>Number(await canvas.getAttribute('data-clickable-assets')||0),{timeout:16_000}).toBeGreaterThan(0);
+ }catch(error){
+  const diagnostic=await page.evaluate(()=>{
+   let graph:any={};try{graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');}catch{}
+   return{
+    sources:(graph.sources||[]).map((s:any)=>({name:s.name,ext:s.ext,state:s.state})),
+    imported:(graph.entities||[]).filter((e:any)=>e.kind==='imported-3d-model').map((e:any)=>({id:e.id,kind:e.kind,meta:e.meta})),
+    canvas:Array.from(document.querySelectorAll('canvas[aria-label="Interactive Spatial model"]')).map((el:any)=>({...el.dataset})),
+    notice:document.body.innerText.match(/3D IMPORT NEEDS ATTENTION[\\s\\S]{0,250}/)?.[0]||null,
+    objectSelect:document.querySelector('select[aria-label="Imported object"]')?.textContent?.slice(0,350)
+   };
+  });
+  console.log('NATIVE_USD_BROWSER_DIAGNOSTIC',JSON.stringify({diagnostic,browserErrors}).slice(0,12000));
+  throw error;
+ }
  await expect(page.getByLabel('Imported object')).toContainText('native usd cube');
 });
