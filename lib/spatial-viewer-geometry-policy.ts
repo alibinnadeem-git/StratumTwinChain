@@ -21,11 +21,11 @@ const independent=(x:unknown)=>Array.isArray(x)?new Set(x.filter(v=>typeof v==='
 // Native USD is a *visual source*, never automatic OEM identity or verified placement.
 const permittedGeneric=(m:ElectricalModelConfig|null)=>Boolean(m&&
  ['GLB','GLTF','USD','USDA','USDC','USDZ'].includes(m.format)&&
- (/^\\/models\\/equipment\\//.test(m.modelUrl)||/^\\/models\\/simready\\//.test(m.modelUrl))&&
- /\\.(glb|gltf|usd|usda|usdc|usdz)$/i.test(m.modelUrl.split('?')[0])&&
+ (m.modelUrl.startsWith('/models/equipment/')||m.modelUrl.startsWith('/models/simready/'))&&
+ ['glb','gltf','usd','usda','usdc','usdz'].includes(m.modelUrl.split('?')[0].split('.').pop()?.toLowerCase()||'')&&
  (/^(STRATUM-authored geometry|CC0)/i.test(m.license||'')||
-  (/^CC BY 4\\.0/i.test(m.license||'')&&
-   /^https:\\/\\/huggingface\\.co\\/datasets\\/nvidia\\/simready-assets/i.test(m.sourceUrl||'')))&&
+  ((m.license||'').toUpperCase().startsWith('CC BY 4.0')&&
+   (m.sourceUrl||'').startsWith('https://huggingface.co/datasets/nvidia/simready-assets')))&&
  m.geometryStatus==='DIMENSIONAL_VISUALIZATION');
 const blank=(key:string|null,why:string):SourceModelVisual=>({
  tier:'UNRESOLVED_NO_MODEL',model:null,componentKey:key,label:'UNVERIFIED · NO APPROVED MODEL',
