@@ -13,6 +13,9 @@ import {projectDisplayLayout,displayedEntity} from "@/lib/project-display-layout
 import {resolveReconciledAssetPlacement} from "@/lib/z-solution-chain";
 import {fitProceduralObjectToMeters,normalizeObjectToMeters,preserveCabinetAccessoryAssemblyMeters} from "@/lib/three-model-normalization";
 import {decodeGlbBase64,inspectStandaloneGlb} from "@/lib/spatial-glb-import";
+import {isNativeUsdFormat,isRenderable3DFormat,load3DModelFromUrl,parseNativeUsd} from "@/lib/spatial-native-usd";
+import {readArchivedSource} from "@/lib/source-browser-archive";
+import {listProjectVaultSources,restoreProjectSourceToBrowser} from "@/lib/spatial-project-source-vault-client";
 import SpatialAssetInspector from "@/components/SpatialAssetInspector";
 import PreviewDemoAssetInspector from "@/components/PreviewDemoAssetInspector";
 import {makePreviewEquipmentRenderer} from "@/lib/preview-demo-renderer";
@@ -261,7 +264,7 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
         /^STRATUM-authored geometry/.test(cfg.license||''));
     }
     if(e.kind==="cad-text"||e.meta?.cadPhysicalAnchor===false)return false;
-    if(e.kind==="imported-3d-model")return typeof e.meta?.embeddedGlb==='string';
+    if(e.kind==="imported-3d-model")return typeof e.meta?.embeddedGlb==='string'||(isNativeUsdFormat(String(e.meta?.sourceType||''))&&typeof e.meta?.sourceSha256==='string');
     return Boolean(resolveSpatialModel(e,registry).model?.modelUrl.trim());
   }).length||0,[graph,registry,demoMode]);
   const matching=useMemo(()=>inventory,[inventory]);
@@ -472,47 +475,62 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
           return;
         }
         if(e.kind==="imported-3d-model"){
-          try{
-            const encoded=e.meta?.embeddedGlb;
-            if(typeof encoded!=="string")throw new Error('Model bytes are missing');
-            const bytes=decodeGlbBase64(encoded);
-            inspectStandaloneGlb(bytes);
-            loader.parse(bytes,'',gltf=>{
-              if(disposed)return;
-              try{
-                const sourceBounds=e.meta?.modelBoundsMeters;
-                if(!Array.isArray(sourceBounds)||sourceBounds.length!==3||!sourceBounds.every(v=>typeof v==='number'&&Number.isFinite(v)&&v>0))throw new Error('Model bounds are invalid');
-                const def=resolveElectricalComponent(e.name),cfg=def?registry.find(r=>r.componentKey===def.key):null;
-                const reconciled=resolveReconciledAssetPlacement({name:e.name,floor:e.floor,z:e.z,meta:e.meta},{registry:cfg}),placement=reconciled.placement;
-                const target:[number,number,number]=[placement.dimensions.width,placement.dimensions.height,placement.dimensions.depth];
-                const model=gltf.scene;
-                const normalized=normalizeObjectToMeters(model,target,.08);
-                const root=new THREE.Group();root.position.set(e.x,placement.baseZ,e.y);
-                root.rotation.y=THREE.MathUtils.degToRad(-(e.rotation||0));
-                root.userData.dimensionAuthority=placement.dimensions.authority+'_REVIEW_VISUALIZATION';
-                root.userData.sourceModelBounds=sourceBounds;
-                root.userData.targetDimensionsMeters=target;
-                root.userData.normalization={scalar:normalized.scalar,ratioSpread:normalized.ratioSpread,reviewRequired:true};
-                root.userData.zDisplayAuthority=placement.zAuthority;root.userData.zPlacementConfidence=placement.zConfidence;root.userData.zSolutionStatus=reconciled.solution.status;root.userData.zSolutionConflicts=reconciled.solution.conflicts.length;
-                attachSpatialEvidence(root,canonical(e),null);
-                root.add(model);interactionProxy(root,target);tag(root,e);
-                groups.L2.add(root);label(e.name,e.x,placement.baseZ,e.y,'#ffd08a',e);
-                const renderedBox=new THREE.Box3().setFromObject(root);if(!renderedBox.isEmpty()){renderedBox.translate(new THREE.Vector3(renderOrigin.x,0,renderOrigin.y));bounds.union(renderedBox);}
-                runtime.current?.fit?.();
-              }catch{setModelLoadErrors(current=>current.includes(e.id)?current:[...current,e.id])}
-            },()=>{if(!disposed)setModelLoadErrors(current=>current.includes(e.id)?current:[...current,e.id])});
-          }catch{setModelLoadErrors(current=>current.includes(e.id)?current:[...current,e.id])}
+          void (async()=>{
+            const format=String(e.meta?.sourceType||'').toUpperCase();
+            let model:import('three').Object3D;
+            if(typeof e.meta?.embeddedGlb==='string'){
+              const bytes=decodeGlbBase64(e.meta.embeddedGlb);
+              inspectStandaloneGlb(bytes);
+              const gltf=await loader.parseAsync(bytes,'');
+              model=gltf.scene;
+            }else if(isNativeUsdFormat(format)){
+              const digest=String(e.meta?.sourceSha256||'');
+              let record=await readArchivedSource(digest);
+              if(!record&&activeProjectId){
+                // Restore an explicitly backed-up, verified project source if this browser lacks it.
+                const vault=await listProjectVaultSources(activeProjectId);
+                const source=vault.sources.find(item=>item.complete&&item.sha256===digest);
+                if(source){await restoreProjectSourceToBrowser(source);record=await readArchivedSource(digest);}
+              }
+              if(!record)throw new Error('USD original bytes unavailable. Restore the source from the project vault or re-import this file.');
+              model=await parseNativeUsd(record.bytes,format);
+            }else throw new Error('Imported 3D model format is unsupported.');
+            if(disposed)return;
+            const sourceBounds=e.meta?.modelBoundsMeters;
+            if(!Array.isArray(sourceBounds)||sourceBounds.length!==3||!sourceBounds.every(v=>typeof v==='number'&&Number.isFinite(v)&&v>0))throw new Error('Model bounds are invalid');
+            const def=resolveElectricalComponent(e.name),cfg=def?registry.find(r=>r.componentKey===def.key):null;
+            const reconciled=resolveReconciledAssetPlacement({name:e.name,floor:e.floor,z:e.z,meta:e.meta},{registry:cfg}),placement=reconciled.placement;
+            const target:[number,number,number]=[placement.dimensions.width,placement.dimensions.height,placement.dimensions.depth];
+            const normalized=normalizeObjectToMeters(model,target,.08);
+            const root=new THREE.Group();root.position.set(e.x,placement.baseZ,e.y);
+            root.rotation.y=THREE.MathUtils.degToRad(-(e.rotation||0));
+            root.userData.dimensionAuthority=placement.dimensions.authority+'_REVIEW_VISUALIZATION';
+            root.userData.sourceModelBounds=sourceBounds;
+            root.userData.sourceFormat=format||'GLB';
+            root.userData.sourceModelUnitsVerified=e.meta?.modelBoundsUnitAuthority!=='UNVERIFIED_USD_SCENE_UNITS';
+            root.userData.targetDimensionsMeters=target;
+            root.userData.normalization={scalar:normalized.scalar,ratioSpread:normalized.ratioSpread,reviewRequired:true};
+            root.userData.zDisplayAuthority=placement.zAuthority;root.userData.zPlacementConfidence=placement.zConfidence;root.userData.zSolutionStatus=reconciled.solution.status;root.userData.zSolutionConflicts=reconciled.solution.conflicts.length;
+            root.userData.physicalTruth=false;root.userData.reviewRequired=true;root.userData.authorityEligible=false;
+            root.userData.takeoffEligible=false;root.userData.measurementEligible=false;root.userData.exportEligible=false;
+            attachSpatialEvidence(root,canonical(e),null);
+            root.add(model);interactionProxy(root,target);tag(root,e);
+            groups.L2.add(root);label(e.name,e.x,placement.baseZ,e.y,'#ffd08a',e);
+            const renderedBox=new THREE.Box3().setFromObject(root);if(!renderedBox.isEmpty()){renderedBox.translate(new THREE.Vector3(renderOrigin.x,0,renderOrigin.y));bounds.union(renderedBox);}
+            runtime.current?.fit?.();
+          })().catch(error=>{
+            if(!disposed){console.warn('STRATUM native 3D source could not be restored/rendered',e.name,error);setModelLoadErrors(current=>current.includes(e.id)?current:[...current,e.id]);}
+          });
           return;
         }
         if(e.kind==='sheet-callout-candidate'||e.kind==='annotated-asset-candidate'||(e.kind==='cad-text'&&e.meta?.cadPhysicalAnchor===false)){fallbackShape(e);return}
         const modelResolution=resolveSpatialModel(e,registry),cfg=visual.model;
-        if(!cfg?.modelUrl.trim()||!["GLB","GLTF"].includes(cfg.format)){fallbackShape(e);return}
+        if(!cfg?.modelUrl.trim()||!isRenderable3DFormat(cfg.format)){fallbackShape(e);return}
         const reconciled=resolveReconciledAssetPlacement({name:e.name,floor:e.floor,z:e.z,meta:e.meta},{registry:cfg}),placement=reconciled.placement;
         const target:[number,number,number]=[placement.dimensions.width,placement.dimensions.height,placement.dimensions.depth];
-        loader.load(cfg.modelUrl,gltf=>{
+        void load3DModelFromUrl(cfg.modelUrl,cfg.format,loader).then(model=>{
           if(disposed)return;
           try{
-            const model=gltf.scene;
             model.position.set(0,0,0);model.scale.set(1,1,1);
             model.rotation.set(THREE.MathUtils.degToRad(cfg.rotation[0]),THREE.MathUtils.degToRad(cfg.rotation[1]),THREE.MathUtils.degToRad(cfg.rotation[2]));
             const normalized=cfg.meterScaleBasis==='CABINET_WITH_ACCESSORIES'&&cfg.dimensionsMeters
@@ -555,7 +573,7 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
             console.warn("STRATUM meter normalization failed; procedural envelope fallback active",e.name,error);
             fallbackShape(e);
           }
-        },undefined,()=>{if(!disposed)fallbackShape(e)});
+        }).catch(error=>{if(!disposed){console.warn('STRATUM library 3D source load failed',cfg.format,cfg.modelUrl,error);fallbackShape(e)}});
       };
       if(mode==="REVIEW"){
         renderer.domElement.dataset.coordinationAssets="0";
@@ -647,7 +665,7 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
         // not a real gap. Only an untagged instance with no async model is a genuine render drop.
         const visibleInstances=visible.filter(e=>e.meta?.candidateRole==="INSTANCE");
         const untagged=visibleInstances.filter(e=>!clickableEntities.has(e.id));
-        const hasAsyncModel=(e:Entity)=>{const m=decideSourceModelVisual(e,registry).model;return Boolean(m&&m.modelUrl?.trim()&&["GLB","GLTF"].includes(m.format))};
+        const hasAsyncModel=(e:Entity)=>{const m=decideSourceModelVisual(e,registry).model;return Boolean(m&&m.modelUrl?.trim()&&isRenderable3DFormat(m.format))};
         const pendingAsync=untagged.filter(hasAsyncModel);
         const realGap=untagged.filter(e=>!hasAsyncModel(e)).map(e=>({id:e.id,kind:e.kind,layer:e.layer,name:String(e.name).slice(0,40),finiteXY:Number.isFinite(e.x)&&Number.isFinite(e.y),sld:isSld(e),page:Number(e.meta?.page||0)}));
         reportSpatialDiag({stage:"render",level:realGap.length?"warn":"info",code:"RENDER_INSTANCE_GAP",message:`${visibleInstances.length-untagged.length} drawn sync · ${pendingAsync.length} async model pending · ${realGap.length} real gap`,counts:{visibleInstances:visibleInstances.length,drawnSync:visibleInstances.length-untagged.length,pendingAsyncModel:pendingAsync.length,realGap:realGap.length},data:{realGap}});
