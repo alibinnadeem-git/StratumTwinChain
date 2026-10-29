@@ -620,7 +620,7 @@ async function parseNativeUsdAsset(file:File,buf:ArrayBuffer,digest:string,level
  if(bounds.isEmpty())throw new Error('The USD file contains no renderable scene geometry.');
  const size=bounds.getSize(new Vector3());
  if(![size.x,size.y,size.z].every(v=>Number.isFinite(v)&&v>0))throw new Error('The USD model has no measurable scene bounds.');
- const name=file.name.replace(/\\.(usd|usda|usdc|usdz)$/i,'').replace(/[_-]+/g,' ').trim();
+ const name=file.name.slice(0,-(ext.length+1)).replace(/[_-]+/g,' ').trim();
  return{id:`imported-usd-${digest}`,source:file.name,layer:'L2',kind:'imported-3d-model',name,
   x:0,y:0,z:level.elevation,floor:level.floor,confidence:1,
   meta:{sourceSha256:digest,sourceType:ext.toUpperCase(),sourceStorage:'BROWSER_ARCHIVE',
