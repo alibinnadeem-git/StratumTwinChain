@@ -17,10 +17,15 @@ export type SourceModelVisual={
 const toNum=(x:unknown)=>typeof x==='number'&&Number.isFinite(x)?x:null;
 const toStr=(x:unknown)=>typeof x==='string'?x.trim():'';
 const independent=(x:unknown)=>Array.isArray(x)?new Set(x.filter(v=>typeof v==='string').map(v=>v.trim()).filter(Boolean)).size:0;
+// Preserve Intake Gate: only licensed, class-matched review geometry can appear.
+// Native USD is a *visual source*, never automatic OEM identity or verified placement.
 const permittedGeneric=(m:ElectricalModelConfig|null)=>Boolean(m&&
- (m.format==='GLB'||m.format==='GLTF')&&m.modelUrl.startsWith('/models/equipment/')&&
- (m.modelUrl.endsWith('.glb')||m.modelUrl.endsWith('.gltf'))&&
- /^(STRATUM-authored geometry|CC0)/i.test(m.license||'')&&
+ ['GLB','GLTF','USD','USDA','USDC','USDZ'].includes(m.format)&&
+ (m.modelUrl.startsWith('/models/equipment/')||m.modelUrl.startsWith('/models/simready/'))&&
+ ['glb','gltf','usd','usda','usdc','usdz'].includes(m.modelUrl.split('?')[0].split('.').pop()?.toLowerCase()||'')&&
+ (/^(STRATUM-authored geometry|CC0)/i.test(m.license||'')||
+  ((m.license||'').toUpperCase().startsWith('CC BY 4.0')&&
+   (m.sourceUrl||'').startsWith('https://huggingface.co/datasets/nvidia/simready-assets')))&&
  m.geometryStatus==='DIMENSIONAL_VISUALIZATION');
 const blank=(key:string|null,why:string):SourceModelVisual=>({
  tier:'UNRESOLVED_NO_MODEL',model:null,componentKey:key,label:'UNVERIFIED · NO APPROVED MODEL',

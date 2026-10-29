@@ -3,7 +3,7 @@ import {ELECTRICAL_COMPONENTS} from './electrical-component-library.ts';
 import {OEM_SOURCES} from './oem-source-catalog.ts';
 import {OEM_CAD_CANDIDATES} from './oem-cad-candidates.ts';
 
-export type ElectricalModelFormat='GLB'|'GLTF'|'USD'|'USDZ';
+export type ElectricalModelFormat='GLB'|'GLTF'|'USD'|'USDA'|'USDC'|'USDZ';
 export type ElectricalModelConfig={
   componentKey:string;
   /** Relevant manufacturer research records. An association is not an OEM model license. */
@@ -166,7 +166,7 @@ export function normalizeElectricalModelRegistry(input:unknown):ElectricalModelC
       :base.dimensionsMeters;
     return {
       ...base,
-      format:['GLB','GLTF','USD','USDZ'].includes(value.format)?value.format:base.format,
+      format:['GLB','GLTF','USD','USDA','USDC','USDZ'].includes(value.format)?value.format:base.format,
       modelUrl:typeof value.modelUrl==='string'?value.modelUrl:base.modelUrl,
       scale:Number(value.scale)>0?Number(value.scale):base.scale,
       rotation:tuple(value.rotation),
