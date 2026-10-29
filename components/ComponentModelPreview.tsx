@@ -2,6 +2,7 @@
 
 import {useEffect,useRef,useState} from 'react';
 import type {Object3D,Mesh,Material,Texture} from 'three';
+import {isRenderable3DFormat,load3DModelFromUrl} from '@/lib/spatial-native-usd';
 
 function disposeModel(root:Object3D){
  const textures=new Set<Texture>();const materials=new Set<Material>();
@@ -22,12 +23,12 @@ export default function ComponentModelPreview({url,format,name}:{url:string;form
   const target=host.current;if(!target)return;
   setReady(false);action.current=()=>{};
   if(!url){setState('No 3D model file is mapped to this component.');return;}
-  if(!['GLB','GLTF'].includes(format)){setState('This format is not supported by the library preview.');return;}
+  if(!isRenderable3DFormat(format)){setState('This format is not supported by the library preview.');return;}
   let cancelled=false;let cleanup=()=>{};
   setState('Loading 3D model…');
   void (async()=>{
    try{
-    const [THREE,{GLTFLoader},{OrbitControls}]=await Promise.all([import('three'),import('three/examples/jsm/loaders/GLTFLoader.js'),import('three/examples/jsm/controls/OrbitControls.js')]);
+    const [THREE,{OrbitControls}]=await Promise.all([import('three'),import('three/examples/jsm/controls/OrbitControls.js')]);
     if(cancelled)return;
     let renderer:InstanceType<typeof THREE.WebGLRenderer>;
     try{renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});}catch{setState('3D preview unavailable: this browser could not start WebGL.');return;}
@@ -48,10 +49,10 @@ export default function ComponentModelPreview({url,format,name}:{url:string;form
     const lost=(event:Event)=>{event.preventDefault();setReady(false);setState('3D preview interrupted. Retry to reload the model.');};renderer.domElement.addEventListener('webglcontextlost',lost);
     cleanup=()=>{observer.disconnect();controls.removeEventListener('change',render);controls.dispose();renderer.domElement.removeEventListener('webglcontextlost',lost);if(model)disposeModel(model);renderer.dispose();renderer.forceContextLoss();renderer.domElement.remove();};
     action.current=command=>{if(!model)return;if(command==='fit'){fit();return;}if(command==='left'||command==='right'){camera.position.applyAxisAngle(new THREE.Vector3(0,1,0),command==='left'?.25:-.25);}else{camera.position.multiplyScalar(command==='in'?.8:1.25);}controls.update();render();};
-    new GLTFLoader().load(url,gltf=>{
-     if(cancelled){disposeModel(gltf.scene);return;}
+    void load3DModelFromUrl(url,format).then(loadedModel=>{
+     if(cancelled){disposeModel(loadedModel);return;}
      try{
-      model=gltf.scene;const bounds=new THREE.Box3().setFromObject(model);const size=bounds.getSize(new THREE.Vector3());radius=size.length()/2;
+      model=loadedModel;const bounds=new THREE.Box3().setFromObject(model);const size=bounds.getSize(new THREE.Vector3());radius=size.length()/2;
       if(bounds.isEmpty()||!Number.isFinite(radius)||radius<=0)throw new Error('Empty geometry');
       let triangles=0;model.traverse(object=>{const mesh=object as Mesh;if(mesh.isMesh)triangles+=(mesh.geometry.index?.count||mesh.geometry.getAttribute('position')?.count||0)/3;});
       if(!triangles)throw new Error('No mesh geometry');
@@ -59,7 +60,7 @@ export default function ComponentModelPreview({url,format,name}:{url:string;form
       renderer.domElement.dataset.triangles=String(Math.floor(triangles));renderer.domElement.dataset.modelUrl=url;
       setReady(true);setState('3D model loaded');
      }catch{if(model){scene.remove(model);disposeModel(model);model=undefined;}render();setState('Unable to display this model. Check its file and try again.');}
-    },undefined,()=>{if(!cancelled)setState('Unable to load this model. Check its file and try again.');});
+    }).catch(error=>{if(!cancelled){console.warn('STRATUM model preview failed',format,url,error);setState('Unable to load this model. Check its USD layers, textures and file permissions.');}});
    }catch{if(!cancelled)setState('Unable to start the 3D preview. Please try again.');}
   })();
   return()=>{cancelled=true;action.current=()=>{};cleanup();};
@@ -68,7 +69,7 @@ export default function ComponentModelPreview({url,format,name}:{url:string;form
   <div ref={host} style={{height:320,width:'100%',touchAction:'none'}}/>
   <div style={{padding:12}}><p role="status" style={{margin:'0 0 8px',color:'#b9d9e5'}}>{state}</p>
    <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>{[['left','Rotate left'],['right','Rotate right'],['in','Zoom in'],['out','Zoom out'],['fit','Reset view']].map(([command,label])=><button type="button" key={command} disabled={!ready} onClick={()=>action.current(command)} style={{minHeight:44,padding:'8px 12px',background:'#163146',color:'#d9eef7',border:'1px solid #245b73',borderRadius:8}}>{label}</button>)}
-    {!ready&&url&&['GLB','GLTF'].includes(format)&&state!=='Loading 3D model…'&&<button type="button" onClick={()=>setAttempt(value=>value+1)}>Retry preview</button>}
+    {!ready&&url&&isRenderable3DFormat(format)&&state!=='Loading 3D model…'&&<button type="button" onClick={()=>setAttempt(value=>value+1)}>Retry preview</button>}
    </div><small style={{display:'block',marginTop:8,color:'#89a9b8'}}>Drag to rotate · scroll or pinch to zoom. Source model preview; installed placement is not shown.</small>
   </div>
  </section>;
