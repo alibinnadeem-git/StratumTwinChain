@@ -470,7 +470,7 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
           renderProvisionalMarker(e,'SHEET_PIN');
           return;
         }
-        if(!visual.model&&provisional.kind!=='NONE'&&!isSld(e)){
+        if(!visual.model&&provisional.kind!=='NONE'&&!isSld(e)&&e.kind!=='imported-3d-model'){
           renderProvisionalMarker(e,'GHOST_MARKER');
           return;
         }
@@ -513,9 +513,18 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
             root.userData.zDisplayAuthority=placement.zAuthority;root.userData.zPlacementConfidence=placement.zConfidence;root.userData.zSolutionStatus=reconciled.solution.status;root.userData.zSolutionConflicts=reconciled.solution.conflicts.length;
             root.userData.physicalTruth=false;root.userData.reviewRequired=true;root.userData.authorityEligible=false;
             root.userData.takeoffEligible=false;root.userData.measurementEligible=false;root.userData.exportEligible=false;
+            root.userData.canonicalZ=provisional.kind==='NONE'?(e.z??null):null;
+            root.userData.visibleAuthorityLabel=provisional.kind==='NONE'?'IMPORTED · PLACEMENT UNVERIFIED':'GHOST · Z UNRESOLVED';
+            if(provisional.kind!=='NONE'){
+              model.traverse((node:any)=>{
+                if(!node.isMesh)return;
+                const style=(mat:any)=>{const copy=mat.clone();copy.transparent=true;copy.opacity=.24;copy.depthWrite=false;if(copy.color)copy.color.lerp(new THREE.Color(0x8bbcff),.6);return copy};
+                node.material=Array.isArray(node.material)?node.material.map(style):style(node.material);
+              });
+            }
             attachSpatialEvidence(root,canonical(e),null);
             root.add(model);interactionProxy(root,target);tag(root,e);
-            groups.L2.add(root);label(e.name,e.x,placement.baseZ,e.y,'#ffd08a',e);
+            groups.L2.add(root);label(e.name+(provisional.kind==='NONE'?' · IMPORTED SOURCE':' · GHOST · Z UNRESOLVED'),e.x,placement.baseZ,e.y,'#ffd08a',e);
             const renderedBox=new THREE.Box3().setFromObject(root);if(!renderedBox.isEmpty()){renderedBox.translate(new THREE.Vector3(renderOrigin.x,0,renderOrigin.y));bounds.union(renderedBox);}
             runtime.current?.fit?.();
           })().catch(error=>{
