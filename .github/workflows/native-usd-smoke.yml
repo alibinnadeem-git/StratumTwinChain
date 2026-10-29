@@ -1,0 +1,45 @@
+name: Native USD Spatial smoke
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'components/CompilerWorkspace.tsx'
+      - 'components/CompiledGraphViewer.tsx'
+      - 'components/ComponentModelPreview.tsx'
+      - 'lib/spatial-native-usd.ts'
+      - 'lib/spatial-viewer-geometry-policy.ts'
+      - 'lib/electrical-model-registry.ts'
+      - 'lib/source-browser-archive.ts'
+      - 'tests/e2e/native-usd-spatial.spec.ts'
+      - 'tests/fixtures/spatial/native-usd-cube.usda'
+      - 'package.json'
+      - '.github/workflows/native-usd-smoke.yml'
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package.json
+      - run: npm install --no-audit --no-fund
+      - run: npm run qa:native-usd
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Native USDA Spatial browser UAT
+        run: npx playwright test tests/e2e/native-usd-spatial.spec.ts --project=desktop-chromium --workers=1
+      - name: Upload smoke diagnostic
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-usd-smoke-diagnostic
+          path: |
+            test-results
+            playwright-report
+          retention-days: 7
