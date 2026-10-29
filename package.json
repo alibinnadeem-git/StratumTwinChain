@@ -100,6 +100,7 @@
     "qa:dxf-z": "node --experimental-strip-types scripts/qa-dxf-z-semantics.mjs",
     "qa:z-generalization": "node scripts/qa-z-generalization.mjs",
     "qa:spatial-model-resolution": "node --experimental-strip-types scripts/qa-spatial-model-resolution.mjs",
+    "qa:native-usd": "node --experimental-strip-types scripts/qa-native-usd-runtime.mjs",
     "qa:spatial-equipment-identity": "node --experimental-strip-types scripts/qa-spatial-equipment-identity.mjs",
     "qa:pdf-equipment-anchor": "node --experimental-strip-types scripts/qa-pdf-equipment-symbol-anchor.mjs",
     "qa:digital-twin-assembly": "node --experimental-strip-types scripts/qa-digital-twin-assembly.mjs",
@@ -127,7 +128,7 @@
     "qrcode": "^1.5.4",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "three": "^0.179.1",
+    "three": "^0.183.2",
     "zod": "^3.24.2"
   },
   "devDependencies": {
@@ -137,7 +138,7 @@
     "@types/qrcode": "^1.5.5",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.2.0",
-    "@types/three": "^0.179.0",
+    "@types/three": "^0.183.1",
     "typescript": "^5.7.0"
   }
 }
