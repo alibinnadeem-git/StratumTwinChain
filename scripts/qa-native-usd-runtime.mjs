@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {isNativeUsdFormat,isRenderable3DFormat,NATIVE_USD_EXTENSIONS} from '../lib/spatial-native-usd.ts';
+import {isNativeUsdFormat,isRenderable3DFormat,NATIVE_USD_EXTENSIONS,parseNativeUsd} from '../lib/spatial-native-usd.ts';
+import {Box3,Vector3} from 'three';
 
 const read=p=>fs.readFileSync(p,'utf8');
 for(const ext of NATIVE_USD_EXTENSIONS){
@@ -32,4 +33,11 @@ const registry=read('lib/electrical-model-registry.ts');
 assert.match(registry,/USDA/);assert.match(registry,/USDC/);
 const preview=read('components/ComponentModelPreview.tsx');
 assert.match(preview,/load3DModelFromUrl/);
-console.log('Native USD integration contract: PASS (static checks only; browser/CI validation still required)');
+const fixture=fs.readFileSync('tests/fixtures/spatial/native-usd-cube.usda');
+const source=Uint8Array.from(fixture).buffer;
+const parsed=await parseNativeUsd(source,'USDA');
+let meshes=0;parsed.traverse(item=>{if(item.isMesh)meshes++});
+assert.ok(meshes>0,'native USDA should produce renderable meshes');
+const box=new Box3().setFromObject(parsed),size=box.getSize(new Vector3());
+assert.ok(!box.isEmpty()&&size.x>0&&size.y>0&&size.z>0,'native USDA cube must preserve 3D volume');
+console.log('Native USD integration: PASS (runtime USDA parse, bounds and static safety contract; browser E2E still required)');
