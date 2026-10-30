@@ -50,6 +50,36 @@ function meshCount(group:Object3D):number{
  group.traverse(node=>{const mesh=node as Mesh;if(mesh.isMesh&&mesh.geometry?.getAttribute('position')?.count)count++;});
  return count;
 }
+/** Viewer-observed render evidence, never source-authoring or physical truth. */
+export type UsdViewerMaterialEvidence={
+ meshCount:number;materialSlots:number;textureSlots:number;
+ textureSlotsByChannel:Record<string,number>;
+ fidelity:'GEOMETRY_ONLY'|'TEXTURE_SLOTS_PRESENT_UNVERIFIED';
+};
+export function inspectUsdViewerMaterials(scene:Object3D):UsdViewerMaterialEvidence{
+ const channels=['map','normalMap','roughnessMap','metalnessMap','aoMap','emissiveMap','alphaMap','bumpMap','displacementMap','lightMap','envMap'];
+ const counts:Record<string,number>={};
+ let meshes=0,slots=0,textures=0;
+ scene.traverse(node=>{
+  const mesh=node as Mesh;
+  if(!mesh.isMesh||!mesh.geometry?.getAttribute('position')?.count)return;
+  meshes++;
+  const materials=Array.isArray(mesh.material)?mesh.material:[mesh.material];
+  for(const material of materials){
+   if(!material)continue;
+   slots++;
+   const fields=material as unknown as Record<string,unknown>;
+   for(const channel of channels){
+    const value=fields[channel] as {isTexture?:boolean}|undefined;
+    if(value?.isTexture){counts[channel]=(counts[channel]||0)+1;textures++;}
+   }
+  }
+ });
+ return{meshCount:meshes,materialSlots:slots,textureSlots:textures,
+  textureSlotsByChannel:counts,
+  fidelity:textures>0?'TEXTURE_SLOTS_PRESENT_UNVERIFIED':'GEOMETRY_ONLY'};
+}
+
 async function parseUSDScene(bytes:ArrayBuffer):Promise<Object3D>{
  const {USDLoader}=await import('three/examples/jsm/loaders/USDLoader.js');
  return await new Promise<Object3D>((resolve,reject)=>{
@@ -97,6 +127,7 @@ async function parseOriginalGeometryPayload(bytes:ArrayBuffer):Promise<Object3D>
  const model=await parseUSDScene(Uint8Array.from(payload).buffer);
  if(meshCount(model)===0)throw new Error('Original USD geometry payload produced no renderable meshes.');
  model.userData.stratumOpenUSD={
+  viewerMaterialEvidence:inspectUsdViewerMaterials(model),
   status:'PARTIAL_GEOMETRY_ONLY',reviewRequired:true,physicalTruth:false,
   originalSourceRetained:true,layerPath:paths[0],
   missing:'MATERIAL_BINDINGS_VARIANTS_STAGE_TRANSFORMS_AND_PHYSICS_UNVERIFIED'
@@ -118,7 +149,7 @@ export async function parseNativeUsd(bytes:ArrayBuffer,format:string):Promise<Ob
  let parseError:unknown=null;
  try{model=await parseUSDScene(bytes);}catch(error){parseError=error;}
  if(model&&meshCount(model)>0){
-  model.userData.stratumOpenUSD={status:'SCENE_COMPOSED',reviewRequired:true,physicalTruth:false,originalSourceRetained:true};
+  model.userData.stratumOpenUSD={viewerMaterialEvidence:inspectUsdViewerMaterials(model),status:'SCENE_COMPOSED',reviewRequired:true,physicalTruth:false,originalSourceRetained:true};
   return model;
  }
  if(format.toUpperCase()!=='USDZ'||!zip){
