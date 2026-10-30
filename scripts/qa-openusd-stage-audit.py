@@ -82,7 +82,9 @@ def main():
         textures=set()
         physics=set()
         allPrims=0
-        for prim in stage.TraverseAll():
+        # Instances hide prototype descendants from ordinary stage traversal.
+        # Traverse instance proxies to count visible scene geometry faithfully.
+        for prim in stage.Traverse(Usd.TraverseInstanceProxies()):
             allPrims+=1
             if allPrims>MAX_PRIMS:raise ValueError("Stage has too many prims")
             typ=str(prim.GetTypeName() or "untyped")
@@ -126,7 +128,7 @@ def main():
                      "authoredMetersPerUnit":authoredMPU,"metersPerUnit":mpu if authoredMPU else None,
                      "effectiveMetersPerUnit":mpu,"authoredUpAxis":authoredAxis,"upAxis":up if authoredAxis else None,
                      "effectiveUpAxis":up,"defaultPrim":str(stage.GetDefaultPrim().GetPath()) if stage.GetDefaultPrim() else None,
-                     "prims":allPrims,"primTypes":dict(tally),"meshExamples":samplemeshes,"variants":variants},
+                     "prims":allPrims,"instanceProxyGeometryIncluded":True,"primTypes":dict(tally),"meshExamples":samplemeshes,"variants":variants},
             "materials":{"total":len(materialInfos),"previewSurfaceContexts":displayMaterials,"mdlContexts":mdlMaterials,
                          "mtlxContexts":mtlxMaterials,"bindingCount":sum(materials_bound.values()),
                          "boundMaterialPaths":dict(materials_bound.most_common(20)),
@@ -151,7 +153,7 @@ def main():
             "variants":report["stage"]["variants"],
             "materials":report["materials"]["examples"],
             "defaultPrim":report["stage"]["defaultPrim"],
-            "composedPrims":[{"path":str(p.GetPath()),"type":str(p.GetTypeName()),"active":p.IsActive(),"instance":p.IsInstance()} for p in stage.TraverseAll()][:40]
+            "composedPrims":[{"path":str(p.GetPath()),"type":str(p.GetTypeName()),"active":p.IsActive(),"instance":p.IsInstance(),"instanceProxy":p.IsInstanceProxy()} for p in stage.Traverse(Usd.TraverseInstanceProxies())][:40]
         },separators=(',',':')))
         if tally["Mesh"]==0:raise ValueError("OpenUSD composed no meshes; inspect variants and missing source references")
 if __name__=="__main__":main()
