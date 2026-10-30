@@ -45,9 +45,16 @@ test('real NVIDIA SimReady layer archive imports, selects and survives reload in
  await expect(page.getByText('3D IMPORT NEEDS ATTENTION')).toHaveCount(0);
  const beforeReload=await canvas.evaluate((el:HTMLCanvasElement)=>({...el.dataset}));
  await expect.poll(async()=>Number(await canvas.getAttribute('data-native-usd-meshes')||0),{timeout:35_000}).toBeGreaterThan(0);
- await page.getByLabel('Imported object').selectOption(before.item!.id);
+ const primary=await canvas.evaluate((element:HTMLCanvasElement)=>({...element.dataset}));
+ expect(primary.primaryAsset).toBe(before.item!.id);
+ const x=Number(primary.primaryHitX),y=Number(primary.primaryHitY);
+ const box=await canvas.boundingBox();
+ expect(box).not.toBeNull();
+ expect(x).toBeGreaterThanOrEqual(0);expect(y).toBeGreaterThanOrEqual(0);
+ expect(x).toBeLessThan(box!.width);expect(y).toBeLessThan(box!.height);
+ await canvas.click({position:{x,y},force:true});
+ await expect(page.getByLabel('Imported object')).toHaveValue(before.item!.id,{timeout:12_000});
  await expect(page.getByText('PARTIAL OPENUSD · GEOMETRY ONLY')).toBeVisible();
- await expect(page.getByLabel('Imported object')).toHaveValue(before.item!.id);
  const screenshot=path.join(testInfo.outputDir,'real-nvidia-simready-production.png');
  await page.screenshot({path:screenshot,fullPage:false});
  await page.reload();
