@@ -5,7 +5,7 @@ import path from 'node:path';
 /** Browser-local integration against actual deployed STRATUM. No tenant session, no
  * production project mutations, no backend writes, no approved-geometry claims. */
 test('real NVIDIA SimReady layer archive imports, selects and survives reload in production',async({page},testInfo)=>{
- const root=path.resolve('test-results/nvidia-simready');
+ const root=path.resolve('.simready-qa-fixtures/nvidia-simready');
  const manifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.json'),'utf8'));
  const source=path.resolve(manifest.test_archive);
  expect(manifest.source).toBe('https://huggingface.co/datasets/nvidia/simready-assets');
