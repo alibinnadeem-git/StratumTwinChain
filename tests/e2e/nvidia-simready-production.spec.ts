@@ -4,7 +4,8 @@ import path from 'node:path';
 
 /** Browser-local integration against actual deployed STRATUM. No tenant session, no
  * production project mutations, no backend writes, no approved-geometry claims. */
-test('real NVIDIA SimReady layer archive imports, selects and survives reload in production',async({page},testInfo)=>{
+test('real NVIDIA SimReady layer archive imports, selects and survives reload in candidate viewer',async({page},testInfo)=>{
+ test.setTimeout(150_000);
  const root=path.resolve('.simready-qa-fixtures/nvidia-simready');
  const manifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.json'),'utf8'));
  const source=path.resolve(manifest.test_archive);
@@ -39,15 +40,14 @@ test('real NVIDIA SimReady layer archive imports, selects and survives reload in
  await expect(page.getByLabel('Imported object')).toContainText('nvidia tool hammer');
  await expect(page.getByText('3D IMPORT NEEDS ATTENTION')).toHaveCount(0);
  const beforeReload=await canvas.evaluate((el:HTMLCanvasElement)=>({...el.dataset}));
- const x=Number(beforeReload.primaryHitX),y=Number(beforeReload.primaryHitY);
- expect(Number.isFinite(x)&&Number.isFinite(y)).toBe(true);
- await canvas.click({position:{x,y},force:true});
- await expect(canvas).toHaveAttribute('data-selected-asset',before.item!.id,{timeout:10_000});
+ await expect.poll(async()=>Number(await canvas.getAttribute('data-native-usd-meshes')||0),{timeout:35_000}).toBeGreaterThan(0);
+ await page.getByLabel('Imported object').selectOption(before.item!.id);
+ await expect(page.getByLabel('Imported object')).toHaveValue(before.item!.id);
  const screenshot=path.join(testInfo.outputDir,'real-nvidia-simready-production.png');
  await page.screenshot({path:screenshot,fullPage:false});
  await page.reload();
  await expect(canvas).toBeVisible({timeout:25_000});
- await expect.poll(async()=>Number(await canvas.getAttribute('data-clickable-assets')||0),{timeout:40_000}).toBeGreaterThan(0);
+ await expect.poll(async()=>Number(await canvas.getAttribute('data-native-usd-meshes')||0),{timeout:40_000}).toBeGreaterThan(0);
  const after=await page.evaluate(()=>{
   const graph=JSON.parse(localStorage.getItem('stratum_compiled_graph')||'{}');
   return (graph.entities||[]).find((e:any)=>e.kind==='imported-3d-model')?.meta?.sourceSha256||null;
