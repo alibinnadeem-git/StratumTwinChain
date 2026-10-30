@@ -47,6 +47,8 @@ assert.match(viewer,/e\.x-renderOrigin\.x,height\(e\)\+\.08,e\.y-renderOrigin\.y
 assert.match(viewer,/a\.x-renderOrigin\.x,height\(a\)\+\.65,a\.y-renderOrigin\.y/,'logical link vertices must be localized');
 assert.match(viewer,/leaderStart=new THREE\.Vector3\(x-renderOrigin\.x[\s\S]*leaderEnd=new THREE\.Vector3\(sprite\.position\.x-renderOrigin\.x/,'label leader vertices must be localized before Float32 upload');
 assert.match(viewer,/absoluteCenter\.x-renderOrigin\.x/,'camera fit must target render-local world coordinates');
+// The focus point is the selection as displayed (review-layout offsets) and, when it has one, its drawn
+// symbol (Phase 21, lib/drawn-footprint-placement.ts).
 assert.match(viewer,/shown\.x-origin\.x[\s\S]*shown\.y-origin\.y/,'selected-asset focus must target render-local coordinates including review-layout offsets');
 assert.match(viewer,/renderedBox\.translate\(new THREE\.Vector3\(renderOrigin\.x,0,renderOrigin\.y\)\)/,'async model bounds must be converted back to authoritative coordinates before union');
 assert.doesNotMatch(viewer,/localStorage\.setItem\([^\n]*renderOrigin/,'render origin is view-only and must never persist into the authoritative graph');

@@ -58,6 +58,18 @@ const excluded=extractSupportOffsetEvidence({
 });
 assert.equal(excluded.length,0);
 
+// A footprint ("6' x 8'") is the pad's plan size, not its height. Brynhurst E-4's "6' x 8' T-Pad" was
+// read as a 6 ft pad and lifted MS1 1.83 m; only a value tied to a height word counts next to a footprint.
+const heightOf=text=>extractSupportOffsetEvidence({items:[{text,x:.5,y:.5}],source:'E-4.pdf',page:4,planeWidth:20,planeHeight:20})[0]?.heightMeters;
+assert.equal(heightOf("6'x8' T-Pad"),undefined,'footprint is not a height');
+assert.equal(heightOf("6' x 8' CONC PAD"),undefined,'spaced footprint is not a height');
+assert.ok(close(heightOf('4" HOUSEKEEPING PAD'),4*.0254));
+assert.ok(close(heightOf('CONC PAD 6" HIGH'),.1524));
+assert.ok(close(heightOf('8\' x 10\' PAD, 6" THICK'),.1524),'height word wins over the footprint');
+assert.ok(close(heightOf('CONC PAD 0\'-6" THK'),.1524));
+assert.equal(heightOf("CONC PAD 2'-0\""),undefined,'a 2 ft pad is a misread, above the pad limit');
+assert.ok(close(heightOf('ROOF CURB 24"'),.6096),'curbs keep a higher limit than pads');
+
 const localPlacement=resolveAssetPlacement({
  name:'PAD MOUNT TRANSFORMER T1',
  floor:'UNRESOLVED',z:0,

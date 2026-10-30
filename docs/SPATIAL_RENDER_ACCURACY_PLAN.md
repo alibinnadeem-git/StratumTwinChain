@@ -133,6 +133,9 @@ Scale machinery already existed (`title-block` `scaleCalibration`, `scale-valida
 **Result:** 4/9 sheets carry evidence. **Page 3 MISMATCH: declared 5.121 vs 19 witnesses 0.826 (6.2×).**
 Declared repeats on every sheet → declared-only candidates suspect. → Phase 3b.
 
+> **Superseded 2026-10-26.** The declared 5.121 m/unit is correct; the witnesses are the faulty side (see
+> Phase 3b note). Follow-up: `docs/SPATIAL_METRIC_PLACEMENT_PLAN.md`.
+
 ## Phase 3b — Scale discrepancy resolution · ✅ DONE (2026-10-22)
 
 The 6.2× is a genuine disagreement on the same normalized basis, not a units bug. Declared is a
@@ -142,6 +145,12 @@ candidate **only** from witness corroboration; declared-only stays audit evidenc
 
 **Result:** Brynhurst `sheetsWithCandidate = 0` → **no trustworthy auto-derivable sizing scale**; metric
 placement needs human XY calibration (`ManualSheetXYCalibrationReview`).
+
+> **Superseded 2026-10-26.** The conclusion above is wrong. At the declared 1/8" = 1'-0" (5.121 m/unit),
+> the 6'×8' transformer pad measures 6.0 × 8.0 ft on both E-3 and E-4, so the declared scale is right and
+> the 19 witnesses are wrong. The "detail-view scale" explanation does not hold. The policy (declared-only
+> is not a sizing candidate) stays; the witness bug and the metric route are Phases 11–12 of
+> `docs/SPATIAL_METRIC_PLACEMENT_PLAN.md`.
 
 **Manual XY calibration route confirmed (remaining item #3, 2026-10-22):** `ManualSheetXYCalibrationReview`
 (/compiler) → `applySheetXYTransform` is the sanctioned, tested, XY-only, review-gated metric transform
@@ -240,6 +249,8 @@ nothing pushed.
    (projection waits for server hydration, or a shared write lease).
 3. **Metric sizing requires a human XY calibration (Phase 3b, user action).** The route exists
    (`ManualSheetXYCalibrationReview`); auto scale is non-sizing. Until a sheet is calibrated, sizing is nominal.
+   *Superseded 2026-10-26:* the printed scale is correct, so a person-confirmed scale replaces manual
+   calibration pairs — see `docs/SPATIAL_METRIC_PLACEMENT_PLAN.md` Phases 11–12.
 4. **Fixture breadth remainder (Phase 9).** A DXF-through-real-parser test and a full-pipeline e2e on a
    plan-heavy set (the synthetic IFC fixture is done).
 
@@ -259,3 +270,5 @@ nothing pushed.
   only, never physical truth** (`physicalTruth:false`, `reviewRequired:true`); demotions reversible, no source deleted.
 - **2026-10-22** Declared-only scale is not a sizing candidate (shown ~6.2× unreliable); witness corroboration required.
 - **2026-10-22** Floor-label-only sheets get a relative/nominal review datum (not absolute Z).
+- **2026-10-26** Phase 3b corrected: Brynhurst's declared scale is right (T-pad measures 6.0 × 8.0 ft on E-3
+  and E-4); the witnesses are wrong. Work continues in `docs/SPATIAL_METRIC_PLACEMENT_PLAN.md`.

@@ -10,6 +10,11 @@ import {reportSpatialDiag,startSpatialDiagTimer} from '@/lib/spatial-diagnostics
 const REGISTRY_EVENT='stratum:model-registry-updated';
 const DEBOUNCE_MS=250;
 const CONTENTION_BACKOFF_MS=700;
+// One projection pass at a time across mounts. The Import and Spatial pages both mount this engine; a pass
+// still running when Import unmounts (Render Spatial Environment) used to keep going and write the ~39 MB
+// golden-fixture graph while the Spatial page's first pass did the same, so each made the other contended.
+// Now a new pass waits for the previous one, and a pass whose page has unmounted stops before writing.
+let passInFlight:Promise<void>=Promise.resolve();
 
 function projectionCounts(graph:any):Record<string,number>{
  const summary=graph?.spatialProjection&&typeof graph.spatialProjection==='object'?graph.spatialProjection:{};
@@ -36,9 +41,15 @@ export default function SpatialProjectionEngine(){
   const apply=async()=>{
    if(!active||applying)return;
    applying=true;
+   const previousPass=passInFlight;let releasePass=()=>{};
+   passInFlight=new Promise<void>(resolve=>{releasePass=resolve});
    const elapsed=startSpatialDiagTimer();
+   const stopIfUnmounted=()=>{if(active)return false;reportSpatialDiag({stage:'project',level:'info',code:'PROJECT_CANCELLED_UNMOUNTED',message:'Page unmounted; the next page\'s engine projects instead',durationMs:Math.round(elapsed())});return true};
    try{
-    const graph=await readPrimarySpatialGraph();if(!active||!graph||!Array.isArray(graph.entities))return;
+    await previousPass;
+    if(!active)return;
+    const graph=await readPrimarySpatialGraph();if(!graph||!Array.isArray(graph.entities))return;
+    if(stopIfUnmounted())return;
     const storedRegistry=localStorage.getItem(ELECTRICAL_MODEL_REGISTRY_STORAGE_KEY);
     const registry=storedRegistry?normalizeElectricalModelRegistry(JSON.parse(storedRegistry)):DEFAULT_ELECTRICAL_MODEL_REGISTRY;
     const before=graphSignature(graph);
@@ -48,7 +59,7 @@ export default function SpatialProjectionEngine(){
     }
     reportSpatialDiag({stage:'project',level:'info',code:'PROJECT_START',counts:{entities:graph.entities.length}});
     const enriched=await projectGraphOffThread(graph as any,registry);
-    if(!active)return;
+    if(stopIfUnmounted())return;
     if(graphSignature(enriched)===before){
      reportSpatialDiag({stage:'project',level:'info',code:'PROJECT_NO_OP',message:'Projection produced no change',counts:projectionCounts(enriched),durationMs:Math.round(elapsed())});
      return;
@@ -70,7 +81,7 @@ export default function SpatialProjectionEngine(){
     // Source graph is preserved if projection enrichment cannot be evaluated — but the failure
     // is no longer silent: without this the entire render falls back to un-projected geometry.
     reportSpatialDiag({stage:'project',level:'error',code:'PROJECT_FAILED',message:error instanceof Error?error.message:'Projection enrichment failed',durationMs:Math.round(elapsed()),data:{error:error instanceof Error?error.message:String(error)}});
-   }finally{applying=false}
+   }finally{applying=false;releasePass()}
   };
   // Debounce so a burst of graph-updated events (including derived writes from other
   // reactive panels) coalesces into a single projection pass instead of a cascade storm.

@@ -67,6 +67,19 @@ function parseHeightMeters(label:string){
   if(unit==='IN'||unit==='INCHES')return value*IN;
   return value*FT;
 }
+// "8' x 10' PAD, 6" THICK": the value right before a height word is the height.
+const STATED_HEIGHT=/(?<![A-Z0-9])((?:\d+\s*'\s*-?\s*)?(?:\d+\s+)?(?:\d+\/\d+|\d+(?:\.\d+)?)\s*(?:"|'|MM|CM|M|IN|INCHES|FT|FEET))\s*(?:HIGH|HT|H|THK|THICK|TALL)\b/;
+// "6'x8' T-PAD": two lengths joined by x are the plan footprint, not a height.
+const FOOTPRINT=/\d\s*['"]?\s*[X×]\s*\d/;
+function supportHeightMeters(label:string){
+  const t=upper(label),stated=t.match(STATED_HEIGHT);
+  if(stated)return parseHeightMeters(stated[1]);
+  if(FOOTPRINT.test(t))return null;
+  return parseHeightMeters(t);
+}
+// Pads and housekeeping pads are inches thick; curbs can reach about 3 ft (roof curbs); plinths and footings
+// get the general limit. A larger value is a misread, not a support height.
+const MAX_SUPPORT_HEIGHT:Record<SupportBaseKind,number>={PAD:.6,HOUSEKEEPING_PAD:.6,CURB:1,PLINTH:3,FOOTING:3};
 function assetTag(label:string){
   const t=upper(label);
   const patterns=[
@@ -102,7 +115,7 @@ export function extractSupportOffsetEvidence(input:{
   for(const item of input.items){
     const label=clean(item.text),kind=supportKind(label);if(!kind)continue;
     if(/(?:TYP|TYPICAL|MIN(?:IMUM)?|MAX(?:IMUM)?|CLEARANCE|SPACING)/i.test(label))continue;
-    const heightMeters=parseHeightMeters(label);if(heightMeters===null||heightMeters<=0||heightMeters>3)continue;
+    const heightMeters=supportHeightMeters(label);if(heightMeters===null||heightMeters<=0||heightMeters>MAX_SUPPORT_HEIGHT[kind])continue;
     const tag=assetTag(label);
     out.push({
       id:`support-${input.page}-${index++}`,

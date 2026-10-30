@@ -114,4 +114,15 @@ ok('one footprint agrees',audit.footprint.agree===1);
 ok('one footprint disagrees',audit.footprint.disagree===1);
 ok('one footprint has no metric scale',audit.footprint.scaleUnavailable===1);
 
+// Phase 20a: OCR coverage from embedded drawing images is reported, and OCR text never counts as equipment.
+const ocrAudit=auditParsedGraph([
+  {id:'r1',name:'OCR region · page 2 · 2 lines',layer:'L0',kind:'ocr-region',meta:{nonSpatial:true,ocrReader:'tesseract',ocrReaderVersion:'v',ocrFailedTiles:1,ocrCachedTiles:2}},
+  {id:'l1',name:'PANEL HP1',layer:'L0',kind:'ocr-text-line',meta:{nonSpatial:true,ocrConfidence:90}},
+  {id:'l2',name:'100 AMPERE PANEL',layer:'L0',kind:'ocr-text-line',meta:{nonSpatial:true,ocrConfidence:70}},
+],sources,registry);
+ok('OCR regions, lines and mean confidence are audited',ocrAudit.ocr.regions===1&&ocrAudit.ocr.lines===2&&ocrAudit.ocr.meanConfidence===80);
+ok('OCR failed and cached tiles are audited',ocrAudit.ocr.failedTiles===1&&ocrAudit.ocr.cachedTiles===2&&ocrAudit.ocr.readers[0]==='tesseract@v');
+ok('OCR text is not an equipment candidate',ocrAudit.candidates.total===0);
+ok('graphs without OCR report zero coverage',audit.ocr.regions===0&&audit.ocr.lines===0&&audit.ocr.meanConfidence===null);
+
 console.log('\nSpatial parse/symbol/library audit contract passed.');

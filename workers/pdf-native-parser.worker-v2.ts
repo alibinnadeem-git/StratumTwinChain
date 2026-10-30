@@ -16,15 +16,19 @@ import {pdfIngestionProfile} from '../lib/pdf-ingestion-profile';
 import {detectElectricalLegendPage,detectElectricalSpecificationPage,detectPdfEquipmentMatrixPage,extractElectricalLegendEntries,extractElectricalSpecificationRequirements,extractPdfEquipmentMatrixRecords} from '../lib/electrical-design-intelligence';
 import {buildLegendSymbolFingerprints,matchLegendSymbolFingerprints} from '../lib/electrical-symbol-fingerprint';
 import {buildLegendSegmentFingerprints,matchLegendSegmentFingerprints} from '../lib/electrical-segment-symbol-fingerprint';
+import {collectImagePlacements,type ImagePlacement} from '../lib/ocr-regions';
+import {FOOTPRINT_PHRASE_MAX_CHARACTERS,assembleTextPhrases,compactTextPhrase,drawnRectangles,findDrawnFootprint} from '../lib/text-phrases';
 
 type Layer='L0'|'L1'|'L2'|'L3'|'L4';
 type XY={x:number;y:number};
 type GraphEntity={id:string;source:string;layer:Layer;kind:string;name:string;x:number;y:number;z?:number;x2?:number;y2?:number;z2?:number;rotation?:number;scale?:number;floor?:string;zone?:string;vertices?:XY[];confidence:number;meta?:Record<string,unknown>};
-type RawText={key:string;str:string;x:number;y:number;page:number;dirX?:number;dirY?:number;textSpan?:number};
+// dirX/dirY are the raw text-matrix direction (viewport y-down) that older consumers read; on a page with
+// /Rotate they ignore the rotation. sheetDirX/sheetDirY are the direction as printed, in sheet coordinates.
+type RawText={key:string;str:string;x:number;y:number;page:number;dirX?:number;dirY?:number;textSpan?:number;sheetDirX:number;sheetDirY:number;size:number};
 type Segment={x:number;y:number;x2:number;y2:number;page:number};
-type Polygon={vertices:XY[];page:number;confidence:number};
+type Polygon={vertices:XY[];page:number;confidence:number;filled?:boolean};
 type Level={floor:string;elevation:number};
-type ParseResult={entities:GraphEntity[];summary:string;pages:number;vectors:number;textItems:number;sldPages:number;nonSldPlanPages:number;planTypes:string[];disciplines:string[];setCompleteness:DrawingSetCompleteness;ocrRequiredPages:number[]};
+type ParseResult={entities:GraphEntity[];summary:string;pages:number;vectors:number;textItems:number;sldPages:number;nonSldPlanPages:number;planTypes:string[];disciplines:string[];setCompleteness:DrawingSetCompleteness;ocrRequiredPages:number[];imagePlacements:ImagePlacement[];pageSizes:Array<{page:number;width:number;height:number}>};
 
 
 function fail(code:string,message:string,page?:number):never{
@@ -59,6 +63,12 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
  const legendEvidence=new Map<number,ReturnType<typeof detectElectricalLegendPage>>();
  const specificationEvidence=new Map<number,ReturnType<typeof detectElectricalSpecificationPage>>();
  let vectors=0,totalOps=0;const ocrRequiredPages:number[]=[];
+ // Where raster images sit on every page: the only text a page with a text layer still hides (pasted
+ // schedules, scans). CompilerWorkspace reads them after this pass (lib/ocr-regions.ts).
+ const imagePlacements:ImagePlacement[]=[];
+ // Candidate symbol footprints (lib/text-phrases.ts): small closed rectangles and the triangles of solid fills.
+ const footprintShapes:Array<{vertices:XY[];page:number;filled:boolean}>=[];
+ const FOOTPRINT_SHAPES_PER_PAGE=60000,FOOTPRINT_SHAPE_MAX_SIDE=1.2;
 
  try{
   for(let p=1;p<=doc.numPages;p++){
@@ -77,8 +87,10 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
     if(raw.length>=ingestion.maxTextItems){page.cleanup();fail('PDF_TEXT_BUDGET',`PDF exceeds the ${ingestion.maxTextItems.toLocaleString()} positioned-text budget. Split the drawing set and retry.`,p)}
     const t=item.transform||[1,0,0,1,0,0],point=viewport.convertToViewportPoint(Number(t[4]||0),Number(t[5]||0));
     const dirMag=Math.hypot(Number(t[0]||0),Number(t[1]||0))||1,normalizer=20/Math.max(viewport.width,viewport.height,1);
+    const ahead=viewport.convertToViewportPoint(Number(t[4]||0)+Number(t[0]||0)/dirMag,Number(t[5]||0)+Number(t[1]||0)/dirMag),aheadX=ahead[0]-point[0],aheadY=ahead[1]-point[1],aheadMag=Math.hypot(aheadX,aheadY)||1;
     raw.push({key:`text-${p}-${raw.length}`,str:item.str.trim(),x:(point[0]-viewport.width/2)*normalizer,y:(viewport.height/2-point[1])*normalizer,page:p,
-     dirX:Number(t[0]||0)/dirMag,dirY:-Number(t[1]||0)/dirMag,textSpan:Math.abs(Number(item.width||0))*normalizer});
+     dirX:Number(t[0]||0)/dirMag,dirY:-Number(t[1]||0)/dirMag,textSpan:Math.abs(Number(item.width||0))*normalizer,
+     sheetDirX:aheadX/aheadMag,sheetDirY:-aheadY/aheadMag,size:Math.hypot(Number(t[2]||0),Number(t[3]||0))*normalizer});
    }
 
    post({type:'progress',requestId,page:p,total:doc.numPages,phase:'vector operators'});
@@ -88,6 +100,7 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
    totalOps+=pageOps;
    if(totalOps>ingestion.maxTotalOperators){page.cleanup();fail('PDF_OPERATOR_BUDGET',`PDF contains more than ${ingestion.maxTotalOperators.toLocaleString()} drawing operators. Split the set and retry.`,p)}
    vectors+=pageOps;pageVectorOps.set(p,pageOps);
+   imagePlacements.push(...collectImagePlacements({page:p,fnArray:ops.fnArray,argsArray:ops.argsArray,ops:pdfjs.OPS,toViewport:(x,y)=>viewport.convertToViewportPoint(x,y)}));
    const recognition=resolveDrawingPageRecognition(nativeText,pageOps);
    pageEvidence.set(p,recognition.sld);planEvidence.set(p,recognition.plan);
    legendEvidence.set(p,detectElectricalLegendPage(nativeText));
@@ -96,7 +109,9 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
    if(recognition.sld.isSld||recognition.plan.isPlan||legendEvidence.get(p)?.isLegend){
     post({type:'progress',requestId,page:p,total:doc.numPages,phase:'vector geometry'});
     const active:XY[]=[];let matrix=[1,0,0,1,0,0];const stack:number[][]=[];
-    let pageSegments=0,pagePolygons=0;
+    // Whether the path being built is filled: CAD exports solid symbols (panel bars) as filled paths.
+    const fillOps=new Set([pdfjs.OPS.fill,pdfjs.OPS.eoFill,pdfjs.OPS.fillStroke,pdfjs.OPS.eoFillStroke,pdfjs.OPS.closeFillStroke,pdfjs.OPS.closeEOFillStroke]);let pathFilled=false;
+    let pageSegments=0,pagePolygons=0,pageFootprintShapes=0;
     const transform=(b:number[])=>{const a=matrix;matrix=[a[0]*b[0]+a[2]*b[1],a[1]*b[0]+a[3]*b[1],a[0]*b[2]+a[2]*b[3],a[1]*b[2]+a[3]*b[3],a[0]*b[4]+a[2]*b[5]+a[4],a[1]*b[4]+a[3]*b[5]+a[5]]};
     const pushSegment=(prev:XY,next:XY)=>{
      if(pageSegments>=ingestion.maxAnalysisSegmentsPerPage||segments.length>=ingestion.maxAnalysisSegmentsTotal)return;
@@ -107,7 +122,19 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
      if(connect&&active.length)pushSegment(active[active.length-1],next);
      if(active.length<ingestion.maxActivePathPoints)active.push(next);
     };
-    const finish=()=>{if(active.length>=3&&pagePolygons<ingestion.maxPolygonsPerPage){const first=active[0],last=active[active.length-1];if(Math.hypot(first.x-last.x,first.y-last.y)<.08){polygons.push({vertices:[...active],page:p,confidence:.74});pagePolygons++}}active.length=0};
+    const finish=()=>{
+     if(active.length>=3){
+      const first=active[0],last=active[active.length-1],closed=Math.hypot(first.x-last.x,first.y-last.y)<.08;
+      if(closed&&pagePolygons<ingestion.maxPolygonsPerPage){polygons.push({vertices:[...active],page:p,confidence:.74,filled:pathFilled});pagePolygons++}
+      // Symbol-sized rectangles and triangles, kept apart from the capped polygon list: on the golden fixture
+      // E-4 has 6,808 closed paths and E-5 14,352 against a 6,000 cap, and the panel bars come late.
+      if(closed&&active.length<=8&&pageFootprintShapes<FOOTPRINT_SHAPES_PER_PAGE){
+       const xs=active.map(point=>point.x),ys=active.map(point=>point.y);
+       if(Math.max(Math.max(...xs)-Math.min(...xs),Math.max(...ys)-Math.min(...ys))<=FOOTPRINT_SHAPE_MAX_SIDE){footprintShapes.push({vertices:[...active],page:p,filled:pathFilled});pageFootprintShapes++}
+      }
+     }
+     active.length=0;
+    };
     const close=()=>{if(active.length>=2){const first=active[0],last=active[active.length-1];pushSegment(last,first);if(active.length<ingestion.maxActivePathPoints)active.push(first)}finish()};
     for(let k=0;k<pageOps;k++){
      const fn=ops.fnArray[k],a=ops.argsArray?.[k]||[];
@@ -116,7 +143,7 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
      else if(fn===pdfjs.OPS.transform){transform(a.map(Number))}
      else if(fn===pdfjs.OPS.paintFormXObjectBegin){stack.push([...matrix]);if(a[0])transform(Array.from(a[0] as ArrayLike<number>))}
      else if(fn===pdfjs.OPS.paintFormXObjectEnd){matrix=stack.pop()||[1,0,0,1,0,0]}
-     else if(fn===pdfjs.OPS.constructPath){for(const command of (a[1]||[])){const c=Array.from(command as ArrayLike<number>).map(Number);for(let j=0;j<c.length;){const code=c[j++];if(code===0){finish();add(c[j++],c[j++],false)}else if(code===1){add(c[j++],c[j++])}else if(code===2){const x1=c[j++],y1=c[j++],x2=c[j++],y2=c[j++],x=c[j++],y=c[j++];add((x1+x2+x)/3,(y1+y2+y)/3);add(x,y)}else if(code===3){const x1=c[j++],y1=c[j++],x=c[j++],y=c[j++];add((x1+x)/2,(y1+y)/2);add(x,y)}else if(code===4){close()}else{active.length=0;break}}}finish()}
+     else if(fn===pdfjs.OPS.constructPath){pathFilled=fillOps.has(a[0]);for(const command of (a[1]||[])){const c=Array.from(command as ArrayLike<number>).map(Number);for(let j=0;j<c.length;){const code=c[j++];if(code===0){finish();add(c[j++],c[j++],false)}else if(code===1){add(c[j++],c[j++])}else if(code===2){const x1=c[j++],y1=c[j++],x2=c[j++],y2=c[j++],x=c[j++],y=c[j++];add((x1+x2+x)/3,(y1+y2+y)/3);add(x,y)}else if(code===3){const x1=c[j++],y1=c[j++],x=c[j++],y=c[j++];add((x1+x)/2,(y1+y)/2);add(x,y)}else if(code===4){close()}else{active.length=0;break}}}finish();pathFilled=false}
      else if(fn===pdfjs.OPS.moveTo){finish();add(Number(a[0]),Number(a[1]),false)}
      else if(fn===pdfjs.OPS.lineTo){add(Number(a[0]),Number(a[1]))}
      else if(fn===pdfjs.OPS.rectangle){finish();const [x,y,w,h]=a.map(Number);add(x,y,false);add(x+w,y);add(x+w,y+h);add(x,y+h);close()}
@@ -187,6 +214,21 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
    }
   }
   for(const [page,frames] of planFramesByPage)for(const frame of frames)reviewEntities.push({id:`pdf-plan-frame-${page}-${frame.id}`,source:fileName,layer:'L0',kind:'plan-frame-candidate',name:frame.title,x:frame.anchorX,y:frame.anchorY,z:0,floor:frame.floor||'UNRESOLVED',confidence:frame.confidence,meta:{page,nonSpatial:true,sourceType:'PDF_PLAN_FRAME_TITLE',planFrame:frame,physicalTruth:false,reviewRequired:true,geometryAuthority:'TITLE_ANCHOR_ONLY',spatialPlacementAuthority:'SOURCE_SHEET_TITLE_ANCHOR_ONLY',zPlacementAuthority:'UNVERIFIED_DRAWING_PLANE',elevationKnown:false,physicalElevationKnown:false}});
+  // Every drawing page's phrases, each short label with the drawn rectangle it sits in or beside
+  // (lib/text-phrases.ts). The project equipment roster (lib/equipment-roster.ts) reads these after OCR.
+  for(let page=1;page<=doc.numPages;page++){
+   const isPlan=Boolean(planEvidence.get(page)?.isPlan),isSld=Boolean(pageEvidence.get(page)?.isSld);
+   if(!isPlan&&!isSld)continue;
+   const phrases=assembleTextPhrases(raw.filter(item=>item.page===page).map(item=>({text:item.str,x:item.x,y:item.y,dirX:item.sheetDirX,dirY:item.sheetDirY,span:item.textSpan||0,size:item.size})));
+   const rects=drawnRectangles(footprintShapes.filter(shape=>shape.page===page));
+   const textPhrases=phrases.map(phrase=>{
+    const cx=(phrase.box.x0+phrase.box.x1)/2,cy=(phrase.box.y0+phrase.box.y1)/2,frame=frameAt(page,cx,cy),floor=floorAt(page,cx,cy);
+    return compactTextPhrase(phrase,phrase.text.length<=FOOTPRINT_PHRASE_MAX_CHARACTERS?findDrawnFootprint(phrase,rects):null,{floor:floor==='UNRESOLVED'?null:floor,id:frame?.id||null});
+   });
+   reviewEntities.push({id:`pdf-text-layer-${page}`,source:fileName,layer:'L0',kind:'pdf-text-layer',name:`PDF text layer · page ${page}`,x:0,y:0,z:0,floor:pageFloors.get(page)||'UNRESOLVED',confidence:1,
+    meta:{page,nonSpatial:true,referenceOnly:true,sourceType:'PDF_TEXT_LAYER',isPlan,isSld,planType:planEvidence.get(page)?.planType||null,planDiscipline:planEvidence.get(page)?.discipline||null,
+     coordinateUnits:'sheet',physicalTruth:false,reviewRequired:false,textPhrases}});
+  }
   const nearestFixtureMark=(page:number,x:number,y:number)=>{
    const candidates=raw.filter(item=>item.page===page&&/^[A-Z]{1,3}\d?$/.test(item.str.trim()))
     .map(item=>({item,distance:Math.hypot(item.x-x,item.y-y)})).filter(candidate=>candidate.distance<=.22)
@@ -374,7 +416,7 @@ async function parseNativePdf(input:{requestId:string;fileName:string;buffer:Arr
   const pageLabels=Array.from({length:doc.numPages},(_,index)=>raw.filter(item=>item.page===index+1).map(item=>item.str));
   const setCompleteness=analyzeDrawingSetCompleteness({pageLabels,sheetNumbers:Array.from({length:doc.numPages},(_,index)=>sheetNumbersByPage.get(index+1)||null)});
   const setSummary=setCompleteness.status==='PARTIAL'?` · partial drawing set · missing ${setCompleteness.missingSheets.join(', ')}`:setCompleteness.status==='COMPLETE'?' · indexed drawing set complete':' · drawing-set completeness unresolved';
-  return{entities:supportEnriched,summary:`${doc.numPages} page${doc.numPages===1?'':'s'} · ${raw.length} positioned text objects · ${vectors} PDF drawing operators · ${nonSldPlanPages} non-SLD plan page${nonSldPlanPages===1?'':'s'} recognized${planTypes.length?` (${planTypes.join(', ')})`:''} · ${sourcePlanSegments} retained source-plan vector segment${sourcePlanSegments===1?'':'s'} · 0 raster OCR fallback pages · ${sldPages} SLD page${sldPages===1?'':'s'} recognized from content/topology · ${vectorFeederSegments} source-vector feeder segment${vectorFeederSegments===1?'':'s'} · ${supportEnriched.length} spatial/review candidates${setSummary} · ${ocrRequiredPages.length} low-text/scanned page${ocrRequiredPages.length===1?'':'s'} queued for selective OCR · ${ingestion.mode==='LARGE_SOURCE'?'large-source bounded parse':'standard parse'} off the UI thread`,pages:doc.numPages,vectors,textItems:raw.length,sldPages,nonSldPlanPages,planTypes,disciplines:uniqueDisciplines,setCompleteness,ocrRequiredPages};
+  return{entities:supportEnriched,summary:`${doc.numPages} page${doc.numPages===1?'':'s'} · ${raw.length} positioned text objects · ${vectors} PDF drawing operators · ${nonSldPlanPages} non-SLD plan page${nonSldPlanPages===1?'':'s'} recognized${planTypes.length?` (${planTypes.join(', ')})`:''} · ${sourcePlanSegments} retained source-plan vector segment${sourcePlanSegments===1?'':'s'} · 0 raster OCR fallback pages · ${sldPages} SLD page${sldPages===1?'':'s'} recognized from content/topology · ${vectorFeederSegments} source-vector feeder segment${vectorFeederSegments===1?'':'s'} · ${supportEnriched.length} spatial/review candidates${setSummary} · ${ocrRequiredPages.length} low-text/scanned page${ocrRequiredPages.length===1?'':'s'} queued for selective OCR · ${ingestion.mode==='LARGE_SOURCE'?'large-source bounded parse':'standard parse'} off the UI thread`,pages:doc.numPages,vectors,textItems:raw.length,sldPages,nonSldPlanPages,planTypes,disciplines:uniqueDisciplines,setCompleteness,ocrRequiredPages,imagePlacements,pageSizes:[...pageGeometryByPage].map(([page,size])=>({page,width:size.width,height:size.height}))};
  }finally{await doc.destroy()}
 }
 

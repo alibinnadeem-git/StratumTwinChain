@@ -2,10 +2,10 @@ import type {IndependentScaleValidation} from './scale-validation.ts';
 
 // Phase 3/3b consolidation: pick ONE reviewable per-sheet metric-scale SIZING candidate from the
 // independent scale-validation evidence. Only independent-witness corroboration qualifies. A declared
-// (title-block) scale alone does NOT: Phase 3b showed it off by 6.2x vs 19 witnesses on a real sheet
-// (title-block main scale vs detail-view dimensions), so declared-only is kept as context in the audit
-// but is never offered as a sizing candidate. A MISMATCH also yields no candidate. Never auto-applied;
-// true metric placement still requires human XY calibration.
+// (title-block) scale alone does NOT: it is read from text and must be checked against the drawing, so
+// declared-only is kept as context in the audit but is never offered as a sizing candidate. (Phase 3b's
+// "declared is 6.2x off" was itself a witness bug, fixed in scale-validation.ts; the policy stands.) A
+// MISMATCH also yields no candidate. Never auto-applied; metric placement needs a human-confirmed frame.
 
 export type SheetScaleCandidate={
   metersPerNormalizedSheetUnit:number;
@@ -34,7 +34,7 @@ export function resolveSheetScaleCandidate(evidence:ScaleEvidence|null|undefined
     confidence:clamp(evidence.confidence),
     reviewRequired:true,autoApply:false,geometryScaleAuthority:false,
   };
-  // Declared-only (title-block) scale is NOT a sizing candidate (Phase 3b: ~6.2x unreliable). The
+  // Declared-only (title-block) scale is NOT a sizing candidate: nothing on the sheet has checked it. The
   // declared value is still surfaced in the audit as context; sizing needs witnesses or calibration.
   return null;
 }

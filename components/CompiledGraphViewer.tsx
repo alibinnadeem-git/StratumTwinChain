@@ -23,9 +23,12 @@ import {readPrimarySpatialGraph} from "@/lib/spatial-browser-recovery";
 import {buildSpatialCoordinationReviewIndex,findingsForEntity} from "@/lib/spatial-coordination-review";
 import {buildCoordinationIntelligence,type CoordinationSnapshot} from "@/lib/coordination-intelligence";
 import {type RegisteredSpatialAsset} from "@/lib/spatial-asset-link";
-import {findDrawingSourcesNeedingReprocess} from "@/lib/spatial-source-reprocess";
+import {basemapReprocessReason,findDrawingSourcesNeedingReprocess} from "@/lib/spatial-source-reprocess";
 import {isIdentifiedProjectEquipment} from "@/lib/spatial-ui-counts";
 import {spatialEntitySourceKey,spatialSourceKey,spatialSourceLayerLabels} from "@/lib/spatial-source-layer";
+import {chooseAutoSheetFrame} from "@/lib/sheet-frame-choice";
+import {derivePdfMetricFrameCandidates,pdfMetricFrameKey} from "@/lib/pdf-metric-frame";
+import {applyStoredPdfMetricFrame,restoreStoredPdfMetricFrame} from "@/lib/pdf-metric-frame-store";
 import {
   DEFAULT_ELECTRICAL_MODEL_REGISTRY,
   ELECTRICAL_MODEL_REGISTRY_STORAGE_KEY,
@@ -34,6 +37,7 @@ import {
 } from "@/lib/electrical-model-registry";
 import {reportSpatialDiag,startSpatialDiagTimer} from "@/lib/spatial-diagnostics";
 import SpatialDiagnosticsHud from "@/components/SpatialDiagnosticsHud";
+import {drawnSymbolGeometry} from "@/lib/drawn-footprint-placement";
 
 type Layer="L0"|"L1"|"L2"|"L3"|"L4";
 type ViewMode="MODEL"|"ELECTRICAL"|"REVIEW";
@@ -59,6 +63,8 @@ const colors:Record<Layer,number>={L0:0x31566d,L1:0x7f98a6,L2:0xe5a14d,L3:0x62bf
 // SLD sheets can emit many thousands of vector nodes; the SVG mini-map renders one DOM
 // node per entity, so cap it to keep the first paint responsive. The 3D scene remains complete.
 const MINIMAP_MAX_NODES=2500;
+// While nothing moves, the 3D view redraws a few times a second (async model loads) instead of every frame.
+const IDLE_RENDER_INTERVAL_MS=400;
 const systemOptions:{id:SystemMode;label:string}[]=[
   {id:"ALL",label:"All systems"},{id:"POWER",label:"Power distribution"},{id:"EMERGENCY",label:"Emergency power"},
   {id:"EV",label:"EV infrastructure"},{id:"LOW_VOLTAGE",label:"Low voltage"},{id:"RENEWABLE",label:"Renewables"},
@@ -131,6 +137,8 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
   const [floor,setFloor]=useState("ALL");
   const [discipline,setDiscipline]=useState("ALL");
   const [sheetFrame,setSheetFrame]=useState("PROJECT");
+  const [metricMessage,setMetricMessage]=useState("");
+  const [metricBusy,setMetricBusy]=useState(false);
   const [hiddenSources,setHiddenSources]=useState<string[]>([]);
   const [exploded,setExploded]=useState(false);
   const [xray,setXray]=useState(false);
@@ -165,6 +173,7 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
   const sourceLayers=useMemo(()=>graph?.sources||[],[graph]);
   const sourceLayerLabels=useMemo(()=>spatialSourceLayerLabels(sourceLayers),[sourceLayers]);
   const staleDrawingSources=useMemo(()=>graph?findDrawingSourcesNeedingReprocess(graph.sources,graph.entities):[],[graph]);
+  const legacyDrawingFrame=useMemo(()=>Boolean(graph&&staleDrawingSources.some(item=>basemapReprocessReason(item.source,graph.entities))),[graph,staleDrawingSources]);
   const hiddenSourceSet=useMemo(()=>new Set(hiddenSources),[hiddenSources]);
   const sourceDisciplines=useMemo(()=>new Map((graph?.sources||[]).flatMap(source=>{const d=source.discipline||"Unclassified";return [[spatialSourceKey(source),d],[source.name,d]] as [string,string][];})),[graph]);
   const sheetFrames=useMemo(()=>{
@@ -194,15 +203,49 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
     }
     return[...map.values()].sort((a,b)=>a.source.localeCompare(b.source)||a.page-b.page);
   },[graph,sourceDisciplines]);
+  const instancesByFrame=useMemo(()=>{
+    const counts=new Map<string,number>();
+    for(const e of graph?.entities||[]){if(e.meta?.candidateRole!=="INSTANCE")continue;const key=sheetFrameKey(e);if(key)counts.set(key,(counts.get(key)||0)+1)}
+    return counts;
+  },[graph]);
   const activeSheetFrame=useMemo(()=>{
     if(sheetFrame==="ALL"||sheetFrame==="PROJECT")return null;
     if(sheetFrame!=="AUTO")return sheetFrame;
-    if(sheetFrames.length<=1)return null;
-    const preferred=mode==="ELECTRICAL"
-      ?sheetFrames.find(frame=>frame.planType==="SLD")||sheetFrames.find(frame=>/ELECTRICAL|UTILITY|LOW_VOLTAGE/.test(frame.planType))||sheetFrames.find(frame=>frame.planType!=="RASTER_DRAWING")
-      :sheetFrames.find(frame=>frame.planType!=="RASTER_DRAWING")||sheetFrames[0];
-    return preferred?.key||sheetFrames[0]?.key||null;
-  },[sheetFrame,sheetFrames,mode]);
+    return chooseAutoSheetFrame(sheetFrames,mode,instancesByFrame);
+  },[sheetFrame,sheetFrames,mode,instancesByFrame]);
+  const activeFrameIsSld=useMemo(()=>sheetFrames.find(frame=>frame.key===activeSheetFrame)?.planType==="SLD",[sheetFrames,activeSheetFrame]);
+  // Reviewed drawing scale for the sheet on screen: offered when a candidate is eligible, reported with an
+  // undo once applied. Applying is always a person's click; nothing here converts coordinates by itself.
+  const activeMetricFrame=useMemo(()=>{
+    if(demoMode||!graph)return null;
+    const frame=activeSheetFrame||(sheetFrames.length===1?sheetFrames[0].key:null);if(!frame)return null;
+    const onFrame=(key:string|null)=>Boolean(key)&&(frame===key||frame.startsWith(key+':'));
+    const appliedEntity=graph.entities.find(e=>e.meta?.pdfMetricFrameOriginal&&onFrame(pdfMetricFrameKey(e)));
+    const candidate=derivePdfMetricFrameCandidates(graph.entities).find(c=>onFrame(c.frameKey))||null;
+    if(!appliedEntity&&!candidate?.eligible)return null;
+    const meta=appliedEntity?.meta||{};
+    return{candidate,applied:appliedEntity?{
+      id:String(meta.pdfMetricFrameCandidateId||''),frameKey:pdfMetricFrameKey(appliedEntity)!,
+      metersPerSheetUnit:Number(meta.metricFrameMetersPerSheetUnit),basis:String(meta.metricFrameBasis||'OWN_WITNESSES'),
+      corroboratedByPage:Number(meta.metricFrameCorroboratedByPage)||null,witnessCount:Number(meta.metricFrameWitnessCount)||0
+    }:null};
+  },[demoMode,graph,activeSheetFrame,sheetFrames]);
+  const anyMetricFrame=useMemo(()=>Boolean(graph?.entities.some(e=>e.meta?.pdfMetricFrameOriginal)),[graph]);
+  const scaleBasis=(basis:string,witnesses:number,page:number|null)=>basis==='SAME_SET_CORROBORATED_SHEET'
+    ?`this sheet has no dimensions of its own; ${witnesses} dimension${witnesses===1?'':'s'} on page ${page} of the same set confirm the same printed scale`
+    :`confirmed by ${witnesses} dimension${witnesses===1?'':'s'} on this sheet`;
+  async function changeDrawingScale(action:"APPLY"|"UNDO"){
+    if(!activeMetricFrame)return;
+    setMetricBusy(true);
+    // The write queues behind background projection, which can run for up to a minute after an import.
+    setMetricMessage(action==="APPLY"?"Applying… this waits for background processing to finish, which can take up to a minute right after an import.":"Undoing…");
+    try{
+      if(action==="APPLY"&&activeMetricFrame.candidate){const changed=await applyStoredPdfMetricFrame(activeMetricFrame.candidate);setMetricMessage(`Applied to ${changed} object${changed===1?'':'s'} on page ${activeMetricFrame.candidate.page}.`)}
+      if(action==="UNDO"&&activeMetricFrame.applied){const changed=await restoreStoredPdfMetricFrame(activeMetricFrame.applied);setMetricMessage(`Restored ${changed} object${changed===1?'':'s'} to sheet coordinates.`)}
+      // Stay busy until the rewritten graph reloads (effect below), so the button cannot be pressed twice.
+    }catch(error){setMetricMessage(error instanceof Error?error.message:'Unable to change the drawing scale.');setMetricBusy(false)}
+  }
+  useEffect(()=>{setMetricBusy(false)},[graph]);
   const nonSldPlanSheets=useMemo(()=>sheetFrames.filter(frame=>frame.planType!=="SLD"&&frame.planType!=="RASTER_DRAWING").length,[sheetFrames]);
   const activeScaleValidation=useMemo(()=>{
     if(!graph)return null as null|Record<string,unknown>;
@@ -247,6 +290,8 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
   const identifiedEquipment=useMemo(()=>visible.filter(isIdentifiedProjectEquipment).length,[visible]);
   // Phase 4 candidate-role partition: only INSTANCEs are drawn as 3D equipment; LABELs stay review-only.
   const spatialInstances=useMemo(()=>visible.filter(e=>e.meta?.candidateRole==="INSTANCE").length,[visible]);
+  // Phase 21: instances whose plan size comes from their drawn symbol at a reviewed scale.
+  const drawnSizedInstances=useMemo(()=>visible.filter(e=>e.meta?.candidateRole==="INSTANCE"&&drawnSymbolGeometry(e)?.metric).length,[visible]);
   const reviewLabels=useMemo(()=>visible.filter(e=>e.meta?.candidateRole==="LABEL").length,[visible]);
   // Phase 8: identified instances across the whole project (not just the active sheet frame), so we can
   // hint when the current frame has none but the equipment lives on another sheet.
@@ -382,6 +427,10 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
         root.userData.asBuiltAuthority=false;
       };
       const calloutCandidates=inventory.filter(item=>item.kind==='sheet-callout-candidate'||item.kind==='annotated-asset-candidate');
+      // Phase 21: recognised equipment sits on its drawn symbol (a switchboard on its whole lineup) and turns
+      // with the symbol's long side (lib/drawn-footprint-placement.ts); everything else keeps its own x/y.
+      // The symbol is in source coordinates, so it takes the same review-layout offset as its entity.
+      const placedAt=(e:Entity)=>{const drawn=drawnSymbolGeometry(e);if(!drawn)return{x:e.x,y:e.y,rotation:e.rotation||0};const source=canonical(e);return{x:drawn.centerX+e.x-source.x,y:drawn.centerY+e.y-source.y,rotation:drawn.rotationDegrees}};
       const fallbackShape=(e:Entity)=>{
         if(e.kind==='sheet-callout-candidate'||e.kind==='annotated-asset-candidate'||(e.kind==='cad-text'&&e.meta?.cadPhysicalAnchor===false)){
           const root=new THREE.Group();
@@ -405,14 +454,15 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
         let geo:any;if(shape==="transformer")geo=new THREE.BoxGeometry(1.7,1.55,1.25);else if(shape==="generator")geo=new THREE.BoxGeometry(2.2,1.2,1.1);else if(shape==="motor")geo=new THREE.CylinderGeometry(.48,.48,1.15,20);else if(shape==="evse")geo=new THREE.BoxGeometry(.62,1.4,.44);else geo=new THREE.BoxGeometry(1.05,1.8,.62);
         const mesh=new THREE.Mesh(geo,material(colors.L2,op,0x211000));if(shape==="motor")mesh.rotation.z=Math.PI/2;root.add(mesh);
         try{fitProceduralObjectToMeters(root,target)}catch(error){reportSpatialDiag({stage:'render',level:'warn',code:'PROCEDURAL_FIT_FAILED',message:`Could not fit procedural envelope for ${e.name}`,data:{entityId:e.id,error:error instanceof Error?error.message:String(error)}});}
-        root.position.set(e.x,placement.baseZ,e.y);root.rotation.y=THREE.MathUtils.degToRad(-(e.rotation||0));
+        const at=placedAt(e);
+        root.position.set(at.x,placement.baseZ,at.y);root.rotation.y=THREE.MathUtils.degToRad(-at.rotation);
         root.userData.dimensionAuthority=placement.dimensions.authority;root.userData.targetDimensionsMeters=target;root.userData.zPlacementAuthority=placement.zAuthority;root.userData.zPlacementConfidence=placement.zConfidence;root.userData.zSolutionStatus=reconciled.solution.status;root.userData.zSolutionConflicts=reconciled.solution.conflicts.length;
         root.userData.modelResolutionTier=modelResolution.tier;root.userData.modelGeometryAuthority=modelResolution.geometryAuthority;root.userData.modelIdentityAuthority=modelResolution.identityAuthority;root.userData.exactProductIdentity=modelResolution.exactProductIdentity;root.userData.modelComponentKey=modelResolution.componentKey;root.userData.physicalIdentityVerified=false;
         root.userData.visibleAuthorityLabel='UNVERIFIED · NO MODEL · PROXY';
         root.userData.authorityEligible=false;root.userData.takeoffEligible=false;
         root.userData.measurementEligible=false;root.userData.exportEligible=false;
         attachSpatialEvidence(root,canonical(e),modelResolution);
-        interactionProxy(root,target);tag(root,e);groups[e.layer==="L4"?"L4":"L2"].add(root);label(e.name+' · UNVERIFIED · PROXY',e.x,placement.baseZ,e.y,isSld(e)?"#8fcfff":"#ffd08a",e);
+        interactionProxy(root,target);tag(root,e);groups[e.layer==="L4"?"L4":"L2"].add(root);label(e.name+' · UNVERIFIED · PROXY',at.x,placement.baseZ,at.y,isSld(e)?"#8fcfff":"#ffd08a",e);
       };
       // UI-only review geometry: never enters the source graph, canonical XYZ,
       // quantities, measurements, compliance or exports. No default story spacing.
@@ -463,7 +513,9 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
         // Derived registration shadows never duplicate their source object.
         const role=e.meta?.candidateRole;
         if(role==='REGISTRATION_SHADOW')return;
-        if(role==='LABEL'&&e.kind!=='imported-3d-model'){renderProvisionalMarker(e,'SHEET_PIN');return;}
+        // A label already drawn as part of an instance (a word of an assembled "ELEC. PANEL", a lineup section
+        // such as DIST beside MS1; lib/equipment-roster.ts) would only duplicate it.
+        if(role==='LABEL'&&e.kind!=='imported-3d-model'){if(!e.meta?.assembledInto&&!e.meta?.lineupSectionOf)renderProvisionalMarker(e,'SHEET_PIN');return;}
         const provisional=unresolvedAssetVisual(e);
         const visual=decideSourceModelVisual(e,registry);
         if(provisional.kind==='SHEET_PIN'&&!isSld(e)){
@@ -545,9 +597,9 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
             const normalized=cfg.meterScaleBasis==='CABINET_WITH_ACCESSORIES'&&cfg.dimensionsMeters
               ?preserveCabinetAccessoryAssemblyMeters(model,cfg.dimensionsMeters,target,.05)
               :normalizeObjectToMeters(model,target,.05);
-            const root=new THREE.Group();
-            root.position.set(e.x+cfg.offset[0],placement.baseZ+cfg.offset[1],e.y+cfg.offset[2]);
-            root.rotation.y=THREE.MathUtils.degToRad(-(e.rotation||0));
+            const root=new THREE.Group(),at=placedAt(e);
+            root.position.set(at.x+cfg.offset[0],placement.baseZ+cfg.offset[1],at.y+cfg.offset[2]);
+            root.rotation.y=THREE.MathUtils.degToRad(-at.rotation);
             root.userData.dimensionAuthority=placement.dimensions.authority;
             root.userData.targetDimensionsMeters=target;root.userData.modelScaleBasis=cfg.meterScaleBasis||'ENTIRE_MODEL';root.userData.accessoryGeometryIncluded=cfg.meterScaleBasis==='CABINET_WITH_ACCESSORIES';root.userData.zPlacementAuthority=placement.zAuthority;root.userData.zPlacementConfidence=placement.zConfidence;root.userData.zSolutionStatus=reconciled.solution.status;root.userData.zSolutionConflicts=reconciled.solution.conflicts.length;
             root.userData.modelResolutionTier=modelResolution.tier;root.userData.modelGeometryAuthority=modelResolution.geometryAuthority;root.userData.modelIdentityAuthority=modelResolution.identityAuthority;root.userData.exactProductIdentity=modelResolution.exactProductIdentity;root.userData.modelComponentKey=modelResolution.componentKey;root.userData.modelResolutionConfidence=modelResolution.confidence;root.userData.physicalIdentityVerified=false;
@@ -574,7 +626,7 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
               });
             }
             root.add(model);interactionProxy(root,target);tag(root,e);groups[e.layer==="L4"?"L4":"L2"].add(root);
-            label(e.name+' · '+visual.label,e.x,placement.baseZ,e.y,
+            label(e.name+' · '+visual.label,at.x,placement.baseZ,at.y,
               visual.tier==='RESOLVED_UNVERIFIED'?'#b2ffe7':'#ffd08a',e);
             const renderedBox=new THREE.Box3().setFromObject(root);if(!renderedBox.isEmpty()){renderedBox.translate(new THREE.Vector3(renderOrigin.x,0,renderOrigin.y));bounds.union(renderedBox);}
             runtime.current?.fit?.();
@@ -652,7 +704,7 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
       const minX=bounds.min.x-2,minZ=bounds.min.z-2,minY=Math.min(bounds.min.y,0),maxY=Math.max(bounds.max.y+3,4);
       const axis=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(minX-renderOrigin.x,minY,minZ-renderOrigin.y),new THREE.Vector3(minX-renderOrigin.x,maxY,minZ-renderOrigin.y)]),new THREE.LineBasicMaterial({color:0x49d39a}));axis.position.set(renderOrigin.x,0,renderOrigin.y);spatialRoot.add(axis);
       for(const [name,z] of levels){const y=(z??0)+(exploded?(floorIndex.get(name)||0)*2.6:0),grid=new THREE.GridHelper(Math.max(span*1.15,20),20,0x244d61,0x102c39);grid.position.set(center.x,y,center.z);grid.material.transparent=true;grid.material.opacity=.18;spatialRoot.add(grid);label(z===null?`${name} · Z unverified`:`${name} · ${z.toFixed(2)} m`,minX+.8,y,minZ,"#7be0b1")}
-      const fit=()=>{const absoluteCenter=bounds.getCenter(new THREE.Vector3()),c=new THREE.Vector3(absoluteCenter.x-renderOrigin.x,absoluteCenter.y,absoluteCenter.z-renderOrigin.y),s=bounds.getSize(new THREE.Vector3()),d=Math.max(s.x,s.y,s.z,8);controls.target.copy(c);camera.position.set(c.x+d*.9,c.y+d*.72+4,c.z+d);camera.near=.05;camera.far=Math.max(1000,d*20);camera.updateProjectionMatrix();controls.update()};fit();
+      const fit=()=>{const absoluteCenter=bounds.getCenter(new THREE.Vector3()),c=new THREE.Vector3(absoluteCenter.x-renderOrigin.x,absoluteCenter.y,absoluteCenter.z-renderOrigin.y),s=bounds.getSize(new THREE.Vector3()),d=Math.max(s.x,s.y,s.z,8);controls.target.copy(c);camera.position.set(c.x+d*.9,c.y+d*.72+4,c.z+d);camera.near=.05;camera.far=Math.max(1000,d*20);camera.updateProjectionMatrix();controls.update();runtime.current?.keepRendering?.()};fit();
       runtime.current.fit=fit;runtime.current.clickable=clickable;
       // Observability: scene-build summary + the Z-solution status distribution over the
       // equipment actually rendered. RENDER_Z_SUMMARY is the Phase-0 read on Z accuracy; a
@@ -698,14 +750,21 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
       renderer.domElement.addEventListener("pointerup",pointerUp);
       renderer.domElement.addEventListener("pointercancel",pointerCancel);
       renderer.domElement.addEventListener("click",clickPick);
-      const ro=new ResizeObserver(()=>{if(!host.clientWidth||!host.clientHeight)return;camera.aspect=host.clientWidth/host.clientHeight;camera.updateProjectionMatrix();renderer.setSize(host.clientWidth,host.clientHeight)});ro.observe(host);
+      const ro=new ResizeObserver(()=>{if(!host.clientWidth||!host.clientHeight)return;camera.aspect=host.clientWidth/host.clientHeight;camera.updateProjectionMatrix();renderer.setSize(host.clientWidth,host.clientHeight);runtime.current?.keepRendering?.()});ro.observe(host);
       const publishPrimaryHit=()=>{
         const first=[...entityAnchors.entries()].find(([id])=>clickableEntities.has(id));
         if(first){const [id,obj]=first,p=new THREE.Vector3();obj.getWorldPosition(p);p.project(camera);renderer.domElement.dataset.primaryAsset=id;renderer.domElement.dataset.primaryHitX=String(((p.x+1)/2)*renderer.domElement.clientWidth);renderer.domElement.dataset.primaryHitY=String(((-p.y+1)/2)*renderer.domElement.clientHeight)}
         const review=[...coordinationAnchors.entries()][0];
         if(review){const [id,obj]=review,p=new THREE.Vector3();obj.getWorldPosition(p);p.project(camera);renderer.domElement.dataset.coordinationAsset=id;renderer.domElement.dataset.coordinationHitX=String(((p.x+1)/2)*renderer.domElement.clientWidth);renderer.domElement.dataset.coordinationHitY=String(((-p.y+1)/2)*renderer.domElement.clientHeight)}
       };
-      let frame=0;const animate=()=>{controls.update();publishPrimaryHit();renderer.render(scene,camera);frame=requestAnimationFrame(animate)};animate();
+      // Render on demand: every frame while the view moves (orbit, damping, fit, selection, resize), otherwise
+      // a few frames a second so async model loads still appear. Rendering the whole scene every frame kept a
+      // headless software renderer ~98% busy on the golden fixture's entire-project view and starved graph writes.
+      let frame=0,activeUntil=0,lastRender=-Infinity;
+      const keepRendering=(ms=700)=>{activeUntil=Math.max(activeUntil,performance.now()+ms)};
+      controls.addEventListener("change",()=>keepRendering());
+      const animate=(now:number)=>{frame=requestAnimationFrame(animate);if(controls.update())keepRendering();if(now<activeUntil||now-lastRender>=IDLE_RENDER_INTERVAL_MS){lastRender=now;publishPrimaryHit();renderer.render(scene,camera)}};
+      keepRendering(1500);runtime.current.keepRendering=keepRendering;frame=requestAnimationFrame(animate);
       cleanup=()=>{runtime.current=null;cancelAnimationFrame(frame);ro.disconnect();renderer.domElement.removeEventListener("pointerdown",pointerDown);renderer.domElement.removeEventListener("pointermove",pointerMove);renderer.domElement.removeEventListener("pointerup",pointerUp);renderer.domElement.removeEventListener("pointercancel",pointerCancel);renderer.domElement.removeEventListener("click",clickPick);controls.dispose();
         const geometries=new Set<any>(),materials=new Set<any>(),textures=new Set<any>();
         scene.traverse((node:any)=>{if(node.geometry)geometries.add(node.geometry);for(const mat of (Array.isArray(node.material)?node.material:node.material?[node.material]:[])){materials.add(mat);for(const value of Object.values(mat))if((value as any)?.isTexture)textures.add(value)}});
@@ -750,7 +809,7 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
 
   useEffect(()=>{runtime.current?.fit?.()},[fitRevision]);
   useEffect(()=>{
-    const r=runtime.current;if(!r||!selected)return;const shown=renderEntityIndex.get(selected.id)||selected,y=entityRenderBaseZ(selected,mode,registry),origin=r.renderOrigin||{x:0,y:0},target=new r.THREE.Vector3(shown.x-origin.x,y+1,shown.y-origin.y),span=5;r.controls.target.copy(target);r.camera.position.copy(target).add(new r.THREE.Vector3(span,span*.75,span));r.controls.update();
+    const r=runtime.current;if(!r||!selected)return;const displayed=renderEntityIndex.get(selected.id)||selected,drawn=drawnSymbolGeometry(selected),shown=drawn?{x:drawn.centerX+displayed.x-selected.x,y:drawn.centerY+displayed.y-selected.y}:displayed,y=entityRenderBaseZ(selected,mode,registry),origin=r.renderOrigin||{x:0,y:0},target=new r.THREE.Vector3(shown.x-origin.x,y+1,shown.y-origin.y),span=5;r.controls.target.copy(target);r.camera.position.copy(target).add(new r.THREE.Vector3(span,span*.75,span));r.controls.update();r.keepRendering?.();
   },[selected?.id,mode,registry,renderEntityIndex]);
 
   if(!graph||!Array.isArray(graph.entities)||graph.entities.length===0)return <section className="card" style={{marginBottom:18}}><div className="eyebrow">Spatial viewer</div><h2>No compiled spatial objects yet</h2><p className="subtitle">Import and successfully extract a drawing, SLD or DXF first. A source fingerprint by itself does not unlock the project viewer.</p><Link className="action" href="/compiler">Review engineering sources</Link></section>;
@@ -788,8 +847,10 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
     </details>}
 
     {staleDrawingSources.length>0&&<details className="secondary-details" style={{margin:"12px 14px"}}>
-      <summary>Legacy drawing frame · {staleDrawingSources.length} source{staleDrawingSources.length===1?'':'s'} can be refreshed</summary>
-      <p className="muted">This browser model predates the current retained-basemap/non-SLD pipeline. Existing extracted objects remain inspectable; refresh the retained source when available to rebuild the drawing frame with current semantics. This is a migration task, not a failed parse.</p>
+      {/* A drawing parsed before retained basemaps is a legacy frame; one parsed by an older parser revision
+          (lib/spatial-source-reprocess.ts PDF_PARSE_REVISION) is an older parse. Both refresh the same way. */}
+      <summary>{legacyDrawingFrame?"Legacy drawing frame":"Older drawing parse"} · {staleDrawingSources.length} source{staleDrawingSources.length===1?'':'s'} can be refreshed</summary>
+      <p className="muted">{legacyDrawingFrame?"This browser model predates the current retained-basemap/non-SLD pipeline":"This browser model was parsed by an older drawing parser"}: {staleDrawingSources[0].reason} Existing extracted objects remain inspectable; refresh the source on the Import page (reprocess its local copy, or upload the same file again) to rebuild it with the current parser. This is a migration task, not a failed parse.</p>
       <div className="button-row"><Link className="ghost" href="/import">Refresh drawing source</Link></div>
     </details>}
 
@@ -798,8 +859,20 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
       <span>This drawing frame has no identified equipment instances. {totalInstances} identified instance{totalInstances===1?"":"s"} {totalInstances===1?"is":"are"} on other sheet frame{totalInstances===1?"":"s"} (e.g. the one-line) — choose another frame above, or “All sheet frames”, to view {totalInstances===1?"it":"them"}.</span>
     </div>}
     {!demoMode&&spatialInstances>0&&<div className="notice" role="status" style={{margin:"8px 14px"}}>
-      <strong>NOMINAL LIBRARY SIZE · NOT CALIBRATED TO SHEET SCALE</strong>
-      <span>{spatialInstances} identified equipment instance{spatialInstances===1?"":"s"} shown at representative library dimensions; a verified sheet scale is not established, so size and placement are review candidates — not metric or physical truth.{reviewLabels>0?` ${reviewLabels} unplaced drawing label${reviewLabels===1?"":"s"} are shown as selectable review pins.`:""}</span>
+      <strong>{activeMetricFrame?.applied?(drawnSizedInstances>0?"SIZED FROM DRAWN SYMBOLS · DRAWING SCALE APPLIED":"NOMINAL LIBRARY SIZE · DRAWING SCALE APPLIED"):"NOMINAL LIBRARY SIZE · NOT CALIBRATED TO SHEET SCALE"}</strong>
+      <span>{activeFrameIsSld?"One-line diagram: positions show drawing layout, not real distances. ":""}{activeMetricFrame?.applied&&drawnSizedInstances>0
+        ?`${drawnSizedInstances} of ${spatialInstances} identified equipment instance${spatialInstances===1?"":"s"} take their plan size and direction from the symbol drawn on the sheet, at the reviewed drawing scale; height comes from the component library${spatialInstances>drawnSizedInstances?", and the rest use representative library dimensions":""}. Drawn, not measured — not physical truth.`
+        :`${spatialInstances} identified equipment instance${spatialInstances===1?"":"s"} shown at representative library dimensions; ${activeMetricFrame?.applied?"placement uses the reviewed drawing scale, and sizes are representative, not measured — not physical truth.":"a verified sheet scale is not established, so size and placement are review candidates — not metric or physical truth."}`}{reviewLabels>0?` ${reviewLabels} unplaced drawing label${reviewLabels===1?"":"s"} are shown as selectable review pins.`:""}</span>
+    </div>}
+    {activeMetricFrame&&<div className="notice" role="status" aria-label="Drawing scale" style={{margin:"8px 14px"}}>
+      <strong>{activeMetricFrame.applied?"DRAWING SCALE APPLIED · REVIEWED":"DRAWING SCALE AVAILABLE · NOT APPLIED"}</strong>
+      <span>{activeMetricFrame.applied
+        ?`Positions and distances on this sheet are in metres at ${activeMetricFrame.applied.metersPerSheetUnit.toFixed(3)} m per sheet unit (${scaleBasis(activeMetricFrame.applied.basis,activeMetricFrame.applied.witnessCount,activeMetricFrame.applied.corroboratedByPage)}). Equipment is still drawn at library size and Z is unchanged.`
+        :`This sheet's printed scale is ${Number(activeMetricFrame.candidate?.metersPerSheetUnit).toFixed(3)} m per sheet unit; ${scaleBasis(activeMetricFrame.candidate!.basis,activeMetricFrame.candidate!.witnessCount,activeMetricFrame.candidate!.corroboratedByPage)}. Applying it puts this sheet's positions and distances in metres. Z and equipment sizes are unchanged, and you can undo it.`}
+        {metricMessage?` ${metricMessage}`:""}</span>
+      <div className="button-row">{activeMetricFrame.applied
+        ?<button type="button" className="ghost" disabled={metricBusy} onClick={()=>void changeDrawingScale("UNDO")}>{metricBusy?"Undoing…":"Undo drawing scale"}</button>
+        :<button type="button" className="action" disabled={metricBusy} onClick={()=>void changeDrawingScale("APPLY")}>{metricBusy?"Applying…":"Apply drawing scale"}</button>}</div>
     </div>}
 
     <div className="spatial-mode-tabs" role="group" aria-label="Spatial view mode">
@@ -810,16 +883,16 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
 
     {sheetFrame==="PROJECT"&&displayLayout.separatedSheets>0&&<p className="muted" style={{padding:"0 14px",fontSize:12,margin:"8px 0"}}>Entire project · {displayLayout.separatedSheets} independent source sheets are displayed alongside the assembled model. These display offsets preserve drawing coordinates and do not establish physical alignment.</p>}
     {sheetFrames.length>1&&sheetFrame==="AUTO"&&activeSheetFrame&&<p className="muted" style={{padding:'0 14px',fontSize:11,margin:'8px 0'}}>Multiple drawing frames were recognized. Auto-safe isolation is showing one sheet frame at a time so unrelated plans do not stack at the same origin. Choose another sheet above, or explicitly select the review overlay.</p>}
-    {sheetFrames.length>1&&sheetFrame==="ALL"&&<p className="muted" style={{padding:'0 14px',fontSize:11,margin:'8px 0'}}>Review overlay is showing multiple source sheets together. Overlap is not evidence of shared coordinates, physical alignment, clash, or as-built position unless the individual sheet transforms have been reviewed.</p>}
+    {sheetFrames.length>1&&sheetFrame==="ALL"&&<p className="muted" style={{padding:'0 14px',fontSize:11,margin:'8px 0'}}>Review overlay is showing multiple source sheets together. Overlap is not evidence of shared coordinates, physical alignment, clash, or as-built position unless the individual sheet transforms have been reviewed.{anyMetricFrame?" Some sheets use a reviewed drawing scale (metres) while others are still in sheet units, so their sizes do not match in this overlay.":""}</p>}
     {graph.entities.some(e=>e.meta?.drawingBasemap===true)&&<p className="muted" style={{padding:'0 14px',fontSize:11,margin:'8px 0'}}>Source drawing basemap is shown on the drawing plane. Sheet/image XY is preserved for review; physical scale/alignment and Z remain unverified until calibrated or otherwise source-established.</p>}
-    {activeScaleValidation&&<div className="notice" style={{margin:"8px 14px"}}><strong>SCALE {String(activeScaleValidation.status||'UNRESOLVED')}</strong><span>{String(activeScaleValidation.reason||'Independent scale review is required.')}{Number.isFinite(Number(activeScaleValidation.corroboratedMetersPerNormalizedSheetUnit))?' · candidate '+Number(activeScaleValidation.corroboratedMetersPerNormalizedSheetUnit).toFixed(4)+' m / normalized sheet unit':''} · never auto-applied</span></div>}
+    {activeScaleValidation&&<div className="notice" style={{margin:"8px 14px"}}><strong>SCALE {String(activeScaleValidation.status||'UNRESOLVED')}</strong><span>{String(activeScaleValidation.reason||'Independent scale review is required.')}{Number(activeScaleValidation.corroboratedMetersPerNormalizedSheetUnit)>0?' · candidate '+Number(activeScaleValidation.corroboratedMetersPerNormalizedSheetUnit).toFixed(4)+' m / normalized sheet unit':''}{activeMetricFrame?.candidate?.basis==='SAME_SET_CORROBORATED_SHEET'?` · page ${activeMetricFrame.candidate.corroboratedByPage} of this set corroborates the same printed scale (see Drawing scale above)`:''} · never auto-applied</span></div>}
     {graph.entities.some(e=>e.kind==='sheet-callout-candidate'&&e.meta?.coordinateUnits==='sheet')&&<p className="muted" style={{padding:'0 14px',fontSize:11,margin:'8px 0'}}>Drawing callout pins are separated for review. Their spacing is diagrammatic until sheet scale and alignment are verified.</p>}
     {modelLoadErrors.length>0&&<div className="notice" role="alert"><strong>3D IMPORT NEEDS ATTENTION</strong><span>{modelLoadErrors.length} uploaded model{modelLoadErrors.length===1?'':'s'} could not be rendered. Its source record remains available for review; no substitute geometry was displayed.</span></div>}
 
     <div style={{display:"flex",gap:8,padding:"10px 12px",alignItems:"center",flexWrap:"wrap",borderBottom:"1px solid #17334a"}}>
       <select aria-label="Floor isolation" value={floor} onChange={e=>setFloor(e.target.value)}><option value="ALL">All floors</option>{levels.map(([f])=><option key={f} value={f}>{f}</option>)}</select>
       <select aria-label="Discipline isolation" value={discipline} onChange={e=>setDiscipline(e.target.value)}><option value="ALL">All disciplines</option>{disciplines.map(value=><option key={value} value={value}>{value}</option>)}</select>
-      <select aria-label="Sheet page isolation" value={sheetFrame} onChange={e=>setSheetFrame(e.target.value)} style={{maxWidth:360}}><option value="PROJECT">Entire project</option><option value="AUTO">Auto-safe sheet isolation</option>{sheetFrames.length>1&&<option value="ALL">All sheet frames · review overlay</option>}{sheetFrames.map(frame=><option key={frame.key} value={frame.key}>{frame.source} · p{frame.page} · {frame.title}{frame.floor?` · ${frame.floor}`:''}{frame.aligned?' · aligned':''}</option>)}</select>
+      <select aria-label="Sheet page isolation" data-active-frame={activeSheetFrame||""} value={sheetFrame} onChange={e=>setSheetFrame(e.target.value)} style={{maxWidth:360}}><option value="PROJECT">Entire project</option><option value="AUTO">Auto-safe sheet isolation</option>{sheetFrames.length>1&&<option value="ALL">All sheet frames · review overlay</option>}{sheetFrames.map(frame=><option key={frame.key} value={frame.key}>{frame.source} · p{frame.page} · {frame.title}{frame.floor?` · ${frame.floor}`:''}{frame.aligned?' · aligned':''}</option>)}</select>
       <input aria-label="Search objects" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search equipment, room or source" style={{minWidth:220,flex:"1 1 240px"}}/>
       <button className="ghost" onClick={()=>setFitRevision(v=>v+1)}>Fit model</button><button className="ghost" onClick={()=>{setSheetFrame("PROJECT");setFloor("ALL");setDiscipline("ALL");setSystemMode("ALL");setSearch("");setHiddenSources([]);setSelected(null);setMode("MODEL");setFitRevision(v=>v+1)}}>Show entire model</button>
       <button className="ghost" onClick={()=>setLabels(v=>!v)}>{labels?"Hide labels":"Show labels"}</button>

@@ -426,3 +426,26 @@ export async function replaceCurrentSpatialGraph(graph:SpatialGraphLike,expected
   window.dispatchEvent(new Event(SPATIAL_RECOVERY_EVENT));
   return true;
 }
+
+/**
+ * Read-modify-write of the primary graph inside one turn of the write queue, so no other writer (such as
+ * background projection) can land between the read and the write: nothing is lost and nothing is retried.
+ * `change` must return a new graph rather than mutate its argument (kept as the recovery backup), or null
+ * to write nothing. Returns change's result, or null when nothing was written.
+ */
+export async function updateCurrentSpatialGraph<T>(change:(current:SpatialGraphLike)=>{graph:SpatialGraphLike;result:T}|null):Promise<T|null>{
+  const updated=await serializePrimaryWrite(async()=>{
+    const previousChunkHead=await getChunkedGraphHead(PRIMARY_KEY).catch(()=>null);
+    const current=await readPrimarySpatialGraph();
+    if(!current)return null;
+    const next=change(current);if(!next)return null;
+    if(!isSpatialGraph(next.graph))throw new Error('This file is not a valid STRATUM Spatial graph.');
+    await writePrimarySpatialGraphNow(next.graph,localStorage);
+    return {...next,current,previousChunkHead};
+  });
+  if(!updated)return null;
+  await protectSpatialGraph(updated.graph,updated.current,updated.previousChunkHead);
+  window.dispatchEvent(new Event('stratum:graph-updated'));
+  window.dispatchEvent(new Event(SPATIAL_RECOVERY_EVENT));
+  return updated.result;
+}

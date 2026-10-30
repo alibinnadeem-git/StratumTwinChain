@@ -39,8 +39,9 @@ assert.equal(pump.mocp,30);
 assert.equal(pump.status,'MISSING');
 
 const compiler=fs.readFileSync('components/CompilerWorkspace.tsx','utf8');
-assert.match(compiler,/import\('tesseract\.js'\)/);
-assert.match(compiler,/mod\.createWorker\('eng',mod\.OEM\.LSTM_ONLY/);
+// Image files are read at their own pixels with the shared, tuned engine (lib/ocr-regions.ts, lib/client/ocr-runtime.ts).
+assert.match(compiler,/const reader=await sharedTesseractReader\(\),region=planRasterOcr\(\{width:image\.naturalWidth,height:image\.naturalHeight\}\)/);
+assert.doesNotMatch(compiler,/createWorker\(/);
 assert.match(compiler,/buildImageOcrEvidence/);
 assert.match(compiler,/ocrSucceeded\?'parsed':'review'/);
 assert.doesNotMatch(compiler,/parseImage\(file,level,discipline[\s\S]{0,400}withAssetCandidates/);

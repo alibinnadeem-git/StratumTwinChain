@@ -27,16 +27,38 @@ function isEquipmentCandidate(entity:GatableEntity){
 // (MS1, LP-3, XFMR-2). A bare class word ("PANEL", "CO", a title phrase) has none of these. A
 // numeric designator is required because letter-only tags are indistinguishable from plain words
 // ("P" would otherwise match "PANEL"); letter-only tags are rare and a reviewer can promote them.
+// A circuit reference is a numbered designator plus a circuit number ("MS1 #1", "HP1-1", "HP1-1,3"): a
+// homerun callout naming where a run comes from, not a piece of equipment, so it stays a LABEL.
+// Phase 20 (lib/equipment-roster.ts): a name from the project's own roster, or a panel class phrase ("ELEC.
+// PANEL"), labelling a drawn symbol is an INSTANCE even without a digit (HL). A section of a switchboard
+// lineup (DIST, P/S beside MS1) is drawn as part of that switchboard, so it stays a LABEL.
+const CIRCUIT_REFERENCE=/^[A-Z]+-?\d+[A-Z]?\s*(?:#\s*\d+|-\s*\d+(?:\s*,\s*\d+)*)$/i;
+// An enlarged typical-unit plan (a frame naming a unit and no floor: E-7 to E-9 on the golden fixture) shows
+// the devices of every unit of that type. A symbol there is a detail, not one placed piece of equipment, and
+// it has no floor to stand on; the floor plans place each unit's equipment (lib/equipment-roster.ts skips
+// these frames for the same reason).
+function onTypicalUnitDetail(entity:GatableEntity){
+  const meta=entity.meta||{};
+  return Boolean(meta.planFrameUnitId||meta.planFrameUnitPlan)&&!meta.planFrameFloor;
+}
 function isInstance(entity:GatableEntity){
+  if(onTypicalUnitDetail(entity))return false;
   if(PLACED_SYMBOL_KINDS.has(entity.kind))return true;
+  // Already drawn as part of another instance: a word of an assembled "ELEC. PANEL", or a lineup section.
+  // Checked before the nearest-shape anchor (lib/pdf-equipment-symbol-anchor.ts), which would otherwise
+  // make the bare word a second piece of equipment beside the load centre it belongs to.
+  if(entity.meta?.assembledInto||entity.meta?.lineupSectionOf)return false;
   if(entity.meta?.symbolAnchorStatus==='RESOLVED_REVIEW_CANDIDATE')return true;
-  return /\d/.test(String(entity.name||''));
+  if(entity.meta?.drawnFootprint&&(entity.meta?.rosterBacked===true||entity.meta?.footprintClassPhrase===true))return true;
+  const name=String(entity.name||'').trim();
+  if(CIRCUIT_REFERENCE.test(name))return false;
+  return /\d/.test(name);
 }
 
 export function gateEquipmentCandidates<T extends GatableEntity>(entities:T[]):T[]{
   return entities.map(entity=>{
     if(!isEquipmentCandidate(entity))return entity;
     const role:CandidateRole=entity.meta?.derivedFrom?'REGISTRATION_SHADOW':isInstance(entity)?'INSTANCE':'LABEL';
-    return{...entity,meta:{...(entity.meta||{}),candidateRole:role}};
+    return{...entity,meta:{...(entity.meta||{}),candidateRole:role,...(role==='LABEL'&&onTypicalUnitDetail(entity)?{candidateRoleReason:'TYPICAL_UNIT_DETAIL'}:{})}};
   });
 }

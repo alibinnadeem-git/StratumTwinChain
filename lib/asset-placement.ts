@@ -1,9 +1,10 @@
 import {ELECTRICAL_COMPONENTS,resolveElectricalComponent} from './electrical-component-library.ts';
 import type {ElectricalModelConfig} from './electrical-model-registry.ts';
 import type {ZReferencePoint} from './z-resolver.ts';
+import {drawnPlanDimensions} from './drawn-footprint-placement.ts';
 
 export type PlacementEntity={name:string;floor?:string;z?:number;meta?:Record<string,unknown>};
-export type DimensionAuthority='SOURCE_SPEC'|'MODEL_REGISTRY'|'WEB_OEM_REFERENCE'|'STRATUM_NOMINAL';
+export type DimensionAuthority='SOURCE_SPEC'|'DRAWN_SYMBOL'|'MODEL_REGISTRY'|'WEB_OEM_REFERENCE'|'STRATUM_NOMINAL';
 export type ZAuthority='MEASURED_OR_REVIEWED'|'HUMAN_REVIEWED_DESIGN_CANDIDATE'|'SOURCE_DESIGN_CANDIDATE'|'SOURCE_SUPPORT_SURFACE_CANDIDATE'|'SUPPORT_SURFACE_PLUS_SOURCE_BASE_OFFSET'|'INFERRED_PROJECT_DATUM_CANDIDATE'|'INFERRED_PROJECT_DATUM_PLUS_SOURCE_OFFSET'|'SUPPORT_SURFACE_PLUS_MOUNTING_GUIDANCE'|'RELATIVE_TO_REVIEW_PLANE'|'FLOOR_STANDING_PROFILE'|'HISTORICAL_RECOMMENDATION'|'FLOOR_LABEL_ONLY'|'UNRESOLVED';
 export type PlacementEvidenceClass='SOURCE_SPEC'|'OEM_INSTALLATION_GUIDANCE'|'CODE_CONSTRAINT'|'ACCESSIBILITY_GUIDANCE'|'DESIGN_GUIDE'|'TYPE_PROFILE'|'VISUALIZATION_HEURISTIC';
 export type PlacementRecommendation={kind:string;valueMeters?:number;rangeMeters?:[number,number];constraintMaxMeters?:number;source:string;sourceUrl?:string;evidenceClass:PlacementEvidenceClass;note:string};
@@ -155,8 +156,13 @@ export function resolveAssetPlacement(entity:PlacementEntity,registry?:Electrica
  const webReference=webOemDimensions(entity);
  const nominal=nominalDimensionsFor(entity.name);
  const dims=source||registryDimensions||webReference?.dims||nominal;
+ // Phase 21: a recognised plan symbol at a reviewed drawing scale gives the plan size (lib/drawn-footprint-placement.ts);
+ // the library still gives the height. Source/OEM dimensions win over a drawing.
+ const drawn=source?null:drawnPlanDimensions(entity);
  const dimensions=source
   ?{width:dims[0],height:dims[1],depth:dims[2],authority:'SOURCE_SPEC' as const,source:String(entity.meta?.dimensionsSource||entity.meta?.oemSpecSource||entity.meta?.assetDimensionSource||'Source/OEM asset metadata'),confidence:.95}
+  :drawn
+  ?{width:drawn.width,height:dims[1],depth:drawn.depth,authority:'DRAWN_SYMBOL' as const,source:drawn.source,confidence:.6}
   :registryDimensions
    ?{width:dims[0],height:dims[1],depth:dims[2],authority:'MODEL_REGISTRY' as const,source:registry?.dimensionsSource||registry?.source||'3D model registry',confidence:registry?.dimensionsConfidence??.85}
    :webReference

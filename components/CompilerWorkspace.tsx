@@ -23,7 +23,7 @@ import {readPrimarySpatialGraph,replaceCurrentSpatialGraph} from '../lib/spatial
 import {beginReprocessJournal,readReprocessJournal,reconcileReprocessJournal,resolveReprocessJournalEntry} from '../lib/spatial-reprocess-journal';
 import {encodeGlbBase64,inspectStandaloneGlb} from '../lib/spatial-glb-import';
 import {isNativeUsdFormat,parseNativeUsd} from '../lib/spatial-native-usd';
-import {drawingSourceReprocessReason,findDrawingSourcesNeedingReprocess,inspectDrawingReprocessOutput} from '../lib/spatial-source-reprocess';
+import {PDF_PARSE_REVISION,basemapReprocessReason,drawingSourceReprocessReason,findDrawingSourcesNeedingReprocess,inspectDrawingReprocessOutput} from '../lib/spatial-source-reprocess';
 import {archiveSourceBytes,archivedSourceToFile,listArchivedSourceMetadata,readArchivedSource} from '../lib/source-browser-archive';
 import {detectElectricalLegendPage,detectElectricalSpecificationPage,detectPdfEquipmentMatrixPage,extractElectricalLegendEntries,extractElectricalSpecificationRequirements,extractPdfEquipmentMatrixRecords} from '../lib/electrical-design-intelligence-v3';
 import {buildLegendSymbolFingerprints,matchLegendSymbolFingerprints} from '../lib/electrical-symbol-fingerprint';
@@ -44,9 +44,13 @@ import {auditParsedGraph} from '../lib/spatial-parse-audit';
 import {graphSignature} from '../lib/graph-signature';
 import {withFailedImportSource} from '../lib/source-failure-snapshot';
 import {pdfWasmAssetUrl} from '../lib/pdf-runtime-assets';
+import {asTesseractResult} from '../lib/ocr-reader';
+import {ocrRegionEntities,planFullPageOcr,planImageOcrRegions,planRasterOcr,readOcrRegions,type ImagePlacement,type OcrRegionPlan,type PageSize} from '../lib/ocr-regions';
+import {ocrTileCache,renderPdfTile,sharedTesseractReader} from '../lib/client/ocr-runtime';
+import {applyEquipmentRoster} from '../lib/equipment-roster';
 
 type ParseState='parsed'|'adapter'|'review'|'failed';
-type SourceFile={name:string;size:number;ext:string;discipline:string;sha256:string;state:ParseState;summary:string;entities:number;floor:string;elevation:number;unitName?:string;unitToMeters?:number;pages?:number;vectors?:number;textItems?:number;sldPages?:number;nonSldPlanPages?:number;planTypes?:string[];setCompleteness?:DrawingSetCompleteness};
+type SourceFile={name:string;size:number;ext:string;discipline:string;sha256:string;state:ParseState;summary:string;entities:number;floor:string;elevation:number;unitName?:string;unitToMeters?:number;pages?:number;vectors?:number;textItems?:number;sldPages?:number;nonSldPlanPages?:number;planTypes?:string[];setCompleteness?:DrawingSetCompleteness;parseRevision?:string};
 type CompiledGraph={version:string;createdAt:string;reviewState?:string;sources:SourceFile[];entities:GraphEntity[];links:GraphLink[];stats:Record<Layer,number>};
 
 const NATIVE_ADAPTER=['dwg','rvt'];
@@ -59,7 +63,7 @@ const sha=async(buf:ArrayBuffer)=>Array.from(new Uint8Array(await crypto.subtle.
 const normalize=(v:number,min:number,max:number)=>max===min?0:((v-min)/(max-min)-.5)*20;
 const centroid=(poly:XY[])=>poly.reduce((a,p)=>({x:a.x+p.x/poly.length,y:a.y+p.y/poly.length}),{x:0,y:0});
 
-type PdfParseResult={entities:GraphEntity[];summary:string;pages:number;vectors:number;textItems:number;sldPages:number;nonSldPlanPages:number;planTypes:string[];disciplines:string[];setCompleteness:DrawingSetCompleteness;ocrRequiredPages:number[]};
+type PdfParseResult={entities:GraphEntity[];summary:string;pages:number;vectors:number;textItems:number;sldPages:number;nonSldPlanPages:number;planTypes:string[];disciplines:string[];setCompleteness:DrawingSetCompleteness;ocrRequiredPages:number[];imagePlacements?:ImagePlacement[];pageSizes?:Array<{page:number;width:number;height:number}>};
 type PdfParseProgress={page:number;total:number;phase:string;elapsedMs?:number;processed?:number;workTotal?:number};
 const PDF_WORKER_IDLE_TIMEOUT_MS=45000;
 const PDF_WORKER_HARD_TIMEOUT_MS=300000;
@@ -112,7 +116,7 @@ async function parsePdfMainThreadFallback(file:File,level:{floor:string;elevatio
  try {
  for(let p=1;p<=doc.numPages;p++){onProgress?.(p,doc.numPages);const page=await doc.getPage(p),viewport=page.getViewport({scale:1}),text:any=await readPdfTextContent(page);pageGeometryByPage.set(p,{width:viewport.width,height:viewport.height,max:Math.max(viewport.width,viewport.height)});const nativeText=(text.items||[]).map((item:any)=>String(item?.str||'').trim()).filter(Boolean);pageFloors.set(p,inferPdfPageFloor(nativeText));for(const item of text.items||[]){if(!item?.str?.trim())continue;const t=item.transform||[1,0,0,1,0,0],point=viewport.convertToViewportPoint(Number(t[4]||0),Number(t[5]||0));raw.push({key:`text-${p}-${raw.length}`,str:item.str.trim(),x:(point[0]-viewport.width/2)*20/Math.max(viewport.width,viewport.height,1),y:(viewport.height/2-point[1])*20/Math.max(viewport.width,viewport.height,1),page:p})}
  if(nativeText.length<3){try{
-   if(!ocrWorker){const mod=await import('tesseract.js');ocrWorker=await mod.createWorker('eng',mod.OEM.LSTM_ONLY)}
+   if(!ocrWorker)ocrWorker=await sharedTesseractReader();
    const maxSide=Math.max(viewport.width,viewport.height,1),scale=Math.max(1.25,Math.min(2.4,2400/maxSide)),ocrViewport=page.getViewport({scale}),canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');
    canvas.width=Math.max(1,Math.round(ocrViewport.width));canvas.height=Math.max(1,Math.round(ocrViewport.height));
    if(!ctx)throw new Error('Canvas rendering unavailable');
@@ -120,7 +124,7 @@ async function parsePdfMainThreadFallback(file:File,level:{floor:string;elevatio
    const previewMax=1400,previewScale=Math.min(1,previewMax/Math.max(canvas.width,canvas.height,1)),preview=document.createElement('canvas'),previewCtx=preview.getContext('2d');
    preview.width=Math.max(1,Math.round(canvas.width*previewScale));preview.height=Math.max(1,Math.round(canvas.height*previewScale));
    if(previewCtx){previewCtx.drawImage(canvas,0,0,preview.width,preview.height);const landscape=preview.width>=preview.height,planeWidth=landscape?20:20*preview.width/Math.max(preview.height,1),planeHeight=landscape?20*preview.height/Math.max(preview.width,1):20;rasterPreviewByPage.set(p,{dataUrl:preview.toDataURL('image/jpeg',.68),width:preview.width,height:preview.height,planeWidth,planeHeight,rasterCandidateCount:0})}
-   const recognized=await ocrWorker.recognize(canvas,{}, {text:true,blocks:true}),ocrText=String(recognized.data?.text||'').trim();
+   const recognized=asTesseractResult(await ocrWorker.read(canvas)),ocrText=String(recognized.data?.text||'').trim();
    if(ocrText){
     const lines=ocrText.split(/\r?\n/).map((line:string)=>line.trim()).filter(Boolean);
     ocrTextByPage.set(p,lines);ocrPages++;ocrTextChars+=ocrText.length;
@@ -358,7 +362,7 @@ async function parsePdfMainThreadFallback(file:File,level:{floor:string;elevatio
  const setCompleteness=analyzeDrawingSetCompleteness({pageLabels,sheetNumbers:Array.from({length:doc.numPages},(_,index)=>sheetNumbersByPage.get(index+1)||null)});
  const setSummary=setCompleteness.status==='PARTIAL'?` · partial drawing set · missing ${setCompleteness.missingSheets.join(', ')}`:setCompleteness.status==='COMPLETE'?' · indexed drawing set complete':' · drawing-set completeness unresolved';
  return{entities:supportEnriched,summary:`${doc.numPages} page${doc.numPages===1?'':'s'} · ${raw.length} positioned text objects · ${vectors} PDF drawing operators · ${nonSldPlanPages} non-SLD plan page${nonSldPlanPages===1?'':'s'} recognized${planTypes.length?` (${planTypes.join(', ')})`:''} · ${sourcePlanSegments} retained source-plan vector segment${sourcePlanSegments===1?'':'s'} · ${rasterPlanUnderlays} raster drawing underlay${rasterPlanUnderlays===1?'':'s'} · ${ocrPages} raster OCR fallback page${ocrPages===1?'':'s'} · ${ocrTextChars} OCR text character${ocrTextChars===1?'':'s'} · ${sldPages} SLD page${sldPages===1?'':'s'} recognized from content/topology · ${vectorFeederSegments} source-vector feeder segment${vectorFeederSegments===1?'':'s'} · ${symbolAnchoredCount} source-vector equipment anchor${symbolAnchoredCount===1?'':'s'} · ${terrainBreaklineCount} constrained terrain breakline${terrainBreaklineCount===1?'':'s'} · ${terrainSlopeEvidenceCount} source slope annotation${terrainSlopeEvidenceCount===1?'':'s'} · ${supportEnriched.length} spatial/review candidates${setSummary}`,pages:doc.numPages,vectors,textItems:raw.length,sldPages,nonSldPlanPages,planTypes,disciplines:uniqueDisciplines,setCompleteness,ocrRequiredPages:[]};
- } finally {if(ocrWorker)await ocrWorker.terminate().catch(()=>{});await doc.destroy()}
+ } finally {await doc.destroy()}
 }
 
 function dxfPairs(text:string){const lines=text.replace(/\r/g,'').split('\n');const out:{code:number;value:string}[]=[];for(let i=0;i+1<lines.length;i+=2){const code=Number(lines[i].trim());if(Number.isFinite(code))out.push({code,value:lines[i+1].trim()})}return out}
@@ -374,6 +378,45 @@ function parseDxf(file:File,text:string,level:{floor:string;elevation:number}){
 
 function withAssetCandidates(parsed:GraphEntity[]){return [...parsed,...parsed.filter(e=>e.layer==='L2'&&e.kind!=='line'&&e.meta?.cadPhysicalAnchor!==false).map((e,i):GraphEntity=>({id:`asset-candidate-${e.id}-${i}`,source:e.source,layer:'L4',kind:'asset-candidate',name:e.name,x:e.x,y:e.y,z:e.z,rotation:e.rotation,scale:e.scale,floor:e.floor,zone:e.zone,confidence:Math.max(.5,e.confidence-.08),meta:{...e.meta,derivedFrom:e.id,registrationState:'CANDIDATE'}}))]}
 
+// Text inside raster images on pages that do have a text layer: pasted schedules and load tables, scanned
+// plans (on the golden fixture, E-2's panel schedules and E-7 to E-9). Read after the native pass at up to
+// 400 dpi, upright as printed (lib/ocr-regions.ts). OCR trouble never fails the drawing: the native parse
+// stands, and the gap is reported in the source summary and on the diagnostics bus.
+async function readPdfEmbeddedImageText(file:File,sourceSha256:string,parsed:PdfParseResult,scannedPages:ReadonlySet<number>,signal:AbortSignal,onProgress:(done:number,total:number)=>void):Promise<{entities:GraphEntity[];summary:string}>{
+ const pageSizes=new Map<number,PageSize>((parsed.pageSizes||[]).map(size=>[size.page,{width:size.width,height:size.height}]));
+ const plan=planImageOcrRegions(parsed.imagePlacements||[],pageSizes,{skipPages:scannedPages});
+ for(const skipped of plan.skipped)reportSpatialDiag({stage:'parse',level:'warn',code:'OCR_REGION_OVER_BUDGET',message:`${file.name}: an embedded image on page ${skipped.page} was not read (${skipped.reason}).`,data:{page:skipped.page,reason:skipped.reason}});
+ const overBudget=plan.skipped.length?`${plan.skipped.length} embedded image${plan.skipped.length===1?'':'s'} over the OCR budget`:'';
+ if(!plan.regions.length)return{entities:[],summary:overBudget};
+ const started=performance.now(),totalTiles=plan.regions.reduce((sum,region)=>sum+region.tiles.length,0);
+ const PromiseWithResolvers=Promise as any;
+ if(typeof PromiseWithResolvers.withResolvers!=='function')PromiseWithResolvers.withResolvers=()=>{let resolve:any,reject:any;const promise=new Promise((ok,fail)=>{resolve=ok;reject=fail});return{promise,resolve,reject}};
+ const pdfjs:any=await import('pdfjs-dist/legacy/build/pdf.mjs');
+ try{pdfjs.GlobalWorkerOptions.workerSrc=new URL('pdfjs-dist/build/pdf.worker.min.mjs',import.meta.url).toString()}catch{}
+ const objectUrl=URL.createObjectURL(file);
+ const pages=new Map<number,any>();let doc:any=null;
+ try{
+  doc=await pdfjs.getDocument({url:objectUrl,wasmUrl:pdfWasmAssetUrl()}).promise;
+  const reader=await sharedTesseractReader();
+  const readings=await readOcrRegions({regions:plan.regions,reader,sourceSha256,cache:ocrTileCache(),signal,onProgress:done=>onProgress(done,totalTiles),
+   render:async({page,tile,scale})=>{let pdfPage=pages.get(page);if(!pdfPage){pdfPage=await doc.getPage(page);pages.set(page,pdfPage)}return renderPdfTile(pdfPage,tile,scale)},
+   onTileError:(region,tile,error)=>reportSpatialDiag({stage:'parse',level:'warn',code:'OCR_TILE_FAILED',message:`${file.name}: page ${region.page}: ${error instanceof Error?error.message:String(error)}`,data:{page:region.page,region:region.id,tile}})});
+  const entities=ocrRegionEntities({fileName:file.name,readings,pageSizes,readerId:reader.id,readerVersion:reader.version}) as GraphEntity[];
+  const lines=readings.reduce((sum,reading)=>sum+reading.lines.length,0),failedTiles=readings.reduce((sum,reading)=>sum+reading.failedTiles,0),cachedTiles=readings.reduce((sum,reading)=>sum+reading.cachedTiles,0);
+  reportSpatialDiag({stage:'parse',level:failedTiles?'warn':'info',code:'OCR_EMBEDDED_IMAGES_READ',durationMs:performance.now()-started,counts:{regions:readings.length,lines,failedTiles,cachedTiles,overBudget:plan.skipped.length},data:{file:file.name}});
+  return{entities,summary:[`${lines} OCR text line${lines===1?'':'s'} read from ${readings.length} embedded drawing image${readings.length===1?'':'s'} (review only)`,failedTiles?`${failedTiles} OCR tile${failedTiles===1?'':'s'} failed`:'',overBudget].filter(Boolean).join(' · ')};
+ }catch(error){
+  if(signal.aborted)throw new PdfParseError('PDF_PARSE_CANCELLED','Embedded-image OCR was canceled. Native parsed content remains retryable.');
+  const reason=error instanceof Error?error.message:String(error);
+  reportSpatialDiag({stage:'parse',level:'error',code:'OCR_EMBEDDED_IMAGES_FAILED',message:`${file.name}: ${reason}`,data:{file:file.name}});
+  return{entities:[],summary:`embedded drawing images not read (${reason})`};
+ }finally{
+  for(const page of pages.values())page.cleanup?.();
+  await doc?.destroy?.().catch(()=>{});
+  URL.revokeObjectURL(objectUrl);
+ }
+}
+
 type SelectivePdfOcrResult={entities:GraphEntity[];ocrPages:number;textChars:number;nonSldPlanPages:number;planTypes:string[];disciplines:string[];failedPages:number[]};
 
 async function parsePdfSelectedOcrPages(
@@ -382,7 +425,8 @@ async function parsePdfSelectedOcrPages(
  level:{floor:string;elevation:number},
  discipline:string,
  onProgress:(page:number,total:number)=>void,
- signal:AbortSignal
+ signal:AbortSignal,
+ sourceSha256=''
 ):Promise<SelectivePdfOcrResult>{
  const wanted=[...new Set(pageNumbers.map(Number).filter(page=>Number.isInteger(page)&&page>0))].sort((a,b)=>a-b);
  if(!wanted.length)return{entities:[],ocrPages:0,textChars:0,nonSldPlanPages:0,planTypes:[],disciplines:[],failedPages:[]};
@@ -392,8 +436,6 @@ async function parsePdfSelectedOcrPages(
  try{pdfjs.GlobalWorkerOptions.workerSrc=new URL('pdfjs-dist/build/pdf.worker.min.mjs',import.meta.url).toString()}catch{}
  const objectUrl=URL.createObjectURL(file);
  const doc=await pdfjs.getDocument({url:objectUrl,wasmUrl:pdfWasmAssetUrl()}).promise;
- const mod=await import('tesseract.js');
- const ocrWorker=await mod.createWorker('eng',mod.OEM.LSTM_ONLY);
  const entities:GraphEntity[]=[],supportOffsets:SupportOffsetEvidence[]=[];
  const planTypes=new Set<string>(),disciplines=new Set<string>();
  const failedPages:number[]=[];let textChars=0,ocrPages=0,nonSldPlanPages=0;
@@ -402,6 +444,13 @@ async function parsePdfSelectedOcrPages(
  const rasterPageMeta=new Map<number,{planeWidth:number;planeHeight:number;pixelWidth:number;pixelHeight:number;floor:string;plan:any;frames:ReturnType<typeof detectPlanFrames>}>();
 
  try{
+  // OCR reads 300 dpi tiles (lib/ocr-regions.ts); the whole-page canvas below stays at preview size for the
+  // underlay and raster symbol search. A 42" sheet at that preview size is about 43 dpi, too coarse to read.
+  const reader=await sharedTesseractReader(),cache=sourceSha256?ocrTileCache():null;
+  const sizes:Array<{page:number;size:PageSize}>=[];
+  for(const pageNumber of wanted){const page=await doc.getPage(pageNumber),viewport=page.getViewport({scale:1});sizes.push({page:pageNumber,size:{width:viewport.width,height:viewport.height}});page.cleanup?.()}
+  const fullPagePlan=planFullPageOcr(sizes),regionByPage=new Map(fullPagePlan.regions.map(region=>[region.page,region]));
+  for(const skipped of fullPagePlan.skipped)reportSpatialDiag({stage:'parse',level:'warn',code:'OCR_PAGE_OVER_BUDGET',message:`${file.name}: page ${skipped.page} exceeds the OCR pixel budget and stays a review exception.`,data:{page:skipped.page,reason:skipped.reason}});
   for(let index=0;index<wanted.length;index++){
    if(signal.aborted)throw new PdfParseError('PDF_PARSE_CANCELLED','Selective scanned-page OCR was canceled. Native parsed content remains retryable.');
    const pageNumber=wanted[index];onProgress(pageNumber,wanted.length);
@@ -415,7 +464,14 @@ async function parsePdfSelectedOcrPages(
     if(!ctx)throw new Error('Canvas rendering unavailable');
     await page.render({canvasContext:ctx,viewport:ocrViewport}).promise;
     if(signal.aborted)throw new PdfParseError('PDF_PARSE_CANCELLED','Selective scanned-page OCR was canceled. Native parsed content remains retryable.');
-    const recognized=await ocrWorker.recognize(canvas,{}, {text:true,blocks:true});
+    const region=regionByPage.get(pageNumber);
+    if(!region){failedPages.push(pageNumber);continue}
+    const [reading]=await readOcrRegions({regions:[region],reader,sourceSha256,cache,signal,
+     render:({tile,scale})=>renderPdfTile(page,tile,scale),
+     onTileError:(failed,tile,error)=>reportSpatialDiag({stage:'parse',level:'warn',code:'OCR_TILE_FAILED',message:`${file.name}: page ${failed.page}: ${error instanceof Error?error.message:String(error)}`,data:{page:failed.page,region:failed.id,tile}})})
+     .catch(error=>{if(signal.aborted)throw new PdfParseError('PDF_PARSE_CANCELLED','Selective scanned-page OCR was canceled. Native parsed content remains retryable.');throw error});
+    // Readings are in page points; everything below works in this canvas's pixels.
+    const recognized=asTesseractResult(reading.lines,renderScale);
     const ocrText=String(recognized.data?.text||'').trim();
     if(!ocrText){failedPages.push(pageNumber);continue}
     ocrPages++;textChars+=ocrText.length;
@@ -546,13 +602,12 @@ async function parsePdfSelectedOcrPages(
   } as GraphEntity);
   return{entities:enrichSupportBaseOffsets(entities,supportOffsets),ocrPages,textChars,nonSldPlanPages,planTypes:[...planTypes],disciplines:[...disciplines],failedPages};
  }finally{
-  await ocrWorker.terminate().catch(()=>{});
   await doc.destroy().catch(()=>{});
   URL.revokeObjectURL(objectUrl);
  }
 }
 
-async function parseImage(file:File,level:{floor:string;elevation:number},discipline:string,onProgress?:(message:string)=>void):Promise<{entities:GraphEntity[];summary:string;ocrSucceeded:boolean;planType:string|null;planDiscipline:string|null}> {
+async function parseImage(file:File,level:{floor:string;elevation:number},discipline:string,onProgress?:(message:string)=>void,sourceSha256=''):Promise<{entities:GraphEntity[];summary:string;ocrSucceeded:boolean;planType:string|null;planDiscipline:string|null}> {
  const url=URL.createObjectURL(file);
  try {
   const image=await new Promise<HTMLImageElement>((resolve,reject)=>{const i=new Image();i.onload=()=>resolve(i);i.onerror=reject;i.src=url});
@@ -567,10 +622,19 @@ async function parseImage(file:File,level:{floor:string;elevation:number},discip
   const underlay:GraphEntity={id:'image-raster-underlay',source:file.name,layer:'L1',kind:'source-raster-underlay',name:`${file.name} · raster source plane`,x:-planeWidth/2,y:-planeHeight/2,z:0,x2:planeWidth/2,y2:planeHeight/2,z2:0,floor:level.floor,confidence:1,meta:{sourceType:'IMAGE_RASTER_UNDERLAY',drawingBasemap:true,imageWidth:image.naturalWidth,imageHeight:image.naturalHeight,previewWidth:preview.width,previewHeight:preview.height,embeddedRasterDataUrl,coordinateUnits:'image_preview',geometryAuthority:'RASTER_PREVIEW_ONLY',spatialPlacementAuthority:'SOURCE_IMAGE_PLANE_ONLY',zPlacementAuthority:'UNVERIFIED_DRAWING_PLANE',elevationKnown:false,physicalElevationKnown:false,physicalTruth:false,reviewRequired:false,previewAuthority:'DERIVED_PREVIEW_ONLY'}};
   try{
    onProgress?.('loading OCR engine');
-   const mod=await import('tesseract.js');
-   const worker=await mod.createWorker('eng',mod.OEM.LSTM_ONLY,{logger:(entry:any)=>{if(entry?.status&&Number.isFinite(Number(entry.progress)))onProgress?.(`${entry.status} · ${Math.round(Number(entry.progress)*100)}%`)}});
-   try{
-    const result=await worker.recognize(url,{}, {text:true,blocks:true});
+   // Read at the image's own pixels, in tiles when it is very large (lib/ocr-regions.ts).
+   const reader=await sharedTesseractReader(),region=planRasterOcr({width:image.naturalWidth,height:image.naturalHeight});
+   const [reading]=await readOcrRegions({regions:[region],reader,sourceSha256,cache:sourceSha256?ocrTileCache():null,
+    onProgress:(done,total)=>onProgress?.(`reading text · tile ${done} of ${total}`),
+    render:async({tile})=>{
+     const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d'),width=Math.max(1,Math.round(tile.x1-tile.x0)),height=Math.max(1,Math.round(tile.y1-tile.y0));
+     canvas.width=width;canvas.height=height;if(!ctx)throw new Error('Canvas rendering unavailable for OCR');
+     ctx.fillStyle='#fff';ctx.fillRect(0,0,width,height);ctx.drawImage(image,tile.x0,tile.y0,width,height,0,0,width,height);
+     return{pixels:canvas,release(){canvas.width=0;canvas.height=0}};
+    }});
+   if(reading.failedTiles===region.tiles.length)throw new Error(reading.error||'recognition failed');
+   {
+    const result=asTesseractResult(reading.lines);
     const normalized=buildImageOcrEvidence({
      text:String(result.data?.text||''),
      source:file.name,
@@ -578,7 +642,7 @@ async function parseImage(file:File,level:{floor:string;elevation:number},discip
      floor:level.floor,
      width:image.naturalWidth,
      height:image.naturalHeight,
-     meanConfidence:Number.isFinite(Number(result.data?.confidence))?Number(result.data.confidence):null
+     meanConfidence:result.data.confidence
     });
     const ocrLines=String(result.data?.text||'').split(/\r?\n/).map((line:string)=>line.trim()).filter(Boolean),plan=detectNonSldPlanPage(ocrLines,0);
     const imageBlockLines=(Array.isArray(result.data?.blocks)?result.data.blocks:[]).flatMap((block:any)=>Array.isArray(block?.paragraphs)?block.paragraphs:[]).flatMap((paragraph:any)=>Array.isArray(paragraph?.lines)?paragraph.lines:[]);
@@ -586,7 +650,7 @@ async function parseImage(file:File,level:{floor:string;elevation:number},discip
     const imageGeometryEvidence=extractSheetGeometryEvidence({items:imageGeometryItems});
     const classifiedUnderlay={...underlay,meta:{...underlay.meta,drawingScaleEvidence:imageGeometryEvidence.drawingScale,northOrientationEvidence:imageGeometryEvidence.northOrientation,scaleCalibrationEvidence:imageGeometryEvidence.scaleCalibration,...(plan.isPlan?{nonSldPlan:true,planType:plan.planType,planRecognition:'OCR_CONTENT_PLAN_V1',planRecognitionScore:plan.score,planEvidence:plan.reasons,planTitleEvidence:plan.titleEvidence,planDiscipline:plan.discipline}:{})}};
     return{entities:[classifiedUnderlay,...normalized.entities as GraphEntity[]],summary:`${normalized.summary} · raster drawing underlay retained for source-plane review${plan.isPlan?` · recognized ${plan.planType}`:''} · physical scale/alignment/Z unverified`,ocrSucceeded:true,planType:plan.planType,planDiscipline:plan.discipline};
-   }finally{await worker.terminate().catch(()=>{})}
+   }
   }catch(error){
    return{entities:[underlay],summary:`${image.naturalWidth}×${image.naturalHeight} image preserved · raster drawing underlay retained for source-plane review · OCR unavailable (${error instanceof Error?error.message:'recognition failed'}) · physical scale/alignment/Z unverified`,ocrSucceeded:false,planType:null,planDiscipline:null};
   }
@@ -752,10 +816,10 @@ export default function CompilerWorkspace({safeMode=false}:{safeMode?:boolean}){
   }
   throw new Error('The saved graph kept changing while recording the failed source. The model was not overwritten.');
  }
- async function processFiles(incoming:File[]){if(parseBusyRef.current||busy||!incoming.length)return;parseBusyRef.current=true;setBusy(true);let nextFiles=[...files],nextEntities=[...entities],fileFailures:string[]=[],lastAssembly:{zoned:GraphEntity[];links:GraphLink[]}|null=null;for(const file of incoming){const ext=(file.name.split('.').pop()||'').toLowerCase();if(!ACCEPTED.has(ext)){setMessage(`${file.name} skipped: unsupported source format.`);continue}let buf:ArrayBuffer;try{buf=await file.arrayBuffer()}catch{setMessage(`${file.name} could not be read.`);continue}let digest:string;try{digest=await sha(buf)}catch{setMessage(`${file.name}: fingerprint failed; retry the import.`);continue}const archiveResult=await archiveSourceBytes({sha256:digest,name:file.name,mimeType:file.type,size:file.size,ext,bytes:buf});if(archiveResult.archived)setArchivedShas(current=>{const next=new Set(current);next.add(digest);return next});else setArchiveNote(`${file.name} was parsed without a protected browser-local source copy: ${archiveResult.reason}`);const discipline=classify(file.name),level=inferLevel(file.name);let parseFailure:string|null=null;let replacementSource:{sha256:string;name:string}|null=null,replacementBackup:{source:SourceFile;entities:GraphEntity[]}|null=null,reprocessJournalSha:string|null=null;
+ async function processFiles(incoming:File[]){if(parseBusyRef.current||busy||!incoming.length)return;parseBusyRef.current=true;setBusy(true);let nextFiles=[...files],nextEntities=[...entities],fileFailures:string[]=[],lastAssembly:{zoned:GraphEntity[];links:GraphLink[]}|null=null;for(const file of incoming){const ext=(file.name.split('.').pop()||'').toLowerCase();if(!ACCEPTED.has(ext)){setMessage(`${file.name} skipped: unsupported source format.`);continue}let buf:ArrayBuffer;try{buf=await file.arrayBuffer()}catch{setMessage(`${file.name} could not be read.`);continue}let digest:string;try{digest=await sha(buf)}catch{setMessage(`${file.name}: fingerprint failed; retry the import.`);continue}const archiveResult=await archiveSourceBytes({sha256:digest,name:file.name,mimeType:file.type,size:file.size,ext,bytes:buf});if(archiveResult.archived)setArchivedShas(current=>{const next=new Set(current);next.add(digest);return next});else setArchiveNote(`${file.name} was parsed without a protected browser-local source copy: ${archiveResult.reason}`);const discipline=classify(file.name),level=inferLevel(file.name);let parseFailure:string|null=null;let replacementSource:{sha256:string;name:string}|null=null,replacementBackup:{source:SourceFile;entities:GraphEntity[]}|null=null,reprocessJournalSha:string|null=null,replacementNeedsBasemap=false;
  const priorFailed=nextFiles.find(source=>source.sha256===digest&&source.state==='failed');
  if(priorFailed){nextFiles=nextFiles.filter(source=>source.sha256!==digest);nextEntities=nextEntities.filter(entity=>String(entity.meta?.sourceSha256||'')!==digest&&entity.source!==priorFailed.name)}
- const existing=nextFiles.find(source=>source.sha256===digest&&source.state!=='failed');if(existing){const reason=drawingSourceReprocessReason(existing,nextEntities);if(!reason)continue;replacementSource={sha256:digest,name:existing.name};replacementBackup={source:existing,entities:nextEntities.filter(entity=>String(entity.meta?.sourceSha256||'')===digest||entity.source===existing.name)};reprocessJournalSha=digest;beginReprocessJournal({sha256:digest,name:existing.name,sourceRecord:{...existing},priorEntityCount:replacementBackup.entities.length,startedAt:new Date().toISOString()});nextFiles=nextFiles.filter(source=>source.sha256!==digest);nextEntities=nextEntities.filter(entity=>String(entity.meta?.sourceSha256||'')!==digest&&entity.source!==existing.name);setMessage(`${file.name}: reprocessing saved drawing with the current basemap/non-SLD pipeline…`)}let sf:SourceFile={name:file.name,size:file.size,ext,discipline,sha256:digest,state:'review',summary:'Format requires review',entities:0,floor:level.floor,elevation:level.elevation};try{if(ext==='pdf'){
+ const existing=nextFiles.find(source=>source.sha256===digest&&source.state!=='failed');if(existing){const reason=drawingSourceReprocessReason(existing,nextEntities);if(!reason)continue;replacementSource={sha256:digest,name:existing.name};replacementBackup={source:existing,entities:nextEntities.filter(entity=>String(entity.meta?.sourceSha256||'')===digest||entity.source===existing.name)};reprocessJournalSha=digest;beginReprocessJournal({sha256:digest,name:existing.name,sourceRecord:{...existing},priorEntityCount:replacementBackup.entities.length,startedAt:new Date().toISOString()});replacementNeedsBasemap=Boolean(basemapReprocessReason(existing,nextEntities))||inspectDrawingReprocessOutput(replacementBackup.entities).basemaps>0;nextFiles=nextFiles.filter(source=>source.sha256!==digest);nextEntities=nextEntities.filter(entity=>String(entity.meta?.sourceSha256||'')!==digest&&entity.source!==existing.name);setMessage(`${file.name}: re-parsing saved drawing with the current parser…`)}let sf:SourceFile={name:file.name,size:file.size,ext,discipline,sha256:digest,state:'review',summary:'Format requires review',entities:0,floor:level.floor,elevation:level.elevation};try{if(ext==='pdf'){
  const controller=new AbortController();parseAbortRef.current=controller;lastWorkerHeartbeatRef.current=Date.now();
  setWorkerHealth('STARTING');setCanCancel(true);setParseProgress({page:0,total:0,phase:'starting worker'});
  let parsed:PdfParseResult;
@@ -765,10 +829,11 @@ export default function CompilerWorkspace({safeMode=false}:{safeMode?:boolean}){
    setParseProgress(progress);
    setMessage(`${file.name}: page ${progress.page||'?'}${progress.total?` of ${progress.total}`:''} · ${progress.phase}${progress.processed!==undefined?` · ${progress.processed} source elements`:''}`);
   },controller.signal);
+  const scannedPages=new Set(parsed.ocrRequiredPages);
   if(parsed.ocrRequiredPages.length){
    const queued=[...parsed.ocrRequiredPages];
    setMessage(`${file.name}: native/vector pass complete · selectively OCR'ing ${queued.length} low-text/scanned page${queued.length===1?'':'s'}…`);
-   const ocr=await parsePdfSelectedOcrPages(file,queued,level,discipline,(page,total)=>{setParseProgress({page,total,phase:'selective scanned-page OCR'});setMessage(`${file.name}: selective OCR page ${page} · ${total} queued scanned page${total===1?'':'s'}`)},controller.signal);
+   const ocr=await parsePdfSelectedOcrPages(file,queued,level,discipline,(page,total)=>{setParseProgress({page,total,phase:'selective scanned-page OCR'});setMessage(`${file.name}: selective OCR page ${page} · ${total} queued scanned page${total===1?'':'s'}`)},controller.signal,digest);
    parsed={
     ...parsed,
     entities:[...parsed.entities,...ocr.entities],
@@ -780,6 +845,11 @@ export default function CompilerWorkspace({safeMode=false}:{safeMode?:boolean}){
     ocrRequiredPages:ocr.failedPages
    };
   }
+  if(parsed.imagePlacements?.length){
+   setMessage(`${file.name}: native/vector pass complete · reading text inside embedded drawing images…`);
+   const ocr=await readPdfEmbeddedImageText(file,digest,parsed,scannedPages,controller.signal,(done,total)=>{setParseProgress({page:done,total,phase:'embedded drawing image OCR'});setMessage(`${file.name}: reading embedded drawing images · tile ${done} of ${total}`)});
+   parsed={...parsed,entities:[...parsed.entities,...ocr.entities],summary:ocr.summary?`${parsed.summary} · ${ocr.summary}`:parsed.summary};
+  }
  }catch(error){
   if(error instanceof PdfParseError&&error.code==='WORKER_UNAVAILABLE'){
    setMessage(`${file.name}: protected worker unavailable; using bounded whole-file review fallback…`);
@@ -787,15 +857,27 @@ export default function CompilerWorkspace({safeMode=false}:{safeMode?:boolean}){
   }else throw error;
  }finally{if(parseAbortRef.current===controller)parseAbortRef.current=null;setCanCancel(false);setParseProgress(null);
   setWorkerHealth(controller.signal.aborted?'TERMINATED':'FINALIZING')}
+ // Phase 20: the project's equipment roster from its schedules and one-line (OCR + text layer), checked
+ // against the drawings' own totals, then found on the plans (lib/equipment-roster.ts).
+ {
+  const rostered=applyEquipmentRoster({fileName:file.name,entities:parsed.entities,knownEntities:nextEntities});
+  const {stats}=rostered;
+  reportSpatialDiag({stage:'parse',level:stats.checksFailed?'warn':'info',code:'EQUIPMENT_ROSTER_BUILT',counts:stats,data:{file:file.name,tags:rostered.roster.map(entry=>entry.tag)}});
+  const rosterSummary=stats.entries?`equipment roster ${stats.entries} (${stats.panels} panelboard${stats.panels===1?'':'s'}, ${stats.switchboards} switchboard${stats.switchboards===1?'':'s'}), ${stats.checksPassed}/${stats.checksPassed+stats.checksFailed} checks pass`:'';
+  const symbolSummary=stats.rosterSymbols+stats.unitLoadCenters?`${stats.rosterSymbols} roster symbol${stats.rosterSymbols===1?'':'s'}, ${stats.unitLoadCenters} unit load centre${stats.unitLoadCenters===1?'':'s'} and ${stats.lineupSections} lineup section${stats.lineupSections===1?'':'s'} found on plans (review candidates)`:'';
+  parsed={...parsed,entities:rostered.entities as GraphEntity[],summary:[parsed.summary,rosterSummary,symbolSummary].filter(Boolean).join(' · ')};
+ }
  setMessage(`${file.name}: worker result received; validating retained source-plan basemap…`);
  await new Promise<void>(resolve=>window.setTimeout(resolve,0));
  const preflight=inspectDrawingReprocessOutput(parsed.entities);
- if(preflight.basemaps===0&&(parsed.nonSldPlanPages>0||(Boolean(replacementBackup)&&parsed.sldPages===0)))
+ // A re-parse must keep a basemap when one was missing (legacy) or existed before; a revision-only
+ // re-parse of a drawing that never had one (a spec sheet, say) must not be rejected for lacking it.
+ if(preflight.basemaps===0&&(parsed.nonSldPlanPages>0||(replacementNeedsBasemap&&parsed.sldPages===0)))
   throw new PdfParseError('DRAWING_BASEMAP_NOT_RETAINED',`${file.name}: ${parsed.nonSldPlanPages} plan pages recognized but no source basemap survived extraction. Prior compilation preserved; parser capability gap, not an accepted reprocess.`);
  const graph=withAssetCandidates(scopeSourceEntities(parsed.entities,digest));
  await new Promise<void>(resolve=>window.setTimeout(resolve,0));
  setMessage(`${file.name}: indexing Z source evidence for ${graph.length} review objects…`);
- const zGraph=enrichZCandidates(graph);const reprocessAudit=replacementBackup?inspectDrawingReprocessOutput(zGraph):null;nextEntities=[...nextEntities,...zGraph];sf={...sf,discipline:parsed.disciplines.length>1?'Multi-discipline':parsed.disciplines[0]||discipline,state:'parsed',floor:[...new Set(graph.map(e=>e.floor))].join(', ')||'UNRESOLVED',summary:`${parsed.summary} · elevations and cross-sheet alignment unverified · ${graph.filter(x=>x.layer==='L4').length} L4 candidates${reprocessAudit?' · '+reprocessAudit.summary:''}`,entities:zGraph.length,pages:parsed.pages,vectors:parsed.vectors,textItems:parsed.textItems,sldPages:parsed.sldPages,nonSldPlanPages:parsed.nonSldPlanPages,planTypes:parsed.planTypes,setCompleteness:parsed.setCompleteness}}else if(ext==='dxf'){const parsed=parseDxf(file,await file.text(),level),graph=withAssetCandidates(scopeSourceEntities(parsed.entities,digest));nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:`${parsed.summary} · floor label ${level.floor}; Z remains source-driven/reviewed · ${graph.filter(x=>x.layer==='L4').length} L4 candidates`,entities:graph.length,unitName:parsed.unitName,unitToMeters:parsed.unitToMeters}}else if(['png','jpg','jpeg'].includes(ext)){const parsed=await parseImage(file,level,discipline,message=>setMessage(`${file.name}: ${message}`)),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,discipline:parsed.planDiscipline||discipline,state:parsed.ocrSucceeded?'parsed':'review',summary:parsed.summary,entities:graph.length,nonSldPlanPages:parsed.planType?1:0,planTypes:parsed.planType?[parsed.planType]:[]}}else if(['csv','txt'].includes(ext)){const parsed=parseEquipmentScheduleText(await file.text(),file.name,discipline,level.floor),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:parsed.summary,entities:graph.length}}else if(ext==='xlsx'){const parsed=parseXlsxBytes(new Uint8Array(buf),file.name,discipline,level.floor),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:parsed.summary,entities:graph.length}}else if(ext==='docx'){const parsed=parseDocxBytes(new Uint8Array(buf),file.name,discipline,level.floor),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:parsed.summary,entities:graph.length}}else if(ext==='ifc'){const parsed=parseIfcText(await file.text(),file.name,discipline),graph=withAssetCandidates(scopeSourceEntities(parsed.entities,digest) as GraphEntity[]);nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',discipline:discipline==='Unclassified'?'BIM / Multi-discipline':discipline,summary:parsed.summary,entities:graph.length,unitName:parsed.unitName,unitToMeters:parsed.unitToMeters||undefined}}else if(isNativeUsdFormat(ext)){
+ const zGraph=enrichZCandidates(graph);const reprocessAudit=replacementBackup?inspectDrawingReprocessOutput(zGraph):null;nextEntities=[...nextEntities,...zGraph];sf={...sf,discipline:parsed.disciplines.length>1?'Multi-discipline':parsed.disciplines[0]||discipline,state:'parsed',floor:[...new Set(graph.map(e=>e.floor))].join(', ')||'UNRESOLVED',summary:`${parsed.summary} · elevations and cross-sheet alignment unverified · ${graph.filter(x=>x.layer==='L4').length} L4 candidates${reprocessAudit?' · '+reprocessAudit.summary:''}`,entities:zGraph.length,pages:parsed.pages,vectors:parsed.vectors,textItems:parsed.textItems,sldPages:parsed.sldPages,nonSldPlanPages:parsed.nonSldPlanPages,planTypes:parsed.planTypes,setCompleteness:parsed.setCompleteness,parseRevision:PDF_PARSE_REVISION}}else if(ext==='dxf'){const parsed=parseDxf(file,await file.text(),level),graph=withAssetCandidates(scopeSourceEntities(parsed.entities,digest));nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:`${parsed.summary} · floor label ${level.floor}; Z remains source-driven/reviewed · ${graph.filter(x=>x.layer==='L4').length} L4 candidates`,entities:graph.length,unitName:parsed.unitName,unitToMeters:parsed.unitToMeters}}else if(['png','jpg','jpeg'].includes(ext)){const parsed=await parseImage(file,level,discipline,message=>setMessage(`${file.name}: ${message}`),digest),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,discipline:parsed.planDiscipline||discipline,state:parsed.ocrSucceeded?'parsed':'review',summary:parsed.summary,entities:graph.length,nonSldPlanPages:parsed.planType?1:0,planTypes:parsed.planType?[parsed.planType]:[]}}else if(['csv','txt'].includes(ext)){const parsed=parseEquipmentScheduleText(await file.text(),file.name,discipline,level.floor),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:parsed.summary,entities:graph.length}}else if(ext==='xlsx'){const parsed=parseXlsxBytes(new Uint8Array(buf),file.name,discipline,level.floor),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:parsed.summary,entities:graph.length}}else if(ext==='docx'){const parsed=parseDocxBytes(new Uint8Array(buf),file.name,discipline,level.floor),graph=scopeSourceEntities(parsed.entities,digest) as GraphEntity[];nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',summary:parsed.summary,entities:graph.length}}else if(ext==='ifc'){const parsed=parseIfcText(await file.text(),file.name,discipline),graph=withAssetCandidates(scopeSourceEntities(parsed.entities,digest) as GraphEntity[]);nextEntities=[...nextEntities,...graph];sf={...sf,state:'parsed',discipline:discipline==='Unclassified'?'BIM / Multi-discipline':discipline,summary:parsed.summary,entities:graph.length,unitName:parsed.unitName,unitToMeters:parsed.unitToMeters||undefined}}else if(isNativeUsdFormat(ext)){
    if(!archiveResult.archived)throw new Error('USD import requires preserved original bytes. '+archiveResult.reason);
    const model=await parseNativeUsdAsset(file,buf,digest,level);
    const existing=nextEntities.filter(e=>e.meta?.nonSpatial!==true);
@@ -920,7 +1002,7 @@ export default function CompilerWorkspace({safeMode=false}:{safeMode?:boolean}){
     {workerHealth==='STALLED'&&<strong>STALLED — no worker heartbeat in 15 seconds. Automatic timeout will stop this job; REPROCESS cancels it immediately.</strong>}
    </div>}
 
-   {staleDrawingSources.length>0&&<div className="notice" role="alert"><strong>REPROCESS SAVED DRAWING</strong><span>{staleDrawingSources.length} saved drawing source{staleDrawingSources.length===1?' needs':'s need'} the current basemap/non-SLD parser. {archivedStaleSources.length>0?`${archivedStaleSources.length} source${archivedStaleSources.length===1?' is':'s are'} available in this browser's protected local archive.`:"Older sources without a protected local copy still require the original file to be selected again."}</span>{archivedStaleSources.length>0&&<button className="ghost" type="button" onClick={reprocessArchivedDrawings}>Reprocess archived drawing{archivedStaleSources.length===1?'':'s'}</button>}</div>}
+   {staleDrawingSources.length>0&&<div className="notice" role="alert"><strong>REPROCESS SAVED DRAWING</strong><span>{staleDrawingSources.length} saved drawing source{staleDrawingSources.length===1?' needs':'s need'} re-parsing with the current drawing parser. {archivedStaleSources.length>0?`${archivedStaleSources.length} source${archivedStaleSources.length===1?' is':'s are'} available in this browser's protected local archive.`:"Older sources without a protected local copy still require the original file to be selected again."}</span>{archivedStaleSources.length>0&&<button className="ghost" type="button" onClick={reprocessArchivedDrawings}>Reprocess archived drawing{archivedStaleSources.length===1?'':'s'}</button>}</div>}
    {archiveNote&&<div className="notice" role="status"><strong>LOCAL SOURCE ARCHIVE</strong><span>{archiveNote}</span></div>}
 
    {files.length>0&&<div className="import-results">
