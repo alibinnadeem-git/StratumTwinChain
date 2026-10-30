@@ -81,6 +81,9 @@ def main():
         samplemeshes=[]
         textures=set()
         physics=set()
+        appliedPhysicsSchemas=collections.Counter()
+        physicsAttributeNames=collections.Counter()
+        subsetBindings={}
         allPrims=0
         # Instances hide prototype descendants from ordinary stage traversal.
         # Traverse instance proxies to count visible scene geometry faithfully.
@@ -94,6 +97,18 @@ def main():
                 variants.append({"path":str(prim.GetPath()),"sets":[{"name":name,"selected":prim.GetVariantSets().GetVariantSet(name).GetVariantSelection(),"choices":list(prim.GetVariantSets().GetVariantSet(name).GetVariantNames())[:40]} for name in selections]})
             if "Physics" in typ or "Physx" in typ or "Joint" in typ:
                 physics.add(typ)
+            for schema in prim.GetAppliedSchemas():
+                if "Physics" in schema or "Physx" in schema or "Joint" in schema:
+                    appliedPhysicsSchemas[schema]+=1
+            for att in prim.GetAttributes():
+                name=att.GetName()
+                if name.startswith(("physics:","physx","physxPhysics:","physxRigidBody:","physxJoint:")):
+                    physicsAttributeNames[name]+=1
+            if typ=="GeomSubset":
+                try:
+                    bound=UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial()
+                    if bound and bound[0]:subsetBindings[str(prim.GetPath())]=str(bound[0].GetPath())
+                except Exception:pass
             if prim.IsA(UsdShade.Material):
                 info=material_info(UsdShade.Material(prim))
                 material_by_path[info["path"]]=info
@@ -116,6 +131,17 @@ def main():
             location=str(layer.realPath or layer.identifier)
             rel=os.path.relpath(location,directory)
             reportedLayers.append(rel if not rel.startswith("..") else os.path.basename(location))
+        bounds=None
+        try:
+            cache=UsdGeom.BBoxCache(Usd.TimeCode.Default(),[UsdGeom.Tokens.default_,UsdGeom.Tokens.render],useExtentsHint=False)
+            box=cache.ComputeWorldBound(stage.GetDefaultPrim()).ComputeAlignedBox()
+            if not box.IsEmpty():
+                low=box.GetMin(); high=box.GetMax()
+                bounds={"minStageUnits":[safe_float(v) for v in low],"maxStageUnits":[safe_float(v) for v in high],
+                        "sizeSourceUnits":[safe_float(high[i]-low[i]) for i in range(3)],
+                        "sizeMetersIfAuthored": [safe_float((high[i]-low[i])*mpu) for i in range(3)] if authoredMPU else None}
+        except Exception as err:
+            bounds={"error":str(err)[:500]}
         materialInfos=list(material_by_path.values())
         displayMaterials=sum("universal" in d["renderContexts"] for d in materialInfos)
         mdlMaterials=sum("mdl" in d["renderContexts"] for d in materialInfos)
@@ -128,13 +154,13 @@ def main():
                      "authoredMetersPerUnit":authoredMPU,"metersPerUnit":mpu if authoredMPU else None,
                      "effectiveMetersPerUnit":mpu,"authoredUpAxis":authoredAxis,"upAxis":up if authoredAxis else None,
                      "effectiveUpAxis":up,"defaultPrim":str(stage.GetDefaultPrim().GetPath()) if stage.GetDefaultPrim() else None,
-                     "prims":allPrims,"instanceProxyGeometryIncluded":True,"primTypes":dict(tally),"meshExamples":samplemeshes,"variants":variants},
+                     "prims":allPrims,"instanceProxyGeometryIncluded":True,"primTypes":dict(tally),"meshExamples":samplemeshes,"variants":variants,"composedBounds":bounds},
             "materials":{"total":len(materialInfos),"previewSurfaceContexts":displayMaterials,"mdlContexts":mdlMaterials,
                          "mtlxContexts":mtlxMaterials,"bindingCount":sum(materials_bound.values()),
-                         "boundMaterialPaths":dict(materials_bound.most_common(20)),
+                         "boundMaterialPaths":dict(materials_bound.most_common(20)),"geomSubsetBindings":subsetBindings,
                          "shaderIds":sorted({x for item in materialInfos for x in item["shaderIds"]}),
                          "authoredTexturePaths":sorted(textures)[:200],"examples":materialInfos[:25]},
-            "physics":{"authoredTypes":sorted(physics),"simulationRuntimeVerified":False},
+            "physics":{"authoredTypes":sorted(physics),"appliedPhysicsSchemas":dict(appliedPhysicsSchemas),"physicsAttributeNames":dict(physicsAttributeNames),"simulationRuntimeVerified":False},
             "truth":{"installedAssetIdentityVerified":False,"physicalPlacementVerified":False,"geometryScaleValidatedInViewer":False,
                      "renderFidelityValidatedInViewer":False},
         }
@@ -145,7 +171,7 @@ def main():
             "metersPerUnit":report["stage"]["metersPerUnit"],"upAxis":report["stage"]["upAxis"],
             "layers":len(reportedLayers),"variants":len(variants),"materials":len(materialInfos),
             "mdlMaterials":mdlMaterials,"previewMaterials":displayMaterials,"materialBindings":sum(materials_bound.values()),
-            "texturePaths":len(textures),"physicsTypes":sorted(physics),
+            "texturePaths":len(textures),"physicsTypes":sorted(physics),"physicsSchemaCount":sum(appliedPhysicsSchemas.values()),"materialSubsets":len(subsetBindings),"sourceBounds":bounds,
             "auditPath":str(output)},separators=(',',':')))
         print("OPENUSD_STAGE_DIAGNOSTICS",json.dumps({
             "primTypes":report["stage"]["primTypes"],
