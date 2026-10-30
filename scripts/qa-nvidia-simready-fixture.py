@@ -13,7 +13,7 @@ REV=os.getenv("SIMREADY_REV","4763fbfaa4f8e97658e68b57d01b4c86659e08b5")
 ASSET=os.getenv("SIMREADY_NAME","tool_hammer_a03")
 MAX_BYTES=110*1024*1024
 MAX_FILE_BYTES=50*1024*1024
-OUT="test-results/nvidia-simready"
+OUT=".simready-qa-fixtures/nvidia-simready"
 
 def request(url):
  req=urllib.request.Request(url,headers={"User-Agent":"STRATUM-Spatial-Verified-Compatibility/1.0"})
@@ -85,7 +85,7 @@ def main():
  "root":root["path"],"root_original_sha256":hashlib.sha256(root_bytes).hexdigest(),
  "files":len(files),"payload_files":sum("/payloads/" in r["path"] for r in files),
  "texture_files":sum(r["path"].lower().endswith((".png",".jpg",".jpeg",".exr",".tif",".tiff",".dds")) for r in files),
- "references_in_root":refs[:100],"uncontained_references":uncontained[:100],
+ "references_in_root":refs[:100],"uncontained_references":uncontained[:100],"reference_inspection":"TEXT_USDA" if metadata else "BINARY_USD_UNINSPECTED",
  "unpacked_bytes":sum(r["size"] for r in files),
  "test_archive":out_file,"test_archive_bytes":os.stat(out_file).st_size,
  "test_archive_sha256":hashlib.sha256(open(out_file,"rb").read()).hexdigest(),
