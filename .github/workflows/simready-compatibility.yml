@@ -5,6 +5,9 @@ on:
     paths:
       - 'scripts/qa-nvidia-simready-probe.py'
       - 'scripts/qa-nvidia-simready-fixture.py'
+      - 'package.json'
+      - 'lib/spatial-native-usd.ts'
+      - 'components/CompiledGraphViewer.tsx'
       - 'tests/e2e/nvidia-simready-production.spec.ts'
       - '.github/workflows/simready-compatibility.yml'
 permissions:
@@ -12,7 +15,7 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 18
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -28,10 +31,11 @@ jobs:
           cache: 'npm'
           cache-dependency-path: package.json
       - run: npm install --no-audit --no-fund
+      - name: Build candidate branch before browser test
+        run: npm run build
       - run: npx playwright install --with-deps chromium
-      - name: Test real SimReady asset in deployed production (browser-local only)
+      - name: Test real SimReady asset in candidate branch (browser-local only)
         env:
-          STRATUM_UAT_BASE_URL: https://stratumspatialverified.vercel.app
           CI: 'true'
         run: npx playwright test tests/e2e/nvidia-simready-production.spec.ts --project=desktop-chromium --workers=1 --retries=0
       - uses: actions/upload-artifact@v4
