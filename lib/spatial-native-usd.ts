@@ -12,10 +12,30 @@ const USD_FORMATS=new Set<string>(['USD','USDA','USDC','USDZ']);
 export function isRenderable3DFormat(value:string):boolean{return SUPPORTED.has(value.toUpperCase());}
 export function isNativeUsdFormat(value:string):boolean{return USD_FORMATS.has(value.toUpperCase());}
 
+/** Three's USDA parser (through r186) can treat a standard prim metadata terminator
+ * ') {' as a standalone brace, corrupting its parse stack for later custom attributes.
+ * Normalize that *in the parser's working text only*, not the archived OpenUSD source.
+ * Keep the patch intentionally narrow; unfamiliar layer structures still fail closed.
+ */
+let patchedUSDMetadata=false;
+async function installUSDMetadataCompatibility():Promise<void>{
+ if(patchedUSDMetadata)return;
+ // @ts-expect-error Three.js publishes the runtime USDAParser as an internal addon.
+ const {USDAParser}=await import('three/examples/jsm/loaders/usd/USDAParser.js');
+ const proto=USDAParser.prototype as {_preprocess:(text:string)=>string};
+ const original=proto._preprocess;
+ proto._preprocess=function(text:string){
+  const normalized=text.replace(/^\\s*\\)\\s*\\{\\s*$/gm,')\\n{');
+  return original.call(this,normalized);
+ };
+ patchedUSDMetadata=true;
+}
+
 /** Parse source bytes directly and await full texture loading before ready. */
 export async function parseNativeUsd(bytes:ArrayBuffer,format:string):Promise<Object3D>{
  if(!isNativeUsdFormat(format))throw new Error('Not a native USD asset.');
  if(bytes.byteLength===0)throw new Error('USD source is empty.');
+ await installUSDMetadataCompatibility();
  const {USDLoader}=await import('three/examples/jsm/loaders/USDLoader.js');
  return await new Promise<Object3D>((resolve,reject)=>{
   try{
@@ -29,6 +49,7 @@ export async function load3DModelFromUrl(
  url:string,format:string,gltfLoader?:{loadAsync:(url:string)=>Promise<{scene:Object3D}>}
 ):Promise<Object3D>{
  if(isNativeUsdFormat(format)){
+  await installUSDMetadataCompatibility();
   const {USDLoader}=await import('three/examples/jsm/loaders/USDLoader.js');
   return await new USDLoader().loadAsync(url);
  }
