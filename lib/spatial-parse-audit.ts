@@ -37,6 +37,12 @@ export type ParseAudit={
   // #4 cross-reference feasibility: do equipment schedules yield authoritative tags (panel names) to
   // cross-reference plan labels/designators against?
   scheduleProbe:{scheduleCandidates:number;byKind:Record<string,number>;tags:string[]};
+  // Phase 20a: what OCR read from embedded drawing images (lib/ocr-regions.ts), so a drop in coverage or a
+  // run of failed tiles is visible per import.
+  ocr:{regions:number;lines:number;meanConfidence:number|null;failedTiles:number;cachedTiles:number;readers:string[]};
+  // Phase 20: the project equipment roster (lib/equipment-roster.ts), its self-checks, and what of it was found
+  // drawn on the plans.
+  roster:{entries:number;panels:number;switchboards:number;checksPassed:number;checksFailed:number;planSymbols:number;unitLoadCenters:number;lineupSections:number;tags:string[]};
 };
 
 // Geometry/annotation kinds that are not selectable equipment candidates (mirrors the viewer's
@@ -231,5 +237,23 @@ export function auditParsedGraph(
   }
   const scheduleProbe={scheduleCandidates,byKind:scheduleByKind,tags:[...scheduleTags]};
 
-  return{sources:auditedSources,coordinates,symbolAnchors,classLinkage,footprint,samples,candidates,scale,instanceZ,designatorProbe,scheduleProbe};
+  const ocrRegions=entities.filter(entity=>entity.kind==='ocr-region'),ocrLines=entities.filter(entity=>entity.kind==='ocr-text-line');
+  const lineConfidences=ocrLines.map(entity=>finite(entity.meta?.ocrConfidence)).filter((value):value is number=>value!==null);
+  const ocr={regions:ocrRegions.length,lines:ocrLines.length,
+    meanConfidence:lineConfidences.length?Math.round(lineConfidences.reduce((sum,value)=>sum+value,0)/lineConfidences.length*10)/10:null,
+    failedTiles:ocrRegions.reduce((sum,entity)=>sum+(finite(entity.meta?.ocrFailedTiles)||0),0),
+    cachedTiles:ocrRegions.reduce((sum,entity)=>sum+(finite(entity.meta?.ocrCachedTiles)||0),0),
+    readers:[...new Set(ocrRegions.map(entity=>`${String(entity.meta?.ocrReader||'unknown')}@${String(entity.meta?.ocrReaderVersion||'?')}`))]};
+
+  const rosterEntries=entities.filter(entity=>entity.kind==='equipment-roster-entry').map(entity=>entity.meta?.rosterEntry as {tag?:string;kind?:string;checks?:Array<{passed?:boolean}>}|undefined).filter(Boolean);
+  const rosterChecks=rosterEntries.flatMap(entry=>entry?.checks||[]);
+  const canonical=entities.filter(entity=>!entity.meta?.derivedFrom);
+  const roster={entries:rosterEntries.length,panels:rosterEntries.filter(entry=>entry?.kind==='PANELBOARD').length,switchboards:rosterEntries.filter(entry=>entry?.kind==='SWITCHBOARD').length,
+    checksPassed:rosterChecks.filter(check=>check.passed===true).length,checksFailed:rosterChecks.filter(check=>check.passed!==true).length,
+    planSymbols:canonical.filter(entity=>entity.meta?.rosterBacked===true&&Boolean(entity.meta?.drawnFootprint)).length,
+    unitLoadCenters:canonical.filter(entity=>entity.meta?.footprintClassPhrase===true).length,
+    lineupSections:canonical.filter(entity=>Boolean(entity.meta?.lineupSectionOf)).length,
+    tags:rosterEntries.map(entry=>String(entry?.tag||'')).filter(Boolean)};
+
+  return{sources:auditedSources,coordinates,symbolAnchors,classLinkage,footprint,samples,candidates,scale,instanceZ,designatorProbe,scheduleProbe,ocr,roster};
 }

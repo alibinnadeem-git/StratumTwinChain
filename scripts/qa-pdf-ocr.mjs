@@ -42,7 +42,10 @@ assert.match(compiler,/URL\.createObjectURL\(file\)/);
 assert.match(compiler,/selective scanned-page OCR/);
 assert.match(compiler,/page\.render\(\{canvasContext:ctx,viewport:ocrViewport\}\)/);
 assert.match(compiler,/PDF_RASTER_OCR_TEXT/);
-assert.match(compiler,/blocks:true/);
+// Readers return lines; the scanned-page parser still consumes tesseract.js's blocks/lines/bbox shape, rebuilt
+// by asTesseractResult (lib/ocr-reader.ts), at 300 dpi tiles (lib/ocr-regions.ts) instead of a screen-size page.
+assert.match(compiler,/asTesseractResult\(reading\.lines,renderScale\)/);
+assert.match(compiler,/planFullPageOcr\(sizes\)/);
 assert.match(compiler,/PDF_RASTER_OCR_POSITIONAL_CANDIDATE/);
 assert.match(compiler,/SOURCE_IMAGE_BBOX_ONLY/);
 assert.match(compiler,/OCR_SOURCE_IMAGE_POSITION_ONLY/);
@@ -57,6 +60,8 @@ assert.match(compiler,/geometryAuthority:'NONE'/);
 assert.match(compiler,/spatialPlacementAuthority:'OCR_NON_SPATIAL'/);
 assert.match(compiler,/ocrTextByPage/);
 assert.match(compiler,/labels=\[\.\.\.raw[\s\S]*ocrTextByPage[\s\S]*resolveDrawingPageRecognition\(labels/);
-assert.match(compiler,/if\(ocrWorker\)await ocrWorker\.terminate\(\)/);
+// One shared engine (lib/client/ocr-runtime.ts) is reused and released when idle, not started per file.
+assert.match(compiler,/if\(!ocrWorker\)ocrWorker=await sharedTesseractReader\(\)/);
+assert.doesNotMatch(compiler,/createWorker\(/);
 assert.doesNotMatch(compiler,/PDF_RASTER_OCR_TEXT'[\s\S]{0,300}(?:x:.*ocr|y:.*ocr|coordinateUnits:'sheet')/);
 console.log('Selective scanned-page PDF OCR passed: low-text pages are queued after the native/vector worker pass, OCR preserves review-only source-sheet position plus scale/north/Z evidence, and whole-file large-source fallback is avoided during normal hybrid ingestion.');

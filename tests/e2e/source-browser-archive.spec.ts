@@ -176,8 +176,16 @@ test('saved drawing REPROCESS queues visibly behind an active worker parse',asyn
  const cancel=page.getByRole('button',{name:'Cancel current PDF parse'});
  await expect(cancel).toBeVisible({timeout:10000});
  await expect(row).toBeEnabled();
+ // REPROCESS cancels the active worker at once, so QUEUED can last only milliseconds before REPROCESSING;
+ // polling for it raced that (failing 4 of 5 paired runs, on main too). Record every state the button
+ // shows instead, and require QUEUED among them.
+ await page.evaluate(label=>{
+  const seen:string[]=[];(window as unknown as {__reprocessStates:string[]}).__reprocessStates=seen;
+  const record=()=>{const text=(document.querySelector(`[aria-label="${label}"]`)?.textContent||'').trim();if(text&&seen[seen.length-1]!==text)seen.push(text)};
+  record();new MutationObserver(record).observe(document.body,{subtree:true,childList:true,characterData:true});
+ },`Reprocess ${drawing}`);
  await row.click();
- await expect(row).toHaveText('QUEUED');
+ await expect.poll(()=>page.evaluate(()=>(window as unknown as {__reprocessStates:string[]}).__reprocessStates),{message:'REPROCESS must show QUEUED while the active parse stops'}).toContain('QUEUED');
  await expect(page.getByRole('status').filter({hasText:'LOCAL SOURCE ARCHIVE'}))
   .toContainText(/REPROCESS QUEUED:.*Canceling active PDF worker|Reprocessing/i);
  // REPROCESS itself must stop the active worker; no manual Cancel required.

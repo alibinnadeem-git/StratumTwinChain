@@ -9,7 +9,19 @@ export type ReprocessSourceLike={
  sldPages?:number;
  nonSldPlanPages?:number;
  planTypes?:string[];
+ parseRevision?:string;
 };
+
+// Bump whenever a PDF parsing change alters what a saved drawing contains. Saved PDF sources stamped with an
+// older (or no) revision are then offered for re-parsing, and uploading the same file again re-parses it
+// instead of being skipped as a duplicate; otherwise browsers keep the old results forever.
+// 2026-10-27.metric-placement: scale witnesses in sheet units with structural pairing and consensus; pad
+// footprints are not support heights (docs/SPATIAL_METRIC_PLACEMENT_PLAN.md).
+// 2026-10-29.embedded-image-ocr: text inside embedded raster images (pasted schedules, scans) is read, and
+// scanned pages are read at 300 dpi instead of screen size (docs/SPATIAL_SOURCE_FIDELITY_PLAN.md, Phase 20a).
+// 2026-10-29.equipment-roster: per-page text layers with phrases and drawn footprints; the project equipment
+// roster from schedules and one-line, and its names, unit load centres and lineup sections found on plans.
+export const PDF_PARSE_REVISION='2026-10-29.equipment-roster';
 
 export type ReprocessEntityLike={
  source?:string;
@@ -29,8 +41,24 @@ function sameSource(source:ReprocessSourceLike,entity:ReprocessEntityLike){
  );
 }
 
+function sourceExtension(source:ReprocessSourceLike){
+ return String(source.ext||source.name.split('.').pop()||'').toLowerCase();
+}
+
+/** Why a saved drawing should be parsed again, or null when it is current. */
 export function drawingSourceReprocessReason(source:ReprocessSourceLike,entities:ReprocessEntityLike[]){
- const ext=String(source.ext||source.name.split('.').pop()||'').toLowerCase();
+ return basemapReprocessReason(source,entities)||parseRevisionReprocessReason(source);
+}
+
+/** A saved PDF parsed by an older parser revision. A re-parse for this reason alone need not add a basemap. */
+export function parseRevisionReprocessReason(source:ReprocessSourceLike){
+ if(sourceExtension(source)!=='pdf'||source.state==='failed'||source.parseRevision===PDF_PARSE_REVISION)return null;
+ return `Parsed by an older PDF parser (${source.parseRevision||'revision not recorded'}; current ${PDF_PARSE_REVISION}). Re-parse to apply current scale, support-height, equipment and drawing-image text fixes.`;
+}
+
+/** A saved drawing compiled before retained drawing basemaps existed. */
+export function basemapReprocessReason(source:ReprocessSourceLike,entities:ReprocessEntityLike[]){
+ const ext=sourceExtension(source);
  if(!DRAWING_EXTENSIONS.has(ext))return null;
 
  const scoped=entities.filter(entity=>sameSource(source,entity));

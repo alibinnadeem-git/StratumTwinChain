@@ -15,6 +15,8 @@ const FNV_OFFSET=2166136261;
 const SKIP_KEYS=new Set([
  'embeddedGlb','embeddedRasterDataUrl','zConstraintGraph','zResolutionEvidence',
  'scaleValidationEvidence','geometryEvidence','geometryItems','planFrame','zEvidence',
+ // A sheet's whole text layer (lib/text-phrases.ts): parser output, replaced only by a re-parse.
+ 'textPhrases',
 ]);
 
 function fold(hash:number,value:string):number{

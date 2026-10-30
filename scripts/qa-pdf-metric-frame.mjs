@@ -81,6 +81,45 @@ assert.equal(mismatch.length,1);
 assert.equal(mismatch[0].eligible,false);
 assert.ok(mismatch[0].reasons.some(reason=>reason.includes('MISMATCH')));
 
+// Real parser layout: a page's scale evidence sits on a non-spatial scale-validation record (no sheet
+// units), while the sheet geometry carries none. The page must still produce its candidate.
+const set='b'.repeat(64),declared=5.120640,corroboratedValidation={...validation,declaredMetersPerNormalizedSheetUnit:declared,corroboratedMetersPerNormalizedSheetUnit:5.1206,confidence:.9};
+const evidence=(sha,page,scaleValidationEvidence)=>({id:`${sha}:pdf-scale-validation-${page}`,source:'Set.pdf',kind:'scale-validation-candidate',x:0,y:0,z:0,meta:{sourceSha256:sha,page,nonSpatial:true,scaleValidationEvidence}});
+const sheetLine=(sha,page,x,y)=>({id:`${sha}:line-${page}-${x}`,source:'Set.pdf',kind:'line',x,y,z:0,x2:x+1,y2:y,z2:0,meta:{sourceSha256:sha,page,coordinateUnits:'sheet',sourceType:'PDF source-plan vector line'}});
+const unresolvedDeclared={...validation,status:'UNRESOLVED',declaredMetersPerNormalizedSheetUnit:declared,corroboratedMetersPerNormalizedSheetUnit:null,confidence:0,witnesses:[],independentWitnessCount:0};
+const setEntities=[
+ evidence(set,3,corroboratedValidation),sheetLine(set,3,0,0),
+ evidence(set,4,unresolvedDeclared),sheetLine(set,4,1.7575,-.9115),sheetLine(set,4,2.352,-1.2956),
+ evidence(set,5,{...unresolvedDeclared,declaredMetersPerNormalizedSheetUnit:declared*2}),sheetLine(set,5,0,0),
+ evidence(set,6,{...unresolvedDeclared,status:'MISMATCH'}),sheetLine(set,6,0,0),
+ evidence('c'.repeat(64),4,unresolvedDeclared),sheetLine('c'.repeat(64),4,0,0),
+];
+const setCandidates=derivePdfMetricFrameCandidates(setEntities),forPage=(sha,page)=>setCandidates.find(c=>c.frameKey===`${sha}:${page}`);
+assert.equal(forPage(set,3).eligible,true,'evidence on a non-spatial page record still yields the page candidate');
+assert.equal(forPage(set,3).basis,'OWN_WITNESSES');
+const sameSet=forPage(set,4);
+assert.equal(sameSet.eligible,true,'a page without dimensions borrows corroboration from a same-set page with the same printed scale');
+assert.equal(sameSet.basis,'SAME_SET_CORROBORATED_SHEET');
+assert.equal(sameSet.corroboratedByPage,3);
+assert.equal(sameSet.metersPerSheetUnit,declared,'the page applies its own printed scale');
+assert.ok(sameSet.confidence<=.75,'borrowed corroboration is capped below own-witness confidence');
+assert.equal(sameSet.autoApplyEligible,false);
+assert.equal(forPage(set,5).eligible,false,'a different printed scale or page size is not corroborated by the sibling');
+assert.equal(forPage(set,6).eligible,false,'a page whose own evidence disagrees never borrows corroboration');
+assert.equal(forPage('c'.repeat(64),4).eligible,false,'corroboration never crosses into another PDF');
+
+// Brynhurst E-4: MS2 and MS1 sit 0.708 sheet units apart; at the printed 1/8" = 1'-0" that is 3.63 m.
+const [ms2,ms1]=[setEntities[3],setEntities[4]].map(entity=>applyReviewedPdfMetricFrame(entity,sameSet,'2026-10-27T00:00:00.000Z'));
+assert.ok(Math.abs(Math.hypot(ms1.x-ms2.x,ms1.y-ms2.y)-3.63)<.01,'E-4 MS1↔MS2 renders about 3.6 m once the scale is confirmed');
+assert.equal(ms1.meta?.metricFrameAuthority,'HUMAN_REVIEWED_SAME_SET_PDF_SCALE');
+assert.equal(ms1.meta?.metricFrameBasis,'SAME_SET_CORROBORATED_SHEET');
+assert.equal(ms1.meta?.metricFrameCorroboratedByPage,3);
+assert.equal(ms1.meta?.coordinateUnits,'m_reviewed_pdf');
+const undone=restoreReviewedPdfMetricFrame(ms1);
+assert.equal(undone.x,2.352);
+assert.equal(undone.meta?.metricFrameBasis,undefined);
+assert.equal(undone.meta?.metricFrameCorroboratedByPage,undefined);
+
 const component=fs.readFileSync('components/PdfMetricFrameReview.tsx','utf8');
 assert.match(component,/Put reviewed PDF X\/Y into the same meter world as Z/);
 assert.match(component,/Z is never rescaled or changed/);

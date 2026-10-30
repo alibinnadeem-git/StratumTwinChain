@@ -2,6 +2,8 @@
 
 **Date:** 2026-10-22 · **Branch:** `ujjan-v1` · **Fixture:** `5749 Brynhurst - Electrical - Bid Set` (9-page PDF, 28,714 parsed entities)
 **Companion:** `docs/SPATIAL_RENDER_ACCURACY_PLAN.md` (per-phase plan). Nothing pushed; all work local on `ujjan-v1`.
+**Correction (2026-10-26):** the Phase 3/3b scale conclusion below was wrong; Brynhurst's printed scale is
+correct. See §3 and §4 #3. Follow-up work: `docs/SPATIAL_METRIC_PLACEMENT_PLAN.md`.
 
 ## 1. Executive summary
 
@@ -52,6 +54,9 @@ a handful of items were ever identified to the library.
   (`lib/sheet-scale.ts`). **Found the declared title-block scale is ~6.2× wrong** vs 19 independent witnesses
   (multi-scale sheet). Downgraded declared-only to non-sizing. **Brynhurst has no trustworthy auto scale** →
   needs human XY calibration.
+  **Superseded 2026-10-26:** the declared scale is right and the witnesses are wrong. At the declared
+  1/8" = 1'-0" (5.121 m per sheet unit), the 6'×8' transformer pad measures 6.0 × 8.0 ft on both E-3 and
+  E-4. The cause of the bad witnesses is Phase 11 of `docs/SPATIAL_METRIC_PLACEMENT_PLAN.md`.
 - **Phase 4 — Render nominal ✅.** Identity now drives render geometry (`libraryComponentKey`); role gate draws
   only INSTANCEs; nominal-size banner. **117 phantom candidates → 7 real instances drawn** (3 procedural + 4
   GLB library models, async). The "3-of-7 gap" was a synchronous-snapshot artifact — all 7 render (`realGap:0`).
@@ -76,6 +81,14 @@ human calibration action, and extra fixtures) — captured here and in the plan'
    backoff; projection now verifiably **settles** (`…→APPLIED`) in ≤2 retries, no starvation (e2e-guarded).
    *Remaining (architectural):* eliminate the residual contending passes by ordering projection after the
    one-time server hydration (or a shared write lease).
+   *Fixed 2026-10-29:*
+   - one projection pass at a time across the Import and Spatial page mounts; a pass whose page has unmounted
+     stops before writing;
+   - the persistence guard no longer rewrites an unchanged chunked graph after every update.
+
+   On the golden fixture the first settle went from about 54 s to 21 s, and Apply from 33 s to 17.6 s, under
+   different machine load. See `docs/SPATIAL_SOURCE_FIDELITY_PLAN.md` Phase 21 and
+   `scripts/qa-projection-contention.mjs`.
 2. **Unify the two render Z paths (from Phase 8).** *Done:* one `entityRenderBaseZ` drives mesh, links and
    camera; fixed the camera-select-vs-mesh Z divergence; MODEL-mode render provably unchanged. *Caveat:*
    ELECTRICAL-mode SLD meshes now lift by logical depth (intended) — worth a visual glance.
@@ -85,6 +98,9 @@ human calibration action, and extra fixtures) — captured here and in the plan'
    signal (`manualXYCalibratedEntities`/`manualXYCalibrations`) so an established metric XY frame is observable.
    *Remaining:* a human must actually calibrate a sheet (Brynhurst has none); surface the workflow from Spatial
    (currently /compiler only). Note: calibration establishes metric *XY*, not equipment size (that stays library-nominal).
+   *Superseded 2026-10-26:* Brynhurst's printed scale is correct (see §3), so plan sheets can use it once a
+   person confirms it; manual calibration pairs are not required. Tracked as Phases 11–12 of
+   `docs/SPATIAL_METRIC_PLACEMENT_PLAN.md`.
 4. **Parse-extraction: recover plan-placed panel tags (from Phase 2c/1).** *Feasibility probed (audit
    `designatorProbe`):* 33 designator tags exist in the graph (`HP1-1`, `HL-2`, `HP3-7`, `D-2`…) as
    circuit/logical-tags, not panel instances. *Chosen approach (panel-schedule cross-reference) probed and
@@ -101,6 +117,17 @@ human calibration action, and extra fixtures) — captured here and in the plan'
    (`tests/fixtures/spatial/sample-electrical.ifc`) + `qa:spatial-fixture-breadth` — proves scale +
    identification + gating generalize to a non-PDF source that *has* metric units (the path Brynhurst lacks).
    *Remaining:* a DXF-through-real-parser and a full-pipeline e2e on a plan-heavy set.
+
+## 4b. Metric placement follow-up (2026-10-27)
+
+Tracked in `docs/SPATIAL_METRIC_PLACEMENT_PLAN.md` (phases 10–15). On Brynhurst: the Model view now opens
+on the E-4 first floor plan instead of the E-2 one-line; "MS1 #1" (a circuit callout) is a label, so 6
+instances instead of 7; MS1 no longer floats 1.83 m on a misread "6' x 8' T-Pad"; E-3's dimensions now
+measure the printed 1/8" scale and corroborate it by consensus (5.121 m/unit, 14 of 19 witnesses; was
+0.826 MISMATCH). E-4, which has no dimensions of its own, offers **Apply drawing scale** on the strength of
+E-3; after a person confirms it, MS1↔MS2 renders 3.62 m (real: about 3.6 m). PDF sources now record the
+parser revision that produced them, so drawings imported before these fixes are flagged for re-parsing
+instead of keeping old results. Manual test steps: `docs/SPATIAL_METRIC_PLACEMENT_TESTING_GUIDE.md`.
 
 ## 5. Truth boundary (held throughout)
 

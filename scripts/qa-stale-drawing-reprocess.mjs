@@ -1,16 +1,18 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {drawingSourceReprocessReason,findDrawingSourcesNeedingReprocess,inspectDrawingReprocessOutput} from '../lib/spatial-source-reprocess.ts';
+import {PDF_PARSE_REVISION,basemapReprocessReason,drawingSourceReprocessReason,findDrawingSourcesNeedingReprocess,inspectDrawingReprocessOutput,parseRevisionReprocessReason} from '../lib/spatial-source-reprocess.ts';
+
+const compiler=fs.readFileSync('components/CompilerWorkspace.tsx','utf8');
 
 const stalePdf={name:'G101 Site Plan.pdf',ext:'pdf',sha256:'a'.repeat(64),state:'parsed',entities:12,vectors:900,textItems:120,sldPages:0};
 const staleEntities=[{source:'G101 Site Plan.pdf',kind:'text-asset-candidate',layer:'L2',meta:{sourceSha256:'a'.repeat(64),physicalTruth:false}}];
 assert.match(drawingSourceReprocessReason(stalePdf,staleEntities)||'',/without a retained non-SLD drawing basemap/i);
 
-const modernPdf={...stalePdf,nonSldPlanPages:1,planTypes:['SITE_PLAN']};
+const modernPdf={...stalePdf,nonSldPlanPages:1,planTypes:['SITE_PLAN'],parseRevision:PDF_PARSE_REVISION};
 const modernEntities=[...staleEntities,{source:'G101 Site Plan.pdf',kind:'line',layer:'L1',meta:{sourceSha256:'a'.repeat(64),drawingBasemap:true,sourceType:'PDF source-plan vector line'}}];
 assert.equal(drawingSourceReprocessReason(modernPdf,modernEntities),null,'retained drawing basemap must clear stale reprocess state');
 
-const sld={name:'E601 One Line.pdf',ext:'pdf',sha256:'b'.repeat(64),state:'parsed',entities:4,vectors:300,sldPages:1};
+const sld={name:'E601 One Line.pdf',ext:'pdf',sha256:'b'.repeat(64),state:'parsed',entities:4,vectors:300,sldPages:1,parseRevision:PDF_PARSE_REVISION};
 const sldEntities=[{source:sld.name,kind:'sld-feeder-candidate',layer:'L3',meta:{sourceSha256:sld.sha256,sldFeederCandidate:true}}];
 assert.equal(drawingSourceReprocessReason(sld,sldEntities),null,'valid SLD topology must not be treated as stale non-SLD compilation');
 
@@ -18,9 +20,22 @@ const staleImage={name:'Site Plan.jpg',ext:'jpg',sha256:'c'.repeat(64),state:'pa
 assert.match(drawingSourceReprocessReason(staleImage,[{source:staleImage.name,kind:'ocr-review',meta:{sourceSha256:staleImage.sha256,nonSpatial:true}}])||'',/before source-underlay retention/i);
 
 assert.equal(drawingSourceReprocessReason({name:'Tesla.glb',ext:'glb',sha256:'d'.repeat(64),state:'parsed',entities:1},[]),null,'3D files are not drawing-reprocess candidates');
-assert.equal(findDrawingSourcesNeedingReprocess([stalePdf,modernPdf,sld],modernEntities).length,0,'modern replacement for the same PDF fingerprint must clear warning');
+assert.equal(findDrawingSourcesNeedingReprocess([{...stalePdf,parseRevision:PDF_PARSE_REVISION},modernPdf,sld],modernEntities).length,0,'modern replacement for the same PDF fingerprint must clear warning');
 
-const compiler=fs.readFileSync('components/CompilerWorkspace.tsx','utf8');
+// Parser revision: a PDF parsed by older code (or before revisions were recorded) must be re-parsed, or a
+// browser keeps its old scale evidence and equipment roles forever; re-uploading the same file then re-parses.
+const unstamped={...modernPdf};delete unstamped.parseRevision;
+assert.match(drawingSourceReprocessReason(unstamped,modernEntities)||'',/older PDF parser \(revision not recorded; current /,'an unstamped modern PDF is re-parsed');
+assert.match(drawingSourceReprocessReason({...modernPdf,parseRevision:'2026-01-01.old'},modernEntities)||'',/2026-01-01\.old/,'an older revision is named in the reason');
+assert.equal(basemapReprocessReason(unstamped,modernEntities),null,'a revision-only re-parse does not claim a missing basemap');
+assert.ok(parseRevisionReprocessReason(unstamped),'the revision reason is exposed on its own');
+assert.match(drawingSourceReprocessReason(stalePdf,staleEntities)||'',/basemap/i,'a missing basemap still takes precedence over the revision');
+assert.equal(drawingSourceReprocessReason({...unstamped,state:'failed'},modernEntities),null,'failed sources are retried through the failed-source path, not flagged');
+assert.equal(drawingSourceReprocessReason({name:'Site Plan.jpg',ext:'jpg',sha256:'e'.repeat(64),state:'parsed',entities:1},[{source:'Site Plan.jpg',kind:'source-raster-underlay',meta:{sourceSha256:'e'.repeat(64)}}]),null,'non-PDF drawings carry no PDF parser revision');
+assert.match(compiler,/setCompleteness:parsed\.setCompleteness,parseRevision:PDF_PARSE_REVISION\}/,'every PDF parse stamps the current parser revision on its source');
+assert.match(compiler,/replacementNeedsBasemap=Boolean\(basemapReprocessReason\(existing,nextEntities\)\)\|\|inspectDrawingReprocessOutput\(replacementBackup\.entities\)\.basemaps>0/,'a re-parse needs a basemap only when one was missing or existed before');
+assert.match(compiler,/replacementNeedsBasemap&&parsed\.sldPages===0/,'a revision-only re-parse of a drawing without a basemap is not rejected');
+
 const viewer=fs.readFileSync('components/CompiledGraphViewer.tsx','utf8');
 // Graph compilation (assemble + coordination) moved to lib/graph-enrichment.ts (compileGraph)
 // so it can run in the graph worker; the commit still discards stale coordination.
@@ -40,7 +55,7 @@ assert.match(compiler,/REPROCESS SAVED DRAWING/,'Import UI must tell the user wh
 assert.match(compiler,/staleReason&&archivedShas\.has\(f\.sha256\)/,'stale source row must only offer reprocess when source bytes are archived');
 
 assert.match(viewer,/findDrawingSourcesNeedingReprocess/);
-assert.match(viewer,/Legacy drawing frame/,'legacy parser state must remain visible without opening the demo in a fatal red state');
+assert.match(viewer,/Older drawing parse/,'older parser state must remain visible without opening the demo in a fatal red state');
 assert.match(viewer,/Refresh drawing source/);
 assert.match(viewer,/migration task, not a failed parse/i);
 

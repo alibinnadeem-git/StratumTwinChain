@@ -2,14 +2,13 @@
 
 import {useEffect,useMemo,useState} from 'react';
 import {
- applyReviewedPdfMetricFrame,
  derivePdfMetricFrameCandidates,
  pdfMetricFrameKey,
- restoreReviewedPdfMetricFrame,
  type MetricFrameEntity,
  type PdfMetricFrameCandidate
 } from '@/lib/pdf-metric-frame';
-import {readPrimarySpatialGraph,replaceCurrentSpatialGraph,type SpatialGraphLike} from '@/lib/spatial-browser-recovery';
+import {applyStoredPdfMetricFrame,restoreStoredPdfMetricFrame} from '@/lib/pdf-metric-frame-store';
+import {readPrimarySpatialGraph,type SpatialGraphLike} from '@/lib/spatial-browser-recovery';
 
 type Graph=Omit<SpatialGraphLike,'entities'>&{
  entities:MetricFrameEntity[];
@@ -42,42 +41,14 @@ export default function PdfMetricFrameReview(){
 
  async function apply(candidate:PdfMetricFrameCandidate){
   try{
-   if(!candidate.eligible)throw new Error(candidate.reasons.join(' ')||'This scale candidate is not eligible.');
-   const current=await readPrimarySpatialGraph() as Graph|null;if(!current)throw new Error('No Spatial graph is available.');
-   const matching=current.entities.filter(entity=>pdfMetricFrameKey(entity)===candidate.frameKey);
-   if(matching.some(entity=>entity.meta?.autoSheetAlignmentCandidateId))throw new Error('Restore automatic sheet alignment for this page before applying its metric frame.');
-   if(matching.some(entity=>entity.meta?.sheetXYCalibrationId))throw new Error('Restore manual XY calibration for this page before applying its metric frame.');
-   if(matching.some(entity=>entity.meta?.pdfMetricFrameOriginal&&entity.meta?.pdfMetricFrameCandidateId!==candidate.id))throw new Error('Restore the existing PDF metric frame before applying another scale candidate.');
-   let changed=0;const occurredAt=new Date().toISOString();
-   current.entities=current.entities.map(entity=>{
-    if(pdfMetricFrameKey(entity)!==candidate.frameKey)return entity;
-    const next=applyReviewedPdfMetricFrame(entity,candidate,occurredAt);
-    if(next!==entity)changed++;
-    return next;
-   });
-   current.pdfMetricFrameReviews=[...(Array.isArray(current.pdfMetricFrameReviews)?current.pdfMetricFrameReviews:[]),{
-    candidateId:candidate.id,frameKey:candidate.frameKey,action:'APPLY',occurredAt,
-    metersPerSheetUnit:candidate.metersPerSheetUnit,confidence:candidate.confidence,witnessCount:candidate.witnessCount,
-    sourceCoordinatesPreserved:true,zChanged:false,physicalPositionVerified:false,reviewRequired:true
-   }];
-   await replaceCurrentSpatialGraph(current as SpatialGraphLike);
+   const changed=await applyStoredPdfMetricFrame(candidate);
    setMessage('Applied reviewed PDF metric scale to '+changed+' object'+(changed===1?'':'s')+' on '+candidate.source+' page '+candidate.page+'. X/Y are now meter-scaled for Spatial review; original sheet coordinates are preserved and all Z values are unchanged.');
   }catch(error){setMessage(error instanceof Error?error.message:'Unable to apply PDF metric frame.')}
  }
 
  async function restore(candidate:PdfMetricFrameCandidate){
   try{
-   const current=await readPrimarySpatialGraph() as Graph|null;if(!current)throw new Error('No Spatial graph is available.');
-   let changed=0;const occurredAt=new Date().toISOString();
-   current.entities=current.entities.map(entity=>{
-    if(pdfMetricFrameKey(entity)!==candidate.frameKey||!entity.meta?.pdfMetricFrameOriginal)return entity;
-    changed++;return restoreReviewedPdfMetricFrame(entity);
-   });
-   current.pdfMetricFrameReviews=[...(Array.isArray(current.pdfMetricFrameReviews)?current.pdfMetricFrameReviews:[]),{
-    candidateId:candidate.id,frameKey:candidate.frameKey,action:'RESTORE',occurredAt,
-    sourceCoordinatesPreserved:true,zChanged:false,physicalPositionVerified:false,reviewRequired:true
-   }];
-   await replaceCurrentSpatialGraph(current as SpatialGraphLike);
+   const changed=await restoreStoredPdfMetricFrame(candidate);
    setMessage('Restored '+changed+' object'+(changed===1?'':'s')+' on '+candidate.source+' page '+candidate.page+' to original sheet X/Y. Z was unchanged.');
   }catch(error){setMessage(error instanceof Error?error.message:'Unable to restore PDF sheet coordinates.')}
  }
@@ -94,6 +65,7 @@ export default function PdfMetricFrameReview(){
      <div><div className="label">Corroborated metric scale</div><b>{candidate.corroboratedMetersPerSheetUnit!==null?candidate.corroboratedMetersPerSheetUnit.toFixed(6)+' m / sheet unit':'Unavailable'}</b></div>
      <div><div className="label">Declared-scale cross-check</div><b>{candidate.declaredMetersPerSheetUnit!==null?candidate.declaredMetersPerSheetUnit.toFixed(6)+' m / sheet unit':'Unavailable'}</b></div>
     </div>
+    {candidate.basis==='SAME_SET_CORROBORATED_SHEET'&&<p className="muted">This page has no measurable dimensions of its own. Its printed scale matches page {candidate.corroboratedByPage} of the same set, whose dimensions confirm that scale, so the page's own printed scale is offered for review.</p>}
     {candidate.reasons.length>0&&<p className="muted">Blocked: {candidate.reasons.join(' ')}</p>}
     {(state.autoAligned||state.manualAligned)&&<div className="notice"><strong>RESTORE EXISTING XY TRANSFORM FIRST</strong><span>This page already carries {state.autoAligned?'an automatic sheet alignment':'a manual XY calibration'}. STRATUM blocks compounded transforms so the coordinate lineage remains auditable.</span></div>}
     {state.otherMetric&&<div className="notice"><strong>RESTORE PRIOR METRIC FRAME</strong><span>A different reviewed metric-frame candidate is already applied to this page.</span></div>}
