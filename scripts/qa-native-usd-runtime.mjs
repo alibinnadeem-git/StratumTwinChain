@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {isNativeUsdFormat,isRenderable3DFormat,NATIVE_USD_EXTENSIONS,parseNativeUsd} from '../lib/spatial-native-usd.ts';
 import {Box3,Vector3} from 'three';
+import {readUsdaAuthoredStageMetrics} from '../lib/openusd-stage-metadata.ts';
 import {zipSync,strToU8} from 'fflate';
 
 const read=p=>fs.readFileSync(p,'utf8');
@@ -46,4 +47,19 @@ const rootOnly=zipSync({'root.usda':strToU8('#usda 1.0\\ndef Xform "Root" {}\\n'
 const rootBytes=rootOnly.buffer.slice(rootOnly.byteOffset,rootOnly.byteOffset+rootOnly.byteLength);
 await assert.rejects(()=>parseNativeUsd(rootBytes,'USDZ'),/no unique geometry payload/i);
 await assert.rejects(()=>parseNativeUsd(Uint8Array.from([0x50,0x4b,0x03,0x04]).buffer,'USDZ'),/no valid ZIP central directory/i);
+const enc=new TextEncoder();
+const toBuffer=s=>{const b=enc.encode(s);return b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength)};
+const known=readUsdaAuthoredStageMetrics(toBuffer('#usda 1.0\\n(\\n    metersPerUnit = 0.0254\\n    upAxis = "Z"\\n)\\ndef Xform "Model" {}\\n'));
+assert.equal(known.authority,'SOURCE_HEADER');
+assert.equal(known.authoredMetersPerUnit,0.0254);
+assert.equal(known.authoredUpAxis,'Z');
+const missing=readUsdaAuthoredStageMetrics(toBuffer('#usda 1.0\\ndef Xform "Model" {}'));
+assert.equal(missing.authority,'UNRESOLVED_BINARY_OR_MISSING');
+assert.equal(missing.authoredMetersPerUnit,null);
+const binary=readUsdaAuthoredStageMetrics(toBuffer('PXR-USDC\\0\\1'));
+assert.equal(binary.authority,'UNRESOLVED_BINARY_OR_MISSING');
+const contradictory=readUsdaAuthoredStageMetrics(toBuffer('#usda 1.0\\n(\\n metersPerUnit = 1\\n metersPerUnit = 0.01\\n)\\n'));
+assert.equal(contradictory.authority,'UNRESOLVED_BINARY_OR_MISSING');
+assert.ok(read('components/CompilerWorkspace.tsx').includes('usdStageMetadataAuthority'));
+assert.ok(read('components/SpatialAssetInspector.tsx').includes('OPENUSD SOURCE UNITS'));
 console.log('Native USD integration: PASS (real USDA parse, bounds, missing-payload and malformed-USDZ rejection)');
