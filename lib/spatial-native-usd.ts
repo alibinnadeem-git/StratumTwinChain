@@ -23,7 +23,7 @@ async function installUSDMetadataCompatibility():Promise<void>{
  if(patchedUSDMetadata)return;
  // @ts-expect-error Three.js publishes the runtime USDAParser as an internal addon.
  const {USDAParser}=await import('three/examples/jsm/loaders/usd/USDAParser.js');
- const proto=USDAParser.prototype as {_preprocess:(text:string)=>string;parseText:(text:string)=>Record<string,unknown>};
+ const proto=USDAParser.prototype as {_preprocess:(text:string)=>string;_findAssignmentOperator:(text:string)=>number;parseText:(text:string)=>Record<string,unknown>};
  const original=proto._preprocess;
  proto._preprocess=function(text:string){
   const normalized=text.replace(/^\s*\)\s*\{\s*$/gm,')\n{');
