@@ -40,9 +40,9 @@ jobs:
           name: simready-public-asset-metadata
           path: |
             test-results/nvidia-simready-asset-probe.json
-            test-results/nvidia-simready/manifest.json
-            test-results/nvidia-simready/**/*.usd
-            test-results/nvidia-simready/**/*.usdz
+            .simready-qa-fixtures/nvidia-simready/manifest.json
+            .simready-qa-fixtures/nvidia-simready/**/*.usd
+            .simready-qa-fixtures/nvidia-simready/**/*.usdz
             test-results/nvidia-simready-production.spec.ts
             playwright-report
           retention-days: 14
