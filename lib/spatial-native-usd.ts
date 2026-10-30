@@ -61,7 +61,34 @@ async function parseUSDScene(bytes:ArrayBuffer):Promise<Object3D>{
  * REVIEW VISUALIZATION ONLY, with an explicit incomplete composition status.
  * No coordinates or materials are invented and no source bytes are rewritten.
  */
+/** Reject oversized/malformed archives before synchronous decompression.
+ * This fallback only needs a bounded original geometry payload, not all
+ * potential zip entries, to establish review visualization.
+ */
+function ensureBoundedUSDZ(bytes:ArrayBuffer):void{
+ const view=new DataView(bytes),end=bytes.byteLength;
+ let tail=-1;
+ for(let i=end-22;i>=Math.max(0,end-65557);i--){
+  if(view.getUint32(i,true)===0x06054b50){tail=i;break;}
+ }
+ if(tail<0)throw new Error('USDZ has no valid ZIP central directory.');
+ const count=view.getUint16(tail+10,true),start=view.getUint32(tail+16,true);
+ if(!count||count>256||start>=end)throw new Error('USDZ entry count or directory offset exceeds review safety limits.');
+ let cursor=start,total=0;
+ for(let i=0;i<count;i++){
+  if(cursor+46>end||view.getUint32(cursor,true)!==0x02014b50)throw new Error('USDZ central directory is malformed.');
+  const size=view.getUint32(cursor+24,true);
+  const nameLen=view.getUint16(cursor+28,true);
+  const extraLen=view.getUint16(cursor+30,true);
+  const commentLen=view.getUint16(cursor+32,true);
+  if(size===0xffffffff||size>100*1024*1024)throw new Error('USDZ payload is too large for safe browser visualization.');
+  total+=size;
+  if(total>250*1024*1024)throw new Error('USDZ expanded data exceeds the 250 MB browser preview limit.');
+  cursor+=46+nameLen+extraLen+commentLen;
+ }
+}
 async function parseOriginalGeometryPayload(bytes:ArrayBuffer):Promise<Object3D>{
+ ensureBoundedUSDZ(bytes);
  const files=unzipSync(new Uint8Array(bytes));
  const paths=Object.keys(files).filter(name=>/\/(?:payloads)\/geometries\.(?:usd|usdc)$/i.test(name));
  if(paths.length!==1)throw new Error('Layered USDZ has no unique geometry payload; complete OpenUSD composition is required.');
