@@ -63,3 +63,14 @@ and no false Spatial instance was created. The source stayed locally archived.
 5. Re-run the real-asset production test and a second relevant industrial asset (e.g., `rack_long_empty_a01`), followed by desktop/tablet/mobile UAT. Only then permit merge of the compatibility change.
 
 **Do not merge PR #243 while this acceptance test is red.** The user’s existing production v1 native-USD support remains intact for supported standalone inputs. The test demonstrates a *specific unhandled advanced asset*, not loss of all USD capability.
+
+
+## Candidate PR #245 — Native original-geometry fallback (2026-10-29 PT)
+
+The original full-composition failure above remains valid for Three r183/r186: merely upgrading Three did not make this complex NVIDIA scene fully composable.
+
+An explicit **PARTIAL_GEOMETRY_ONLY** fallback now reads the *original* `payloads/geometries.usd` from the preserved USDZ, using the native Three.js USDC parser. It does **not** create a GLB, rewrite any source file, infer physical placement, silently promote identity or claim correct materials.
+
+Pinned `tool_hammer_a03` candidate browser UAT: **PASS** (CI action on PR #245); imported 24 original package files, parsed the original binary geometry payload, displayed 1 actual mesh, 1 clickable asset, 0 applied texture maps, and restored the same original SHA-256 and mesh after browser reload. No browser errors. CI contains the captured screenshot and JSON diagnostic.
+
+The Spatial asset inspector explicitly warns **PARTIAL OPENUSD · GEOMETRY ONLY**. Original source is archived; variant composition, source-accurate texture bindings, USD physics, transforms and metric units remain unresolved. This does **not** meet the full NVIDIA SimReady fidelity release target. Keep future full-composition checks separate from the basic native geometry-preview acceptance.
