@@ -1,0 +1,26 @@
+name: NVIDIA SimReady real-asset compatibility discovery
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/qa-nvidia-simready-probe.py'
+      - '.github/workflows/simready-compatibility.yml'
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Probe NVIDIA SimReady public package manifests and sizes
+        run: python scripts/qa-nvidia-simready-probe.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: simready-public-asset-metadata
+          path: test-results/nvidia-simready-asset-probe.json
+          retention-days: 14
