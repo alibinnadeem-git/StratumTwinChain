@@ -7,7 +7,14 @@ import path from 'node:path';
 test('real NVIDIA SimReady layer archive imports, selects and survives reload in candidate viewer',async({page},testInfo)=>{
  test.setTimeout(150_000);
  const root=path.resolve('.simready-qa-fixtures/nvidia-simready');
- const manifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.json'),'utf8'));
+ const manifestPath=path.join(root,'manifest.json');
+ if(!fs.existsSync(manifestPath)){
+  // Full desktop/tablet/mobile CI does not download the 36 MB NVIDIA package.
+  // The dedicated workflow MUST fail, not silently skip, if the fixture is absent.
+  if(process.env.SIMREADY_REAL_ASSET_REQUIRED==='1')throw new Error('Required pinned NVIDIA real-asset fixture is missing. The SimReady CI download did not complete.');
+  test.skip(true,'Real NVIDIA package is downloaded only in dedicated SimReady acceptance workflow.');
+ }
+ const manifest=JSON.parse(fs.readFileSync(manifestPath,'utf8'));
  const source=path.resolve(manifest.test_archive);
  expect(manifest.source).toBe('https://huggingface.co/datasets/nvidia/simready-assets');
  expect(manifest.license).toBe('CC BY 4.0');
