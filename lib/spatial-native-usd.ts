@@ -25,7 +25,7 @@ async function installUSDMetadataCompatibility():Promise<void>{
  const proto=USDAParser.prototype as {_preprocess:(text:string)=>string};
  const original=proto._preprocess;
  proto._preprocess=function(text:string){
-  const normalized=text.replace(/^\\s*\\)\\s*\\{\\s*$/gm,')\\n{');
+  const normalized=text.replace(/^\s*\)\s*\{\s*$/gm,')\n{');
   return original.call(this,normalized);
  };
  patchedUSDMetadata=true;
