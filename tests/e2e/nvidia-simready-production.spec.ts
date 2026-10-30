@@ -32,6 +32,8 @@ test('real NVIDIA SimReady layer archive imports, selects and survives reload in
  expect(before.item?.meta.sourceSha256).toMatch(/^[0-9a-f]{64}$/);
  expect(before.item?.meta.physicalTruth).toBe(false);
  expect(before.item?.meta.reviewRequired).toBe(true);
+ expect(before.item?.meta.usdCompositionStatus).toBe('PARTIAL_GEOMETRY_ONLY');
+ expect(before.item?.meta.usdUnresolvedFeatures).toContain('MATERIAL_BINDINGS');
  expect(before.item?.meta.modelBoundsUnitAuthority).toBe('UNVERIFIED_USD_SCENE_UNITS');
  await page.goto('/spatial');
  const canvas=page.locator('canvas[aria-label="Interactive Spatial model"]');
@@ -42,6 +44,7 @@ test('real NVIDIA SimReady layer archive imports, selects and survives reload in
  const beforeReload=await canvas.evaluate((el:HTMLCanvasElement)=>({...el.dataset}));
  await expect.poll(async()=>Number(await canvas.getAttribute('data-native-usd-meshes')||0),{timeout:35_000}).toBeGreaterThan(0);
  await page.getByLabel('Imported object').selectOption(before.item!.id);
+ await expect(page.getByText('PARTIAL OPENUSD · GEOMETRY ONLY')).toBeVisible();
  await expect(page.getByLabel('Imported object')).toHaveValue(before.item!.id);
  const screenshot=path.join(testInfo.outputDir,'real-nvidia-simready-production.png');
  await page.screenshot({path:screenshot,fullPage:false});
