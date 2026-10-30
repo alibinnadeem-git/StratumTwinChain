@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {isNativeUsdFormat,isRenderable3DFormat,NATIVE_USD_EXTENSIONS,parseNativeUsd} from '../lib/spatial-native-usd.ts';
 import {Box3,Vector3} from 'three';
+import {zipSync,strToU8} from 'fflate';
 
 const read=p=>fs.readFileSync(p,'utf8');
 for(const ext of NATIVE_USD_EXTENSIONS){
@@ -40,4 +41,9 @@ let meshes=0;parsed.traverse(item=>{if(item.isMesh)meshes++});
 assert.ok(meshes>0,'native USDA should produce renderable meshes');
 const box=new Box3().setFromObject(parsed),size=box.getSize(new Vector3());
 assert.ok(!box.isEmpty()&&size.x>0&&size.y>0&&size.z>0,'native USDA cube must preserve 3D volume');
-console.log('Native USD integration: PASS (runtime USDA parse, bounds and static safety contract; browser E2E still required)');
+// A broken package never becomes an invented asset, even if a root USD layer exists.
+const rootOnly=zipSync({'root.usda':strToU8('#usda 1.0\\ndef Xform "Root" {}\\n')},{level:0});
+const rootBytes=rootOnly.buffer.slice(rootOnly.byteOffset,rootOnly.byteOffset+rootOnly.byteLength);
+await assert.rejects(()=>parseNativeUsd(rootBytes,'USDZ'),/no unique geometry payload/i);
+await assert.rejects(()=>parseNativeUsd(Uint8Array.from([0x50,0x4b,0x03,0x04]).buffer,'USDZ'),/no valid ZIP central directory/i);
+console.log('Native USD integration: PASS (real USDA parse, bounds, missing-payload and malformed-USDZ rejection)');

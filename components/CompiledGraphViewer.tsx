@@ -559,6 +559,8 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
             root.userData.dimensionAuthority=placement.dimensions.authority+'_REVIEW_VISUALIZATION';
             root.userData.sourceModelBounds=sourceBounds;
             root.userData.sourceFormat=format||'GLB';
+            root.userData.usdCompositionStatus=String(e.meta?.usdCompositionStatus||model.userData?.stratumOpenUSD?.status||'UNVERIFIED');
+            root.userData.partialUsdComposition=root.userData.usdCompositionStatus==='PARTIAL_GEOMETRY_ONLY';
             root.userData.sourceModelUnitsVerified=e.meta?.modelBoundsUnitAuthority!=='UNVERIFIED_USD_SCENE_UNITS';
             root.userData.targetDimensionsMeters=target;
             root.userData.normalization={scalar:normalized.scalar,ratioSpread:normalized.ratioSpread,reviewRequired:true};
@@ -575,8 +577,24 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
               });
             }
             attachSpatialEvidence(root,canonical(e),null);
+            if(isNativeUsdFormat(format)){
+              let meshes=0,textureSlots=0;
+              model.traverse(node=>{
+                if(!(node instanceof THREE.Mesh)||!node.geometry?.getAttribute('position')?.count)return;
+                meshes++;
+                const mats=Array.isArray(node.material)?node.material:[node.material];
+                for(const mat of mats)for(const value of Object.values(mat as unknown as Record<string,unknown>))
+                  if(value instanceof THREE.Texture)textureSlots++;
+              });
+              if(meshes===0)throw new Error('Native OpenUSD composition has no mesh; retained as source-only review rather than inventing geometry.');
+              renderer.domElement.dataset.nativeUsdMeshes=String(Number(renderer.domElement.dataset.nativeUsdMeshes||0)+meshes);
+              renderer.domElement.dataset.nativeUsdTextures=String(Number(renderer.domElement.dataset.nativeUsdTextures||0)+textureSlots);
+              root.userData.nativeUsdMeshes=meshes;
+              root.userData.nativeUsdTextureSlots=textureSlots;
+              root.userData.nativeUsdMaterialStatus=textureSlots?'TEXTURES_PRESENT':'MATERIAL_BINDINGS_UNVERIFIED';
+            }
             root.add(model);interactionProxy(root,target);tag(root,e);
-            groups.L2.add(root);label(e.name+(provisional.kind==='NONE'?' · IMPORTED SOURCE':' · GHOST · Z UNRESOLVED'),e.x,placement.baseZ,e.y,'#ffd08a',e);
+            groups.L2.add(root);label(e.name+(root.userData.partialUsdComposition?' · PARTIAL USD GEOMETRY':provisional.kind==='NONE'?' · IMPORTED SOURCE':' · GHOST · Z UNRESOLVED'),e.x,placement.baseZ,e.y,'#ffd08a',e);
             const renderedBox=new THREE.Box3().setFromObject(root);if(!renderedBox.isEmpty()){renderedBox.translate(new THREE.Vector3(renderOrigin.x,0,renderOrigin.y));bounds.union(renderedBox);}
             runtime.current?.fit?.();
           })().catch(error=>{

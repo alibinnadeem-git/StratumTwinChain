@@ -1,0 +1,53 @@
+name: NVIDIA SimReady real-asset compatibility discovery
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/qa-nvidia-simready-probe.py'
+      - 'scripts/qa-nvidia-simready-fixture.py'
+      - 'package.json'
+      - 'lib/spatial-native-usd.ts'
+      - 'components/CompiledGraphViewer.tsx'
+      - 'tests/e2e/nvidia-simready-production.spec.ts'
+      - '.github/workflows/simready-compatibility.yml'
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Probe NVIDIA SimReady public package manifests and sizes
+        run: python scripts/qa-nvidia-simready-probe.py
+      - name: Fetch pinned NVIDIA layered OpenUSD source and textures
+        run: python scripts/qa-nvidia-simready-fixture.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package.json
+      - run: npm install --no-audit --no-fund
+      - name: Build candidate branch before browser test
+        run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Test real SimReady asset in candidate branch (browser-local only)
+        env:
+          CI: 'true'
+          SIMREADY_REAL_ASSET_REQUIRED: '1'
+        run: npx playwright test tests/e2e/nvidia-simready-production.spec.ts --project=desktop-chromium --workers=1 --retries=0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: simready-public-asset-metadata
+          path: |
+            test-results/nvidia-simready-asset-probe.json
+            .simready-qa-fixtures/nvidia-simready/manifest.json
+            .simready-qa-fixtures/nvidia-simready/**/*.usd
+            .simready-qa-fixtures/nvidia-simready/**/*.usdz
+            test-results/nvidia-simready-production.spec.ts
+            playwright-report
+          retention-days: 14
