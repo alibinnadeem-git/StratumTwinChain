@@ -145,5 +145,13 @@ def main():
             "mdlMaterials":mdlMaterials,"previewMaterials":displayMaterials,"materialBindings":sum(materials_bound.values()),
             "texturePaths":len(textures),"physicsTypes":sorted(physics),
             "auditPath":str(output)},separators=(',',':')))
-        if tally["Mesh"]==0:raise ValueError("OpenUSD composed no meshes; do not claim scene fidelity")
+        print("OPENUSD_STAGE_DIAGNOSTICS",json.dumps({
+            "primTypes":report["stage"]["primTypes"],
+            "usedLayers":report["stage"]["usedLayers"],
+            "variants":report["stage"]["variants"],
+            "materials":report["materials"]["examples"],
+            "defaultPrim":report["stage"]["defaultPrim"],
+            "composedPrims":[{"path":str(p.GetPath()),"type":str(p.GetTypeName()),"active":p.IsActive(),"instance":p.IsInstance()} for p in stage.TraverseAll()][:40]
+        },separators=(',',':')))
+        if tally["Mesh"]==0:raise ValueError("OpenUSD composed no meshes; inspect variants and missing source references")
 if __name__=="__main__":main()
