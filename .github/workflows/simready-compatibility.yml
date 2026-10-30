@@ -4,13 +4,15 @@ on:
     branches: [main]
     paths:
       - 'scripts/qa-nvidia-simready-probe.py'
+      - 'scripts/qa-nvidia-simready-fixture.py'
+      - 'tests/e2e/nvidia-simready-production.spec.ts'
       - '.github/workflows/simready-compatibility.yml'
 permissions:
   contents: read
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -18,9 +20,29 @@ jobs:
           python-version: '3.12'
       - name: Probe NVIDIA SimReady public package manifests and sizes
         run: python scripts/qa-nvidia-simready-probe.py
+      - name: Fetch pinned NVIDIA layered OpenUSD source and textures
+        run: python scripts/qa-nvidia-simready-fixture.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package.json
+      - run: npm install --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - name: Test real SimReady asset in deployed production (browser-local only)
+        env:
+          STRATUM_UAT_BASE_URL: https://stratumspatialverified.vercel.app
+          CI: 'true'
+        run: npx playwright test tests/e2e/nvidia-simready-production.spec.ts --project=desktop-chromium --workers=1 --retries=0
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: simready-public-asset-metadata
-          path: test-results/nvidia-simready-asset-probe.json
+          path: |
+            test-results/nvidia-simready-asset-probe.json
+            test-results/nvidia-simready/manifest.json
+            test-results/nvidia-simready/**/*.usd
+            test-results/nvidia-simready/**/*.usdz
+            test-results/nvidia-simready-production.spec.ts
+            playwright-report
           retention-days: 14
