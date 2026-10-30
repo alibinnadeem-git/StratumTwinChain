@@ -110,6 +110,9 @@ async function parseOriginalGeometryPayload(bytes:ArrayBuffer):Promise<Object3D>
 export async function parseNativeUsd(bytes:ArrayBuffer,format:string):Promise<Object3D>{
  if(!isNativeUsdFormat(format))throw new Error('Not a native USD asset.');
  if(bytes.byteLength===0)throw new Error('USD source is empty.');
+ const header=new Uint8Array(bytes,0,Math.min(4,bytes.byteLength));
+ const zip=header[0]===0x50&&header[1]===0x4b;
+ if(zip)ensureBoundedUSDZ(bytes); // Before the upstream USDLoader expands any ZIP entries.
  await installUSDMetadataCompatibility();
  let model:Object3D|null=null;
  let parseError:unknown=null;
@@ -118,8 +121,6 @@ export async function parseNativeUsd(bytes:ArrayBuffer,format:string):Promise<Ob
   model.userData.stratumOpenUSD={status:'SCENE_COMPOSED',reviewRequired:true,physicalTruth:false,originalSourceRetained:true};
   return model;
  }
- const header=new Uint8Array(bytes,0,Math.min(4,bytes.byteLength));
- const zip=header[0]===0x50&&header[1]===0x4b;
  if(format.toUpperCase()!=='USDZ'||!zip){
   throw parseError instanceof Error?parseError:new Error('Native USD source contains no renderable scene geometry.');
  }
