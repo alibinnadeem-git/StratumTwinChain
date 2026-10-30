@@ -23,6 +23,7 @@ import {readPrimarySpatialGraph,replaceCurrentSpatialGraph} from '../lib/spatial
 import {beginReprocessJournal,readReprocessJournal,reconcileReprocessJournal,resolveReprocessJournalEntry} from '../lib/spatial-reprocess-journal';
 import {encodeGlbBase64,inspectStandaloneGlb} from '../lib/spatial-glb-import';
 import {isNativeUsdFormat,parseNativeUsd} from '../lib/spatial-native-usd';
+import {readUsdaAuthoredStageMetrics} from '../lib/openusd-stage-metadata';
 import {PDF_PARSE_REVISION,basemapReprocessReason,drawingSourceReprocessReason,findDrawingSourcesNeedingReprocess,inspectDrawingReprocessOutput} from '../lib/spatial-source-reprocess';
 import {archiveSourceBytes,archivedSourceToFile,listArchivedSourceMetadata,readArchivedSource} from '../lib/source-browser-archive';
 import {detectElectricalLegendPage,detectElectricalSpecificationPage,detectPdfEquipmentMatrixPage,extractElectricalLegendEntries,extractElectricalSpecificationRequirements,extractPdfEquipmentMatrixRecords} from '../lib/electrical-design-intelligence-v3';
@@ -686,6 +687,7 @@ async function parseNativeUsdAsset(file:File,buf:ArrayBuffer,digest:string,level
  if(![size.x,size.y,size.z].every(v=>Number.isFinite(v)&&v>0))throw new Error('The USD model has no measurable scene bounds.');
  const name=file.name.slice(0,-(ext.length+1)).replace(/[_-]+/g,' ').trim();
  const usdStatus=model.userData.stratumOpenUSD as {status?:string;layerPath?:string;missing?:string}|undefined;
+ const stageMetadata=readUsdaAuthoredStageMetrics(buf);
  return{id:`imported-usd-${digest}`,source:file.name,layer:'L2',kind:'imported-3d-model',name,
   x:0,y:0,z:level.elevation,floor:level.floor,confidence:1,
   meta:{sourceSha256:digest,sourceType:ext.toUpperCase(),sourceStorage:'BROWSER_ARCHIVE',
@@ -693,6 +695,9 @@ async function parseNativeUsdAsset(file:File,buf:ArrayBuffer,digest:string,level
    geometryAuthority:'IMPORTED_3D_FILE',registrationState:'UNREGISTERED',placementAuthority:'UNRESOLVED',
    usdCompositionStatus:usdStatus?.status||'UNVERIFIED_COMPOSITION',usdGeometryLayer:usdStatus?.layerPath||null,
    usdUnresolvedFeatures:usdStatus?.missing||null,
+   usdStageMetadataAuthority:stageMetadata.authority,
+   usdStageMetersPerUnit:stageMetadata.authoredMetersPerUnit,
+   usdStageUpAxis:stageMetadata.authoredUpAxis,
    reviewRequired:true,physicalTruth:false,referenceOnly:true}};
 }
 

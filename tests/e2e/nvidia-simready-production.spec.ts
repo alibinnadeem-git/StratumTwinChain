@@ -10,6 +10,19 @@ test('real NVIDIA SimReady layer archive imports, selects and survives reload in
  const manifestPath=path.join(root,'manifest.json');
  if(!fs.existsSync(manifestPath))throw new Error('Required pinned NVIDIA real-asset fixture is missing. The dedicated SimReady package download did not complete.');
  const manifest=JSON.parse(fs.readFileSync(manifestPath,'utf8'));
+ const audit=JSON.parse(fs.readFileSync(path.join(root,'openusd-stage-audit.json'),'utf8'));
+ expect(audit.auditEngine).toContain('Pixar OpenUSD');
+ expect(audit.provenance.revision).toBe(manifest.revision);
+ expect(audit.provenance.originalRootSha256).toBe(manifest.root_original_sha256);
+ expect(audit.stage.authoredMetersPerUnit).toBe(true);
+ expect(audit.stage.metersPerUnit).toBe(1);
+ expect(audit.stage.authoredUpAxis).toBe(true);
+ expect(audit.stage.upAxis).toBe('Z');
+ expect(audit.stage.primTypes.Mesh).toBeGreaterThan(0);
+ expect(audit.materials.previewSurfaceContexts).toBeGreaterThan(0);
+ expect(audit.materials.mdlContexts).toBeGreaterThan(0);
+ expect(audit.materials.authoredTexturePaths.length).toBeGreaterThan(0);
+
  const source=path.resolve(manifest.test_archive);
  expect(manifest.source).toBe('https://huggingface.co/datasets/nvidia/simready-assets');
  expect(manifest.license).toBe('CC BY 4.0');
@@ -65,7 +78,7 @@ test('real NVIDIA SimReady layer archive imports, selects and survives reload in
   return (graph.entities||[]).find((e:any)=>e.kind==='imported-3d-model')?.meta?.sourceSha256||null;
  });
  expect(after).toBe(before.item!.meta.sourceSha256);
- const result={origin:process.env.STRATUM_UAT_BASE_URL,license:manifest.license,source:manifest.source,revision:manifest.revision,asset:manifest.asset,sourceFiles:manifest.files,payloadFiles:manifest.payload_files,textureFiles:manifest.texture_files,uncontainedReferences:manifest.uncontained_references,sourceSha256:after,canvasBeforeReload:beforeReload,canvasAfterReload:await canvas.evaluate((el:HTMLCanvasElement)=>({...el.dataset})),browserErrors:errors};
+ const result={referenceStage:{authoredMetersPerUnit:audit.stage.metersPerUnit,upAxis:audit.stage.upAxis,meshCount:audit.stage.primTypes.Mesh,previewSurfaceMaterials:audit.materials.previewSurfaceContexts,mdlMaterials:audit.materials.mdlContexts,sourceTexturePaths:audit.materials.authoredTexturePaths.length,renderedTextureSlots:Number((await canvas.getAttribute('data-native-usd-textures'))||'0')},origin:process.env.STRATUM_UAT_BASE_URL,license:manifest.license,source:manifest.source,revision:manifest.revision,asset:manifest.asset,sourceFiles:manifest.files,payloadFiles:manifest.payload_files,textureFiles:manifest.texture_files,uncontainedReferences:manifest.uncontained_references,sourceSha256:after,canvasBeforeReload:beforeReload,canvasAfterReload:await canvas.evaluate((el:HTMLCanvasElement)=>({...el.dataset})),browserErrors:errors};
  console.log('NVIDIA_SIMREADY_PRODUCTION_RESULT',JSON.stringify(result));
  expect(errors.filter(s=>/usd|3d|spatial/i.test(s))).toEqual([]);
 });
