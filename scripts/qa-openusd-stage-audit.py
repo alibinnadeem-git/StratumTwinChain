@@ -41,7 +41,7 @@ def material_info(material):
         except Exception:pass
     ids=set()
     assets=set()
-    for shader_prim in material.GetPrim().GetDescendants():
+    for shader_prim in Usd.PrimRange(material.GetPrim()):
         if not shader_prim.IsA(UsdShade.Shader):continue
         shader=UsdShade.Shader(shader_prim)
         sid=shader.GetIdAttr().Get()
