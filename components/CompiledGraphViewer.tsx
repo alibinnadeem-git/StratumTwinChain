@@ -523,6 +523,23 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
               });
             }
             attachSpatialEvidence(root,canonical(e),null);
+            if(isNativeUsdFormat(format)){
+              let meshes=0,tex=0;
+              model.traverse(node=>{
+                if(!(node instanceof THREE.Mesh))return;
+                if(node.geometry?.getAttribute('position')?.count)meshes++;
+                const materials=Array.isArray(node.material)?node.material:[node.material];
+                for(const mat of materials){
+                  const props=Object.values(mat as unknown as Record<string,unknown>);
+                  tex+=props.filter(value=>value instanceof THREE.Texture).length;
+                }
+              });
+              if(!meshes)throw new Error('OpenUSD composition returned no renderable mesh geometry; model retained as review-only source.');
+              renderer.domElement.dataset.nativeUsdMeshes=String(Number(renderer.domElement.dataset.nativeUsdMeshes||0)+meshes);
+              renderer.domElement.dataset.nativeUsdTextures=String(Number(renderer.domElement.dataset.nativeUsdTextures||0)+tex);
+              root.userData.nativeUsdMeshes=meshes;root.userData.nativeUsdTextures=tex;
+              root.userData.nativeUsdTextureFidelity=tex>0?'TEXTURES_LOADED':'UNVERIFIED_MATERIAL_BINDINGS';
+            }
             root.add(model);interactionProxy(root,target);tag(root,e);
             groups.L2.add(root);label(e.name+(provisional.kind==='NONE'?' · IMPORTED SOURCE':' · GHOST · Z UNRESOLVED'),e.x,placement.baseZ,e.y,'#ffd08a',e);
             const renderedBox=new THREE.Box3().setFromObject(root);if(!renderedBox.isEmpty()){renderedBox.translate(new THREE.Vector3(renderOrigin.x,0,renderOrigin.y));bounds.union(renderedBox);}
