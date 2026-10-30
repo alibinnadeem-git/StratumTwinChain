@@ -59,6 +59,14 @@ def main():
    row,raw=fut.result()
    saved[row["path"]]=raw
    print("Downloaded",row["path"],len(raw),flush=True)
+ token_diagnostics=[]
+ for file,data in saved.items():
+  for term in [b"pbr_needs_sync",b"custom bool",b"#usda",b"PXR-USDC"]:
+   idx=data.find(term)
+   if idx>=0:
+    token_diagnostics.append({"file":file,"token":term.decode("ascii"),"offset":idx,
+      "context":data[max(0,idx-80):idx+160].decode("utf8","replace").replace("\\n"," ")[:240]})
+ print("NVIDIA_USD_LAYER_TOKEN_DIAGNOSTICS",json.dumps(token_diagnostics[:45]))
  root_bytes=saved[root["path"]]
  metadata=(root_bytes.decode("utf8","replace") if not root_bytes.startswith(b"PXR-USDC") else "")
  refs=re.findall(r"@([^@]+)@",metadata)
@@ -85,7 +93,7 @@ def main():
  "root":root["path"],"root_original_sha256":hashlib.sha256(root_bytes).hexdigest(),
  "files":len(files),"payload_files":sum("/payloads/" in r["path"] for r in files),
  "texture_files":sum(r["path"].lower().endswith((".png",".jpg",".jpeg",".exr",".tif",".tiff",".dds")) for r in files),
- "references_in_root":refs[:100],"uncontained_references":uncontained[:100],"reference_inspection":"TEXT_USDA" if metadata else "BINARY_USD_UNINSPECTED",
+ "references_in_root":refs[:100],"uncontained_references":uncontained[:100],"reference_inspection":"TEXT_USDA" if metadata else "BINARY_USD_UNINSPECTED","token_diagnostics":token_diagnostics[:45],
  "unpacked_bytes":sum(r["size"] for r in files),
  "test_archive":out_file,"test_archive_bytes":os.stat(out_file).st_size,
  "test_archive_sha256":hashlib.sha256(open(out_file,"rb").read()).hexdigest(),
