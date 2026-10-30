@@ -12,12 +12,16 @@ const USD_FORMATS=new Set<string>(['USD','USDA','USDC','USDZ']);
 export function isRenderable3DFormat(value:string):boolean{return SUPPORTED.has(value.toUpperCase());}
 export function isNativeUsdFormat(value:string):boolean{return USD_FORMATS.has(value.toUpperCase());}
 
-/** Parse original bytes directly. r183 USDLoader.parse takes one argument and returns a Group. */
+/** Parse source bytes directly and await full texture loading before ready. */
 export async function parseNativeUsd(bytes:ArrayBuffer,format:string):Promise<Object3D>{
  if(!isNativeUsdFormat(format))throw new Error('Not a native USD asset.');
  if(bytes.byteLength===0)throw new Error('USD source is empty.');
  const {USDLoader}=await import('three/examples/jsm/loaders/USDLoader.js');
- return new USDLoader().parse(bytes);
+ return await new Promise<Object3D>((resolve,reject)=>{
+  try{
+   new USDLoader().parse(bytes,'',group=>resolve(group),error=>reject(error instanceof Error?error:new Error(String(error))));
+  }catch(error){reject(error);}
+ });
 }
 
 /** Registered library models can remain original .usd/.usda/.usdc/.usdz URLs. */
