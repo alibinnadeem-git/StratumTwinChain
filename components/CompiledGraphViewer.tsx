@@ -559,6 +559,8 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
             root.userData.dimensionAuthority=placement.dimensions.authority+'_REVIEW_VISUALIZATION';
             root.userData.sourceModelBounds=sourceBounds;
             root.userData.sourceFormat=format||'GLB';
+            root.userData.usdCompositionStatus=String(e.meta?.usdCompositionStatus||model.userData?.stratumOpenUSD?.status||'UNVERIFIED');
+            root.userData.partialUsdComposition=root.userData.usdCompositionStatus==='PARTIAL_GEOMETRY_ONLY';
             root.userData.sourceModelUnitsVerified=e.meta?.modelBoundsUnitAuthority!=='UNVERIFIED_USD_SCENE_UNITS';
             root.userData.targetDimensionsMeters=target;
             root.userData.normalization={scalar:normalized.scalar,ratioSpread:normalized.ratioSpread,reviewRequired:true};
@@ -592,7 +594,7 @@ export default function CompiledGraphViewer({registeredAssets=[],demoGraph=null}
               root.userData.nativeUsdMaterialStatus=textureSlots?'TEXTURES_PRESENT':'MATERIAL_BINDINGS_UNVERIFIED';
             }
             root.add(model);interactionProxy(root,target);tag(root,e);
-            groups.L2.add(root);label(e.name+(provisional.kind==='NONE'?' · IMPORTED SOURCE':' · GHOST · Z UNRESOLVED'),e.x,placement.baseZ,e.y,'#ffd08a',e);
+            groups.L2.add(root);label(e.name+(root.userData.partialUsdComposition?' · PARTIAL USD GEOMETRY':provisional.kind==='NONE'?' · IMPORTED SOURCE':' · GHOST · Z UNRESOLVED'),e.x,placement.baseZ,e.y,'#ffd08a',e);
             const renderedBox=new THREE.Box3().setFromObject(root);if(!renderedBox.isEmpty()){renderedBox.translate(new THREE.Vector3(renderOrigin.x,0,renderOrigin.y));bounds.union(renderedBox);}
             runtime.current?.fit?.();
           })().catch(error=>{
