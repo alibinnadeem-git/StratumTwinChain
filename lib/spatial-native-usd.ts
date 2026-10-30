@@ -5,6 +5,7 @@
  * should be packaged with their dependencies instead of silently losing textures.
  */
 import type { Object3D } from 'three';
+import {recoverUnbalancedUSDA} from './spatial-usda-recovery';
 
 export const NATIVE_USD_EXTENSIONS=['usd','usda','usdc','usdz'] as const;
 const SUPPORTED=new Set<string>(['GLB','GLTF','USD','USDA','USDC','USDZ']);
@@ -22,11 +23,19 @@ async function installUSDMetadataCompatibility():Promise<void>{
  if(patchedUSDMetadata)return;
  // @ts-expect-error Three.js publishes the runtime USDAParser as an internal addon.
  const {USDAParser}=await import('three/examples/jsm/loaders/usd/USDAParser.js');
- const proto=USDAParser.prototype as {_preprocess:(text:string)=>string};
+ const proto=USDAParser.prototype as {_preprocess:(text:string)=>string;parseText:(text:string)=>Record<string,unknown>};
  const original=proto._preprocess;
  proto._preprocess=function(text:string){
   const normalized=text.replace(/^\s*\)\s*\{\s*$/gm,')\n{');
   return original.call(this,normalized);
+ };
+ const parseText=proto.parseText;
+ proto.parseText=function(text:string){
+  try{return parseText.call(this,text);}
+  catch(error){
+   if(!(error instanceof TypeError)||!error.message.includes('Cannot set properties of undefined'))throw error;
+   return recoverUnbalancedUSDA(text,this);
+  }
  };
  patchedUSDMetadata=true;
 }
