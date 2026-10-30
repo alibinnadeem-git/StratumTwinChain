@@ -5,7 +5,7 @@
  * should be packaged with their dependencies instead of silently losing textures.
  */
 import type { Object3D } from 'three';
-import {recoverUnbalancedUSDA} from './spatial-usda-recovery';
+import {recoverUnbalancedUSDA} from './spatial-usda-recovery.ts';
 
 export const NATIVE_USD_EXTENSIONS=['usd','usda','usdc','usdz'] as const;
 const SUPPORTED=new Set<string>(['GLB','GLTF','USD','USDA','USDC','USDZ']);
