@@ -111,10 +111,20 @@ function ensureBoundedUSDZ(bytes:ArrayBuffer):void{
   const nameLen=view.getUint16(cursor+28,true);
   const extraLen=view.getUint16(cursor+30,true);
   const commentLen=view.getUint16(cursor+32,true);
+  const entryEnd=cursor+46+nameLen+extraLen+commentLen;
+  if(entryEnd>end||nameLen===0)throw new Error('USDZ central directory entry exceeds archive bounds.');
+  const nameBytes=new Uint8Array(bytes,cursor+46,nameLen);
+  const filename=new TextDecoder('utf-8',{fatal:false}).decode(nameBytes);
+  // Archive entries must be relative POSIX package paths. Do not allow a
+  // malicious USD payload to masquerade as an external filesystem path.
+  const segments=filename.split('/');
+  if(filename.startsWith('/')||filename.includes('\\\\')||filename.includes('\\0')||
+     segments.some(part=>part==='..'||part==='.')||/^[A-Za-z]:/.test(filename))
+    throw new Error('Unsafe USDZ archive entry path.');
   if(size===0xffffffff||size>100*1024*1024)throw new Error('USDZ payload is too large for safe browser visualization.');
   total+=size;
   if(total>250*1024*1024)throw new Error('USDZ expanded data exceeds the 250 MB browser preview limit.');
-  cursor+=46+nameLen+extraLen+commentLen;
+  cursor=entryEnd;
  }
 }
 async function parseOriginalGeometryPayload(bytes:ArrayBuffer):Promise<Object3D>{
