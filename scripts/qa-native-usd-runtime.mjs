@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {isNativeUsdFormat,isRenderable3DFormat,NATIVE_USD_EXTENSIONS,parseNativeUsd} from '../lib/spatial-native-usd.ts';
-import {Box3,Vector3} from 'three';
+import {isNativeUsdFormat,isRenderable3DFormat,NATIVE_USD_EXTENSIONS,parseNativeUsd,inspectUsdViewerMaterials} from '../lib/spatial-native-usd.ts';
+import {Box3,Vector3,Group,Mesh,BoxGeometry,MeshStandardMaterial,Texture} from 'three';
 import {readUsdaAuthoredStageMetrics} from '../lib/openusd-stage-metadata.ts';
 import {zipSync,strToU8} from 'fflate';
 
@@ -63,3 +63,20 @@ assert.equal(contradictory.authority,'UNRESOLVED_BINARY_OR_MISSING');
 assert.ok(read('components/CompilerWorkspace.tsx').includes('usdStageMetadataAuthority'));
 assert.ok(read('components/SpatialAssetInspector.tsx').includes('OPENUSD SOURCE UNITS'));
 console.log('Native USD integration: PASS (real USDA parse, bounds, missing-payload and malformed-USDZ rejection)');
+
+const reviewScene=new Group();
+const plain=new Mesh(new BoxGeometry(1,1,1),new MeshStandardMaterial());
+reviewScene.add(plain);
+const noMaps=inspectUsdViewerMaterials(reviewScene);
+assert.equal(noMaps.meshCount,1);
+assert.equal(noMaps.textureSlots,0);
+assert.equal(noMaps.fidelity,'GEOMETRY_ONLY');
+const textured=new MeshStandardMaterial({map:new Texture(),normalMap:new Texture()});
+plain.material=textured;
+const withMaps=inspectUsdViewerMaterials(reviewScene);
+assert.equal(withMaps.textureSlots,2);
+assert.equal(withMaps.textureSlotsByChannel.map,1);
+assert.equal(withMaps.textureSlotsByChannel.normalMap,1);
+assert.equal(withMaps.fidelity,'TEXTURE_SLOTS_PRESENT_UNVERIFIED');
+assert.ok(!JSON.stringify(withMaps).includes('VERIFIED_RENDER'));
+console.log('OpenUSD viewer material evidence: PASS (slots observed; fidelity not promoted)');

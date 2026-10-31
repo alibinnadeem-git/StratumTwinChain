@@ -686,7 +686,7 @@ async function parseNativeUsdAsset(file:File,buf:ArrayBuffer,digest:string,level
  const size=bounds.getSize(new Vector3());
  if(![size.x,size.y,size.z].every(v=>Number.isFinite(v)&&v>0))throw new Error('The USD model has no measurable scene bounds.');
  const name=file.name.slice(0,-(ext.length+1)).replace(/[_-]+/g,' ').trim();
- const usdStatus=model.userData.stratumOpenUSD as {status?:string;layerPath?:string;missing?:string}|undefined;
+ const usdStatus=model.userData.stratumOpenUSD as {status?:string;layerPath?:string;missing?:string;viewerMaterialEvidence?:{meshCount:number;materialSlots:number;textureSlots:number;fidelity:string;textureSlotsByChannel:Record<string,number>}}|undefined;
  const stageMetadata=readUsdaAuthoredStageMetrics(buf);
  return{id:`imported-usd-${digest}`,source:file.name,layer:'L2',kind:'imported-3d-model',name,
   x:0,y:0,z:level.elevation,floor:level.floor,confidence:1,
@@ -695,6 +695,7 @@ async function parseNativeUsdAsset(file:File,buf:ArrayBuffer,digest:string,level
    geometryAuthority:'IMPORTED_3D_FILE',registrationState:'UNREGISTERED',placementAuthority:'UNRESOLVED',
    usdCompositionStatus:usdStatus?.status||'UNVERIFIED_COMPOSITION',usdGeometryLayer:usdStatus?.layerPath||null,
    usdUnresolvedFeatures:usdStatus?.missing||null,
+   usdViewerMaterialEvidence:usdStatus?.viewerMaterialEvidence||null,
    usdStageMetadataAuthority:stageMetadata.authority,
    usdStageMetersPerUnit:stageMetadata.authoredMetersPerUnit,
    usdStageUpAxis:stageMetadata.authoredUpAxis,
