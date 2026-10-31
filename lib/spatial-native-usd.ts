@@ -118,7 +118,7 @@ function ensureBoundedUSDZ(bytes:ArrayBuffer):void{
   // Archive entries must be relative POSIX package paths. Do not allow a
   // malicious USD payload to masquerade as an external filesystem path.
   const segments=filename.split('/');
-  if(filename.startsWith('/')||filename.includes('\\\\')||filename.includes('\\0')||
+  if(filename.startsWith('/')||filename.includes(String.fromCharCode(92))||nameBytes.includes(0)||
      segments.some(part=>part==='..'||part==='.')||/^[A-Za-z]:/.test(filename))
     throw new Error('Unsafe USDZ archive entry path.');
   if(size===0xffffffff||size>100*1024*1024)throw new Error('USDZ payload is too large for safe browser visualization.');
