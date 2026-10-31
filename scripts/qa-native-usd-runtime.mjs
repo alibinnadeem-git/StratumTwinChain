@@ -47,6 +47,13 @@ const rootOnly=zipSync({'root.usda':strToU8('#usda 1.0\\ndef Xform "Root" {}\\n'
 const rootBytes=rootOnly.buffer.slice(rootOnly.byteOffset,rootOnly.byteOffset+rootOnly.byteLength);
 await assert.rejects(()=>parseNativeUsd(rootBytes,'USDZ'),/no unique geometry payload/i);
 await assert.rejects(()=>parseNativeUsd(Uint8Array.from([0x50,0x4b,0x03,0x04]).buffer,'USDZ'),/no valid ZIP central directory/i);
+for(const unsafePath of ['../outside.usda','/absolute.usda','C:/drive.usda','folder/../traversal.usda','folder\\\\escape.usda']){
+ const bad=zipSync({[unsafePath]:strToU8('#usda 1.0\\ndef Xform "Bad" {}\\n')},{level:0});
+ const buffer=bad.buffer.slice(bad.byteOffset,bad.byteOffset+bad.byteLength);
+ await assert.rejects(()=>parseNativeUsd(buffer,'USDZ'),/Unsafe USDZ archive entry path/i,unsafePath);
+}
+console.log('Native USDZ archive path safety: PASS');
+
 const enc=new TextEncoder();
 const toBuffer=s=>{const b=enc.encode(s);return b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength)};
 const known=readUsdaAuthoredStageMetrics(toBuffer('#usda 1.0\n(\n    metersPerUnit = 0.0254\n    upAxis = "Z"\n)\ndef Xform "Model" {}\n'));
