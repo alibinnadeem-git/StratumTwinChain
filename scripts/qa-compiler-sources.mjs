@@ -16,12 +16,20 @@ const helpers = await readFile(new URL('lib/compiler-source.ts', root), 'utf8');
 source = helpers + '\n' + source;
 source = source.replace("new URL('pdfjs-dist/build/pdf.worker.min.mjs',import.meta.url).toString()",
   JSON.stringify(pathToFileURL(require.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs')).href));
+source = source.replace("wasmUrl:'/pdfjs/wasm/'", `wasmUrl:${JSON.stringify(new URL('../node_modules/pdfjs-dist/wasm/',import.meta.url).pathname)}`);
 source += '\nexport {assignZones,withAssetCandidates,parsePdf,buildLinks,classify};';
 await writeFile(moduleUrl, ts.transpileModule(source, {compilerOptions: {
   target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext,
 }}).outputText);
 try {
   const c = await import(moduleUrl.href);
+  assert.equal(c.inferPdfPageFloor(['FIRST FLOOR - POWER PLAN']),'L1');
+  assert.equal(c.inferPdfPageFloor(['SECOND FLOOR – LIGHTING PLAN']),'L2');
+  assert.equal(c.inferPdfPageFloor(['LEVEL 3 ELECTRICAL POWER PLAN']),'L3');
+  assert.equal(c.inferPdfPageFloor(['ROOF PLAN']),'ROOF');
+  assert.equal(c.inferPdfPageFloor(['FIRST FLOOR - POWER PLAN','SECOND FLOOR PLAN']),'UNRESOLVED');
+  assert.equal(c.inferPdfPageFloor(['GENERAL NOTES']),'UNRESOLVED');
+  console.log('✓ real-world PDF floor-plan titles resolve only when source hints agree');
   const label = {id:'pdf-1-0', source:'same.pdf', floor:'L1', layer:'L1', kind:'room-label',
     name:'Electrical room', x:0,y:0,z:0,confidence:.7,meta:{page:1}};
   const asset = {...label,id:'pdf-1-1',layer:'L2',kind:'text-asset-candidate',name:'Panel A'};
