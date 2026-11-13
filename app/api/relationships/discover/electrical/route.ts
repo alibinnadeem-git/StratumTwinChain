@@ -4,6 +4,7 @@ import {requireSession} from '@/lib/server/auth';
 import {query} from '@/lib/server/db';
 import {createRelationshipCandidate} from '@/lib/server/relationship-graph';
 import {discoverElectricalRelationshipCandidates} from '@/lib/electrical-relationship-resolver';
+import {buildSldSpatialLinkedViews} from '@/lib/sld-spatial-linked-views';
 import type {RegisteredSpatialAsset} from '@/lib/spatial-asset-link';
 
 const Body=z.object({
@@ -78,6 +79,7 @@ export async function POST(req:Request){
   `,[session.organizationId,body.projectId]);
   const assets=assetsResult.rows as RegisteredSpatialAsset[];
   const discovery=discoverElectricalRelationshipCandidates(graph,assets);
+  const linkedViews=buildSldSpatialLinkedViews(graph,assets,discovery.candidates);
 
   const persisted=[];
   for(const candidate of discovery.candidates){
@@ -129,6 +131,7 @@ export async function POST(req:Request){
    },
    inspectedSldLinks:discovery.inspectedSldLinks,
    candidates:persisted,
+   linkedViews,
    unresolved:discovery.unresolved,
    truthBoundary:'SLD_DISCOVERY_CREATES_REVIEW_REQUIRED_RELATIONSHIP_CANDIDATES_ONLY_NO_OPERATIONAL_TRUST_WITHOUT_EVIDENCE_BACKED_HUMAN_VERIFY',
   },{headers:{'cache-control':'private, no-store'}});
