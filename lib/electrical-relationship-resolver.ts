@@ -1,4 +1,4 @@
-import {resolveRegisteredSpatialAsset,type RegisteredSpatialAsset,type SpatialAssetBinding} from '@/lib/spatial-asset-link';
+import {resolveRegisteredSpatialAsset,type RegisteredSpatialAsset,type SpatialAssetBinding} from './spatial-asset-link.ts';
 
 export type ElectricalRelationshipGraphSource={
  name:string;
@@ -40,6 +40,8 @@ export type ElectricalRelationshipDiscoveryCandidate={
  targetAssetId:string;
  relationshipType:'FEEDS';
  confidence:number;
+ physicalTruth:false;
+ reviewRequired:true;
  sourceBinding:{method:SpatialAssetBinding['method'];confidence:number};
  targetBinding:{method:SpatialAssetBinding['method'];confidence:number};
  evidence:{
@@ -154,6 +156,8 @@ export function discoverElectricalRelationshipCandidates(
    targetAssetId:targetBinding.asset.id,
    relationshipType:'FEEDS',
    confidence:evidenceConfidence,
+   physicalTruth:false,
+   reviewRequired:true,
    sourceBinding:{method:sourceBinding.method,confidence:sourceBinding.confidence},
    targetBinding:{method:targetBinding.method,confidence:targetBinding.confidence},
    evidence:{
