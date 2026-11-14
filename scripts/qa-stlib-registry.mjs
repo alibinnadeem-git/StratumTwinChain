@@ -6,7 +6,7 @@ import {SPATIAL_GENERIC_3D_MODELS,GENERIC_3D_MODEL_BY_CLASS,GENERIC_3D_MODEL_BY_
 import {DEFAULT_ELECTRICAL_MODEL_REGISTRY,normalizeElectricalModelRegistry} from '../lib/electrical-model-registry.ts';
 import {SPATIAL_ELECTRICAL_CLASS_MODEL_BINDINGS} from '../lib/spatial-electrical-class-model-bindings.ts';
 const models=SPATIAL_GENERIC_3D_MODELS;
-assert.equal(models.length,29,'17 existing + 12 queue models');
+assert.equal(models.length,36,'17 existing + 12 queue + 7 T1 models');
 const hasId=new Set(),classes=new Map();
 let legacy=0,built=0;
 for(const m of models){
@@ -34,8 +34,8 @@ for(const m of models){
  }
  if(m.status==='LEGACY_GENERIC_VISUALIZATION')legacy++;else built++;
 }
-assert.equal(legacy,17);assert.equal(built,12);assert.equal(classes.size,42);
-assert.equal(GENERIC_3D_MODEL_BY_ID.size,29);assert.equal(GENERIC_3D_MODEL_BY_CLASS.size,42);
+assert.equal(legacy,17);assert.equal(built,19);assert.equal(classes.size,42);
+assert.equal(GENERIC_3D_MODEL_BY_ID.size,36);assert.equal(GENERIC_3D_MODEL_BY_CLASS.size,42);
 assert.equal(genericModelIdForPath('/models/oem/abb-terra-360.glb'),null);
 assert.equal(genericModelIdForPath(''),null);
 assert.equal(generic3dModelForClass('E-32'),null,'missing bar must remain unresolved');
@@ -65,4 +65,4 @@ assert.throws(()=>assertAppendOnlyGenericRegistry(models,models.slice(1)),/remov
 assert.throws(()=>assertAppendOnlyGenericRegistry(models,models.map((m,i)=>i?m:{...m,license:'tampered'})),/mutated/);
 assert.equal(validateLicensedOemModel({model_id:'oem-acme-abc123-v1',license_ref:'signed-contract',license_expiry:'2030-06-30',source:{type:'oem',url:'https://example.com/license'},file:{path:'/models/oem/oem-acme-abc123-v1.glb',sha256:'a'.repeat(64)},version:1,supersedes:null,serves_classes:['E-20']}),true);
 assert.equal(validateLicensedOemModel({model_id:'oem-acme-abc123-v1',license_ref:'',license_expiry:'2030-06-30',source:{type:'oem',url:'https://example.com/license'},file:{path:'/models/oem/oem-acme-abc123-v1.glb',sha256:'a'.repeat(64)},version:1,supersedes:null,serves_classes:['E-20']}),false);
-console.log('STLIB REGISTRY QA PASSED: '+models.length+' immutable generic IDs (17 existing + 12 new), 42 unique E-class bindings, 20 explicit unresolved class gaps; SHA256 real-byte verification on all canonical/alias files; OEM namespace gated; no activation.');
+console.log('STLIB REGISTRY QA PASSED: '+models.length+' immutable generic IDs (17 existing + 19 new), 42 unique E-class bindings, 20 explicit unresolved class gaps; SHA256 real-byte verification on all canonical/alias files; OEM namespace gated; no activation.');
