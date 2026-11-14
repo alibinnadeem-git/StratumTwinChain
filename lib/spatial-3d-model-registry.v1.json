@@ -1006,6 +1006,32 @@
       "variant_by_class": {}
     },
     {
+      "model_id": "stlib-ele-industrial-receptacle-t1-v1",
+      "serves_classes": [],
+      "tier": "instanced",
+      "source": {
+        "type": "in-house",
+        "url": null
+      },
+      "license": "STRATUM-authored in-house generic visualization; NO OEM geometry or identity",
+      "file": {
+        "path": "/models/equipment/stlib-ele-industrial-receptacle-t1-v1.glb",
+        "sha256": "0043dfa02b480b9bc483c202328c9b60119fa5d1a8a808cfda17602c98692f77",
+        "git_blob_sha": "04c805bdaa1965adc977cf1305be1284c5098598"
+      },
+      "dims_w_h_d": {
+        "w": 0.095,
+        "h": 0.124,
+        "d": 0.091
+      },
+      "dimensions_basis": "mesh-measured from GLB POSITION accessor bounds (union, identity node transform); not actual-source or field verification",
+      "version": 1,
+      "supersedes": null,
+      "status": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
+      "legacy_file": "/models/equipment/stlib-ele-industrial-receptacle-t1-v1.glb",
+      "variant_by_class": {}
+    },
+    {
       "model_id": "stlib-ele-junction-box-t1-v1",
       "serves_classes": [],
       "tier": "instanced",
