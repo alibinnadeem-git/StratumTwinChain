@@ -3,7 +3,7 @@ import path from 'node:path';
 import {fileURLToPath, pathToFileURL} from 'node:url';
 
 // Resolve hook for offline QA scripts that import the real TypeScript modules.
-// Maps the tsconfig "@/" alias to the repository root, and resolves
+// Maps the tsconfig "@/*" alias to the repository root, and resolves
 // extensionless relative imports to their ".ts" file when one exists.
 // No vote authority, no networking, no live participation: resolution only.
 export async function resolve(specifier, context, nextResolve) {
