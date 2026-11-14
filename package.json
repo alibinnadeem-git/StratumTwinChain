@@ -10,6 +10,7 @@
     "qa:spatial-parse-audit": "node --experimental-strip-types scripts/qa-spatial-parse-audit.mjs",
     "qa:library-component-resolution": "node --experimental-strip-types scripts/qa-library-component-resolution.mjs",
     "qa:candidate-gating": "node --experimental-strip-types scripts/qa-candidate-gating.mjs",
+    "qa:asset-extraction": "node --experimental-strip-types scripts/qa-asset-extraction-candidates.mjs",
     "qa:sheet-scale": "node --experimental-strip-types scripts/qa-sheet-scale.mjs",
     "qa:sheet-frame-choice": "node --experimental-strip-types scripts/qa-sheet-frame-choice.mjs",
     "qa:relative-story-datum": "node --experimental-strip-types scripts/qa-relative-story-datum.mjs",
