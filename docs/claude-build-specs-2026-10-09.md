@@ -278,7 +278,7 @@ Every detected asset gets one record, the "passport", built from eight field gro
 |-------|------|-------|
 | frame_id | string | The twin's coordinate frame (metres, Z-up). |
 | position | {x, y, z} | Metres. Null when location is unknown. |
-| rotation | {yaw_deg, quat} | Yaw about Z, plus the full quaternion. |
+| rotation | {yaw_deg, quat} | **Canonical frame only:** yaw rotates about +Z in right-handed metric world; quaternion order is `[x,y,z,w]` in the same canonical Z-up frame, normalized to unit length. No glTF/Y-up quaternion is stored as canonical rotation. |
 | bounds | {min, max} | Axis-aligned box in metres. |
 | level_id, level_elevation_m | string, number | |
 | room_id | string | Room or space number if resolvable. |
@@ -287,6 +287,13 @@ Every detected asset gets one record, the "passport", built from eight field gro
 | position_source | enum | dimensioned, drawn, derived, scaled_from_sheet, human. |
 | sheet_transform_id | ref | Sheet-to-world transform used, with its recorded residual in millimetres. |
 | position_confidence | number | 0 to 1. |
+
+
+**APPROVED (B7, Nov 16, 2026).** The canonical-to-viewer orientation contract below is settled doctrine, approved by the user on Nov 16, 2026. Conformance note: the current viewer converts per-object, not at the root. Conformance requires the single-boundary refactor and the round-trip tests. The Y sign must be verified against the projection step before the refactor.
+
+**Canonical-to-viewer orientation contract (B7).** Every Spatial transform, location, bounds and persistent quaternion is in the single canonical right-handed **metres, +Z-up** project frame. A GLB/GLTF asset is authored in right-handed **+Y-up**, with model front `+Z` and its origin at the named host-contact anchor. The viewer applies exactly one root scene-axis conversion from canonical +Z-up into glTF/Three.js +Y-up; per-asset placement must not apply a *second* axis flip. The adopted conversion is `(X,Y,Z)_canonical → (X,Z,-Y)_viewer` (right-handed rotation of -90° around canonical X). Yaw `yaw_deg` is positive counterclockwise about canonical +Z; for display, transform the full canonical unit quaternion to viewer basis once: `R_viewer = C · R_canonical · C⁻¹`. The quaternion components are `[x,y,z,w]`. The model-local glTF +Y-up asset transform is separate from the project frame transform: retain model source orientation and host-contact anchor rather than baking multiple conversions. The viewer may use transient Y-up scene nodes but must never persist them as canonical project XYZ or asset rotation. Coordinate and quaternion conversions must be covered by round-trip tests for identity, 90° canonical yaw and known host-contact elevation; if the existing renderer already converts per-object instead of at root, migration is a single boundary refactor, not a second conversion.
+
+**Model authority for geometry.** A threshold-resolved but unverified asset may render licensed, activated library geometry only as **UNVERIFIED**. A missing/unlicensed OEM candidate must never be rendered: only an authorized Tier-1, same-specific-class Intake-Gate-passed generic can be labeled **FALLBACK · UNVERIFIED**, otherwise render non-authoritative ghost/pin. A demo view is synthetic and Tier-1-only, with no persistence or authority actions.
 
 **Resolution**
 
@@ -301,11 +308,11 @@ Every detected asset gets one record, the "passport", built from eight field gro
 
 **Properties** (properties{}, each value is its own object)
 
-Each property is { value, unit, source_evidence_id, confidence, state }, where state is stated (read from a drawing or schedule) or predicted (model output). Electrical keys come first: voltage, phase, amps, kva, bus_rating_a, breaker_frame_a, breaker_trip_a, short_circuit_rating_kaic, panel_id, circuit_number, wire_size, conduit_size, tray_width_in, ground_resistance_ohm, lumens, wattage, control_zone. General keys: manufacturer, model, cfm, gpm, capacity, mca, mocp, fire_rating. A predicted property can never be shown without its predicted flag.
+Each property is { value, unit, source_evidence_id, confidence, state }, where state is stated (read from a drawing or schedule) or predicted (model output). Electrical **equipment characteristics** come first: voltage, phase, amps, kva, bus_rating_a, breaker_frame_a, breaker_trip_a, short_circuit_rating_kaic, wire_size, conduit_size, tray_width_in, ground_resistance_ohm, lumens, wattage, control_zone. General keys: manufacturer, model, cfm, gpm, capacity, mca, mocp, fire_rating. **Panel and circuit identifiers** are relationship/evidence references rather than copied writable source-of-truth property keys. A predicted property can never be shown without its predicted flag.
 
 **Relations** (relations[])
 
-Each is { type, target_asset_id, evidence_id }. Electrical relations come first: fed_from, feeds, protected_by, bonded_to, grounded_by. Others: serves, served_by, hosted_by, same_physical_object, clashes_with, controls, part_of. Circuit and panel references from schedules live here, not in properties. The fed_from chain must be acyclic and end at a utility source or a generator; a break in the chain is itself a review item.
+Each is { relation_id, type, target_asset_id, evidence_ids[], confidence, state, circuit_ref? }. Electrical relations come first: fed_from, feeds, protected_by, bonded_to, grounded_by. Others: serves, served_by, hosted_by, same_physical_object, clashes_with, controls, part_of. `circuit_ref` is the single canonical **relationship-side** circuit reference: { source_file_id, sheet_number, schedule_table, schedule_row, panel_asset_id?, panel_tag_stated?, circuit_number_stated?, terminal_id_stated?, source_evidence_ids[] }. Every field is nullable with reason codes where absent; tags and numbers are **stated observations**, not generated circuit identities. Panelboard and circuit identifiers must not be independently writable copies in `properties{}`. Relations are evidence-backed candidates until human confirmation, with no fabricated feeder/circuit path. A proposed `fed_from` graph must be acyclic and terminate at an evidence-supported utility source or generator; any missing/broken link is explicitly UNRESOLVED review work.
 
 **Trust and lifecycle**
 
