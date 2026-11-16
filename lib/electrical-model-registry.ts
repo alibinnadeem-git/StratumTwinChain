@@ -1,11 +1,14 @@
 import {ACTIVATED_OEM_MODELS} from './oem-activated-models.ts';
 import {ELECTRICAL_COMPONENTS} from './electrical-component-library.ts';
 import {OEM_SOURCES} from './oem-source-catalog.ts';
+import {genericModelIdForPath} from './spatial-3d-model-registry.ts';
 import {OEM_CAD_CANDIDATES} from './oem-cad-candidates.ts';
 
 export type ElectricalModelFormat='GLB'|'GLTF'|'USD'|'USDA'|'USDC'|'USDZ';
 export type ElectricalModelConfig={
   componentKey:string;
+  /** Immutable generic model identity; null for unsupported/OEM-specific URLs. */
+  modelId?:string|null;
   /** Relevant manufacturer research records. An association is not an OEM model license. */
   oemSourceIds?:string[];
   format:ElectricalModelFormat;
@@ -115,9 +118,10 @@ const VISUAL_WAVE1_REVIEW_DEFAULTS:Record<string,Partial<ElectricalModelConfig>>
   'cable-tray':{modelUrl:'/models/equipment/stlib-ele-cable-tray-t1-v1.glb',format:'GLB',dimensionsMeters:[0.6,0.11,1.2],dimensionsConfidence:.2,dimensionsSource:'STRATUM class representative envelope ONLY; actual manufacturer and field dimensions unresolved',source:'STRATUM authored visual-quality wave 1 (T1)',license:'STRATUM INHOUSE',geometryStatus:'DIMENSIONAL_VISUALIZATION',notes:'T1 CLASS MODEL — REVIEW REQUIRED. Straight aluminum ladder-tray segment with side rails, rungs and mount straps. Physical envelope and styling are illustrative class geometry, NOT OEM product, approved placement, or an authoritative clearance. Use only as 3D visual until source-confirmed SKU and dimensions are supplied.'},
   'high-bay':{modelUrl:'/models/equipment/stlib-ele-high-bay-t1-v1.glb',format:'GLB',dimensionsMeters:[0.4,0.23,0.4],dimensionsConfidence:.2,dimensionsSource:'STRATUM class representative envelope ONLY; actual manufacturer and field dimensions unresolved',source:'STRATUM authored visual-quality wave 1 (T1)',license:'STRATUM INHOUSE',geometryStatus:'DIMENSIONAL_VISUALIZATION',notes:'T1 CLASS MODEL — REVIEW REQUIRED. Suspended circular LED luminaire with finned housing and lens. Physical envelope and styling are illustrative class geometry, NOT OEM product, approved placement, or an authoritative clearance. Use only as 3D visual until source-confirmed SKU and dimensions are supplied.'},
   'exit-sign':{modelUrl:'/models/equipment/stlib-ele-exit-sign-t1-v1.glb',format:'GLB',dimensionsMeters:[0.33,0.2,0.055],dimensionsConfidence:.2,dimensionsSource:'STRATUM class representative envelope ONLY; actual manufacturer and field dimensions unresolved',source:'STRATUM authored visual-quality wave 1 (T1)',license:'STRATUM INHOUSE',geometryStatus:'DIMENSIONAL_VISUALIZATION',notes:'T1 CLASS MODEL — REVIEW REQUIRED. Illuminated EXIT sign enclosure, lettering and bracket. Physical envelope and styling are illustrative class geometry, NOT OEM product, approved placement, or an authoritative clearance. Use only as 3D visual until source-confirmed SKU and dimensions are supplied.'},
+  'industrial-receptacle':{modelUrl:'/models/equipment/stlib-ele-industrial-receptacle-t1-v1.glb',format:'GLB',dimensionsMeters:[0.095,0.124,0.091],dimensionsConfidence:.2,dimensionsSource:'Mesh-measured from GLB POSITION accessor bounds (union, identity node transform); not actual-source or field verification',source:'STRATUM authored visual-quality wave 1 (T1)',license:'STRATUM INHOUSE',geometryStatus:'DIMENSIONAL_VISUALIZATION',notes:'T1 CLASS MODEL - REVIEW REQUIRED. Industrial pin-sleeve receptacle with mounting flange. Physical envelope and styling are illustrative class geometry, NOT OEM product, approved placement, or an authoritative clearance. Use only as 3D visual until source-confirmed SKU and dimensions are supplied.'},
 };
 
-export const DEFAULT_ELECTRICAL_MODEL_REGISTRY:ElectricalModelConfig[]=ELECTRICAL_COMPONENTS.map(component=>({
+export const DEFAULT_ELECTRICAL_MODEL_REGISTRY:ElectricalModelConfig[]=ELECTRICAL_COMPONENTS.map<ElectricalModelConfig>(component=>({
   componentKey:component.key,
   oemSourceIds:OEM_SOURCES.filter(source=>source.componentKeys.includes(component.key)).map(source=>source.id),
   format:'GLB',
@@ -132,7 +136,7 @@ export const DEFAULT_ELECTRICAL_MODEL_REGISTRY:ElectricalModelConfig[]=ELECTRICA
   ...(REPRESENTATIVE_FAMILY_DEFAULTS[component.key]||{}),
   ...(VISUAL_WAVE1_REVIEW_DEFAULTS[component.key]||{}),
   ...(PRODUCTION_MODEL_DEFAULTS[component.key]||{}),
-}));
+})).map(entry=>({...entry,modelId:genericModelIdForPath(entry.modelUrl)}));
 
 function tuple(value:unknown):[number,number,number]{
   return Array.isArray(value)&&value.length===3?[Number(value[0])||0,Number(value[1])||0,Number(value[2])||0]:[0,0,0];
@@ -168,6 +172,7 @@ export function normalizeElectricalModelRegistry(input:unknown):ElectricalModelC
       ...base,
       format:['GLB','GLTF','USD','USDA','USDC','USDZ'].includes(value.format)?value.format:base.format,
       modelUrl:typeof value.modelUrl==='string'?value.modelUrl:base.modelUrl,
+      modelId:genericModelIdForPath(typeof value.modelUrl==='string'?value.modelUrl:base.modelUrl),
       scale:Number(value.scale)>0?Number(value.scale):base.scale,
       rotation:tuple(value.rotation),
       offset:tuple(value.offset),
