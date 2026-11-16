@@ -1,7 +1,7 @@
 [
   {
     "name": "panelboard-full",
-    "uri": "/models/equipment/panelboard-full.glb",
+    "uri": "/models/equipment/stlib-ele-panelboard-surface-v1.glb",
     "gitBlobSha": "bc856a21fad5a5b6096cde93427e6e7652f56afe",
     "sizeBytes": 46884,
     "triangles": 648,
@@ -16,11 +16,14 @@
     "tier": "T1",
     "licence": "STRATUM_IN_HOUSE_GENERIC",
     "intakeStatus": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
-    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md"
+    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md",
+    "model_id": "stlib-ele-panelboard-surface-v1",
+    "sha256": "d5cafc236393ec444bc25b8ffb197624f8b217d9ad7adf50f6c7cdee139b01cb",
+    "legacy_uri": "/models/equipment/panelboard-full.glb"
   },
   {
     "name": "lv-switchgear-lineup",
-    "uri": "/models/equipment/lv-switchgear-lineup.glb",
+    "uri": "/models/equipment/stlib-ele-lv-switchgear-lineup-v1.glb",
     "gitBlobSha": "580e62593a97d5dee75df22147d1fb9873f0bfba",
     "sizeBytes": 54584,
     "triangles": 888,
@@ -33,11 +36,14 @@
     "tier": "T1",
     "licence": "STRATUM_IN_HOUSE_GENERIC",
     "intakeStatus": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
-    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md"
+    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md",
+    "model_id": "stlib-ele-lv-switchgear-lineup-v1",
+    "sha256": "058c557b1df8a863501d76be7a9f05ba90cd9f403f7e12ecd3bf3abd753b6150",
+    "legacy_uri": "/models/equipment/lv-switchgear-lineup.glb"
   },
   {
     "name": "mv-switchgear-lineup",
-    "uri": "/models/equipment/mv-switchgear-lineup.glb",
+    "uri": "/models/equipment/stlib-ele-mv-switchgear-lineup-v1.glb",
     "gitBlobSha": "5726d9f5a64b957f031f815f64765563864aed88",
     "sizeBytes": 35344,
     "triangles": 564,
@@ -50,11 +56,14 @@
     "tier": "T1",
     "licence": "STRATUM_IN_HOUSE_GENERIC",
     "intakeStatus": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
-    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md"
+    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md",
+    "model_id": "stlib-ele-mv-switchgear-lineup-v1",
+    "sha256": "ece1d756b429895c0db278668545018f04c9c1e7574406190830ed31e59439dd",
+    "legacy_uri": "/models/equipment/mv-switchgear-lineup.glb"
   },
   {
     "name": "disconnect-breaker-generic",
-    "uri": "/models/equipment/disconnect-breaker-generic.glb",
+    "uri": "/models/equipment/stlib-ele-disconnect-enclosure-v1.glb",
     "gitBlobSha": "9f7e111779705d9bb4b57ee7068ce3cd29022c7a",
     "sizeBytes": 21760,
     "triangles": 216,
@@ -68,11 +77,14 @@
     "tier": "T1",
     "licence": "STRATUM_IN_HOUSE_GENERIC",
     "intakeStatus": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
-    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md"
+    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md",
+    "model_id": "stlib-ele-disconnect-enclosure-v1",
+    "sha256": "332096c27db5d5d4d239bc64f0e7eff3f6a662742c5ec7697efc8894bbec7bb1",
+    "legacy_uri": "/models/equipment/disconnect-breaker-generic.glb"
   },
   {
     "name": "cable-tray-family",
-    "uri": "/models/equipment/cable-tray-family.glb",
+    "uri": "/models/equipment/stlib-ele-tray-ladder-v1.glb",
     "gitBlobSha": "937dc2b92edd71115e1a924cfe7d442af11e71eb",
     "sizeBytes": 58752,
     "triangles": 900,
@@ -89,11 +101,14 @@
     "tier": "T1",
     "licence": "STRATUM_IN_HOUSE_GENERIC",
     "intakeStatus": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
-    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md"
+    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md",
+    "model_id": "stlib-ele-tray-ladder-v1",
+    "sha256": "f78d23026a5486a39fff0687d42ba5a06ee14a1b91796c89918be3ff0933f75b",
+    "legacy_uri": "/models/equipment/cable-tray-family.glb"
   },
   {
     "name": "vfd-starter",
-    "uri": "/models/equipment/vfd-starter.glb",
+    "uri": "/models/equipment/stlib-ele-vfd-starter-v1.glb",
     "gitBlobSha": "5f388836def4f4cd91ae106a5ee48d09db8036bf",
     "sizeBytes": 22328,
     "triangles": 324,
@@ -106,11 +121,14 @@
     "tier": "T1",
     "licence": "STRATUM_IN_HOUSE_GENERIC",
     "intakeStatus": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
-    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md"
+    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md",
+    "model_id": "stlib-ele-vfd-starter-v1",
+    "sha256": "a6e9398feb1665163c1c006596cbad8336c3f65d9dcb480c83a996aa156ce2bd",
+    "legacy_uri": "/models/equipment/vfd-starter.glb"
   },
   {
     "name": "meter-ct-cabinet",
-    "uri": "/models/equipment/meter-ct-cabinet.glb",
+    "uri": "/models/equipment/stlib-ele-meter-ct-cabinet-v1.glb",
     "gitBlobSha": "73062e72d85c21e54455f6bfb67e8bc65ddb854b",
     "sizeBytes": 25760,
     "triangles": 312,
@@ -124,11 +142,14 @@
     "tier": "T1",
     "licence": "STRATUM_IN_HOUSE_GENERIC",
     "intakeStatus": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
-    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md"
+    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md",
+    "model_id": "stlib-ele-meter-ct-cabinet-v1",
+    "sha256": "2cd008c760e3cdd256a7418614081e36a899611ab0c1307c1469cc7362b01e05",
+    "legacy_uri": "/models/equipment/meter-ct-cabinet.glb"
   },
   {
     "name": "luminaire-family",
-    "uri": "/models/equipment/luminaire-family.glb",
+    "uri": "/models/equipment/stlib-ele-luminaire-family-v1.glb",
     "gitBlobSha": "e125f5a2dc846f80f06717916535d27a002c58c6",
     "sizeBytes": 16228,
     "triangles": 168,
@@ -143,11 +164,14 @@
     "tier": "T1",
     "licence": "STRATUM_IN_HOUSE_GENERIC",
     "intakeStatus": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
-    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md"
+    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md",
+    "model_id": "stlib-ele-luminaire-family-v1",
+    "sha256": "e96128d8457070ca536d6f9f4ca4249cdf4a4de437f00b045fe3ddde43bcd05b",
+    "legacy_uri": "/models/equipment/luminaire-family.glb"
   },
   {
     "name": "busway-tapoffs",
-    "uri": "/models/equipment/busway-tapoffs.glb",
+    "uri": "/models/equipment/stlib-ele-busway-tapoff-v1.glb",
     "gitBlobSha": "35fb60e2a3cda3a099ebfbef6c4a5ae7e1286c8f",
     "sizeBytes": 24800,
     "triangles": 384,
@@ -160,11 +184,14 @@
     "tier": "T1",
     "licence": "STRATUM_IN_HOUSE_GENERIC",
     "intakeStatus": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
-    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md"
+    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md",
+    "model_id": "stlib-ele-busway-tapoff-v1",
+    "sha256": "dfc5622a9e637eee82d1c32ff43e9d0438454409aa9dd874f62efc1a1457d93f",
+    "legacy_uri": "/models/equipment/busway-tapoffs.glb"
   },
   {
     "name": "wall-device-plate",
-    "uri": "/models/equipment/wall-device-plate.glb",
+    "uri": "/models/equipment/stlib-ele-wall-device-plate-v1.glb",
     "gitBlobSha": "ca2caa22d273c34e3784571d264fefcc6bf65959",
     "sizeBytes": 4776,
     "triangles": 232,
@@ -183,11 +210,14 @@
     "tier": "T1",
     "licence": "STRATUM_IN_HOUSE_GENERIC",
     "intakeStatus": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
-    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md"
+    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md",
+    "model_id": "stlib-ele-wall-device-plate-v1",
+    "sha256": "5d747a731c9fac9e339e027eaa62300a61a5c18ea29ad3c61297be5d19bc5c80",
+    "legacy_uri": "/models/equipment/wall-device-plate.glb"
   },
   {
     "name": "ceiling-device-puck",
-    "uri": "/models/equipment/ceiling-device-puck.glb",
+    "uri": "/models/equipment/stlib-ele-ceiling-device-v1.glb",
     "gitBlobSha": "4bdc29ffe1a9dfceae026fd8241512d757b2c9ad",
     "sizeBytes": 4060,
     "triangles": 192,
@@ -205,11 +235,14 @@
     "tier": "T1",
     "licence": "STRATUM_IN_HOUSE_GENERIC",
     "intakeStatus": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
-    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md"
+    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md",
+    "model_id": "stlib-ele-ceiling-device-v1",
+    "sha256": "449dba52622e1276fc47bf1bc6aeb1c8898e95d5c6ac2b3d20fed98ad0d137a4",
+    "legacy_uri": "/models/equipment/ceiling-device-puck.glb"
   },
   {
     "name": "fire-alarm-control-panel",
-    "uri": "/models/equipment/fire-alarm-control-panel.glb",
+    "uri": "/models/equipment/stlib-ele-fire-alarm-control-panel-v1.glb",
     "gitBlobSha": "ea199b50eba77f2da50d70ca3b7a75bbbdf74a2a",
     "sizeBytes": 17116,
     "triangles": 208,
@@ -222,6 +255,9 @@
     "tier": "T1",
     "licence": "STRATUM_IN_HOUSE_GENERIC",
     "intakeStatus": "CANDIDATE_PENDING_SEVEN_CHECK_GATE",
-    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md"
+    "specSource": "claude-3d-model-spec-sheets-2026-10-10.md",
+    "model_id": "stlib-ele-fire-alarm-control-panel-v1",
+    "sha256": "d9a7db0285f3346e263140da343e625bef840163761d4d952dbba7d2c615c3e9",
+    "legacy_uri": "/models/equipment/fire-alarm-control-panel.glb"
   }
 ]
