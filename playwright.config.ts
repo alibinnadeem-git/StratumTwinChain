@@ -9,7 +9,7 @@ export default defineConfig({
   // The pinned NVIDIA binary is fetched only in its dedicated, required-fixture QA workflow.
   // Keep general CI's browser suite independent of remote 36 MB test data.
   testIgnore:[
-    ...(process.env.STRATUM_E2E_SERVER_PERSISTENCE==='1'?[]:['**/spatial-server-persistence.spec.ts','**/telemetry-server.spec.ts']),
+    ...(process.env.STRATUM_E2E_SERVER_PERSISTENCE==='1'?[]:['**/spatial-server-persistence.spec.ts','**/telemetry-server.spec.ts','**/relationship-graph-server.spec.ts']),
     ...(process.env.SIMREADY_REAL_ASSET_REQUIRED==='1'?[]:['**/nvidia-simready-production.spec.ts'])
   ],
   timeout:45_000,
